@@ -20,6 +20,7 @@
 package io.mandelbrot.core.registry
 
 import akka.actor._
+import akka.persistence.{PersistenceFailure, Persistent, Processor}
 import java.net.URI
 
 import io.mandelbrot.core.notification.Notification
@@ -27,8 +28,11 @@ import io.mandelbrot.core.notification.Notification
 /**
  *
  */
-class ProbeSystem(uri: URI, notificationManager: ActorRef) extends Actor with ActorLogging {
+class ProbeSystem(uri: URI, notificationManager: ActorRef) extends Processor with ActorLogging {
   import ProbeSystem._
+
+  // config
+  override def processorId = uri.toString
 
   // state
   var probes: Map[ProbeRef,ProbeActor] = Map.empty
@@ -36,7 +40,7 @@ class ProbeSystem(uri: URI, notificationManager: ActorRef) extends Actor with Ac
   def receive = {
 
     /* configure the probe system using the spec */
-    case spec: ProbeSpec =>
+    case Persistent(spec: ProbeSpec, sequenceNr) =>
       val specSet = probeSpec2Set(spec)
       val probeSet = probes.keySet
       // add new probes
@@ -58,6 +62,9 @@ class ProbeSystem(uri: URI, notificationManager: ActorRef) extends Actor with Ac
         log.debug("removed probe {}", ref)
         probes = probes - ref
       }
+
+    case PersistenceFailure(message, sequenceNr, cause) =>
+      log.error("failed to persist message {}: {}", message, cause.getMessage)
 
     /* handle notifications which have been passed up from Probe */
     case notification: Notification =>

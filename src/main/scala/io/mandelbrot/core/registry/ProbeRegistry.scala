@@ -20,6 +20,7 @@
 package io.mandelbrot.core.registry
 
 import akka.actor._
+import akka.persistence.{SnapshotOffer, EventsourcedProcessor, Persistent}
 import scala.collection.JavaConversions._
 import java.net.URI
 
@@ -29,22 +30,21 @@ import io.mandelbrot.core.{ResourceNotFound, Conflict, ApiException}
 /**
  *
  */
-class ProbeRegistry(metadataManager: ActorRef, notificationManager: ActorRef) extends Actor with ActorLogging {
+class ProbeRegistry(metadataManager: ActorRef, notificationManager: ActorRef) extends EventsourcedProcessor with ActorLogging {
+  import ProbeRegistry._
+
+  // config
+  override def processorId = "probe-registry"
 
   // state
   val objectSystems = new java.util.HashMap[URI,ActorRef](1024)
 
-  def receive = {
+  def receiveCommand = {
 
     /* create the ProbeSystem */
     case command @ RegisterProbeSystem(uri, spec) =>
       if (!objectSystems.containsKey(uri)) {
-        val ref = context.actorOf(ProbeSystem.props(uri, notificationManager))
-        context.watch(ref)
-        objectSystems.put(uri, ref)
-        ref ! spec
-        sender() ! RegisterProbeSystemResult(command, ref)
-        log.debug("created object system {} at {}", uri, ref.path)
+        persist(Event(command))(updateState)
       } else {
         sender() ! ProbeRegistryOperationFailed(command, new ApiException(Conflict))
       }
@@ -55,9 +55,7 @@ class ProbeRegistry(metadataManager: ActorRef, notificationManager: ActorRef) ex
         case null =>
           sender() ! ProbeRegistryOperationFailed(command, new ApiException(ResourceNotFound))
         case ref: ActorRef =>
-          log.debug("deleting object {}", uri)
-          objectSystems.remove(uri)
-          ref ! PoisonPill
+          persist(Event(command))(updateState)
       }
 
     /* describe the ProbeSystem */
@@ -80,12 +78,41 @@ class ProbeRegistry(metadataManager: ActorRef, notificationManager: ActorRef) ex
     case Terminated(ref) =>
       log.debug("actor {} has been terminated", ref.path)
   }
+
+  def receiveRecover = {
+
+    case event: Event =>
+      updateState(event)
+
+    case SnapshotOffer(metadata, snapshot) =>
+      log.debug("received snapshot offer: metadata={}, snapshot={}", metadata, snapshot)
+  }
+
+  def updateState(event: Event) = event.event match {
+    /* create the ProbeSystem */
+    case command @ RegisterProbeSystem(uri, spec) =>
+      val ref = context.actorOf(ProbeSystem.props(uri, notificationManager))
+      context.watch(ref)
+      objectSystems.put(uri, ref)
+      ref ! Persistent(spec)
+      sender() ! RegisterProbeSystemResult(command, ref)
+      log.debug("created probe system {} at {}", uri, ref.path)
+
+    /* terminate the ProbeSystem */
+    case command @ UnregisterProbeSystem(uri) =>
+      val ref = objectSystems.get(uri)
+      log.debug("deleted probe system {}", uri)
+      objectSystems.remove(uri)
+      ref ! PoisonPill
+  }
 }
 
 object ProbeRegistry {
   def props(metadataManager: ActorRef, notificationManager: ActorRef) = {
     Props(classOf[ProbeRegistry], metadataManager, notificationManager)
   }
+
+  case class Event(event: Any)
 }
 
 /* */

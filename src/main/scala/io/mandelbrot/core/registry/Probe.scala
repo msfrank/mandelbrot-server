@@ -20,6 +20,7 @@
 package io.mandelbrot.core.registry
 
 import akka.actor.{ActorRef, LoggingFSM, Props}
+import akka.persistence.Processor
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 
@@ -30,10 +31,11 @@ import Probe.{State,Data}
 /**
  *
  */
-class Probe(probeRef: ProbeRef, parent: ActorRef, notificationManager: ActorRef) extends LoggingFSM[State,Data] {
+class Probe(probeRef: ProbeRef, parent: ActorRef, notificationManager: ActorRef) extends Processor with LoggingFSM[State,Data] {
   import Probe._
 
   // config
+  override def processorId = probeRef.toString
   val flapCycles = 10
   val flapWindow = 5.minutes
   val initializationTimeout = 5.minutes
@@ -92,11 +94,13 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, notificationManager: ActorRef)
       }
 
     case Event(ProbeStateTimeout, Running(lastUpdate, lastChange)) =>
+      setTimer("objectState", ProbeStateTimeout, objectStateTimeout)
       stay()
   }
 
   when(Flapping) {
     case Event(_, _) =>
+      setTimer("objectState", ProbeStateTimeout, objectStateTimeout)
       stay()
   }
 
