@@ -20,12 +20,12 @@
 package io.mandelbrot.core
 
 import akka.actor.ActorSystem
-import scala.concurrent.duration._
 
 import io.mandelbrot.core.metadata.MetadataManager
 import io.mandelbrot.core.notification.NotificationManager
 import io.mandelbrot.core.registry.ProbeRegistry
-import io.mandelbrot.core.http.{HttpSettings, HttpServer}
+import io.mandelbrot.core.http.HttpServer
+import io.mandelbrot.core.messagestream.MessageStreamService
 
 /**
  * application entry point
@@ -34,13 +34,26 @@ object MandelbrotApp extends App {
 
   /* start the actor system */
   val system = ActorSystem("mandelbrot")
+  val settings = ServerConfig(system).settings
 
-  /* start top level actors */
-  val notificationManager = system.actorOf(NotificationManager.props(), "notification-manager")
-  val metadataManager = system.actorOf(MetadataManager.props(), "metadata-manager")
-  val objectRegistry = system.actorOf(ProbeRegistry.props(metadataManager, notificationManager), "object-registry")
-  val httpSettings = new HttpSettings("localhost", 8080, 10, 30.seconds)
-  val httpServer = system.actorOf(HttpServer.props(objectRegistry, httpSettings))
+  /* start top level services */
+  val notificationService = system.actorOf(NotificationManager.props(), "notification-service")
+  val metadataService = system.actorOf(MetadataManager.props(), "metadata-service")
+  val registryService = system.actorOf(ProbeRegistry.props(metadataService, notificationService), "registry-service")
+
+  /* if message stream is configured, then start the MessageStreamService actor */
+  val messageStreamService = settings.messageStream match {
+    case Some(messageStreamSettings) =>
+      Some(system.actorOf(MessageStreamService.props(messageStreamSettings), "message-service"))
+    case None => None
+  }
+
+  /* if http server is configured, then start the HttpServer actor */
+  val httpServer = settings.http match {
+    case Some(httpSettings) =>
+      Some(system.actorOf(HttpServer.props(registryService, httpSettings), "http-service"))
+    case None => None
+  }
 
   /* shut down cleanly */
   sys.addShutdownHook({

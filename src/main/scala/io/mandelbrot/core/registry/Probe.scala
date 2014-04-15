@@ -52,7 +52,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, notificationManager: ActorRef)
 
   when(Initializing) {
 
-    case Event(UpdateState(newState, changeTime), NoData) =>
+    case Event(SetState(newState, changeTime), NoData) =>
       state = newState
       lifecycle = ProbeKnown
       flapQueue.push(changeTime)
@@ -71,7 +71,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, notificationManager: ActorRef)
 
   when(Running) {
 
-    case Event(UpdateState(currentState, updateTime), Running(lastUpdate, lastChange)) =>
+    case Event(SetState(currentState, updateTime), Running(lastUpdate, lastChange)) =>
       setTimer("objectState", ProbeStateTimeout, objectStateTimeout)
       /* object state has changed */
       if (currentState != state) {
@@ -140,6 +140,7 @@ case object ProbeDegraded extends ProbeState
 case object ProbeFailed extends ProbeState
 case object ProbeUnknown extends ProbeState
 
-case class UpdateState(state: ProbeState, changeTime: DateTime)
+case object GetState
+case class SetState(state: ProbeState, changeTime: DateTime)
 
 case class UpdateLifecycle(lifecycle: ProbeLifecycle, changeTime: DateTime)

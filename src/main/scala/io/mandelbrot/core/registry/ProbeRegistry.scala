@@ -49,6 +49,15 @@ class ProbeRegistry(metadataManager: ActorRef, notificationManager: ActorRef) ex
         sender() ! ProbeRegistryOperationFailed(command, new ApiException(Conflict))
       }
 
+    /* update the ProbeSystem */
+    case UpdateProbeSystem(uri, spec) =>
+      objectSystems.get(uri) match {
+        case null =>
+          persist(Event(RegisterProbeSystem(uri, spec)))(updateState)
+        case ref: ActorRef =>
+          ref.forward(Persistent(spec))
+      }
+
     /* terminate the ProbeSystem */
     case command @ UnregisterProbeSystem(uri) =>
       objectSystems.get(uri) match {

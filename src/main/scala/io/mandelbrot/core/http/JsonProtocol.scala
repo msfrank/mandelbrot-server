@@ -78,6 +78,17 @@ object JsonProtocol extends DefaultJsonProtocol {
   }
 
   /* */
+  implicit object ProbeRefFormat extends RootJsonFormat[ProbeRef] {
+    def write(ref: ProbeRef) = JsString(ref.toString)
+    def read(value: JsValue) = value match {
+      case JsString(string) =>
+        val parts = string.split('/')
+        ProbeRef(new URI(parts.head), parts.tail.toVector)
+      case _ => throw new DeserializationException("expected ProbeRef")
+    }
+  }
+
+  /* */
   implicit val _ProbeSpecFormat: JsonFormat[ProbeSpec] = lazyFormat(jsonFormat(ProbeSpec, "objectType", "metaData", "children"))
   implicit val ProbeSpecFormat = rootFormat(_ProbeSpecFormat)
 
