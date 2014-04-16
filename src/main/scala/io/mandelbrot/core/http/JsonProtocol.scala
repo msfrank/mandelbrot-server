@@ -77,7 +77,7 @@ object JsonProtocol extends DefaultJsonProtocol {
     }
   }
 
-  /* */
+  /* convert ProbeRef class */
   implicit object ProbeRefFormat extends RootJsonFormat[ProbeRef] {
     def write(ref: ProbeRef) = JsString(ref.toString)
     def read(value: JsValue) = value match {
@@ -88,15 +88,52 @@ object JsonProtocol extends DefaultJsonProtocol {
     }
   }
 
-  /* */
+  /* a little extra magic here- we use lazyFormat because ProbeSpec has a recursive definition */
   implicit val _ProbeSpecFormat: JsonFormat[ProbeSpec] = lazyFormat(jsonFormat(ProbeSpec, "objectType", "metaData", "children"))
   implicit val ProbeSpecFormat = rootFormat(_ProbeSpecFormat)
 
-  /* */
-  implicit val RegisterProbeSystemFormat = jsonFormat2(RegisterProbeSystem)
+  /* convert ProbeHealth class */
+  implicit object ProbeHealthFormat extends RootJsonFormat[ProbeHealth] {
+    def write(health: ProbeHealth) = health match {
+      case ProbeHealthy => JsString("healthy")
+      case ProbeDegraded => JsString("degraded")
+      case ProbeFailed => JsString("failed")
+      case ProbeUnknown => JsString("unknown")
+      case unknown => throw new SerializationException("unknown ProbeHealth state " + unknown.getClass)
+    }
+    def read(value: JsValue) = value match {
+      case JsString("healthy") => ProbeHealthy
+      case JsString("degraded") => ProbeDegraded
+      case JsString("failed") => ProbeFailed
+      case JsString("unknown") => ProbeUnknown
+      case unknown => throw new DeserializationException("unknown ProbeHealth state " + unknown)
+    }
+  }
+
+  /* convert ProbeLifecycle class */
+  implicit object ProbeLifecycleFormat extends RootJsonFormat[ProbeLifecycle] {
+    def write(lifecycle: ProbeLifecycle) = lifecycle match {
+      case ProbeJoining => JsString("joining")
+      case ProbeKnown => JsString("known")
+      case ProbeLeaving => JsString("leaving")
+      case ProbeRetired => JsString("retired")
+      case unknown => throw new SerializationException("unknown ProbeLifecycle state " + unknown.getClass)
+    }
+    def read(value: JsValue) = value match {
+      case JsString("joining") => ProbeJoining
+      case JsString("known") => ProbeKnown
+      case JsString("leaving") => ProbeLeaving
+      case JsString("retired") => ProbeRetired
+      case unknown => throw new DeserializationException("unknown ProbeLifecycle state " + unknown)
+    }
+  }
 
   /* */
+  implicit val RegisterProbeSystemFormat = jsonFormat2(RegisterProbeSystem)
   implicit val UpdateProbeSystemFormat = jsonFormat2(UpdateProbeSystem)
+  implicit val ProbeStateFormat = jsonFormat3(ProbeState)
+  implicit val GetProbeSystemStateFormat = jsonFormat1(GetProbeSystemState)
+  implicit val GetProbeSystemStateResultFormat = jsonFormat2(GetProbeSystemStateResult)
 }
 
 object JsonBody {

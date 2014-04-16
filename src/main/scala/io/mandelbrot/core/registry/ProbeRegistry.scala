@@ -80,6 +80,15 @@ class ProbeRegistry(metadataManager: ActorRef, notificationManager: ActorRef) ex
     case query: ListProbeSystems =>
       sender() ! ListProbeSystemsResult(query, objectSystems.keySet().toVector)
 
+    /* forward ProbeSystem operations or return failure if system doesn't exist */
+    case op: ProbeSystemOperation =>
+      objectSystems.get(op.uri) match {
+        case null =>
+          sender() ! ProbeSystemOperationFailed(op, new ApiException(ResourceNotFound))
+        case ref: ActorRef =>
+          ref.forward(op)
+      }
+
     /* handle notifications which have been passed up from ProbeSystems */
     case notification: Notification =>
       notificationManager.forward(notification)

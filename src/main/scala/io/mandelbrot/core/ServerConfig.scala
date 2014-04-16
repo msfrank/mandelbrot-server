@@ -21,11 +21,11 @@ package io.mandelbrot.core
 
 import akka.actor._
 import com.typesafe.config._
+import com.typesafe.config.ConfigException.WrongType
 import org.slf4j.LoggerFactory
 import scala.collection.JavaConversions._
 import java.io.File
 
-import com.typesafe.config.ConfigException.WrongType
 import io.mandelbrot.core.http.HttpSettings
 import io.mandelbrot.core.messagestream.MessageStreamSettings
 
@@ -41,39 +41,26 @@ class ServerConfigExtension(system: ActorSystem) extends Extension {
 
   private val log = LoggerFactory.getLogger(classOf[ServerConfigExtension])
 
-  val config = system.settings.config.getConfig("mandelbrot")
-
-  /* build the settings tree */
-  val settings = try {
-
-    /* parse message-stream settings */
-    val messageStreamSettings = if (!config.hasPath("message-stream")) None else {
-      Some(MessageStreamSettings.parse(config.getConfig("message-stream")))
+  /**
+   * load the mandelbrot config file from the location specified by the mandelbrot.config.file
+   * config value in baseConfig.  this config value can be a string (e.g. from system property
+   * -Dmandelbrot.config.file) or a string list.
+   */
+  def loadConfigFile(baseConfig: Config): Config = {
+    val possibleConfigFiles = try {
+      if (!baseConfig.hasPath("mandelbrot.config.file"))
+        throw new ServerConfigException("mandelbrot.config.file is not specified")
+      baseConfig.getStringList("mandelbrot.config.file").map(new File(_))
+    } catch {
+      case ex: WrongType =>
+        Seq(new File(baseConfig.getString("mandelbrot.config.file")))
     }
-
-    /* parse http settings */
-    val httpSettings = if (!config.hasPath("http")) None else {
-      Some(HttpSettings.parse(config.getConfig("http")))
+    for (file <- possibleConfigFiles) {
+      if (file.canRead)
+        return ConfigFactory.parseFile(file)
     }
-
-    ServerConfigSettings(messageStreamSettings, httpSettings)
-
-  } catch {
-    case ex: ServerConfigException =>
-      throw ex
-    case ex: ConfigException =>
-      throw ServerConfigException(ex)
-    case ex: Throwable =>
-      throw ServerConfigException("unexpected exception while parsing configuration", ex)
+    throw new ServerConfigException("failed to find a readable config file")
   }
-}
-
-object ServerConfig extends ExtensionId[ServerConfigExtension] with ExtensionIdProvider {
-  override def lookup() = ServerConfig
-  override def createExtension(system: ExtendedActorSystem) = new ServerConfigExtension(system)
-
-  /* retrieve the ServerConfigSettings from the actor system */
-  def settings(implicit system: ActorSystem): ServerConfigSettings = super.get(system).settings
 
   /* build the runtime configuration */
   val config = try {
@@ -84,40 +71,50 @@ object ServerConfig extends ExtensionId[ServerConfigExtension] with ExtensionIdP
     case ex: ServerConfigException =>
       throw ex
     case ex: ConfigException =>
-      throw ServerConfigException(ex)
+      throw new ServerConfigException(ex)
     case ex: Throwable =>
-      throw ServerConfigException("unexpected exception while parsing configuration", ex)
+      throw new ServerConfigException("unexpected exception while parsing configuration", ex)
   }
 
-  /**
-   * load the mandelbrot config file from the location specified by the mandelbrot.config.file config
-   * value in baseConfig.  this config value can be a string (e.g. from system property -Dmandelbrot.config.file)
-   * or a string list.
-   */
-  def loadConfigFile(baseConfig: Config): Config = {
-    val possibleConfigFiles = try {
-      if (!baseConfig.hasPath("mandelbrot.config.file"))
-        throw ServerConfigException("mandelbrot.config.file is not specified")
-      baseConfig.getStringList("mandelbrot.config.file").map(new File(_))
-    } catch {
-      case ex: WrongType =>
-        Seq(new File(baseConfig.getString("mandelbrot.config.file")))
+  /* build the settings tree */
+  val settings = try {
+    val mandelbrotConfig = config.getConfig("mandelbrot")
+
+    /* parse message-stream settings */
+    val messageStreamSettings = if (!mandelbrotConfig.hasPath("message-stream")) None else {
+      Some(MessageStreamSettings.parse(mandelbrotConfig.getConfig("message-stream")))
     }
-    var config: Option[Config] = None
-    for (file <- possibleConfigFiles if config.isEmpty) {
-      if (file.canRead)
-        config = Some(ConfigFactory.parseFile(file))
+
+    /* parse http settings */
+    val httpSettings = if (!mandelbrotConfig.hasPath("http")) None else {
+      Some(HttpSettings.parse(mandelbrotConfig.getConfig("http")))
     }
-    config.getOrElse(throw ServerConfigException("failed to find a readable config file"))
+
+    ServerConfigSettings(messageStreamSettings, httpSettings)
+
+  } catch {
+    case ex: ServerConfigException =>
+      throw ex
+    case ex: ConfigException =>
+      throw new ServerConfigException(ex)
+    case ex: Throwable =>
+      throw new ServerConfigException("unexpected exception while parsing configuration", ex)
   }
+}
+
+object ServerConfig extends ExtensionId[ServerConfigExtension] with ExtensionIdProvider {
+  override def lookup() = ServerConfig
+  override def createExtension(system: ExtendedActorSystem) = new ServerConfigExtension(system)
+
+  /* retrieve the ServerConfigSettings from the actor system */
+  def settings(implicit system: ActorSystem): ServerConfigSettings = super.get(system).settings
 }
 
 /**
  *
  */
-case class ServerConfigException(message: String, cause: Throwable) extends Exception(message, cause)
-
-object ServerConfigException {
-  def apply(message: String): ServerConfigException = new ServerConfigException(message, null)
-  def apply(cause: ConfigException): ServerConfigException = ServerConfigException("failed to parse config: " + cause.getMessage, cause)
+class ServerConfigException(message: String, cause: Throwable) extends Exception(message, cause) {
+  def this(message: String) = this(message, null)
+  def this(cause: ConfigException) = this("failed to parse config: " + cause.getMessage, cause)
+  def this(cause: Throwable) = this(null, cause)
 }

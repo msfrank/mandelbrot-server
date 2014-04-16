@@ -43,7 +43,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, notificationManager: ActorRef)
 
   // state
   var lifecycle: ProbeLifecycle = ProbeJoining
-  var state: ProbeState = ProbeUnknown
+  var health: ProbeHealth = ProbeUnknown
   var notifier: NotificationPolicy = new NotifyParentPolicy()
   val flapQueue: FlapQueue = new FlapQueue(flapCycles, flapWindow)
 
@@ -52,8 +52,11 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, notificationManager: ActorRef)
 
   when(Initializing) {
 
-    case Event(SetState(newState, changeTime), NoData) =>
-      state = newState
+    case Event(GetProbeState, _) =>
+      stay() replying ProbeState(lifecycle, health, inMaintenance = false)
+
+    case Event(SetHealth(newState, changeTime), NoData) =>
+      health = newState
       lifecycle = ProbeKnown
       flapQueue.push(changeTime)
       setTimer("objectState", ProbeStateTimeout, objectStateTimeout)
@@ -71,12 +74,15 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, notificationManager: ActorRef)
 
   when(Running) {
 
-    case Event(SetState(currentState, updateTime), Running(lastUpdate, lastChange)) =>
+    case Event(GetProbeState, _) =>
+      stay() replying ProbeState(lifecycle, health, inMaintenance = false)
+
+    case Event(SetHealth(currentState, updateTime), Running(lastUpdate, lastChange)) =>
       setTimer("objectState", ProbeStateTimeout, objectStateTimeout)
       /* object state has changed */
-      if (currentState != state) {
-        val oldState = state
-        state = currentState
+      if (currentState != health) {
+        val oldState = health
+        health = currentState
         flapQueue.push(updateTime)
         if (flapQueue.isFlapping) {
           notifier.notify(NotifyStateFlaps(probeRef, updateTime))
@@ -99,6 +105,10 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, notificationManager: ActorRef)
   }
 
   when(Flapping) {
+
+    case Event(GetProbeState, _) =>
+      stay() replying ProbeState(lifecycle, health, inMaintenance = false)
+
     case Event(_, _) =>
       setTimer("objectState", ProbeStateTimeout, objectStateTimeout)
       stay()
@@ -131,16 +141,18 @@ case object ProbeJoining extends ProbeLifecycle
 case object ProbeKnown extends ProbeLifecycle
 case object ProbeLeaving extends ProbeLifecycle
 case object ProbeRetired extends ProbeLifecycle
-case object ProbeInMaintenance extends ProbeLifecycle
 
 /* object state */
-sealed trait ProbeState
-case object ProbeHealthy extends ProbeState
-case object ProbeDegraded extends ProbeState
-case object ProbeFailed extends ProbeState
-case object ProbeUnknown extends ProbeState
+sealed trait ProbeHealth
+case object ProbeHealthy extends ProbeHealth
+case object ProbeDegraded extends ProbeHealth
+case object ProbeFailed extends ProbeHealth
+case object ProbeUnknown extends ProbeHealth
 
-case object GetState
-case class SetState(state: ProbeState, changeTime: DateTime)
+case class ProbeState(lifecycle: ProbeLifecycle, health: ProbeHealth, inMaintenance: Boolean)
 
-case class UpdateLifecycle(lifecycle: ProbeLifecycle, changeTime: DateTime)
+case class SetHealth(state: ProbeHealth, changeTime: DateTime)
+case class SetLifecycle(lifecycle: ProbeLifecycle, changeTime: DateTime)
+case object GetProbeState
+case object EnterMaintenance
+case object LeaveMaintenance

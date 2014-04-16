@@ -20,7 +20,12 @@
 package io.mandelbrot.core.registry
 
 import akka.actor._
+import akka.pattern.ask
+import akka.pattern.pipe
+import akka.util.Timeout
 import akka.persistence.{PersistenceFailure, Persistent, Processor}
+import scala.concurrent.Future
+import scala.concurrent.duration._
 import java.net.URI
 
 import io.mandelbrot.core.notification.Notification
@@ -30,9 +35,11 @@ import io.mandelbrot.core.notification.Notification
  */
 class ProbeSystem(uri: URI, notificationManager: ActorRef) extends Processor with ActorLogging {
   import ProbeSystem._
+  import context.dispatcher
 
   // config
   override def processorId = uri.toString
+  val timeout = Timeout(5.seconds)
 
   // state
   var probes: Map[ProbeRef,ProbeActor] = Map.empty
@@ -65,6 +72,15 @@ class ProbeSystem(uri: URI, notificationManager: ActorRef) extends Processor wit
 
     case PersistenceFailure(message, sequenceNr, cause) =>
       log.error("failed to persist message {}: {}", message, cause.getMessage)
+
+    /* get the state of all probes in the system */
+    case query: GetProbeSystemState =>
+      val futures = probes.toVector.map { case (ref: ProbeRef, actor: ProbeActor) =>
+        actor.actor.ask(GetProbeState)(timeout).map { case state: ProbeState => ref -> state }
+      }
+      Future.sequence(futures).map { case states =>
+        GetProbeSystemStateResult(query, states.toMap)
+      }.pipeTo(sender())
 
     /* handle notifications which have been passed up from Probe */
     case notification: Notification =>
@@ -104,11 +120,12 @@ object ProbeSystem {
 /**
  *
  */
-sealed trait ProbeSystemOperation
-sealed trait ProbeSystemQuery
-sealed trait ProbeSystemCommand
+sealed trait ProbeSystemOperation {
+  val uri: URI
+}
+sealed trait ProbeSystemCommand extends ProbeSystemOperation
+sealed trait ProbeSystemQuery extends ProbeSystemOperation
+case class ProbeSystemOperationFailed(op: ProbeSystemOperation, failure: Throwable)
 
-case class DescribeProbe(probeRef: ProbeRef) extends ProbeSystemQuery
-
-case class DescribeProbes(probeRef: ProbeRef, recursionLevel: Int) extends ProbeSystemQuery
-
+case class GetProbeSystemState(uri: URI) extends ProbeSystemQuery
+case class GetProbeSystemStateResult(op: GetProbeSystemState, state: Map[ProbeRef,ProbeState])

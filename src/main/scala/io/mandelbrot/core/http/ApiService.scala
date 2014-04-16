@@ -109,71 +109,36 @@ trait ApiService extends HttpService {
   }
 
   /**
+   * Spray routes for managing an object system
+   */
+  val systemRoutes = {
+    pathPrefix("1" / "system" / Segment) { case uri: String =>
+      pathEndOrSingleSlash {
+        /* describe the state of the ProbeSystem */
+        get {
+          complete {
+            objectRegistry.ask(GetProbeSystemState(new URI(uri))).map {
+              case result: GetProbeSystemStateResult =>
+                result
+              case failure: ApiFailure =>
+                throw new ApiException(failure)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /**
    * Spray routes for updating object lifecycle
    */
-//  val objectRoutes = {
-//    pathPrefix("1" / "objects" / RootId) { case rootId: String =>
-//      pathEndOrSingleSlash {
-//        /* describe an existing object root */
-//        get {
-//          complete {
-//
-//          }
-//        } ~
-//        /* delete an existing object root */
-//        delete {
-//          complete {
-//          }
-//        }
-//      } ~
-//      path(AnchorPath) { case anchorPath =>
-//        /* create a new object */
-//        post {
-//          complete {
-//            entity[Map[String,String]] { case metaData =>
-//              objectRegistry.ask(CreateObject(ObjectID(rootId, anchorPath), metaData)).map {
-//                case createdObject: CreatedObject =>
-//                  createdObject
-//                case failure: ApiFailure =>
-//                  throw new ApiException(failure)
-//              }.mapTo[CreatedObject]
-//            }
-//          }
-//        } ~
-//        /* create or update an object */
-//        put {
-//          complete {
-//            entity[Map[String,String]] { case metaData =>
-//              objectRegistry.ask(UpdateObject(ObjectID(rootId, anchorPath), metaData)).map {
-//                case createdObject: CreatedObject =>
-//                  createdObject
-//                case failure: ApiFailure =>
-//                  throw new ApiException(failure)
-//              }.mapTo[CreatedObject]
-//            }
-//          }
-//        } ~
-//        /* retrieve an existing object */
-//        get {
-//          complete {
-//
-//          }
-//        } ~
-//        /* delete an existing object */
-//        delete {
-//          complete {
-//            objectRegistry.ask(DeleteObject(ObjectID(rootId, anchorPath))).map {
-//              case failure: ApiFailure =>
-//                throw new ApiException(failure)
-//              case _ => StatusCodes.Accepted
-//            }.mapTo[HttpResponse]
-//          }
-//        }
-//      }
+//  val actionRoutes = {
+//    /* FIXME: enter/leave maintenance mode */
+//    pathPrefix("1" / "action" / Segment) { case uri: String =>
 //    }
 //  }
 
-  val version1 = registryRoutes
+  val version1 = registryRoutes ~ systemRoutes
 
   val routes =  version1
 
