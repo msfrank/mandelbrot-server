@@ -19,7 +19,7 @@
 
 package io.mandelbrot.core.http
 
-import akka.actor.ActorRef
+import akka.actor.{ActorSystem, ActorRef}
 import akka.pattern.ask
 import akka.util.Timeout
 import akka.event.LoggingAdapter
@@ -31,6 +31,7 @@ import java.net.URI
 
 import io.mandelbrot.core._
 import io.mandelbrot.core.registry._
+import io.mandelbrot.core.state.{QueryprobesResult, QueryProbes, StateService}
 
 /**
  * ApiService contains the REST API logic.
@@ -45,6 +46,7 @@ trait ApiService extends HttpService {
 
   implicit def log: LoggingAdapter
   implicit def objectRegistry: ActorRef
+  implicit val system: ActorSystem
   implicit def executionContext = actorRefFactory.dispatcher
   implicit val timeout: Timeout
 
@@ -162,9 +164,24 @@ trait ApiService extends HttpService {
   /**
    * Spray routes for invoking services
    */
-  //val servicesRoutes = pathPrefix("services") { }
+  val servicesRoutes = pathPrefix("services") {
+    pathPrefix("state") {
+      path("search") {
+        get {
+          parameters('q, 'limit.as[Int].?) { case (q: String, limit: Option[Int]) =>
+            complete {
+              StateService(system).ask(QueryProbes(q, limit)).map {
+                case result: QueryprobesResult =>
+                  result.refs
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 
-  val version1 = objectsRoutes
+  val version1 = objectsRoutes ~ servicesRoutes
 
   val routes =  version1
 

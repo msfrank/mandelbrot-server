@@ -27,6 +27,7 @@ import scala.concurrent.duration._
 import io.mandelbrot.core.notification._
 
 import Probe.{State,Data}
+import io.mandelbrot.core.state.{UpdateProbe, StateService}
 
 /**
  *
@@ -44,8 +45,13 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, notificationManager: ActorRef)
   // state
   var lifecycle: ProbeLifecycle = ProbeJoining
   var health: ProbeHealth = ProbeUnknown
+  var metadata: Map[String,String] = Map.empty
   var notifier: NotificationPolicy = new NotifyParentPolicy()
   val flapQueue: FlapQueue = new FlapQueue(flapCycles, flapWindow)
+  val stateService = StateService(context.system)
+
+  /* */
+  stateService ! UpdateProbe(probeRef, DateTime.now(DateTimeZone.UTC), Some(lifecycle), Some(health))
 
   startWith(Initializing, NoData)
   setTimer("objectState", ProbeStateTimeout, initializationTimeout)

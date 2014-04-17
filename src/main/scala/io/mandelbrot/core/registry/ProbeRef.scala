@@ -39,5 +39,13 @@ object ProbeRef {
 
   def apply(uri: URI, path: Vector[String]): ProbeRef = new ProbeRef(uri, path)
 
+  def apply(string: String): ProbeRef = {
+    val index = string.indexOf('/')
+    if (index == -1) new ProbeRef(new URI(string), Vector.empty) else {
+      val (uri,path) = string.splitAt(index)
+      if (path.length == 1) new ProbeRef(new URI(uri), Vector.empty) else new ProbeRef(new URI(uri), path.tail.split('/').toVector)
+    }
+  }
+
   def unapply(probeRef: ProbeRef): Option[(URI,Vector[String])] = Some((probeRef.uri, probeRef.path))
 }

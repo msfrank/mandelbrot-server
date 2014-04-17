@@ -21,7 +21,7 @@ package io.mandelbrot.core
 
 import akka.actor.ActorSystem
 
-import io.mandelbrot.core.metadata.MetadataManager
+import io.mandelbrot.core.state.StateManager
 import io.mandelbrot.core.notification.NotificationManager
 import io.mandelbrot.core.registry.ProbeRegistry
 import io.mandelbrot.core.http.HttpServer
@@ -38,7 +38,7 @@ object MandelbrotApp extends App {
 
   /* start top level services */
   val notificationService = system.actorOf(NotificationManager.props(), "notification-service")
-  val metadataService = system.actorOf(MetadataManager.props(), "metadata-service")
+  val metadataService = system.actorOf(StateManager.props(), "metadata-service")
   val registryService = system.actorOf(ProbeRegistry.props(metadataService, notificationService), "registry-service")
 
   /* if message stream is configured, then start the MessageStreamService actor */

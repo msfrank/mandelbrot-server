@@ -7,7 +7,6 @@ object MandelbrotServerBuild extends Build {
 
   val akkaVersion = "2.3.2"
   val sprayVersion = "1.3.1"
-  val zmqVersion = "3.0.1"
   val luceneVersion = "4.7.1"
   val esperVersion = "4.11.0"
 
@@ -30,9 +29,9 @@ object MandelbrotServerBuild extends Build {
         "io.spray" % "spray-can" % sprayVersion,
         "io.spray" % "spray-routing" % sprayVersion,
         "io.spray" %% "spray-json" % "1.2.5",
-        //"org.zeromq" % "jzmq" % zmqVersion,
         "org.apache.lucene" % "lucene-core" % luceneVersion,
         "org.apache.lucene" % "lucene-analyzers-common" % luceneVersion,
+        "org.apache.lucene" % "lucene-memory" % luceneVersion,
         "org.apache.lucene" % "lucene-queryparser" % luceneVersion,
         "com.espertech" % "esper" % esperVersion,
         "com.escalatesoft.subcut" %% "subcut" % "2.0",
