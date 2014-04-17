@@ -67,15 +67,6 @@ class ProbeRegistry(metadataManager: ActorRef, notificationManager: ActorRef) ex
           persist(Event(command))(updateState)
       }
 
-    /* describe the ProbeSystem */
-    case query @ DescribeProbeSystem(uri) =>
-      objectSystems.get(uri) match {
-        case null =>
-          sender() ! ProbeRegistryOperationFailed(query, new ApiException(ResourceNotFound))
-        case ref: ActorRef =>
-          ref.forward(query)
-      }
-
     /* return the list of registered ProbeSystems */
     case query: ListProbeSystems =>
       sender() ! ListProbeSystemsResult(query, objectSystems.keySet().toVector)
@@ -134,7 +125,7 @@ object ProbeRegistry {
 }
 
 /* */
-case class ProbeSpec(objectType: String, metaData: Map[String,String], children: Map[String,ProbeSpec])
+case class ProbeSpec(objectType: String, metadata: Map[String,String], children: Map[String,ProbeSpec])
 
 /* object registry operations */
 sealed trait ProbeRegistryOperation
@@ -147,12 +138,6 @@ case class RegisterProbeSystemResult(op: RegisterProbeSystem, ref: ActorRef)
 
 case class ListProbeSystems() extends ProbeRegistryQuery
 case class ListProbeSystemsResult(op: ListProbeSystems, uris: Vector[URI])
-
-case class DescribeProbeSystem(uri: URI) extends ProbeRegistryQuery
-case class DescribeProbeSystemResult(op: DescribeProbeSystem, spec: ProbeSpec)
-
-case class UpdateProbeSystem(uri: URI, spec: ProbeSpec) extends ProbeRegistryCommand
-case class UpdateProbeSystemResult(op: UpdateProbeSystem, ref: ActorRef)
 
 case class UnregisterProbeSystem(uri: URI) extends ProbeRegistryCommand
 case class UnregisterProbeSystemResult(op: UnregisterProbeSystem)

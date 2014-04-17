@@ -114,13 +114,28 @@ trait ApiService extends HttpService {
             complete {
               objectRegistry.ask(GetProbeSystemState(new URI(uri))).map {
                 case result: GetProbeSystemStateResult =>
-                  result
+                  result.state
                 case failure: ProbeSystemOperationFailed =>
                   throw failure.failure
               }
             }
           }
         } ~
+        path("metadata") {
+          /* return all metadata attached to the ProbeSystem */
+          get {
+            complete {
+              objectRegistry.ask(GetProbeSystemMetadata(new URI(uri))).map {
+                case result: GetProbeSystemMetadataResult =>
+                  result.metadata
+                case failure: ProbeSystemOperationFailed =>
+                  throw failure.failure
+              }
+            }
+          }
+        }
+      } ~
+      pathPrefix("collections") {
         path("history") { get { complete { StatusCodes.OK }}
         } ~
         path("metrics") { get { complete { StatusCodes.OK }}

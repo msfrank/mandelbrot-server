@@ -76,23 +76,38 @@ class ProbeSystem(uri: URI, notificationManager: ActorRef) extends Processor wit
     case PersistenceFailure(message, sequenceNr, cause) =>
       log.error("failed to persist message {}: {}", message, cause.getMessage)
 
-    /* */
+    /* get the ProbeSystem spec */
     case query: DescribeProbeSystem =>
       currentSpec match {
         case Some(spec) =>
           sender() ! DescribeProbeSystemResult(query, spec)
         case None =>
-          sender() ! ProbeRegistryOperationFailed(query, new ApiException(ResourceNotFound))
+          sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
       }
 
     /* get the state of all probes in the system */
     case query: GetProbeSystemState =>
-      val futures = probes.toVector.map { case (ref: ProbeRef, actor: ProbeActor) =>
-        actor.actor.ask(GetProbeState)(timeout).map { case state: ProbeState => ref -> state }
+      currentSpec match {
+        case Some(spec) =>
+          val futures = probes.toVector.map { case (ref: ProbeRef, actor: ProbeActor) =>
+            actor.actor.ask(GetProbeState)(timeout).map { case state: ProbeState => ref -> state }
+          }
+          Future.sequence(futures).map { case states =>
+            GetProbeSystemStateResult(query, states.toMap)
+          }.pipeTo(sender())
+        case None =>
+          sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
       }
-      Future.sequence(futures).map { case states =>
-        GetProbeSystemStateResult(query, states.toMap)
-      }.pipeTo(sender())
+
+    /* get the metadata of all probes in the system */
+    case query: GetProbeSystemMetadata =>
+      currentSpec match {
+        case Some(spec) =>
+          val metadata = probes.keys.map { ref => ref -> findProbeSpec(spec, ref.path).metadata }.toMap
+          sender() ! GetProbeSystemMetadataResult(query, metadata)
+        case None =>
+          sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
+      }
 
     /* handle notifications which have been passed up from Probe */
     case notification: Notification =>
@@ -139,5 +154,14 @@ sealed trait ProbeSystemCommand extends ProbeSystemOperation
 sealed trait ProbeSystemQuery extends ProbeSystemOperation
 case class ProbeSystemOperationFailed(op: ProbeSystemOperation, failure: Throwable)
 
+case class DescribeProbeSystem(uri: URI) extends ProbeSystemQuery
+case class DescribeProbeSystemResult(op: DescribeProbeSystem, spec: ProbeSpec)
+
+case class UpdateProbeSystem(uri: URI, spec: ProbeSpec) extends ProbeSystemCommand
+case class UpdateProbeSystemResult(op: UpdateProbeSystem, ref: ActorRef)
+
 case class GetProbeSystemState(uri: URI) extends ProbeSystemQuery
 case class GetProbeSystemStateResult(op: GetProbeSystemState, state: Map[ProbeRef,ProbeState])
+
+case class GetProbeSystemMetadata(uri: URI) extends ProbeSystemQuery
+case class GetProbeSystemMetadataResult(op: GetProbeSystemMetadata, metadata: Map[ProbeRef,Map[String,String]])
