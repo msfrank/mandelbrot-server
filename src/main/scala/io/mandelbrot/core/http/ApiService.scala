@@ -45,10 +45,12 @@ trait ApiService extends HttpService {
   val settings: HttpSettings
 
   implicit def log: LoggingAdapter
-  implicit def objectRegistry: ActorRef
   implicit val system: ActorSystem
   implicit def executionContext = actorRefFactory.dispatcher
   implicit val timeout: Timeout
+
+  val registryService: ActorRef
+  val stateService: ActorRef
 
   /**
    * Spray routes for managing objects
@@ -59,7 +61,7 @@ trait ApiService extends HttpService {
       post {
         entity(as[RegisterProbeSystem]) { case registerProbeSystem: RegisterProbeSystem =>
           complete {
-            objectRegistry.ask(registerProbeSystem).map {
+            registryService.ask(registerProbeSystem).map {
               case result: RegisterProbeSystemResult =>
                 HttpResponse(StatusCodes.Accepted, headers = List(Location("/objects/systems/" + registerProbeSystem.uri.toString)))
               case failure: ProbeRegistryOperationFailed =>
@@ -73,7 +75,7 @@ trait ApiService extends HttpService {
       /* enumerate all registered probe systems */
       get {
         complete {
-          objectRegistry.ask(ListProbeSystems()).map {
+          registryService.ask(ListProbeSystems()).map {
             case result: ListProbeSystemsResult =>
               result.uris
             case failure: ApiFailure =>
@@ -87,7 +89,7 @@ trait ApiService extends HttpService {
         /* retrieve the spec for the specified probe system */
         get {
           complete {
-            objectRegistry.ask(DescribeProbeSystem(new URI(uri))).map {
+            registryService.ask(DescribeProbeSystem(new URI(uri))).map {
               case result: DescribeProbeSystemResult =>
                 result.spec
               case failure: ApiFailure =>
@@ -99,7 +101,7 @@ trait ApiService extends HttpService {
         post {
           entity(as[UpdateProbeSystem]) { case updateProbeSystem: UpdateProbeSystem =>
             complete {
-              objectRegistry.ask(updateProbeSystem).map {
+              registryService.ask(updateProbeSystem).map {
                 case result: UpdateProbeSystemResult =>
                   HttpResponse(StatusCodes.Accepted, headers = List(Location("/objects/systems/" + updateProbeSystem.uri.toString)))
                 case failure: ApiFailure =>
@@ -114,7 +116,7 @@ trait ApiService extends HttpService {
           /* describe the state of the ProbeSystem */
           get {
             complete {
-              objectRegistry.ask(GetProbeSystemState(new URI(uri))).map {
+              registryService.ask(GetProbeSystemState(new URI(uri))).map {
                 case result: GetProbeSystemStateResult =>
                   result.state
                 case failure: ProbeSystemOperationFailed =>
@@ -127,7 +129,7 @@ trait ApiService extends HttpService {
           /* return all metadata attached to the ProbeSystem */
           get {
             complete {
-              objectRegistry.ask(GetProbeSystemMetadata(new URI(uri))).map {
+              registryService.ask(GetProbeSystemMetadata(new URI(uri))).map {
                 case result: GetProbeSystemMetadataResult =>
                   result.metadata
                 case failure: ProbeSystemOperationFailed =>
@@ -170,7 +172,7 @@ trait ApiService extends HttpService {
         get {
           parameters('q, 'limit.as[Int].?) { case (q: String, limit: Option[Int]) =>
             complete {
-              StateService(system).ask(QueryProbes(q, limit)).map {
+              stateService.ask(QueryProbes(q, limit)).map {
                 case result: QueryprobesResult =>
                   result.refs
               }

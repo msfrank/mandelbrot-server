@@ -28,13 +28,13 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import java.net.URI
 
-import io.mandelbrot.core.notification.Notification
+import io.mandelbrot.core.notification.{NotificationService, Notification}
 import io.mandelbrot.core.{ResourceNotFound, ApiException}
 
 /**
  *
  */
-class ProbeSystem(uri: URI, notificationManager: ActorRef) extends Processor with ActorLogging {
+class ProbeSystem(uri: URI) extends Processor with ActorLogging {
   import ProbeSystem._
   import context.dispatcher
 
@@ -57,9 +57,9 @@ class ProbeSystem(uri: URI, notificationManager: ActorRef) extends Processor wit
       probesAdded.toVector.sorted.foreach { case ref: ProbeRef =>
         val actor = ref.parentOption match {
           case Some(parent) =>
-            context.actorOf(Probe.props(ref, probes(parent).actor, notificationManager))
+            context.actorOf(Probe.props(ref, probes(parent).actor))
           case None =>
-            context.actorOf(Probe.props(ref, self, notificationManager))
+            context.actorOf(Probe.props(ref, self))
         }
         log.debug("added probe {}", ref)
         probes = probes + (ref -> ProbeActor(findProbeSpec(spec, ref.path), actor))
@@ -111,7 +111,7 @@ class ProbeSystem(uri: URI, notificationManager: ActorRef) extends Processor wit
 
     /* handle notifications which have been passed up from Probe */
     case notification: Notification =>
-      notificationManager.forward(notification)
+      NotificationService(context.system) ! notification
 
     case Terminated(ref) =>
       log.debug("actor {} has been terminated", ref.path)
@@ -139,7 +139,7 @@ class ProbeSystem(uri: URI, notificationManager: ActorRef) extends Processor wit
 }
 
 object ProbeSystem {
-  def props(uri: URI, notificationManager: ActorRef) = Props(classOf[ProbeSystem], uri, notificationManager)
+  def props(uri: URI) = Props(classOf[ProbeSystem], uri)
 
   case class ProbeActor(spec: ProbeSpec, actor: ActorRef)
 }

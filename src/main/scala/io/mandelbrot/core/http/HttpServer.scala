@@ -19,22 +19,27 @@
 
 package io.mandelbrot.core.http
 
-import akka.actor.{Props, ActorRef, Actor, ActorLogging}
+import akka.actor.{Props, Actor, ActorLogging}
 import akka.io.IO
 import akka.util.Timeout
+import io.mandelbrot.core.registry.RegistryService
+import io.mandelbrot.core.state.StateService
 
 /**
  * HttpServer is responsible for listening on the HTTP port, accepting connections,
  * and handing them over to the ApiService for processing.
  */
-class HttpServer(val objectRegistry: ActorRef, val settings: HttpSettings) extends Actor with ApiService with ActorLogging {
+class HttpServer(val settings: HttpSettings) extends Actor with ApiService with ActorLogging {
   import spray.can.Http
-
-  val timeout: Timeout = settings.requestTimeout
 
   implicit val system = context.system
   implicit val dispatcher = context.dispatcher
+
   val actorRefFactory = context
+  val timeout: Timeout = settings.requestTimeout
+
+  val registryService = RegistryService(system)
+  val stateService = StateService(system)
 
   override def preStart() {
     IO(Http) ! Http.Bind(self, settings.interface, port = settings.port, backlog = settings.backlog)
@@ -47,6 +52,6 @@ class HttpServer(val objectRegistry: ActorRef, val settings: HttpSettings) exten
 }
 
 object HttpServer {
-  def props(objectRegistry: ActorRef, settings: HttpSettings) = Props(classOf[HttpServer], objectRegistry, settings)
+  def props(settings: HttpSettings) = Props(classOf[HttpServer], settings)
 }
 

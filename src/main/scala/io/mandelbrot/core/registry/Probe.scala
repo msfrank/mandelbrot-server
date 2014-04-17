@@ -32,7 +32,7 @@ import io.mandelbrot.core.state.{UpdateProbe, StateService}
 /**
  *
  */
-class Probe(probeRef: ProbeRef, parent: ActorRef, notificationManager: ActorRef) extends Processor with LoggingFSM[State,Data] {
+class Probe(probeRef: ProbeRef, parent: ActorRef) extends Processor with LoggingFSM[State,Data] {
   import Probe._
 
   // config
@@ -48,6 +48,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, notificationManager: ActorRef)
   var metadata: Map[String,String] = Map.empty
   var notifier: NotificationPolicy = new NotifyParentPolicy()
   val flapQueue: FlapQueue = new FlapQueue(flapCycles, flapWindow)
+
   val stateService = StateService(context.system)
 
   /* */
@@ -124,9 +125,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, notificationManager: ActorRef)
 }
 
 object Probe {
-  def props(probeRef: ProbeRef, parent: ActorRef, notificationManager: ActorRef) = {
-    Props(classOf[Probe], probeRef, parent, notificationManager)
-  }
+  def props(probeRef: ProbeRef, parent: ActorRef) = Props(classOf[Probe], probeRef, parent)
 
   sealed trait State
   case object Initializing extends State

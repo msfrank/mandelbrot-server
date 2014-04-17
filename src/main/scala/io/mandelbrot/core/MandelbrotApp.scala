@@ -21,9 +21,9 @@ package io.mandelbrot.core
 
 import akka.actor.ActorSystem
 
-import io.mandelbrot.core.state.StateManager
-import io.mandelbrot.core.notification.NotificationManager
-import io.mandelbrot.core.registry.ProbeRegistry
+import io.mandelbrot.core.state.{StateService, StateManager}
+import io.mandelbrot.core.notification.{NotificationService, NotificationManager}
+import io.mandelbrot.core.registry.{RegistryService, RegistryManager}
 import io.mandelbrot.core.http.HttpServer
 import io.mandelbrot.core.messagestream.MessageStreamService
 
@@ -37,9 +37,9 @@ object MandelbrotApp extends App {
   val settings = ServerConfig(system).settings
 
   /* start top level services */
-  val notificationService = system.actorOf(NotificationManager.props(), "notification-service")
-  val metadataService = system.actorOf(StateManager.props(), "metadata-service")
-  val registryService = system.actorOf(ProbeRegistry.props(metadataService, notificationService), "registry-service")
+  val notificationService = NotificationService(system)
+  val stateService = StateService(system)
+  val registryService = RegistryService(system)
 
   /* if message stream is configured, then start the MessageStreamService actor */
   val messageStreamService = settings.messageStream match {
@@ -51,12 +51,13 @@ object MandelbrotApp extends App {
   /* if http server is configured, then start the HttpServer actor */
   val httpServer = settings.http match {
     case Some(httpSettings) =>
-      Some(system.actorOf(HttpServer.props(registryService, httpSettings), "http-service"))
+      Some(system.actorOf(HttpServer.props(httpSettings), "http-service"))
     case None => None
   }
 
   /* shut down cleanly */
   sys.addShutdownHook({
     system.shutdown()
+    system.awaitTermination()
   })
 }

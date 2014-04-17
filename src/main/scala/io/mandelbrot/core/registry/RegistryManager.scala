@@ -24,14 +24,14 @@ import akka.persistence.{SnapshotOffer, EventsourcedProcessor, Persistent}
 import scala.collection.JavaConversions._
 import java.net.URI
 
-import io.mandelbrot.core.notification.Notification
+import io.mandelbrot.core.notification.{NotificationService, Notification}
 import io.mandelbrot.core.{ResourceNotFound, Conflict, ApiException}
 
 /**
  *
  */
-class ProbeRegistry(metadataManager: ActorRef, notificationManager: ActorRef) extends EventsourcedProcessor with ActorLogging {
-  import ProbeRegistry._
+class RegistryManager extends EventsourcedProcessor with ActorLogging {
+  import RegistryManager._
 
   // config
   override def processorId = "probe-registry"
@@ -82,7 +82,7 @@ class ProbeRegistry(metadataManager: ActorRef, notificationManager: ActorRef) ex
 
     /* handle notifications which have been passed up from ProbeSystems */
     case notification: Notification =>
-      notificationManager.forward(notification)
+      NotificationService(context.system) ! notification
 
     case Terminated(ref) =>
       log.debug("actor {} has been terminated", ref.path)
@@ -100,7 +100,7 @@ class ProbeRegistry(metadataManager: ActorRef, notificationManager: ActorRef) ex
   def updateState(event: Event) = event.event match {
     /* create the ProbeSystem */
     case command @ RegisterProbeSystem(uri, spec) =>
-      val ref = context.actorOf(ProbeSystem.props(uri, notificationManager))
+      val ref = context.actorOf(ProbeSystem.props(uri))
       context.watch(ref)
       objectSystems.put(uri, ref)
       ref ! Persistent(spec)
@@ -116,10 +116,8 @@ class ProbeRegistry(metadataManager: ActorRef, notificationManager: ActorRef) ex
   }
 }
 
-object ProbeRegistry {
-  def props(metadataManager: ActorRef, notificationManager: ActorRef) = {
-    Props(classOf[ProbeRegistry], metadataManager, notificationManager)
-  }
+object RegistryManager {
+  def props() = Props(classOf[RegistryManager])
 
   case class Event(event: Any)
 }
