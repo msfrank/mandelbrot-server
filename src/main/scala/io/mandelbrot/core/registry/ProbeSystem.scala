@@ -29,6 +29,7 @@ import scala.concurrent.duration._
 import java.net.URI
 
 import io.mandelbrot.core.notification.Notification
+import io.mandelbrot.core.{ResourceNotFound, ApiException}
 
 /**
  *
@@ -43,6 +44,7 @@ class ProbeSystem(uri: URI, notificationManager: ActorRef) extends Processor wit
 
   // state
   var probes: Map[ProbeRef,ProbeActor] = Map.empty
+  var currentSpec: Option[ProbeSpec] = None
 
   def receive = {
 
@@ -69,9 +71,19 @@ class ProbeSystem(uri: URI, notificationManager: ActorRef) extends Processor wit
         log.debug("removed probe {}", ref)
         probes = probes - ref
       }
+      currentSpec = Some(spec)
 
     case PersistenceFailure(message, sequenceNr, cause) =>
       log.error("failed to persist message {}: {}", message, cause.getMessage)
+
+    /* */
+    case query: DescribeProbeSystem =>
+      currentSpec match {
+        case Some(spec) =>
+          sender() ! DescribeProbeSystemResult(query, spec)
+        case None =>
+          sender() ! ProbeRegistryOperationFailed(query, new ApiException(ResourceNotFound))
+      }
 
     /* get the state of all probes in the system */
     case query: GetProbeSystemState =>

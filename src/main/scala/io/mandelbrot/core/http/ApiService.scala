@@ -49,17 +49,17 @@ trait ApiService extends HttpService {
   implicit val timeout: Timeout
 
   /**
-   * Spray routes for managing probe registration
+   * Spray routes for managing objects
    */
-  val registryRoutes = {
-    path("1" / "registry") {
+  val objectsRoutes = pathPrefix("objects") {
+    path("systems") {
       /* register new probe system, or fail if it already exists */
       post {
         entity(as[RegisterProbeSystem]) { case registerProbeSystem: RegisterProbeSystem =>
           complete {
             objectRegistry.ask(registerProbeSystem).map {
               case result: RegisterProbeSystemResult =>
-                HttpResponse(StatusCodes.Accepted, headers = List(Location("/1/registry/" + registerProbeSystem.uri.toString)))
+                HttpResponse(StatusCodes.Accepted, headers = List(Location("/objects/systems/" + registerProbeSystem.uri.toString)))
               case failure: ProbeRegistryOperationFailed =>
                 throw failure.failure
               case failure: ApiFailure =>
@@ -80,65 +80,76 @@ trait ApiService extends HttpService {
         }
       }
     } ~
-    path("1" / "registry" / Segment) { case uri: String =>
-      /* retrieve the spec for the specified probe system */
-      get {
-        complete {
-          objectRegistry.ask(DescribeProbeSystem(new URI(uri))).map {
-            case result: DescribeProbeSystemResult =>
-              result.spec
-            case failure: ApiFailure =>
-              throw new ApiException(failure)
+    pathPrefix("systems" / Segment) { case uri: String =>
+      pathEndOrSingleSlash {
+        /* retrieve the spec for the specified probe system */
+        get {
+          complete {
+            objectRegistry.ask(DescribeProbeSystem(new URI(uri))).map {
+              case result: DescribeProbeSystemResult =>
+                result.spec
+              case failure: ApiFailure =>
+                throw new ApiException(failure)
+            }
+          }
+        } ~
+        /* update the spec for the specified probe system */
+        post {
+          entity(as[UpdateProbeSystem]) { case updateProbeSystem: UpdateProbeSystem =>
+            complete {
+              objectRegistry.ask(updateProbeSystem).map {
+                case result: UpdateProbeSystemResult =>
+                  HttpResponse(StatusCodes.Accepted, headers = List(Location("/objects/systems/" + updateProbeSystem.uri.toString)))
+                case failure: ApiFailure =>
+                  throw new ApiException(failure)
+              }
+            }
           }
         }
       } ~
-      /* update the spec for the specified probe system */
-      post {
-        entity(as[UpdateProbeSystem]) { case updateProbeSystem: UpdateProbeSystem =>
-          complete {
-            objectRegistry.ask(updateProbeSystem).map {
-              case result: UpdateProbeSystemResult =>
-                HttpResponse(StatusCodes.Accepted, headers = List(Location("/1/registry/" + updateProbeSystem.uri.toString)))
-              case failure: ApiFailure =>
-                throw new ApiException(failure)
+      pathPrefix("properties") {
+        path("state") {
+          /* describe the state of the ProbeSystem */
+          get {
+            complete {
+              objectRegistry.ask(GetProbeSystemState(new URI(uri))).map {
+                case result: GetProbeSystemStateResult =>
+                  result
+                case failure: ProbeSystemOperationFailed =>
+                  throw failure.failure
+              }
             }
           }
+        } ~
+        path("history") { get { complete { StatusCodes.OK }}
+        } ~
+        path("metrics") { get { complete { StatusCodes.OK }}
+        } ~
+        path("events") { get { complete { StatusCodes.OK }}
+        } ~
+        path("snapshots") { get { complete { StatusCodes.OK }}
+        }
+      } ~
+      pathPrefix("actions") {
+        path("submit") {
+          post { complete { throw new ApiException(BadRequest)}}
+        } ~
+        path("invoke") {
+          post { complete { throw new ApiException(BadRequest)}}
+        } ~
+        path("acknowledge") {
+          post { complete { throw new ApiException(BadRequest)}}
         }
       }
     }
   }
 
   /**
-   * Spray routes for managing an object system
+   * Spray routes for invoking services
    */
-  val systemRoutes = {
-    pathPrefix("1" / "system" / Segment) { case uri: String =>
-      pathEndOrSingleSlash {
-        /* describe the state of the ProbeSystem */
-        get {
-          complete {
-            objectRegistry.ask(GetProbeSystemState(new URI(uri))).map {
-              case result: GetProbeSystemStateResult =>
-                result
-              case failure: ApiFailure =>
-                throw new ApiException(failure)
-            }
-          }
-        }
-      }
-    }
-  }
+  //val servicesRoutes = pathPrefix("services") { }
 
-  /**
-   * Spray routes for updating object lifecycle
-   */
-//  val actionRoutes = {
-//    /* FIXME: enter/leave maintenance mode */
-//    pathPrefix("1" / "action" / Segment) { case uri: String =>
-//    }
-//  }
-
-  val version1 = registryRoutes ~ systemRoutes
+  val version1 = objectsRoutes
 
   val routes =  version1
 
