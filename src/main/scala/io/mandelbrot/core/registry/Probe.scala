@@ -19,144 +19,164 @@
 
 package io.mandelbrot.core.registry
 
-import akka.actor.{ActorRef, LoggingFSM, Props}
-import akka.persistence.Processor
+import akka.actor.{Cancellable, ActorLogging, ActorRef, Props}
+import akka.persistence.{SnapshotOffer, EventsourcedProcessor}
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 
 import io.mandelbrot.core.notification._
 
-import Probe.{State,Data}
 import io.mandelbrot.core.state.{UpdateProbe, StateService}
 import io.mandelbrot.core.messagestream.StateMessage
 
 /**
  *
  */
-class Probe(probeRef: ProbeRef, parent: ActorRef) extends Processor with LoggingFSM[State,Data] {
+class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor with ActorLogging {
   import Probe._
+  import context.dispatcher
 
   // config
   override def processorId = probeRef.toString
   val flapCycles = 10
   val flapWindow = 5.minutes
-  val initializationTimeout = 5.minutes
-  val objectStateTimeout = 1.minute
+  val joiningTimeout = 5.minutes
+  val runningTimeout = 1.minute
+  val leavingTimeout = 5.minutes
 
   // state
   var lifecycle: ProbeLifecycle = ProbeJoining
   var health: ProbeHealth = ProbeUnknown
   var metadata: Map[String,String] = Map.empty
+  var lastChange: Option[DateTime] = None
   var notifier: NotificationPolicy = new NotifyParentPolicy()
+  var squelch: Boolean = false
+  var timer: Option[Cancellable] = None
   val flapQueue: FlapQueue = new FlapQueue(flapCycles, flapWindow)
 
-  val stateService = StateService(context.system)
-
   /* */
-  stateService ! UpdateProbe(probeRef, DateTime.now(DateTimeZone.UTC), Some(lifecycle), Some(health))
+  val stateService = StateService(context.system)
+  stateService ! UpdateProbe(probeRef, DateTime.now(DateTimeZone.UTC), lifecycle, health)
 
-  startWith(Initializing, NoData)
-  setTimer("objectState", ProbeStateTimeout, initializationTimeout)
+  setTimer()
 
-  when(Initializing) {
+  def receiveCommand = {
 
-    case Event(GetProbeState, _) =>
-      stay() replying ProbeState(lifecycle, health, inMaintenance = false)
+    case ProbeStateTimeout =>
+      persist(ProbeExpires(DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
-    case Event(message: StateMessage, NoData) =>
-      health = message.state
-      lifecycle = ProbeKnown
-      flapQueue.push(message.timestamp)
-      setTimer("objectState", ProbeStateTimeout, objectStateTimeout)
-      goto(Running) using Running(message.timestamp, message.timestamp)
+    case message: StateMessage =>
+      persist(ProbeUpdates(message, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
-    case Event(ProbeStateTimeout, NoData) =>
-      setTimer("objectState", ProbeStateTimeout, objectStateTimeout)
-      val changeTime = DateTime.now(DateTimeZone.UTC)
-      goto(Running) using Running(changeTime, changeTime)
+    case GetProbeState =>
+      sender() ! ProbeState(lifecycle, health, squelch)
 
-    case Event(notification: Notification, NoData) =>
+    case notification: Notification =>
       notifier.notify(notification)
-      stay()
   }
 
-  when(Running) {
+  def receiveRecover = {
 
-    case Event(GetProbeState, _) =>
-      stay() replying ProbeState(lifecycle, health, inMaintenance = false)
+    case event: Event =>
+      updateState(event, recovering = true)
 
-    case Event(message: StateMessage, Running(lastUpdate, lastChange)) =>
-      setTimer("objectState", ProbeStateTimeout, objectStateTimeout)
-      /* object state has changed */
-      if (message.state != health) {
-        val oldState = health
-        health = message.state
+    case offer: SnapshotOffer =>
+      log.debug("received snapshot offer: metadata={}, snapshot={}", offer.metadata, offer.snapshot)
+  }
+
+  def updateState(event: Event, recovering: Boolean) = event match {
+
+    case ProbeUpdates(message, timestamp) =>
+      val oldHealth = health
+      val oldLifecycle = lifecycle
+      // update health
+      health = message.health
+      if (health != oldHealth)
         flapQueue.push(message.timestamp)
-        if (flapQueue.isFlapping) {
-          notifier.notify(NotifyStateFlaps(probeRef, message.timestamp))
-          goto(Flapping) using Flapping(message.timestamp, message.timestamp, message.timestamp)
-        }
-        else {
-          notifier.notify(NotifyStateChanges(probeRef, oldState, message.state))
-          stay() using Running(message.timestamp, message.timestamp)
-        }
+      // update lifecycle
+      if (oldLifecycle == ProbeJoining)
+        lifecycle = ProbeKnown
+      if (!recovering) {
+        // send health notifications
+        if (flapQueue.isFlapping)
+          notifier.notify(NotifyHealthFlaps(probeRef, flapQueue.flapStart, message.timestamp))
+        else if (oldHealth != health)
+          notifier.notify(NotifyHealthChanges(probeRef, oldHealth, health, message.timestamp))
+        else
+          notifier.notify(NotifyHealthUpdates(probeRef, health, message.timestamp))
+        // send lifecycle notifications
+        if (lifecycle != oldLifecycle)
+          notifier.notify(NotifyLifecycleChanges(probeRef, oldLifecycle, lifecycle, message.timestamp))
+        //
+        stateService ! UpdateProbe(probeRef, timestamp, lifecycle, health)
       }
-      /* object state remains the same */
-      else {
-        notifier.notify(NotifyStateUpdates(probeRef, message.state, message.timestamp))
-        stay() using Running(message.timestamp, lastChange)
-      }
+      // reset the timer
+      setTimer()
 
-    case Event(ProbeStateTimeout, Running(lastUpdate, lastChange)) =>
-      setTimer("objectState", ProbeStateTimeout, objectStateTimeout)
-      stay()
+    case ProbeExpires(timestamp) =>
+      val oldHealth = health
+      // update health
+      health = ProbeUnknown
+      if (health != oldHealth)
+        flapQueue.push(timestamp)
+      if (!recovering) {
+        // send health notifications
+        if (flapQueue.isFlapping)
+          notifier.notify(NotifyHealthFlaps(probeRef, flapQueue.flapStart, timestamp))
+        else if (oldHealth != health)
+          notifier.notify(NotifyHealthChanges(probeRef, oldHealth, health, timestamp))
+        else
+          notifier.notify(NotifyHealthExpires(probeRef, timestamp))
+      }
+      // reset the timer
+      setTimer()
   }
 
-  when(Flapping) {
-
-    case Event(GetProbeState, _) =>
-      stay() replying ProbeState(lifecycle, health, inMaintenance = false)
-
-    case Event(_, _) =>
-      setTimer("objectState", ProbeStateTimeout, objectStateTimeout)
-      stay()
+  def setTimer(duration: Option[FiniteDuration] = None): Unit = {
+    for (current <- timer)
+      current.cancel()
+    duration match {
+      case Some(delay) =>
+        context.system.scheduler.scheduleOnce(delay, self, ProbeStateTimeout)
+      case None =>
+        lifecycle match {
+          case ProbeJoining =>
+            context.system.scheduler.scheduleOnce(joiningTimeout, self, ProbeStateTimeout)
+          case ProbeLeaving =>
+            context.system.scheduler.scheduleOnce(leavingTimeout, self, ProbeStateTimeout)
+          case _ =>
+            context.system.scheduler.scheduleOnce(runningTimeout, self, ProbeStateTimeout)
+        }
+    }
   }
-
-  initialize()
 }
 
 object Probe {
   def props(probeRef: ProbeRef, parent: ActorRef) = Props(classOf[Probe], probeRef, parent)
-
-  sealed trait State
-  case object Initializing extends State
-  case object Running extends State
-  case object Flapping extends State
-
-  sealed trait Data
-  case class Running(lastUpdate: DateTime, lastChange: DateTime) extends Data
-  case class Flapping(flapStart: DateTime, lastUpdate: DateTime, lastChange: DateTime) extends Data
-  case object NoData extends Data
-
+  sealed trait Event
+  case class ProbeUpdates(state: StateMessage, timestamp: DateTime) extends Event
+  case class ProbeExpires(timestamp: DateTime) extends Event
   case object ProbeStateTimeout
 }
 
 /* object lifecycle */
-sealed trait ProbeLifecycle
-case object ProbeJoining extends ProbeLifecycle
-case object ProbeKnown extends ProbeLifecycle
-case object ProbeLeaving extends ProbeLifecycle
-case object ProbeRetired extends ProbeLifecycle
+sealed abstract class ProbeLifecycle(val value: String) {
+  override def toString = value
+}
+case object ProbeJoining extends ProbeLifecycle("joining")
+case object ProbeKnown extends ProbeLifecycle("known")
+case object ProbeLeaving extends ProbeLifecycle("leaving")
+case object ProbeRetired extends ProbeLifecycle("retired")
 
 /* object state */
-sealed trait ProbeHealth
-case object ProbeHealthy extends ProbeHealth
-case object ProbeDegraded extends ProbeHealth
-case object ProbeFailed extends ProbeHealth
-case object ProbeUnknown extends ProbeHealth
+sealed abstract class ProbeHealth(val value: String) {
+  override def toString = value
+}
+case object ProbeHealthy extends ProbeHealth("healthy")
+case object ProbeDegraded extends ProbeHealth("degraded")
+case object ProbeFailed extends ProbeHealth("failed")
+case object ProbeUnknown extends ProbeHealth("unknown")
 
-case class ProbeState(lifecycle: ProbeLifecycle, health: ProbeHealth, inMaintenance: Boolean)
 
 case object GetProbeState
-case object EnterMaintenance
-case object LeaveMaintenance
+case class ProbeState(lifecycle: ProbeLifecycle, health: ProbeHealth, squelched: Boolean)

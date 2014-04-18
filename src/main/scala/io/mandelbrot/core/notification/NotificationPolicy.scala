@@ -23,7 +23,7 @@ import akka.actor.{ActorRef, ActorContext}
 import org.joda.time.DateTime
 import scala.concurrent.duration.FiniteDuration
 
-import io.mandelbrot.core.registry.{ProbeHealth, ProbeRef}
+import io.mandelbrot.core.registry.{ProbeLifecycle, ProbeHealth, ProbeRef}
 
 /**
  *
@@ -36,10 +36,11 @@ trait NotificationPolicy {
  *
  */
 sealed trait Notification
-case class NotifyStateChanges(probeRef: ProbeRef, oldState: ProbeHealth, newState: ProbeHealth) extends Notification
-case class NotifyStateUpdates(probeRef: ProbeRef, state: ProbeHealth, updated: DateTime) extends Notification
-case class NotifyStateTimeout(probeRef: ProbeRef, state: ProbeHealth, duration: FiniteDuration) extends Notification
-case class NotifyStateFlaps(probeRef: ProbeRef, flapStarts: DateTime) extends Notification
+case class NotifyHealthChanges(probeRef: ProbeRef, oldHealth: ProbeHealth, newHealth: ProbeHealth, timestamp: DateTime) extends Notification
+case class NotifyHealthUpdates(probeRef: ProbeRef, health: ProbeHealth, timestamp: DateTime) extends Notification
+case class NotifyHealthExpires(probeRef: ProbeRef, timestamp: DateTime) extends Notification
+case class NotifyHealthFlaps(probeRef: ProbeRef, flapStarts: DateTime, timestamp: DateTime) extends Notification
+case class NotifyLifecycleChanges(probeRef: ProbeRef, oldLifecycle: ProbeLifecycle, newLifecycle: ProbeLifecycle, timestamp: DateTime) extends Notification
 
 class NotifyParentPolicy(implicit val parent: ActorRef) extends NotificationPolicy {
   def notify(notification: Notification): Unit = {
