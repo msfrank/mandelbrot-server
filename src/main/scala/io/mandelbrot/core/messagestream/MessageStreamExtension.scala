@@ -7,40 +7,41 @@ import akka.util.Subclassification
 /**
  *
  */
-class StartsWithSubclassification extends Subclassification[Array[String]] {
-  override def isEqual(x: Array[String], y: Array[String]): Boolean = x == y
-  override def isSubclass(x: Array[String], y: Array[String]): Boolean = x.startsWith(y)
+class TypeSubclassification extends Subclassification[Class[_]] {
+  override def isEqual(x: Class[_], y: Class[_]): Boolean = x == y
+  override def isSubclass(x: Class[_], y: Class[_]): Boolean = y.isAssignableFrom(x)
 }
 
 /**
  * Publishes the payload of the MsgEnvelope when the topic of the
  * MsgEnvelope starts with the String specified when subscribing.
  */
-class SubchannelBusImpl extends EventBus with SubchannelClassification {
-  type Event = MandelbrotMessage
-  type Classifier = Array[String]
+class MessageStreamBus extends EventBus with SubchannelClassification {
+  type Event = Message
+  type Classifier = Class[_]
   type Subscriber = ActorRef
 
-  override protected val subclassification: Subclassification[Classifier] = new StartsWithSubclassification
-  override protected def classify(event: Event): Classifier = event.topic
-  override protected def publish(event: Event, subscriber: Subscriber): Unit = subscriber ! event.payload
+  override protected val subclassification: Subclassification[Classifier] = new TypeSubclassification
+  override protected def classify(event: Message): Class[_] = event.getClass
+  override protected def publish(event: Message, subscriber: ActorRef): Unit = subscriber ! event
 }
 
 /**
  *
  */
 class MessageStreamExtensionImpl(system: ActorSystem) extends Extension {
-  val messageStream = new SubchannelBusImpl()
-  def subscribe(subscriber: ActorRef, to: Array[String]) = messageStream.subscribe(subscriber, to)
-  def unsubscribe(subscriber: ActorRef, from: Array[String]) = messageStream.unsubscribe(subscriber, from)
-  def publish(message: MandelbrotMessage) = messageStream.publish(message)
+  val messageStream = new MessageStreamBus()
 }
 
 /**
  *
  */
-object MessageStream extends ExtensionId[MessageStreamExtensionImpl] with ExtensionIdProvider {
-  override def lookup() = MessageStream
+object MessageStreamExtension extends ExtensionId[MessageStreamExtensionImpl] with ExtensionIdProvider {
+  override def lookup() = MessageStreamExtension
   override def createExtension(system: ExtendedActorSystem) = new MessageStreamExtensionImpl(system)
   override def get(system: ActorSystem): MessageStreamExtensionImpl = super.get(system)
+}
+
+object MessageStream {
+  def apply(system: ActorSystem) = MessageStreamExtension(system).messageStream
 }

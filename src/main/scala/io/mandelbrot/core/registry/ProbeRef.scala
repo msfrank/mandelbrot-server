@@ -32,6 +32,13 @@ class ProbeRef(val uri: URI, val path: Vector[String]) extends Ordered[ProbeRef]
 
   def compare(that: ProbeRef): Int = toString.compareTo(that.toString)
 
+  override def equals(other: Any): Boolean = other match {
+    case otherRef: ProbeRef => uri.equals(otherRef.uri) && path.equals(otherRef.path)
+    case _ => false
+  }
+
+  override def hashCode() = toString.hashCode
+
   override def toString = uri.toString + "/" + path.mkString("/")
 }
 

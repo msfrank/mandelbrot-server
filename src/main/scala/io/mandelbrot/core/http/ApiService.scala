@@ -32,6 +32,7 @@ import java.net.URI
 import io.mandelbrot.core._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.state.{QueryprobesResult, QueryProbes, StateService}
+import io.mandelbrot.core.messagestream.{MessageStreamBus, Message}
 
 /**
  * ApiService contains the REST API logic.
@@ -51,6 +52,7 @@ trait ApiService extends HttpService {
 
   val registryService: ActorRef
   val stateService: ActorRef
+  val messageStream: MessageStreamBus
 
   /**
    * Spray routes for managing objects
@@ -151,7 +153,14 @@ trait ApiService extends HttpService {
       } ~
       pathPrefix("actions") {
         path("submit") {
-          post { complete { throw new ApiException(BadRequest)}}
+          post {
+            entity(as[Message]) { case message: Message =>
+              complete {
+                messageStream.publish(message)
+                HttpResponse(StatusCodes.OK)
+              }
+            }
+          }
         } ~
         path("invoke") {
           post { complete { throw new ApiException(BadRequest)}}

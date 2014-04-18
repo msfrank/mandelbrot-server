@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit
 import java.nio.charset.Charset
 
 import io.mandelbrot.core.registry._
+import io.mandelbrot.core.messagestream.{GenericMessage, Message, StateMessage}
 
 object JsonProtocol extends DefaultJsonProtocol {
 
@@ -134,6 +135,40 @@ object JsonProtocol extends DefaultJsonProtocol {
   implicit val ProbeStateFormat = jsonFormat3(ProbeState)
   implicit val GetProbeSystemStateFormat = jsonFormat1(GetProbeSystemState)
   implicit val GetProbeSystemStateResultFormat = jsonFormat2(GetProbeSystemStateResult)
+
+  /* */
+  implicit val StateMessageFormat = jsonFormat5(StateMessage)
+
+  /* */
+  implicit object MessageFormat extends RootJsonFormat[Message] {
+    def write(message: Message) = {
+      val (messageType, payload) = message match {
+        case m: StateMessage =>
+          "io.mandelbrot.message.StateMessage" -> StateMessageFormat.write(m)
+        case m: GenericMessage =>
+          m.messageType -> m.value
+      }
+      JsObject(Map("messageType" -> JsString(messageType), "payload" -> payload))
+    }
+    def read(value: JsValue) = {
+      value match {
+        case JsObject(fields) =>
+          if (!fields.contains("payload"))
+            throw new DeserializationException("missing payload")
+          fields.get("messageType") match {
+            case Some(JsString("io.mandelbrot.message.StateMessage")) =>
+              StateMessageFormat.read(fields("payload"))
+            case Some(JsString(unknownType)) =>
+              GenericMessage(unknownType, fields("payload"))
+            case None =>
+              throw new DeserializationException("missing messageType")
+            case unknownValue =>
+              throw new DeserializationException("messageType is not a string")
+          }
+        case unknown => throw new DeserializationException("unknown Message format")
+      }
+    }
+  }
 }
 
 object JsonBody {

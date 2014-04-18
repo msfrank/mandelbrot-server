@@ -30,6 +30,7 @@ import java.net.URI
 
 import io.mandelbrot.core.notification.{NotificationService, Notification}
 import io.mandelbrot.core.{ResourceNotFound, ApiException}
+import io.mandelbrot.core.messagestream.MandelbrotMessage
 
 /**
  *
@@ -109,6 +110,13 @@ class ProbeSystem(uri: URI) extends Processor with ActorLogging {
           sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
       }
 
+    case message: MandelbrotMessage =>
+      probes.get(message.source) match {
+        case Some(probeActor: ProbeActor) =>
+          probeActor.actor ! message
+        case None =>
+          log.warning("ignoring message {}: probe no longer exists", message)
+      }
     /* handle notifications which have been passed up from Probe */
     case notification: Notification =>
       NotificationService(context.system) ! notification

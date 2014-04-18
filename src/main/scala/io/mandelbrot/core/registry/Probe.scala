@@ -28,6 +28,7 @@ import io.mandelbrot.core.notification._
 
 import Probe.{State,Data}
 import io.mandelbrot.core.state.{UpdateProbe, StateService}
+import io.mandelbrot.core.messagestream.StateMessage
 
 /**
  *
@@ -62,12 +63,12 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends Processor with Logging
     case Event(GetProbeState, _) =>
       stay() replying ProbeState(lifecycle, health, inMaintenance = false)
 
-    case Event(SetHealth(newState, changeTime), NoData) =>
-      health = newState
+    case Event(message: StateMessage, NoData) =>
+      health = message.state
       lifecycle = ProbeKnown
-      flapQueue.push(changeTime)
+      flapQueue.push(message.timestamp)
       setTimer("objectState", ProbeStateTimeout, objectStateTimeout)
-      goto(Running) using Running(changeTime, changeTime)
+      goto(Running) using Running(message.timestamp, message.timestamp)
 
     case Event(ProbeStateTimeout, NoData) =>
       setTimer("objectState", ProbeStateTimeout, objectStateTimeout)
@@ -84,26 +85,26 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends Processor with Logging
     case Event(GetProbeState, _) =>
       stay() replying ProbeState(lifecycle, health, inMaintenance = false)
 
-    case Event(SetHealth(currentState, updateTime), Running(lastUpdate, lastChange)) =>
+    case Event(message: StateMessage, Running(lastUpdate, lastChange)) =>
       setTimer("objectState", ProbeStateTimeout, objectStateTimeout)
       /* object state has changed */
-      if (currentState != health) {
+      if (message.state != health) {
         val oldState = health
-        health = currentState
-        flapQueue.push(updateTime)
+        health = message.state
+        flapQueue.push(message.timestamp)
         if (flapQueue.isFlapping) {
-          notifier.notify(NotifyStateFlaps(probeRef, updateTime))
-          goto(Flapping) using Flapping(updateTime, updateTime, updateTime)
+          notifier.notify(NotifyStateFlaps(probeRef, message.timestamp))
+          goto(Flapping) using Flapping(message.timestamp, message.timestamp, message.timestamp)
         }
         else {
-          notifier.notify(NotifyStateChanges(probeRef, oldState, currentState))
-          stay() using Running(updateTime, updateTime)
+          notifier.notify(NotifyStateChanges(probeRef, oldState, message.state))
+          stay() using Running(message.timestamp, message.timestamp)
         }
       }
       /* object state remains the same */
       else {
-        notifier.notify(NotifyStateUpdates(probeRef, currentState, updateTime))
-        stay() using Running(updateTime, lastChange)
+        notifier.notify(NotifyStateUpdates(probeRef, message.state, message.timestamp))
+        stay() using Running(message.timestamp, lastChange)
       }
 
     case Event(ProbeStateTimeout, Running(lastUpdate, lastChange)) =>
@@ -156,8 +157,6 @@ case object ProbeUnknown extends ProbeHealth
 
 case class ProbeState(lifecycle: ProbeLifecycle, health: ProbeHealth, inMaintenance: Boolean)
 
-case class SetHealth(state: ProbeHealth, changeTime: DateTime)
-case class SetLifecycle(lifecycle: ProbeLifecycle, changeTime: DateTime)
 case object GetProbeState
 case object EnterMaintenance
 case object LeaveMaintenance
