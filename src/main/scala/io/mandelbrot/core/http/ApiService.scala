@@ -153,6 +153,7 @@ trait ApiService extends HttpService {
       } ~
       pathPrefix("actions") {
         path("submit") {
+          /* publish message to the message stream */
           post {
             entity(as[Message]) { case message: Message =>
               complete {
@@ -163,6 +164,7 @@ trait ApiService extends HttpService {
           }
         } ~
         path("invoke") {
+          /* execute an external command */
           post { complete { throw new ApiException(BadRequest)}}
         } ~
         path("acknowledge") {

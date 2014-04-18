@@ -47,6 +47,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
   // state
   var lifecycle: ProbeLifecycle = ProbeJoining
   var health: ProbeHealth = ProbeUnknown
+  var summary: Option[String] = None
   var lastChange: Option[DateTime] = None
   var lastUpdate: Option[DateTime] = None
   var notifier: NotificationPolicy = new EmitPolicy(context.system)
@@ -69,7 +70,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
       persist(ProbeUpdates(message, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
     case GetProbeState =>
-      sender() ! ProbeState(lifecycle, health, lastUpdate, lastChange, squelch)
+      sender() ! ProbeState(lifecycle, health, summary, lastUpdate, lastChange, squelch)
 
     case notification: Notification =>
       notifier.notify(notification)
@@ -87,6 +88,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
   def updateState(event: Event, recovering: Boolean) = event match {
 
     case ProbeUpdates(message, timestamp) =>
+      summary = Some(message.summary)
       lastUpdate = Some(timestamp)
       val oldHealth = health
       val oldLifecycle = lifecycle
@@ -184,4 +186,4 @@ case object ProbeUnknown extends ProbeHealth("unknown")
 
 
 case object GetProbeState
-case class ProbeState(lifecycle: ProbeLifecycle, health: ProbeHealth, lastUpdate: Option[DateTime], lastChange: Option[DateTime], squelched: Boolean)
+case class ProbeState(lifecycle: ProbeLifecycle, health: ProbeHealth, summary: Option[String], lastUpdate: Option[DateTime], lastChange: Option[DateTime], squelched: Boolean)
