@@ -27,12 +27,11 @@ import scala.collection.JavaConversions._
 import java.io.File
 
 import io.mandelbrot.core.http.HttpSettings
-import io.mandelbrot.core.messagestream.MessageStreamSettings
 
 /**
  *
  */
-case class ServerConfigSettings(messageStream: Option[MessageStreamSettings], http: Option[HttpSettings])
+case class ServerConfigSettings(http: Option[HttpSettings])
 
 /**
  *
@@ -80,17 +79,12 @@ class ServerConfigExtension(system: ActorSystem) extends Extension {
   val settings = try {
     val mandelbrotConfig = config.getConfig("mandelbrot")
 
-    /* parse message-stream settings */
-    val messageStreamSettings = if (!mandelbrotConfig.hasPath("message-stream")) None else {
-      Some(MessageStreamSettings.parse(mandelbrotConfig.getConfig("message-stream")))
-    }
-
     /* parse http settings */
     val httpSettings = if (!mandelbrotConfig.hasPath("http")) None else {
       Some(HttpSettings.parse(mandelbrotConfig.getConfig("http")))
     }
 
-    ServerConfigSettings(messageStreamSettings, httpSettings)
+    ServerConfigSettings(httpSettings)
 
   } catch {
     case ex: ServerConfigException =>

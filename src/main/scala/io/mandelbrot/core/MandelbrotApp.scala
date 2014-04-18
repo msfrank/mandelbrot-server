@@ -21,11 +21,10 @@ package io.mandelbrot.core
 
 import akka.actor.ActorSystem
 
-import io.mandelbrot.core.state.{StateService, StateManager}
-import io.mandelbrot.core.notification.{NotificationService, NotificationManager}
-import io.mandelbrot.core.registry.{RegistryService, RegistryManager}
+import io.mandelbrot.core.state.StateService
+import io.mandelbrot.core.notification.NotificationService
+import io.mandelbrot.core.registry.RegistryService
 import io.mandelbrot.core.http.HttpServer
-import io.mandelbrot.core.messagestream.MessageStreamService
 
 /**
  * application entry point
@@ -40,13 +39,6 @@ object MandelbrotApp extends App {
   val notificationService = NotificationService(system)
   val stateService = StateService(system)
   val registryService = RegistryService(system)
-
-  /* if message stream is configured, then start the MessageStreamService actor */
-  val messageStreamService = settings.messageStream match {
-    case Some(messageStreamSettings) =>
-      Some(system.actorOf(MessageStreamService.props(messageStreamSettings), "message-service"))
-    case None => None
-  }
 
   /* if http server is configured, then start the HttpServer actor */
   val httpServer = settings.http match {
