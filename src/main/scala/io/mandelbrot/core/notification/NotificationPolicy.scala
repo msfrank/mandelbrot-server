@@ -19,11 +19,24 @@
 
 package io.mandelbrot.core.notification
 
-import akka.actor.{ActorRef, ActorContext}
+import akka.actor.{ActorSystem, ActorRef, ActorContext}
 import org.joda.time.DateTime
 import scala.concurrent.duration.FiniteDuration
 
 import io.mandelbrot.core.registry.{ProbeLifecycle, ProbeHealth, ProbeRef}
+
+
+/**
+ *
+ */
+sealed trait Notification
+
+sealed trait ProbeNotification extends Notification { val probeRef: ProbeRef }
+case class NotifyHealthChanges(probeRef: ProbeRef, oldHealth: ProbeHealth, newHealth: ProbeHealth, timestamp: DateTime) extends ProbeNotification
+case class NotifyHealthUpdates(probeRef: ProbeRef, health: ProbeHealth, timestamp: DateTime) extends ProbeNotification
+case class NotifyHealthExpires(probeRef: ProbeRef, timestamp: DateTime) extends ProbeNotification
+case class NotifyHealthFlaps(probeRef: ProbeRef, flapStarts: DateTime, timestamp: DateTime) extends ProbeNotification
+case class NotifyLifecycleChanges(probeRef: ProbeRef, oldLifecycle: ProbeLifecycle, newLifecycle: ProbeLifecycle, timestamp: DateTime) extends ProbeNotification
 
 /**
  *
@@ -33,17 +46,26 @@ trait NotificationPolicy {
 }
 
 /**
- *
+ * send notification directly to the notification service
  */
-sealed trait Notification
-case class NotifyHealthChanges(probeRef: ProbeRef, oldHealth: ProbeHealth, newHealth: ProbeHealth, timestamp: DateTime) extends Notification
-case class NotifyHealthUpdates(probeRef: ProbeRef, health: ProbeHealth, timestamp: DateTime) extends Notification
-case class NotifyHealthExpires(probeRef: ProbeRef, timestamp: DateTime) extends Notification
-case class NotifyHealthFlaps(probeRef: ProbeRef, flapStarts: DateTime, timestamp: DateTime) extends Notification
-case class NotifyLifecycleChanges(probeRef: ProbeRef, oldLifecycle: ProbeLifecycle, newLifecycle: ProbeLifecycle, timestamp: DateTime) extends Notification
-
-class NotifyParentPolicy(implicit val parent: ActorRef) extends NotificationPolicy {
+class EmitPolicy(system: ActorSystem) extends NotificationPolicy {
+  val service = NotificationService(system)
+  def notify(notification: Notification): Unit = {
+    service ! notification
+  }
+}
+/**
+ * escalate notification to the specified parent
+ */
+class EscalatePolicy(parent: ActorRef) extends NotificationPolicy {
   def notify(notification: Notification): Unit = {
     parent ! notification
   }
+}
+
+/**
+ * silently drop the notification
+ */
+class SquelchPolicy extends NotificationPolicy {
+  def notify(notification: Notification): Unit = {}
 }

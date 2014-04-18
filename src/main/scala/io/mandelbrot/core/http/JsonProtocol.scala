@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit
 import java.nio.charset.Charset
 
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.messagestream.{GenericMessage, Message, StateMessage}
+import io.mandelbrot.core.messagestream.{GenericMessage, Message, StatusMessage}
 
 object JsonProtocol extends DefaultJsonProtocol {
 
@@ -132,18 +132,18 @@ object JsonProtocol extends DefaultJsonProtocol {
   /* */
   implicit val RegisterProbeSystemFormat = jsonFormat2(RegisterProbeSystem)
   implicit val UpdateProbeSystemFormat = jsonFormat2(UpdateProbeSystem)
-  implicit val ProbeStateFormat = jsonFormat3(ProbeState)
+  implicit val ProbeStateFormat = jsonFormat5(ProbeState)
   implicit val GetProbeSystemStateFormat = jsonFormat1(GetProbeSystemState)
   implicit val GetProbeSystemStateResultFormat = jsonFormat2(GetProbeSystemStateResult)
 
   /* */
-  implicit val StateMessageFormat = jsonFormat5(StateMessage)
+  implicit val StateMessageFormat = jsonFormat5(StatusMessage)
 
   /* */
   implicit object MessageFormat extends RootJsonFormat[Message] {
     def write(message: Message) = {
       val (messageType, payload) = message match {
-        case m: StateMessage =>
+        case m: StatusMessage =>
           "io.mandelbrot.message.StateMessage" -> StateMessageFormat.write(m)
         case m: GenericMessage =>
           m.messageType -> m.value

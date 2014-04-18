@@ -26,7 +26,7 @@ import java.net.URI
 
 import io.mandelbrot.core.notification.{NotificationService, Notification}
 import io.mandelbrot.core.{ResourceNotFound, Conflict, ApiException}
-import io.mandelbrot.core.messagestream.{StateMessage, MessageStream}
+import io.mandelbrot.core.messagestream.{StatusMessage, MessageStream}
 
 /**
  *
@@ -41,7 +41,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
   val objectSystems = new java.util.HashMap[URI,ActorRef](1024)
 
   /* */
-  MessageStream(context.system).subscribe(self, classOf[StateMessage])
+  MessageStream(context.system).subscribe(self, classOf[StatusMessage])
 
   def receiveCommand = {
 
@@ -85,7 +85,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
       }
 
     /* forward state messages to the appropriate ProbeSystem */
-    case message: StateMessage =>
+    case message: StatusMessage =>
       objectSystems.get(message.source.uri) match {
         case null =>
           // do nothing

@@ -26,8 +26,8 @@ import scala.concurrent.duration._
 
 import io.mandelbrot.core.notification._
 
-import io.mandelbrot.core.state.{UpdateProbe, StateService}
-import io.mandelbrot.core.messagestream.StateMessage
+import io.mandelbrot.core.state.{UpdateProbeStatus, StateService}
+import io.mandelbrot.core.messagestream.StatusMessage
 
 /**
  *
@@ -47,16 +47,16 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
   // state
   var lifecycle: ProbeLifecycle = ProbeJoining
   var health: ProbeHealth = ProbeUnknown
-  var metadata: Map[String,String] = Map.empty
   var lastChange: Option[DateTime] = None
-  var notifier: NotificationPolicy = new NotifyParentPolicy()
+  var lastUpdate: Option[DateTime] = None
+  var notifier: NotificationPolicy = new EmitPolicy(context.system)
   var squelch: Boolean = false
   var timer: Option[Cancellable] = None
   val flapQueue: FlapQueue = new FlapQueue(flapCycles, flapWindow)
 
   /* */
   val stateService = StateService(context.system)
-  stateService ! UpdateProbe(probeRef, DateTime.now(DateTimeZone.UTC), lifecycle, health)
+  stateService ! UpdateProbeStatus(probeRef, DateTime.now(DateTimeZone.UTC), lifecycle, health, None, None)
 
   setTimer()
 
@@ -65,11 +65,11 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
     case ProbeStateTimeout =>
       persist(ProbeExpires(DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
-    case message: StateMessage =>
+    case message: StatusMessage =>
       persist(ProbeUpdates(message, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
     case GetProbeState =>
-      sender() ! ProbeState(lifecycle, health, squelch)
+      sender() ! ProbeState(lifecycle, health, lastUpdate, lastChange, squelch)
 
     case notification: Notification =>
       notifier.notify(notification)
@@ -87,12 +87,15 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
   def updateState(event: Event, recovering: Boolean) = event match {
 
     case ProbeUpdates(message, timestamp) =>
+      lastUpdate = Some(timestamp)
       val oldHealth = health
       val oldLifecycle = lifecycle
       // update health
       health = message.health
-      if (health != oldHealth)
+      if (health != oldHealth) {
+        lastChange = Some(timestamp)
         flapQueue.push(message.timestamp)
+      }
       // update lifecycle
       if (oldLifecycle == ProbeJoining)
         lifecycle = ProbeKnown
@@ -108,7 +111,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
         if (lifecycle != oldLifecycle)
           notifier.notify(NotifyLifecycleChanges(probeRef, oldLifecycle, lifecycle, message.timestamp))
         //
-        stateService ! UpdateProbe(probeRef, timestamp, lifecycle, health)
+        stateService ! UpdateProbeStatus(probeRef, timestamp, lifecycle, health, Some(message.summary), message.detail)
       }
       // reset the timer
       setTimer()
@@ -117,8 +120,10 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
       val oldHealth = health
       // update health
       health = ProbeUnknown
-      if (health != oldHealth)
+      if (health != oldHealth) {
+        lastChange = Some(timestamp)
         flapQueue.push(timestamp)
+      }
       if (!recovering) {
         // send health notifications
         if (flapQueue.isFlapping)
@@ -154,7 +159,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
 object Probe {
   def props(probeRef: ProbeRef, parent: ActorRef) = Props(classOf[Probe], probeRef, parent)
   sealed trait Event
-  case class ProbeUpdates(state: StateMessage, timestamp: DateTime) extends Event
+  case class ProbeUpdates(state: StatusMessage, timestamp: DateTime) extends Event
   case class ProbeExpires(timestamp: DateTime) extends Event
   case object ProbeStateTimeout
 }
@@ -179,4 +184,4 @@ case object ProbeUnknown extends ProbeHealth("unknown")
 
 
 case object GetProbeState
-case class ProbeState(lifecycle: ProbeLifecycle, health: ProbeHealth, squelched: Boolean)
+case class ProbeState(lifecycle: ProbeLifecycle, health: ProbeHealth, lastUpdate: Option[DateTime], lastChange: Option[DateTime], squelched: Boolean)

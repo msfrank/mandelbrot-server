@@ -30,7 +30,7 @@ class StateManager extends Actor with ActorLogging {
 
   def receive = {
 
-    case update: UpdateProbe =>
+    case update: UpdateProbeStatus =>
       val config = new IndexWriterConfig(LUCENE_VERSION, analyzer)
       val iwriter = new IndexWriter(stateStore, config)
       val doc = new Document()
@@ -42,7 +42,7 @@ class StateManager extends Actor with ActorLogging {
       iwriter.updateDocument(new Term("ref", update.probeRef.toString), doc)
       iwriter.close()
 
-    case update: UpdateMetadata =>
+    case update: UpdateProbeMetadata =>
 //      val iwriter = new IndexWriter(metadataStore, config)
 //      val doc = new Document()
 //      doc.add(new StringField("ref", update.probeRef.toString, Store.YES))
@@ -82,8 +82,8 @@ object StateManager {
   val LUCENE_VERSION = Version.LUCENE_47
 }
 
-case class UpdateProbe(probeRef: ProbeRef, timestamp: DateTime, lifecycle: ProbeLifecycle, health: ProbeHealth)
-case class UpdateMetadata(probeRef: ProbeRef, timestamp: DateTime, metadata: Map[String,String])
+case class UpdateProbeStatus(probeRef: ProbeRef, timestamp: DateTime, lifecycle: ProbeLifecycle, health: ProbeHealth, summary: Option[String], detail: Option[String])
+case class UpdateProbeMetadata(probeRef: ProbeRef, timestamp: DateTime, metadata: Map[String,String])
 
 /**
  *

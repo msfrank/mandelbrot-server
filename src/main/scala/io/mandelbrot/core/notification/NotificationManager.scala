@@ -6,7 +6,7 @@ class NotificationManager extends Actor with ActorLogging {
 
   def receive = {
 
-    case notification: Notification =>
+    case notification: ProbeNotification =>
       log.debug("received notification {}", notification)
 
   }
