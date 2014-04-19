@@ -14,7 +14,7 @@ import org.joda.time.DateTime
 import java.io.File
 
 import io.mandelbrot.core.registry.{ProbeHealth, ProbeLifecycle, ProbeRef}
-import io.mandelbrot.core.{BadRequest, ApiException}
+import io.mandelbrot.core.{ServerConfig, BadRequest, ApiException}
 
 
 /**
@@ -23,7 +23,13 @@ import io.mandelbrot.core.{BadRequest, ApiException}
 class StateManager extends Actor with ActorLogging {
   import StateManager._
 
-  // Store the index in memory
+  // config
+  val settings = ServerConfig(context.system).settings.stateSettings
+
+  // state
+  val history = context.actorOf(HistoryManager.props())
+
+  /* Store the index in memory */
   val analyzer = new StandardAnalyzer(LUCENE_VERSION)
   val stateStore = new RAMDirectory()
   //val metadataStore = FSDirectory.open(new File("/tmp/testindex"))
@@ -41,6 +47,8 @@ class StateManager extends Actor with ActorLogging {
       doc.add(new StringField("health", update.health.toString, Store.NO))
       iwriter.updateDocument(new Term("ref", update.probeRef.toString), doc)
       iwriter.close()
+      // store the status in history
+      history ! update
 
     case update: UpdateProbeMetadata =>
 //      val iwriter = new IndexWriter(metadataStore, config)
@@ -60,7 +68,7 @@ class StateManager extends Actor with ActorLogging {
           case Some(_limit) =>
             isearcher.search(q, _limit).scoreDocs
           case None =>
-            isearcher.search(q, 100).scoreDocs
+            isearcher.search(q, settings.defaultSearchLimit).scoreDocs
         }
         val refs = hits.map {
           hit => ProbeRef(isearcher.doc(hit.doc).get("ref"))
@@ -73,6 +81,10 @@ class StateManager extends Actor with ActorLogging {
         case ex: Throwable =>
           sender() ! StateServiceOperationFailed(query, ex)
       }
+
+    /* */
+    case op: HistoryServiceOperation =>
+      history.forward(op)
   }
 }
 

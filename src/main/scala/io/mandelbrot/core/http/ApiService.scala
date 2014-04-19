@@ -27,12 +27,13 @@ import spray.routing.{HttpService, ExceptionHandler}
 import spray.http._
 import spray.http.HttpHeaders.Location
 import spray.util.LoggingContext
+import org.joda.time.format.ISODateTimeFormat
 import java.net.URI
 
 import io.mandelbrot.core._
+import io.mandelbrot.core.messagestream._
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.state.{QueryprobesResult, QueryProbes, StateService}
-import io.mandelbrot.core.messagestream.{MessageStreamBus, Message}
+import io.mandelbrot.core.state._
 
 /**
  * ApiService contains the REST API logic.
@@ -42,6 +43,7 @@ trait ApiService extends HttpService {
   import spray.httpx.SprayJsonSupport._
   import spray.json._
   import JsonProtocol._
+  import RoutingDirectives._
 
   val settings: HttpSettings
 
@@ -53,6 +55,8 @@ trait ApiService extends HttpService {
   val registryService: ActorRef
   val stateService: ActorRef
   val messageStream: MessageStreamBus
+
+  val datetimeParser = ISODateTimeFormat.dateTimeParser().withZoneUTC()
 
   /**
    * Spray routes for managing objects
@@ -142,7 +146,23 @@ trait ApiService extends HttpService {
         }
       } ~
       pathPrefix("collections") {
-        path("history") { get { complete { StatusCodes.OK }}
+        path("history") {
+          get {
+            //parameter('from.?, 'to.?, 'limit.as[Int].?) { case (from: Option[String], to: Option[String], limit: Option[Int]) =>
+            timeseriesParams { case TimeseriesParams(from, to, limit, last) =>
+            parameterMultiMap { case params =>
+              val query = params.get("path") match {
+                case Some(paths) =>
+                  val probeRefs = paths.map(ProbeRef(uri, _)).toSet
+                  GetHistoryFor(probeRefs, from, to, limit)
+                case None =>
+                  GetAllHistory(ProbeRef(uri), from, to, limit)
+              }
+              complete {
+                stateService.ask(query).map { case _ => StatusCodes.OK }
+              }
+            }}
+          }
         } ~
         path("metrics") { get { complete { StatusCodes.OK }}
         } ~
@@ -181,7 +201,7 @@ trait ApiService extends HttpService {
     pathPrefix("state") {
       path("search") {
         get {
-          parameters('q, 'limit.as[Int].?) { case (q: String, limit: Option[Int]) =>
+          parameters('q.as[String], 'limit.as[Int].?) { case (q: String, limit: Option[Int]) =>
             complete {
               stateService.ask(QueryProbes(q, limit)).map {
                 case result: QueryprobesResult =>

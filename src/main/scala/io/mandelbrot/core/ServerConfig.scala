@@ -27,11 +27,13 @@ import scala.collection.JavaConversions._
 import java.io.File
 
 import io.mandelbrot.core.http.HttpSettings
+import io.mandelbrot.core.state.StateSettings
 
 /**
  *
  */
-case class ServerConfigSettings(http: Option[HttpSettings])
+case class ServerConfigSettings(http: Option[HttpSettings],
+                                stateSettings: StateSettings)
 
 /**
  *
@@ -84,7 +86,10 @@ class ServerConfigExtension(system: ActorSystem) extends Extension {
       Some(HttpSettings.parse(mandelbrotConfig.getConfig("http")))
     }
 
-    ServerConfigSettings(httpSettings)
+    /* parse state settings */
+    val stateSettings = StateSettings.parse(mandelbrotConfig.getConfig("state"))
+
+    ServerConfigSettings(httpSettings, stateSettings)
 
   } catch {
     case ex: ServerConfigException =>
