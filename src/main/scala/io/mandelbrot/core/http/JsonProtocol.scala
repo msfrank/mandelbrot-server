@@ -30,6 +30,7 @@ import java.nio.charset.Charset
 
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.messagestream.{GenericMessage, Message, StatusMessage}
+import org.joda.time.format.ISODateTimeFormat
 
 object JsonProtocol extends DefaultJsonProtocol {
 
@@ -44,9 +45,11 @@ object JsonProtocol extends DefaultJsonProtocol {
 
   /* convert DateTime class */
   implicit object DateTimeFormat extends RootJsonFormat[DateTime] {
+    val datetimeParser = ISODateTimeFormat.dateTimeParser().withZoneUTC()
     def write(datetime: DateTime) = JsString(datetime.getMillis.toString)
     def read(value: JsValue) = value match {
-      case JsString(datetime) => new DateTime(datetime.toLong)
+      case JsString(string) => datetimeParser.parseDateTime(string)
+      case JsNumber(bigDecimal) => new DateTime(bigDecimal.toLong)
       case _ => throw new DeserializationException("expected DateTime")
     }
   }
@@ -162,7 +165,7 @@ object JsonProtocol extends DefaultJsonProtocol {
           if (!fields.contains("payload"))
             throw new DeserializationException("missing payload")
           fields.get("messageType") match {
-            case Some(JsString("io.mandelbrot.message.StateMessage")) =>
+            case Some(JsString("io.mandelbrot.message.StatusMessage")) =>
               StatusMessageFormat.read(fields("payload"))
             case Some(JsString(unknownType)) =>
               GenericMessage(unknownType, fields("payload"))
