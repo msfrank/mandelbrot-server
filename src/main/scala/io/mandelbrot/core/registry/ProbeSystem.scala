@@ -91,10 +91,10 @@ class ProbeSystem(uri: URI) extends Processor with ActorLogging {
       currentSpec match {
         case Some(spec) =>
           val futures = probes.toVector.map { case (ref: ProbeRef, actor: ProbeActor) =>
-            actor.actor.ask(GetProbeState)(timeout).map { case state: ProbeState => ref -> state }
+            actor.actor.ask(GetProbeState)(timeout).mapTo[ProbeState]
           }
           Future.sequence(futures).map { case states =>
-            GetProbeSystemStateResult(query, states.toMap)
+            GetProbeSystemStateResult(query, states)
           }.pipeTo(sender())
         case None =>
           sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
@@ -169,7 +169,7 @@ case class UpdateProbeSystem(uri: URI, spec: ProbeSpec) extends ProbeSystemComma
 case class UpdateProbeSystemResult(op: UpdateProbeSystem, ref: ActorRef)
 
 case class GetProbeSystemState(uri: URI) extends ProbeSystemQuery
-case class GetProbeSystemStateResult(op: GetProbeSystemState, state: Map[ProbeRef,ProbeState])
+case class GetProbeSystemStateResult(op: GetProbeSystemState, state: Vector[ProbeState])
 
 case class GetProbeSystemMetadata(uri: URI) extends ProbeSystemQuery
 case class GetProbeSystemMetadataResult(op: GetProbeSystemMetadata, metadata: Map[ProbeRef,Map[String,String]])

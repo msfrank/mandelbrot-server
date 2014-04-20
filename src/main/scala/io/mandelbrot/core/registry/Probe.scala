@@ -70,7 +70,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
       persist(ProbeUpdates(message, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
     case GetProbeState =>
-      sender() ! ProbeState(lifecycle, health, summary, lastUpdate, lastChange, squelch)
+      sender() ! ProbeState(probeRef, lifecycle, health, summary, lastUpdate, lastChange, squelch)
 
     case notification: Notification =>
       notifier.notify(notification)
@@ -142,17 +142,17 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
   def setTimer(duration: Option[FiniteDuration] = None): Unit = {
     for (current <- timer)
       current.cancel()
-    duration match {
+    timer = duration match {
       case Some(delay) =>
-        context.system.scheduler.scheduleOnce(delay, self, ProbeStateTimeout)
+        Some(context.system.scheduler.scheduleOnce(delay, self, ProbeStateTimeout))
       case None =>
         lifecycle match {
           case ProbeJoining =>
-            context.system.scheduler.scheduleOnce(joiningTimeout, self, ProbeStateTimeout)
+            Some(context.system.scheduler.scheduleOnce(joiningTimeout, self, ProbeStateTimeout))
           case ProbeLeaving =>
-            context.system.scheduler.scheduleOnce(leavingTimeout, self, ProbeStateTimeout)
+            Some(context.system.scheduler.scheduleOnce(leavingTimeout, self, ProbeStateTimeout))
           case _ =>
-            context.system.scheduler.scheduleOnce(runningTimeout, self, ProbeStateTimeout)
+            Some(context.system.scheduler.scheduleOnce(runningTimeout, self, ProbeStateTimeout))
         }
     }
   }
@@ -186,4 +186,10 @@ case object ProbeUnknown extends ProbeHealth("unknown")
 
 
 case object GetProbeState
-case class ProbeState(lifecycle: ProbeLifecycle, health: ProbeHealth, summary: Option[String], lastUpdate: Option[DateTime], lastChange: Option[DateTime], squelched: Boolean)
+case class ProbeState(probeRef: ProbeRef,
+                      lifecycle: ProbeLifecycle,
+                      health: ProbeHealth,
+                      summary: Option[String],
+                      lastUpdate: Option[DateTime],
+                      lastChange: Option[DateTime],
+                      squelched: Boolean)

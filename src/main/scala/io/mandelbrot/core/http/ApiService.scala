@@ -148,7 +148,6 @@ trait ApiService extends HttpService {
       pathPrefix("collections") {
         path("history") {
           get {
-            //parameter('from.?, 'to.?, 'limit.as[Int].?) { case (from: Option[String], to: Option[String], limit: Option[Int]) =>
             timeseriesParams { case TimeseriesParams(from, to, limit, last) =>
             parameterMultiMap { case params =>
               val query = params.get("path") match {
