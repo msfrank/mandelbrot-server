@@ -129,22 +129,28 @@ object JsonProtocol extends DefaultJsonProtocol {
     }
   }
 
-  /* */
+  /* registry operations */
   implicit val RegisterProbeSystemFormat = jsonFormat2(RegisterProbeSystem)
   implicit val UpdateProbeSystemFormat = jsonFormat2(UpdateProbeSystem)
-  implicit val ProbeStateFormat = jsonFormat7(ProbeState)
+
+  /* probe system operations */
+  implicit val ProbeStateFormat = jsonFormat9(ProbeState)
   implicit val GetProbeSystemStateFormat = jsonFormat1(GetProbeSystemState)
   implicit val GetProbeSystemStateResultFormat = jsonFormat2(GetProbeSystemStateResult)
 
-  /* */
-  implicit val StateMessageFormat = jsonFormat5(StatusMessage)
+  /* probe operations */
+  implicit val AcknowledgeProbeFormat = jsonFormat2(AcknowledgeProbe)
+  implicit val AcknowledgeProbeResultFormat = jsonFormat2(AcknowledgeProbeResult)
+
+  /* message types */
+  implicit val StatusMessageFormat = jsonFormat5(StatusMessage)
 
   /* */
   implicit object MessageFormat extends RootJsonFormat[Message] {
     def write(message: Message) = {
       val (messageType, payload) = message match {
         case m: StatusMessage =>
-          "io.mandelbrot.message.StateMessage" -> StateMessageFormat.write(m)
+          "io.mandelbrot.message.StatusMessage" -> StatusMessageFormat.write(m)
         case m: GenericMessage =>
           m.messageType -> m.value
       }
@@ -157,7 +163,7 @@ object JsonProtocol extends DefaultJsonProtocol {
             throw new DeserializationException("missing payload")
           fields.get("messageType") match {
             case Some(JsString("io.mandelbrot.message.StateMessage")) =>
-              StateMessageFormat.read(fields("payload"))
+              StatusMessageFormat.read(fields("payload"))
             case Some(JsString(unknownType)) =>
               GenericMessage(unknownType, fields("payload"))
             case None =>

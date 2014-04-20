@@ -187,7 +187,18 @@ trait ApiService extends HttpService {
           post { complete { throw new ApiException(BadRequest)}}
         } ~
         path("acknowledge") {
-          post { complete { throw new ApiException(BadRequest)}}
+          post {
+            entity(as[AcknowledgeProbe]) { case command: AcknowledgeProbe =>
+              complete {
+                registryService.ask(command).map {
+                  case result: AcknowledgeProbeResult =>
+                    result
+                  case failure: ProbeOperationFailed =>
+                    throw failure.failure
+                }
+              }
+            }
+          }
         }
       }
     }

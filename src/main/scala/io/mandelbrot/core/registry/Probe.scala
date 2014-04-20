@@ -28,6 +28,8 @@ import io.mandelbrot.core.notification._
 
 import io.mandelbrot.core.state.{UpdateProbeStatus, StateService}
 import io.mandelbrot.core.messagestream.StatusMessage
+import java.util.UUID
+import io.mandelbrot.core.{ResourceNotFound, Conflict, BadRequest, ApiException}
 
 /**
  *
@@ -50,8 +52,10 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
   var summary: Option[String] = None
   var lastChange: Option[DateTime] = None
   var lastUpdate: Option[DateTime] = None
-  var notifier: NotificationPolicy = new EmitPolicy(context.system)
+  var correlationId: Option[UUID] = None
+  var acknowledgementId: Option[UUID] = None
   var squelch: Boolean = false
+  var notifier: NotificationPolicy = new EmitPolicy(context.system)
   var timer: Option[Cancellable] = None
   val flapQueue: FlapQueue = new FlapQueue(flapCycles, flapWindow)
 
@@ -64,13 +68,40 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
   def receiveCommand = {
 
     case ProbeStateTimeout =>
-      persist(ProbeExpires(DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
+      val correlation = if (health == ProbeHealthy) Some(UUID.randomUUID()) else None
+      persist(ProbeExpires(correlation, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
     case message: StatusMessage =>
-      persist(ProbeUpdates(message, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
+      val correlation = if (health == ProbeHealthy && message.health != ProbeHealthy) Some(UUID.randomUUID()) else None
+      persist(ProbeUpdates(message, correlation, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
-    case GetProbeState =>
-      sender() ! ProbeState(probeRef, lifecycle, health, summary, lastUpdate, lastChange, squelch)
+    case query: GetProbeState =>
+      val state = ProbeState(probeRef, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      sender() ! GetProbeStateResult(query, state)
+
+    case command: AcknowledgeProbe =>
+      val result = correlationId match {
+        case None =>
+          ProbeOperationFailed(command, new ApiException(ResourceNotFound))
+        case Some(correlation) if acknowledgementId.isDefined =>
+          ProbeOperationFailed(command, new ApiException(Conflict))
+        case Some(correlation) if correlation != command.correlationId =>
+          log.debug("failed to acknowledge")
+          ProbeOperationFailed(command, new ApiException(BadRequest))
+        case Some(correlation) =>
+          val acknowledgement = UUID.randomUUID()
+          val timestamp = DateTime.now(DateTimeZone.UTC)
+          persist(UserAcknowledges(acknowledgement, timestamp))(updateState(_, recovering = false))
+          AcknowledgeProbeResult(command, acknowledgement)
+      }
+      sender() ! result
+
+    case command: SetProbeSquelch =>
+      val result = if (squelch != command.squelch) {
+        persist(UserSetsSquelch(command.squelch, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
+        SetProbeSquelchResult(command, command.squelch)
+      } else ProbeOperationFailed(command, new ApiException(BadRequest))
+      sender() ! result
 
     case notification: Notification =>
       notifier.notify(notification)
@@ -87,56 +118,93 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
 
   def updateState(event: Event, recovering: Boolean) = event match {
 
-    case ProbeUpdates(message, timestamp) =>
+    case ProbeUpdates(message, correlation, timestamp) =>
       summary = Some(message.summary)
       lastUpdate = Some(timestamp)
-      val oldHealth = health
       val oldLifecycle = lifecycle
+      val oldHealth = health
+      // update lifecycle
+      if (oldLifecycle == ProbeJoining)
+        lifecycle = ProbeKnown
       // update health
       health = message.health
       if (health != oldHealth) {
         lastChange = Some(timestamp)
         flapQueue.push(message.timestamp)
+        // we transition from healthy to non-healthy
+        if (oldHealth == ProbeHealthy) {
+          correlationId = correlation
+          acknowledgementId = None
+        }
+        // we transition from non-healthy to healthy
+        else if (health == ProbeHealthy) {
+          correlationId = None
+          acknowledgementId = None
+        }
       }
-      // update lifecycle
-      if (oldLifecycle == ProbeJoining)
-        lifecycle = ProbeKnown
       if (!recovering) {
-        // send health notifications
-        if (flapQueue.isFlapping)
-          notifier.notify(NotifyHealthFlaps(probeRef, flapQueue.flapStart, message.timestamp))
-        else if (oldHealth != health)
-          notifier.notify(NotifyHealthChanges(probeRef, oldHealth, health, message.timestamp))
-        else
-          notifier.notify(NotifyHealthUpdates(probeRef, health, message.timestamp))
-        // send lifecycle notifications
-        if (lifecycle != oldLifecycle)
-          notifier.notify(NotifyLifecycleChanges(probeRef, oldLifecycle, lifecycle, message.timestamp))
-        //
+        // send health notifications if not squelched
+        if (!squelch) {
+          if (flapQueue.isFlapping)
+            notifier.notify(NotifyHealthFlaps(probeRef, flapQueue.flapStart, message.timestamp))
+          else if (oldHealth != health)
+            notifier.notify(NotifyHealthChanges(probeRef, oldHealth, health, message.timestamp))
+          else
+            notifier.notify(NotifyHealthUpdates(probeRef, health, message.timestamp))
+          // send lifecycle notifications
+          if (lifecycle != oldLifecycle)
+            notifier.notify(NotifyLifecycleChanges(probeRef, oldLifecycle, lifecycle, message.timestamp))
+        }
+        // notify state service about updated state
         stateService ! UpdateProbeStatus(probeRef, timestamp, lifecycle, health, Some(message.summary), message.detail)
       }
       // reset the timer
       setTimer()
 
-    case ProbeExpires(timestamp) =>
+    case ProbeExpires(correlation, timestamp) =>
       val oldHealth = health
       // update health
       health = ProbeUnknown
       if (health != oldHealth) {
         lastChange = Some(timestamp)
         flapQueue.push(timestamp)
+        // we transition from healthy to non-healthy
+        if (oldHealth == ProbeHealthy) {
+          correlationId = correlation
+          acknowledgementId = None
+        }
       }
       if (!recovering) {
-        // send health notifications
-        if (flapQueue.isFlapping)
-          notifier.notify(NotifyHealthFlaps(probeRef, flapQueue.flapStart, timestamp))
-        else if (oldHealth != health)
-          notifier.notify(NotifyHealthChanges(probeRef, oldHealth, health, timestamp))
-        else
-          notifier.notify(NotifyHealthExpires(probeRef, timestamp))
+        // send health notifications if not squelched
+        if (!squelch) {
+          if (flapQueue.isFlapping)
+            notifier.notify(NotifyHealthFlaps(probeRef, flapQueue.flapStart, timestamp))
+          else if (oldHealth != health)
+            notifier.notify(NotifyHealthChanges(probeRef, oldHealth, health, timestamp))
+          else
+            notifier.notify(NotifyHealthExpires(probeRef, timestamp))
+        }
+        // notify state service about updated state
+        stateService ! UpdateProbeStatus(probeRef, timestamp, lifecycle, health, None, None)
       }
       // reset the timer
       setTimer()
+
+
+    case UserAcknowledges(acknowledgement, timestamp) =>
+      acknowledgementId = Some(acknowledgement)
+      if (!recovering) {
+        notifier.notify(NotifyAcknowledged(probeRef, correlationId.get, acknowledgement, timestamp))
+      }
+
+    case UserSetsSquelch(setSquelch, timestamp) =>
+      squelch = setSquelch
+      if (!recovering) {
+        if (setSquelch)
+          notifier.notify(NotifySquelched(probeRef, timestamp))
+        else
+          notifier.notify(NotifyUnsquelched(probeRef, timestamp))
+      }
   }
 
   def setTimer(duration: Option[FiniteDuration] = None): Unit = {
@@ -161,8 +229,10 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
 object Probe {
   def props(probeRef: ProbeRef, parent: ActorRef) = Props(classOf[Probe], probeRef, parent)
   sealed trait Event
-  case class ProbeUpdates(state: StatusMessage, timestamp: DateTime) extends Event
-  case class ProbeExpires(timestamp: DateTime) extends Event
+  case class ProbeUpdates(state: StatusMessage, correlationId: Option[UUID], timestamp: DateTime) extends Event
+  case class ProbeExpires(correlationId: Option[UUID], timestamp: DateTime) extends Event
+  case class UserAcknowledges(acknowledgementId: UUID, timestamp: DateTime) extends Event
+  case class UserSetsSquelch(squelch: Boolean, timestamp: DateTime) extends Event
   case object ProbeStateTimeout
 }
 
@@ -184,12 +254,28 @@ case object ProbeDegraded extends ProbeHealth("degraded")
 case object ProbeFailed extends ProbeHealth("failed")
 case object ProbeUnknown extends ProbeHealth("unknown")
 
-
-case object GetProbeState
+/* */
 case class ProbeState(probeRef: ProbeRef,
                       lifecycle: ProbeLifecycle,
                       health: ProbeHealth,
                       summary: Option[String],
                       lastUpdate: Option[DateTime],
                       lastChange: Option[DateTime],
+                      correlation: Option[UUID],
+                      acknowledged: Option[UUID],
                       squelched: Boolean)
+
+/* */
+sealed trait ProbeOperation { val probeRef: ProbeRef }
+sealed trait ProbeCommand extends ProbeOperation
+sealed trait ProbeQuery extends ProbeOperation
+case class ProbeOperationFailed(op: ProbeOperation, failure: Throwable)
+
+case class GetProbeState(probeRef: ProbeRef) extends ProbeQuery
+case class GetProbeStateResult(op: GetProbeState, state: ProbeState)
+
+case class SetProbeSquelch(probeRef: ProbeRef, squelch: Boolean) extends ProbeCommand
+case class SetProbeSquelchResult(op: SetProbeSquelch, squelch: Boolean)
+
+case class AcknowledgeProbe(probeRef: ProbeRef, correlationId: UUID) extends ProbeCommand
+case class AcknowledgeProbeResult(op: AcknowledgeProbe, acknowledgementId: UUID)

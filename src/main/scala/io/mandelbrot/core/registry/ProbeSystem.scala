@@ -91,10 +91,11 @@ class ProbeSystem(uri: URI) extends Processor with ActorLogging {
       currentSpec match {
         case Some(spec) =>
           val futures = probes.toVector.map { case (ref: ProbeRef, actor: ProbeActor) =>
-            actor.actor.ask(GetProbeState)(timeout).mapTo[ProbeState]
+            actor.actor.ask(GetProbeState(ref))(timeout).mapTo[GetProbeStateResult]
           }
-          Future.sequence(futures).map { case states =>
-            GetProbeSystemStateResult(query, states)
+          // FIXME: handle error reply
+          Future.sequence(futures).map { case results: Vector[GetProbeStateResult] =>
+            GetProbeSystemStateResult(query, results.map(_.state))
           }.pipeTo(sender())
         case None =>
           sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
@@ -110,6 +111,7 @@ class ProbeSystem(uri: URI) extends Processor with ActorLogging {
           sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
       }
 
+    /* send message to specified probe */
     case message: MandelbrotMessage =>
       probes.get(message.source) match {
         case Some(probeActor: ProbeActor) =>
@@ -117,6 +119,16 @@ class ProbeSystem(uri: URI) extends Processor with ActorLogging {
         case None =>
           log.warning("ignoring message {}: probe no longer exists", message)
       }
+
+    /* forward probe operations to the specified probe */
+    case op: ProbeOperation =>
+      probes.get(op.probeRef) match {
+        case Some(probeActor: ProbeActor) =>
+          probeActor.actor.forward(op)
+        case None =>
+          sender() ! ProbeOperationFailed(op, new ApiException(ResourceNotFound))
+      }
+
     /* handle notifications which have been passed up from Probe */
     case notification: Notification =>
       NotificationService(context.system) ! notification

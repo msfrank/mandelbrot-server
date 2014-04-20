@@ -84,6 +84,15 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
           ref.forward(op)
       }
 
+    /* forward Probe operations or return failure if system doesn't exist */
+    case op: ProbeOperation =>
+      objectSystems.get(op.probeRef.uri) match {
+        case null =>
+          sender() ! ProbeOperationFailed(op, new ApiException(ResourceNotFound))
+        case ref: ActorRef =>
+          ref.forward(op)
+      }
+
     /* forward state messages to the appropriate ProbeSystem */
     case message: StatusMessage =>
       objectSystems.get(message.source.uri) match {
