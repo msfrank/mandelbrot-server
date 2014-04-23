@@ -26,14 +26,20 @@ import org.slf4j.LoggerFactory
 import scala.collection.JavaConversions._
 import java.io.File
 
-import io.mandelbrot.core.http.HttpSettings
+import io.mandelbrot.core.registry.RegistrySettings
 import io.mandelbrot.core.state.StateSettings
+import io.mandelbrot.core.notification.NotificationSettings
+import io.mandelbrot.core.history.HistorySettings
+import io.mandelbrot.core.http.HttpSettings
 
 /**
  *
  */
-case class ServerConfigSettings(http: Option[HttpSettings],
-                                stateSettings: StateSettings)
+case class ServerConfigSettings(registry: RegistrySettings,
+                                state: StateSettings,
+                                notifications: NotificationSettings,
+                                history: HistorySettings,
+                                http: Option[HttpSettings])
 
 /**
  *
@@ -81,15 +87,24 @@ class ServerConfigExtension(system: ActorSystem) extends Extension {
   val settings = try {
     val mandelbrotConfig = config.getConfig("mandelbrot")
 
+    /* parse registry settings */
+    val registrySettings = RegistrySettings.parse(mandelbrotConfig.getConfig("registry"))
+
+    /* parse state settings */
+    val stateSettings = StateSettings.parse(mandelbrotConfig.getConfig("state"))
+
+    /* parse notification settings */
+    val notificationSettings = NotificationSettings.parse(mandelbrotConfig.getConfig("notification"))
+
+    /* parse history settings */
+    val historySettings = HistorySettings.parse(mandelbrotConfig.getConfig("history"))
+
     /* parse http settings */
     val httpSettings = if (!mandelbrotConfig.hasPath("http")) None else {
       Some(HttpSettings.parse(mandelbrotConfig.getConfig("http")))
     }
 
-    /* parse state settings */
-    val stateSettings = StateSettings.parse(mandelbrotConfig.getConfig("state"))
-
-    ServerConfigSettings(httpSettings, stateSettings)
+    ServerConfigSettings(registrySettings, stateSettings, notificationSettings, historySettings, httpSettings)
 
   } catch {
     case ex: ServerConfigException =>

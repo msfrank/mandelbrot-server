@@ -15,7 +15,7 @@ class HistoryStore extends Actor with ActorLogging {
   import HistoryStore._
 
   // config
-  val settings = ServerConfig(context.system).settings.stateSettings
+  val settings = ServerConfig(context.system).settings.history
   val url = "jdbc:h2:mem:history"
   val driver = "org.h2.driver"
 

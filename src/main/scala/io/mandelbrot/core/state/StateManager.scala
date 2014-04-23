@@ -22,7 +22,7 @@ class StateManager extends Actor with ActorLogging {
   import StateManager._
 
   // config
-  val settings = ServerConfig(context.system).settings.stateSettings
+  val settings = ServerConfig(context.system).settings.state
 
   /* open the index directory */
   val analyzer = new StandardAnalyzer(LUCENE_VERSION)
