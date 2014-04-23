@@ -2,7 +2,7 @@ package io.mandelbrot.core.state
 
 import akka.actor.{Props, ActorLogging, Actor}
 
-import org.apache.lucene.store.{FSDirectory, RAMDirectory}
+import org.apache.lucene.store.FSDirectory
 import org.apache.lucene.index.{DirectoryReader, Term, IndexWriter, IndexWriterConfig}
 import org.apache.lucene.analysis.standard.StandardAnalyzer
 import org.apache.lucene.document._
@@ -11,11 +11,9 @@ import org.apache.lucene.search.{ScoreDoc, IndexSearcher}
 import org.apache.lucene.queryparser.classic.{ParseException, QueryParser}
 import org.apache.lucene.util.Version
 import org.joda.time.DateTime
-import java.io.File
 
 import io.mandelbrot.core.registry.{ProbeHealth, ProbeLifecycle, ProbeRef}
 import io.mandelbrot.core.{ServerConfig, BadRequest, ApiException}
-
 
 /**
  *
@@ -26,19 +24,15 @@ class StateManager extends Actor with ActorLogging {
   // config
   val settings = ServerConfig(context.system).settings.stateSettings
 
-  // state
-  val history = context.actorOf(HistoryManager.props())
-
-  /* Store the index in memory */
+  /* open the index directory */
   val analyzer = new StandardAnalyzer(LUCENE_VERSION)
-  val stateStore = new RAMDirectory()
-  //val metadataStore = FSDirectory.open(new File("/tmp/testindex"))
+  val store = FSDirectory.open(settings.indexDirectory)
 
   def receive = {
 
     case update: UpdateProbeStatus =>
       val config = new IndexWriterConfig(LUCENE_VERSION, analyzer)
-      val iwriter = new IndexWriter(stateStore, config)
+      val iwriter = new IndexWriter(store, config)
       val doc = new Document()
       doc.add(new StringField("ref", update.probeRef.toString, Store.YES))
       doc.add(new StringField("objectType", "probe", Store.YES))
@@ -47,8 +41,7 @@ class StateManager extends Actor with ActorLogging {
       doc.add(new StringField("health", update.health.toString, Store.NO))
       iwriter.updateDocument(new Term("ref", update.probeRef.toString), doc)
       iwriter.close()
-      // store the status in history
-      history ! update
+      // TODO: store the status in history
 
     case update: UpdateProbeMetadata =>
 //      val iwriter = new IndexWriter(metadataStore, config)
@@ -60,7 +53,7 @@ class StateManager extends Actor with ActorLogging {
 
     case query @ QueryProbes(qs, limit) =>
       try {
-        val ireader = DirectoryReader.open(stateStore)
+        val ireader = DirectoryReader.open(store)
         val isearcher = new IndexSearcher(ireader)
         val parser = new QueryParser(LUCENE_VERSION, "ref", analyzer)
         val q = parser.parse(qs)
@@ -81,10 +74,6 @@ class StateManager extends Actor with ActorLogging {
         case ex: Throwable =>
           sender() ! StateServiceOperationFailed(query, ex)
       }
-
-    /* */
-    case op: HistoryServiceOperation =>
-      history.forward(op)
   }
 }
 

@@ -34,6 +34,7 @@ import io.mandelbrot.core._
 import io.mandelbrot.core.messagestream._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.state._
+import io.mandelbrot.core.history.{GetHistoryFor, GetAllHistory}
 
 /**
  * ApiService contains the REST API logic.

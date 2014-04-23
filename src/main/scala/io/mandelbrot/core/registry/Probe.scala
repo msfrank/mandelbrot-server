@@ -143,6 +143,8 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
         }
       }
       if (!recovering) {
+        // notify state service about updated state
+        stateService ! UpdateProbeStatus(probeRef, timestamp, lifecycle, health, Some(message.summary), message.detail)
         // send health notifications if not squelched
         if (!squelch) {
           // send lifecycle notifications
@@ -155,8 +157,6 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
           else
             notifier.notify(NotifyHealthUpdates(probeRef, health, message.timestamp))
         }
-        // notify state service about updated state
-        stateService ! UpdateProbeStatus(probeRef, timestamp, lifecycle, health, Some(message.summary), message.detail)
       }
       // reset the timer
       setTimer()
@@ -175,6 +175,8 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
         }
       }
       if (!recovering) {
+        // notify state service about updated state
+        stateService ! UpdateProbeStatus(probeRef, timestamp, lifecycle, health, None, None)
         // send health notifications if not squelched
         if (!squelch) {
           if (flapQueue.isFlapping)
@@ -184,8 +186,6 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
           else
             notifier.notify(NotifyHealthExpires(probeRef, timestamp))
         }
-        // notify state service about updated state
-        stateService ! UpdateProbeStatus(probeRef, timestamp, lifecycle, health, None, None)
       }
       // reset the timer
       setTimer()

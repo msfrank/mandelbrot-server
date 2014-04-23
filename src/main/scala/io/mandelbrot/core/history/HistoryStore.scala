@@ -1,21 +1,26 @@
-package io.mandelbrot.core.state
+package io.mandelbrot.core.history
 
 import akka.actor.{Cancellable, Props, ActorLogging, Actor}
+import scala.slick.driver.H2Driver.simple._
 import org.joda.time.DateTime
 
 import io.mandelbrot.core.ServerConfig
 import io.mandelbrot.core.registry.{ProbeLifecycle, ProbeHealth, ProbeRef}
-import io.mandelbrot.core.state.HistoryManager.CleanStaleHistory
+import io.mandelbrot.core.state.UpdateProbeStatus
 
 /**
  *
  */
-class HistoryManager extends Actor with ActorLogging {
+class HistoryStore extends Actor with ActorLogging {
+  import HistoryStore._
 
   // config
   val settings = ServerConfig(context.system).settings.stateSettings
+  val url = "jdbc:h2:mem:history"
+  val driver = "org.h2.driver"
 
   // state
+  val db = Database.forURL(url = url, driver = driver)
   val historyCleaner: Option[Cancellable] = None
 
   def receive = {
@@ -39,14 +44,15 @@ class HistoryManager extends Actor with ActorLogging {
   }
 }
 
-object HistoryManager {
-  def props() = Props(classOf[HistoryManager])
+object HistoryStore {
+  def props() = Props(classOf[HistoryStore])
 
   case object CleanStaleHistory
 }
 
 case class ProbeStatusHistory(probeRef: ProbeRef, timestamp: DateTime, lifecycle: ProbeLifecycle, health: ProbeHealth, summary: Option[String], detail: Option[String])
 
+/* */
 sealed trait HistoryServiceOperation
 sealed trait HistoryServiceCommand extends HistoryServiceOperation
 sealed trait HistoryServiceQuery extends HistoryServiceOperation

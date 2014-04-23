@@ -9,6 +9,7 @@ object MandelbrotServerBuild extends Build {
   val sprayVersion = "1.3.1"
   val luceneVersion = "4.7.1"
   val esperVersion = "4.11.0"
+  val slickVersion = "2.0.1"
 
   lazy val mandelbrotBuild = Project(
     id = "mandelbrot-server",
@@ -34,6 +35,7 @@ object MandelbrotServerBuild extends Build {
         "org.apache.lucene" % "lucene-memory" % luceneVersion,
         "org.apache.lucene" % "lucene-queryparser" % luceneVersion,
         "com.espertech" % "esper" % esperVersion,
+        "com.typesafe.slick" %% "slick" % slickVersion,
         "com.escalatesoft.subcut" %% "subcut" % "2.0",
         "joda-time" % "joda-time" % "2.2",
         "org.joda" % "joda-convert" % "1.3.1",
