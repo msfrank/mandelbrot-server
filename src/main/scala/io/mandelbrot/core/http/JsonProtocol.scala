@@ -46,7 +46,7 @@ object JsonProtocol extends DefaultJsonProtocol {
   /* convert DateTime class */
   implicit object DateTimeFormat extends RootJsonFormat[DateTime] {
     val datetimeParser = ISODateTimeFormat.dateTimeParser().withZoneUTC()
-    def write(datetime: DateTime) = JsString(datetime.getMillis.toString)
+    def write(datetime: DateTime) = JsNumber(datetime.getMillis)
     def read(value: JsValue) = value match {
       case JsString(string) => datetimeParser.parseDateTime(string)
       case JsNumber(bigDecimal) => new DateTime(bigDecimal.toLong)
@@ -144,6 +144,8 @@ object JsonProtocol extends DefaultJsonProtocol {
   /* probe operations */
   implicit val AcknowledgeProbeFormat = jsonFormat2(AcknowledgeProbe)
   implicit val AcknowledgeProbeResultFormat = jsonFormat2(AcknowledgeProbeResult)
+  implicit val SetProbeSquelchFormat = jsonFormat2(SetProbeSquelch)
+  implicit val SetProbeSquelchResultFormat = jsonFormat2(SetProbeSquelchResult)
 
   /* message types */
   implicit val StatusMessageFormat = jsonFormat5(StatusMessage)

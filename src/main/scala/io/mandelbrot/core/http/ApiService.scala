@@ -163,11 +163,11 @@ trait ApiService extends HttpService {
             }}
           }
         } ~
-        path("metrics") { get { complete { StatusCodes.OK }}
+        path("metrics") { get { complete { StatusCodes.BadRequest }}
         } ~
-        path("events") { get { complete { StatusCodes.OK }}
+        path("events") { get { complete { StatusCodes.BadRequest }}
         } ~
-        path("snapshots") { get { complete { StatusCodes.OK }}
+        path("snapshots") { get { complete { StatusCodes.BadRequest }}
         }
       } ~
       pathPrefix("actions") {
@@ -182,11 +182,8 @@ trait ApiService extends HttpService {
             }
           }
         } ~
-        path("invoke") {
-          /* execute an external command */
-          post { complete { throw new ApiException(BadRequest)}}
-        } ~
         path("acknowledge") {
+          /* acknowledge an unhealthy probe */
           post {
             entity(as[AcknowledgeProbe]) { case command: AcknowledgeProbe =>
               complete {
@@ -199,6 +196,25 @@ trait ApiService extends HttpService {
               }
             }
           }
+        } ~
+        path("squelch") {
+          /* enable/disable probe notifications */
+          post {
+            entity(as[SetProbeSquelch]) { case command: SetProbeSquelch =>
+              complete {
+                registryService.ask(command).map {
+                  case result: SetProbeSquelchResult =>
+                    result
+                  case failure: ProbeOperationFailed =>
+                    throw failure.failure
+                }
+              }
+            }
+          }
+        } ~
+        path("invoke") {
+          /* execute an external command */
+          post { complete { throw new ApiException(BadRequest)}}
         }
       }
     }

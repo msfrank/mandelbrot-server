@@ -145,15 +145,15 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
       if (!recovering) {
         // send health notifications if not squelched
         if (!squelch) {
+          // send lifecycle notifications
+          if (lifecycle != oldLifecycle)
+            notifier.notify(NotifyLifecycleChanges(probeRef, oldLifecycle, lifecycle, message.timestamp))
           if (flapQueue.isFlapping)
             notifier.notify(NotifyHealthFlaps(probeRef, flapQueue.flapStart, message.timestamp))
           else if (oldHealth != health)
             notifier.notify(NotifyHealthChanges(probeRef, oldHealth, health, message.timestamp))
           else
             notifier.notify(NotifyHealthUpdates(probeRef, health, message.timestamp))
-          // send lifecycle notifications
-          if (lifecycle != oldLifecycle)
-            notifier.notify(NotifyLifecycleChanges(probeRef, oldLifecycle, lifecycle, message.timestamp))
         }
         // notify state service about updated state
         stateService ! UpdateProbeStatus(probeRef, timestamp, lifecycle, health, Some(message.summary), message.detail)
@@ -205,6 +205,12 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
         else
           notifier.notify(NotifyUnsquelched(probeRef, timestamp))
       }
+  }
+
+  def notify(notification: Notification): Unit = {
+    if (!squelch)
+      notifier.notify(notification)
+
   }
 
   def setTimer(duration: Option[FiniteDuration] = None): Unit = {
