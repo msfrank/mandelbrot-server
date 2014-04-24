@@ -17,8 +17,14 @@ class HistoryManager extends Actor with ActorLogging {
 
   // config
   val settings = ServerConfig(context.system).settings.history
-  val url = "jdbc:h2:mem:history;DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1"
   val driver = "org.h2.Driver"
+  val url = "jdbc:h2:" + {
+    if (settings.inMemory) "mem:history" else "file:" + settings.databasePath.getAbsolutePath
+  } + ";" + {
+    if (settings.inMemory) "DB_CLOSE_DELAY=-1;" else ""
+  } + {
+    if (!settings.h2databaseToUpper) "DATABASE_TO_UPPER=false" else "DATABASE_TO_UPPER=true"
+  }
 
   // initialize db
   val db = Database.forURL(url = url, driver = driver)
@@ -36,7 +42,6 @@ class HistoryManager extends Actor with ActorLogging {
 
     /* append probe status to history */
     case update @ UpdateProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail) =>
-      log.debug("received {}", update)
       db.withSession { implicit session =>
         statusEntries += ((probeRef.toString, new Date(timestamp.getMillis), lifecycle.value, health.value, summary, detail, None))
       }
