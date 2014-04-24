@@ -25,6 +25,7 @@ import io.mandelbrot.core.state.StateService
 import io.mandelbrot.core.notification.NotificationService
 import io.mandelbrot.core.registry.RegistryService
 import io.mandelbrot.core.http.HttpServer
+import io.mandelbrot.core.history.HistoryService
 
 /**
  * application entry point
@@ -35,7 +36,8 @@ object MandelbrotApp extends App {
   val system = ActorSystem("mandelbrot")
   val settings = ServerConfig(system).settings
 
-  /* start top level services */
+  /* pre-warm top level services */
+  val historyService = HistoryService(system)
   val notificationService = NotificationService(system)
   val stateService = StateService(system)
   val registryService = RegistryService(system)

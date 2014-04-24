@@ -207,11 +207,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
       }
   }
 
-  def notify(notification: Notification): Unit = {
-    if (!squelch)
-      notifier.notify(notification)
-
-  }
+  def notify(notification: Notification): Unit = if (!squelch) notifier.notify(notification)
 
   def setTimer(duration: Option[FiniteDuration] = None): Unit = {
     for (current <- timer)

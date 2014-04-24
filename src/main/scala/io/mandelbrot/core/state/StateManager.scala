@@ -14,6 +14,7 @@ import org.joda.time.DateTime
 
 import io.mandelbrot.core.registry.{ProbeHealth, ProbeLifecycle, ProbeRef}
 import io.mandelbrot.core.{ServerConfig, BadRequest, ApiException}
+import io.mandelbrot.core.history.HistoryService
 
 /**
  *
@@ -27,6 +28,8 @@ class StateManager extends Actor with ActorLogging {
   /* open the index directory */
   val analyzer = new StandardAnalyzer(LUCENE_VERSION)
   val store = FSDirectory.open(settings.indexDirectory)
+
+  val historyService = HistoryService(context.system)
 
   def receive = {
 
@@ -42,6 +45,7 @@ class StateManager extends Actor with ActorLogging {
       iwriter.updateDocument(new Term("ref", update.probeRef.toString), doc)
       iwriter.close()
       // TODO: store the status in history
+      historyService ! update
 
     case update: UpdateProbeMetadata =>
 //      val iwriter = new IndexWriter(metadataStore, config)

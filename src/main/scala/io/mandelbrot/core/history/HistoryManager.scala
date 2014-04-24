@@ -3,31 +3,43 @@ package io.mandelbrot.core.history
 import akka.actor.{Cancellable, Props, ActorLogging, Actor}
 import scala.slick.driver.H2Driver.simple._
 import org.joda.time.DateTime
+import java.sql.Date
 
-import io.mandelbrot.core.ServerConfig
-import io.mandelbrot.core.registry.{ProbeLifecycle, ProbeHealth, ProbeRef}
+import io.mandelbrot.core.registry.ProbeRef
 import io.mandelbrot.core.state.UpdateProbeStatus
+import io.mandelbrot.core.ServerConfig
 
 /**
  *
  */
-class HistoryStore extends Actor with ActorLogging {
-  import HistoryStore._
+class HistoryManager extends Actor with ActorLogging {
+  import HistoryManager._
 
   // config
   val settings = ServerConfig(context.system).settings.history
-  val url = "jdbc:h2:mem:history"
-  val driver = "org.h2.driver"
+  val url = "jdbc:h2:mem:history;DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1"
+  val driver = "org.h2.Driver"
 
-  // state
+  // initialize db
   val db = Database.forURL(url = url, driver = driver)
+  val statusEntries = TableQuery[StatusEntries]
+  val notificationEntries = TableQuery[NotificationEntries]
   val historyCleaner: Option[Cancellable] = None
+
+  // define tables
+  db.withSession { implicit session =>
+    statusEntries.ddl.create
+    notificationEntries.ddl.create
+  }
 
   def receive = {
 
     /* append probe status to history */
-    case update: UpdateProbeStatus =>
-      log.debug("storing status {}", update)
+    case update @ UpdateProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail) =>
+      log.debug("received {}", update)
+      db.withSession { implicit session =>
+        statusEntries += ((probeRef.toString, new Date(timestamp.getMillis), lifecycle.value, health.value, summary, detail, None))
+      }
 
     /* retrieve history for the ProbeRef and all its children */
     case query: GetAllHistory =>
@@ -44,13 +56,11 @@ class HistoryStore extends Actor with ActorLogging {
   }
 }
 
-object HistoryStore {
-  def props() = Props(classOf[HistoryStore])
+object HistoryManager {
+  def props() = Props(classOf[HistoryManager])
 
   case object CleanStaleHistory
 }
-
-case class ProbeStatusHistory(probeRef: ProbeRef, timestamp: DateTime, lifecycle: ProbeLifecycle, health: ProbeHealth, summary: Option[String], detail: Option[String])
 
 /* */
 sealed trait HistoryServiceOperation
@@ -59,10 +69,10 @@ sealed trait HistoryServiceQuery extends HistoryServiceOperation
 case class HistoryServiceOperationFailed(op: HistoryServiceOperation, failure: Throwable)
 
 case class GetAllHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends HistoryServiceQuery
-case class GetAllHistoryResult(op: GetAllHistory, history: Vector[ProbeStatusHistory])
+case class GetAllHistoryResult(op: GetAllHistory, history: Vector[StatusEntries])
 
 case class GetHistoryFor(probeRefs: Set[ProbeRef], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends HistoryServiceQuery
-case class GetHistoryForResult(op: GetHistoryFor, history: Vector[ProbeStatusHistory])
+case class GetHistoryForResult(op: GetHistoryFor, history: Vector[StatusEntries])
 
 case class DeleteAllHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime]) extends HistoryServiceCommand
 case class DeleteHistoryFor(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime]) extends HistoryServiceCommand
