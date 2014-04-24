@@ -31,6 +31,7 @@ import java.net.URI
 import io.mandelbrot.core.notification.{NotificationService, Notification}
 import io.mandelbrot.core.{ResourceNotFound, ApiException}
 import io.mandelbrot.core.messagestream.MandelbrotMessage
+import io.mandelbrot.core.state.StateService
 
 /**
  *
@@ -46,6 +47,8 @@ class ProbeSystem(uri: URI) extends Processor with ActorLogging {
   // state
   var probes: Map[ProbeRef,ProbeActor] = Map.empty
   var currentSpec: Option[ProbeSpec] = None
+
+  val stateService = StateService(context.system)
 
   def receive = {
 
@@ -64,6 +67,7 @@ class ProbeSystem(uri: URI) extends Processor with ActorLogging {
         }
         log.debug("added probe {}", ref)
         probes = probes + (ref -> ProbeActor(findProbeSpec(spec, ref.path), actor))
+        stateService ! ProbeMetadata(ref, spec.metadata)
       }
       // remove stale probes
       val probesRemoved = probeSet -- specSet
@@ -87,15 +91,15 @@ class ProbeSystem(uri: URI) extends Processor with ActorLogging {
       }
 
     /* get the state of all probes in the system */
-    case query: GetProbeSystemState =>
+    case query: GetProbeSystemStatus =>
       currentSpec match {
         case Some(spec) =>
           val futures = probes.toVector.map { case (ref: ProbeRef, actor: ProbeActor) =>
-            actor.actor.ask(GetProbeState(ref))(timeout).mapTo[GetProbeStateResult]
+            actor.actor.ask(GetProbeStatus(ref))(timeout).mapTo[GetProbeStatusResult]
           }
           // FIXME: handle error reply
-          Future.sequence(futures).map { case results: Vector[GetProbeStateResult] =>
-            GetProbeSystemStateResult(query, results.map(_.state))
+          Future.sequence(futures).map { case results: Vector[GetProbeStatusResult] =>
+            GetProbeSystemStatusResult(query, results.map(_.state))
           }.pipeTo(sender())
         case None =>
           sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
@@ -180,8 +184,8 @@ case class DescribeProbeSystemResult(op: DescribeProbeSystem, spec: ProbeSpec)
 case class UpdateProbeSystem(uri: URI, spec: ProbeSpec) extends ProbeSystemCommand
 case class UpdateProbeSystemResult(op: UpdateProbeSystem, ref: ActorRef)
 
-case class GetProbeSystemState(uri: URI) extends ProbeSystemQuery
-case class GetProbeSystemStateResult(op: GetProbeSystemState, state: Vector[ProbeState])
+case class GetProbeSystemStatus(uri: URI) extends ProbeSystemQuery
+case class GetProbeSystemStatusResult(op: GetProbeSystemStatus, state: Vector[ProbeStatus])
 
 case class GetProbeSystemMetadata(uri: URI) extends ProbeSystemQuery
 case class GetProbeSystemMetadataResult(op: GetProbeSystemMetadata, metadata: Map[ProbeRef,Map[String,String]])

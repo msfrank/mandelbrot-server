@@ -123,8 +123,8 @@ trait ApiService extends HttpService {
           /* describe the state of the ProbeSystem */
           get {
             complete {
-              registryService.ask(GetProbeSystemState(new URI(uri))).map {
-                case result: GetProbeSystemStateResult =>
+              registryService.ask(GetProbeSystemStatus(new URI(uri))).map {
+                case result: GetProbeSystemStatusResult =>
                   result.state
                 case failure: ProbeSystemOperationFailed =>
                   throw failure.failure

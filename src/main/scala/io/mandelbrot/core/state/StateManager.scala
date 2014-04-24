@@ -10,11 +10,11 @@ import org.apache.lucene.document.Field.Store
 import org.apache.lucene.search.{ScoreDoc, IndexSearcher}
 import org.apache.lucene.queryparser.classic.{ParseException, QueryParser}
 import org.apache.lucene.util.Version
-import org.joda.time.DateTime
 
-import io.mandelbrot.core.registry.{ProbeHealth, ProbeLifecycle, ProbeRef}
+import io.mandelbrot.core.registry._
 import io.mandelbrot.core.{ServerConfig, BadRequest, ApiException}
 import io.mandelbrot.core.history.HistoryService
+import io.mandelbrot.core.registry.ProbeStatus
 
 /**
  *
@@ -33,27 +33,37 @@ class StateManager extends Actor with ActorLogging {
 
   def receive = {
 
-    case update: UpdateProbeStatus =>
+    case status: ProbeStatus =>
       val config = new IndexWriterConfig(LUCENE_VERSION, analyzer)
       val iwriter = new IndexWriter(store, config)
       val doc = new Document()
-      doc.add(new StringField("ref", update.probeRef.toString, Store.YES))
+      doc.add(new StringField("id", "status:" + status.probeRef.toString, Store.YES))
+      doc.add(new StringField("ref", status.probeRef.toString, Store.YES))
       doc.add(new StringField("objectType", "probe", Store.YES))
-      doc.add(new LongField("mtime", update.timestamp.getMillis, Store.YES))
-      doc.add(new StringField("lifecycle", update.lifecycle.toString, Store.NO))
-      doc.add(new StringField("health", update.health.toString, Store.NO))
-      iwriter.updateDocument(new Term("ref", update.probeRef.toString), doc)
+      doc.add(new StringField("lifecycle", status.lifecycle.toString, Store.NO))
+      doc.add(new StringField("health", status.health.toString, Store.NO))
+      for (lastChange <- status.lastChange)
+        doc.add(new LongField("changed", lastChange.getMillis, Store.NO))
+      for (lastUpdate <- status.lastUpdate)
+        doc.add(new LongField("updated", lastUpdate.getMillis, Store.NO))
+      for (correlation <- status.correlation)
+        doc.add(new StringField("correlation", correlation.toString, Store.NO))
+      for (acknowledged <- status.acknowledged)
+        doc.add(new StringField("acknowledged", acknowledged.toString, Store.NO))
+      iwriter.updateDocument(new Term("id", "status:" + status.probeRef.toString), doc)
       iwriter.close()
-      // TODO: store the status in history
-      historyService ! update
+      historyService ! status
 
-    case update: UpdateProbeMetadata =>
-//      val iwriter = new IndexWriter(metadataStore, config)
-//      val doc = new Document()
-//      doc.add(new StringField("ref", update.probeRef.toString, Store.YES))
-//      update.metadata.foreach { case (name,value) => doc.add(new TextField("meta_" + name, value, Store.NO))}
-//      iwriter.updateDocument(new Term("ref", update.probeRef.toString), doc)
-//      iwriter.close()
+    case metadata: ProbeMetadata =>
+      val config = new IndexWriterConfig(LUCENE_VERSION, analyzer)
+      val iwriter = new IndexWriter(store, config)
+      val doc = new Document()
+      doc.add(new StringField("id", "meta:" + metadata.probeRef.toString, Store.YES))
+      doc.add(new StringField("ref", metadata.probeRef.toString, Store.YES))
+      doc.add(new StringField("objectType", "probe", Store.YES))
+      metadata.metadata.foreach { case (name,value) => doc.add(new TextField("meta_" + name, value, Store.NO))}
+      iwriter.updateDocument(new Term("id", "meta:" + metadata.probeRef.toString), doc)
+      iwriter.close()
 
     case query @ QueryProbes(qs, limit) =>
       try {
@@ -87,8 +97,7 @@ object StateManager {
   val LUCENE_VERSION = Version.LUCENE_47
 }
 
-case class UpdateProbeStatus(probeRef: ProbeRef, timestamp: DateTime, lifecycle: ProbeLifecycle, health: ProbeHealth, summary: Option[String], detail: Option[String])
-case class UpdateProbeMetadata(probeRef: ProbeRef, timestamp: DateTime, metadata: Map[String,String])
+case class DeleteProbeState(probeRef: ProbeRef)
 
 /**
  *

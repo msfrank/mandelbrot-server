@@ -23,12 +23,11 @@ import akka.actor.{Cancellable, ActorLogging, ActorRef, Props}
 import akka.persistence.{SnapshotOffer, EventsourcedProcessor}
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
+import java.util.UUID
 
 import io.mandelbrot.core.notification._
-
-import io.mandelbrot.core.state.{UpdateProbeStatus, StateService}
+import io.mandelbrot.core.state.StateService
 import io.mandelbrot.core.messagestream.StatusMessage
-import java.util.UUID
 import io.mandelbrot.core.{ResourceNotFound, Conflict, BadRequest, ApiException}
 
 /**
@@ -50,6 +49,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
   var lifecycle: ProbeLifecycle = ProbeJoining
   var health: ProbeHealth = ProbeUnknown
   var summary: Option[String] = None
+  var detail: Option[String] = None
   var lastChange: Option[DateTime] = None
   var lastUpdate: Option[DateTime] = None
   var correlationId: Option[UUID] = None
@@ -61,7 +61,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
 
   /* */
   val stateService = StateService(context.system)
-  stateService ! UpdateProbeStatus(probeRef, DateTime.now(DateTimeZone.UTC), lifecycle, health, None, None)
+  stateService ! ProbeStatus(probeRef, lifecycle, health, None, None, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
 
   setTimer()
 
@@ -75,9 +75,9 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
       val correlation = if (health == ProbeHealthy && message.health != ProbeHealthy) Some(UUID.randomUUID()) else None
       persist(ProbeUpdates(message, correlation, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
-    case query: GetProbeState =>
-      val state = ProbeState(probeRef, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-      sender() ! GetProbeStateResult(query, state)
+    case query: GetProbeStatus =>
+      val status = ProbeStatus(probeRef, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      sender() ! GetProbeStatusResult(query, status)
 
     case command: AcknowledgeProbe =>
       val result = correlationId match {
@@ -144,7 +144,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
       }
       if (!recovering) {
         // notify state service about updated state
-        stateService ! UpdateProbeStatus(probeRef, timestamp, lifecycle, health, Some(message.summary), message.detail)
+        stateService ! ProbeStatus(probeRef, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send health notifications if not squelched
         if (!squelch) {
           // send lifecycle notifications
@@ -175,13 +175,14 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
         }
       }
       if (!recovering) {
-        // notify state service about updated state
-        stateService ! UpdateProbeStatus(probeRef, timestamp, lifecycle, health, None, None)
+        // notify state service if we transition to unknown
+        if (health != oldHealth)
+          stateService ! ProbeStatus(probeRef, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send health notifications if not squelched
         if (!squelch) {
           if (flapQueue.isFlapping)
             notifier.notify(NotifyHealthFlaps(probeRef, flapQueue.flapStart, correlationId, timestamp))
-          else if (oldHealth != health)
+          else if (health != oldHealth)
             notifier.notify(NotifyHealthChanges(probeRef, oldHealth, health, correlationId, timestamp))
           else
             notifier.notify(NotifyHealthExpires(probeRef, correlationId, timestamp))
@@ -257,15 +258,18 @@ case object ProbeFailed extends ProbeHealth("failed")
 case object ProbeUnknown extends ProbeHealth("unknown")
 
 /* */
-case class ProbeState(probeRef: ProbeRef,
+case class ProbeStatus(probeRef: ProbeRef,
                       lifecycle: ProbeLifecycle,
                       health: ProbeHealth,
                       summary: Option[String],
+                      detail: Option[String],
                       lastUpdate: Option[DateTime],
                       lastChange: Option[DateTime],
                       correlation: Option[UUID],
                       acknowledged: Option[UUID],
                       squelched: Boolean)
+
+case class ProbeMetadata(probeRef: ProbeRef, metadata: Map[String,String])
 
 /* */
 sealed trait ProbeOperation { val probeRef: ProbeRef }
@@ -273,8 +277,8 @@ sealed trait ProbeCommand extends ProbeOperation
 sealed trait ProbeQuery extends ProbeOperation
 case class ProbeOperationFailed(op: ProbeOperation, failure: Throwable)
 
-case class GetProbeState(probeRef: ProbeRef) extends ProbeQuery
-case class GetProbeStateResult(op: GetProbeState, state: ProbeState)
+case class GetProbeStatus(probeRef: ProbeRef) extends ProbeQuery
+case class GetProbeStatusResult(op: GetProbeStatus, state: ProbeStatus)
 
 case class SetProbeSquelch(probeRef: ProbeRef, squelch: Boolean) extends ProbeCommand
 case class SetProbeSquelchResult(op: SetProbeSquelch, squelch: Boolean)

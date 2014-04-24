@@ -5,10 +5,10 @@ import scala.slick.driver.H2Driver.simple._
 import org.joda.time.DateTime
 import java.sql.Date
 
-import io.mandelbrot.core.registry.ProbeRef
-import io.mandelbrot.core.state.UpdateProbeStatus
+import io.mandelbrot.core.registry.{ProbeStatus, ProbeRef}
 import io.mandelbrot.core.ServerConfig
 import io.mandelbrot.core.notification.{ProbeNotification, Notification}
+import org.h2.jdbc.JdbcSQLException
 
 /**
  *
@@ -31,20 +31,34 @@ class HistoryManager extends Actor with ActorLogging {
   val db = Database.forURL(url = url, driver = driver)
   val statusEntries = TableQuery[StatusEntries]
   val notificationEntries = TableQuery[NotificationEntries]
-  val historyCleaner: Option[Cancellable] = None
+  implicit val session = db.createSession()
 
-  // define tables
-  db.withSession { implicit session =>
-    statusEntries.ddl.create
-    notificationEntries.ddl.create
+  // define (and possibly create) tables
+  try {
+    db.withSession(implicit session => (statusEntries.ddl ++ notificationEntries.ddl).create)
+  } catch {
+    case ex: Throwable => log.debug("skipping table creation: {}", ex.getMessage)
   }
+
+  //
+  val historyCleaner: Option[Cancellable] = None
 
   def receive = {
 
     /* append probe status to history */
-    case update @ UpdateProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail) =>
+    case status: ProbeStatus =>
       db.withSession { implicit session =>
-        statusEntries += ((probeRef.toString, timestamp.getMillis, lifecycle.value, health.value, summary, detail, None))
+        val probeRef = status.probeRef.toString
+        val lifecycle = status.lifecycle.value
+        val health = status.health.value
+        val summary = status.summary
+        val detail = status.detail
+        val lastUpdate = status.lastUpdate.map(_.getMillis)
+        val lastChange = status.lastChange.map(_.getMillis)
+        val correlation = status.correlation
+        val acknowledged = status.acknowledged
+        val squelched = status.squelched
+        statusEntries += ((probeRef, lifecycle, health, summary, detail, lastUpdate, lastChange, correlation, acknowledged, squelched))
       }
 
     /* append notification to history */
@@ -53,8 +67,8 @@ class HistoryManager extends Actor with ActorLogging {
         val probeRef = notification.probeRef.toString
         val timestamp = notification.timestamp.getMillis
         val description = notification.description
-        val correlationId = notification.correlationId
-        notificationEntries += ((probeRef, timestamp, description, correlationId))
+        val correlation = notification.correlation
+        notificationEntries += ((probeRef, timestamp, description, correlation))
       }
 
     /* retrieve history for the ProbeRef and all its children */
