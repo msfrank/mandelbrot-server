@@ -8,6 +8,7 @@ import java.sql.Date
 import io.mandelbrot.core.registry.ProbeRef
 import io.mandelbrot.core.state.UpdateProbeStatus
 import io.mandelbrot.core.ServerConfig
+import io.mandelbrot.core.notification.{ProbeNotification, Notification}
 
 /**
  *
@@ -43,7 +44,17 @@ class HistoryManager extends Actor with ActorLogging {
     /* append probe status to history */
     case update @ UpdateProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail) =>
       db.withSession { implicit session =>
-        statusEntries += ((probeRef.toString, new Date(timestamp.getMillis), lifecycle.value, health.value, summary, detail, None))
+        statusEntries += ((probeRef.toString, timestamp.getMillis, lifecycle.value, health.value, summary, detail, None))
+      }
+
+    /* append notification to history */
+    case notification: ProbeNotification =>
+      db.withSession { implicit session =>
+        val probeRef = notification.probeRef.toString
+        val timestamp = notification.timestamp.getMillis
+        val description = notification.description
+        val correlationId = notification.correlationId
+        notificationEntries += ((probeRef, timestamp, description, correlationId))
       }
 
     /* retrieve history for the ProbeRef and all its children */

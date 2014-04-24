@@ -151,11 +151,11 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
           if (lifecycle != oldLifecycle)
             notifier.notify(NotifyLifecycleChanges(probeRef, oldLifecycle, lifecycle, message.timestamp))
           if (flapQueue.isFlapping)
-            notifier.notify(NotifyHealthFlaps(probeRef, flapQueue.flapStart, message.timestamp))
+            notifier.notify(NotifyHealthFlaps(probeRef, flapQueue.flapStart, correlationId, message.timestamp))
           else if (oldHealth != health)
-            notifier.notify(NotifyHealthChanges(probeRef, oldHealth, health, message.timestamp))
+            notifier.notify(NotifyHealthChanges(probeRef, oldHealth, health, correlationId, message.timestamp))
           else
-            notifier.notify(NotifyHealthUpdates(probeRef, health, message.timestamp))
+            notifier.notify(NotifyHealthUpdates(probeRef, health, correlationId, message.timestamp))
         }
       }
       // reset the timer
@@ -180,11 +180,11 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
         // send health notifications if not squelched
         if (!squelch) {
           if (flapQueue.isFlapping)
-            notifier.notify(NotifyHealthFlaps(probeRef, flapQueue.flapStart, timestamp))
+            notifier.notify(NotifyHealthFlaps(probeRef, flapQueue.flapStart, correlationId, timestamp))
           else if (oldHealth != health)
-            notifier.notify(NotifyHealthChanges(probeRef, oldHealth, health, timestamp))
+            notifier.notify(NotifyHealthChanges(probeRef, oldHealth, health, correlationId, timestamp))
           else
-            notifier.notify(NotifyHealthExpires(probeRef, timestamp))
+            notifier.notify(NotifyHealthExpires(probeRef, correlationId, timestamp))
         }
       }
       // reset the timer
