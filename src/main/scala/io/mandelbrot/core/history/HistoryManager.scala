@@ -14,6 +14,8 @@ import io.mandelbrot.core.registry.ProbeStatus
  */
 class HistoryManager extends Actor with ActorLogging {
   import HistoryManager._
+  import StatusEntries._
+  import NotificationEntries._
 
   // config
   val settings = ServerConfig(context.system).settings.history
@@ -75,37 +77,59 @@ class HistoryManager extends Actor with ActorLogging {
       var q = statusEntries.filter(_.probeRef.startsWith(ref.toString))
       if (limit.isDefined)
         q = q.take(limit.get)
-      val results = q.list.toVector.map { case tuple =>
-        val probeRef = ProbeRef(tuple._1)
-        val lifecycle = tuple._2 match {
-          case "joining" => ProbeJoining
-          case "known" => ProbeKnown
-          case "leaving" => ProbeLeaving
-          case "retired" => ProbeRetired
-        }
-        val health = tuple._3 match {
-          case "healthy" => ProbeHealthy
-          case "degraded" => ProbeDegraded
-          case "failed" => ProbeFailed
-          case "unknown" => ProbeUnknown
-        }
-        val summary = tuple._4
-        val detail = tuple._5
-        val lastUpdate = tuple._6.map(new DateTime(_))
-        val lastChange = tuple._7.map(new DateTime(_))
-        val correlation = tuple._8
-        val acknowledged = tuple._9
-        val squelched = tuple._10
-        ProbeStatus(probeRef, lifecycle, health, summary, detail, lastUpdate, lastChange, correlation, acknowledged, squelched)
-      }
+      val results = q.list.toVector.map(statusEntry2ProbeStatus)
       sender() ! GetStatusHistoryResult(query, results)
 
     /* retrieve history for the ProbeRef and all its children */
     case query @ GetStatusHistory(Right(refs), from, to, limit) =>
       sender() ! GetStatusHistoryResult(query, Vector.empty)
 
+    /* retrieve history for the ProbeRef and all its children */
+    case query @ GetNotificationHistory(Left(ref), from, to, limit) =>
+      var q = notificationEntries.filter(_.probeRef.startsWith(ref.toString))
+      if (limit.isDefined)
+        q = q.take(limit.get)
+      val results = q.list.toVector.map(notificationEntry2ProbeNotification)
+      sender() ! GetNotificationHistoryResult(query, results)
+
+    /* retrieve history for the ProbeRef and all its children */
+    case query @ GetNotificationHistory(Right(refs), from, to, limit) =>
+      sender() ! GetNotificationHistoryResult(query, Vector.empty)
+
     /* delete history older than statusHistoryAge */
     case CleanStaleHistory =>
+  }
+
+  def statusEntry2ProbeStatus(entry: StatusEntry): ProbeStatus = {
+    val probeRef = ProbeRef(entry._1)
+    val lifecycle = entry._2 match {
+      case "joining" => ProbeJoining
+      case "known" => ProbeKnown
+      case "leaving" => ProbeLeaving
+      case "retired" => ProbeRetired
+    }
+    val health = entry._3 match {
+      case "healthy" => ProbeHealthy
+      case "degraded" => ProbeDegraded
+      case "failed" => ProbeFailed
+      case "unknown" => ProbeUnknown
+    }
+    val summary = entry._4
+    val detail = entry._5
+    val lastUpdate = entry._6.map(new DateTime(_))
+    val lastChange = entry._7.map(new DateTime(_))
+    val correlation = entry._8
+    val acknowledged = entry._9
+    val squelched = entry._10
+    ProbeStatus(probeRef, lifecycle, health, summary, detail, lastUpdate, lastChange, correlation, acknowledged, squelched)
+  }
+
+  def notificationEntry2ProbeNotification(entry: NotificationEntry): ProbeNotification = {
+    val probeRef = ProbeRef(entry._1)
+    val timestamp = new DateTime(entry._2)
+    val description = entry._3
+    val correlation = entry._4
+    ProbeNotification(probeRef, timestamp, description, correlation)
   }
 }
 
@@ -123,6 +147,9 @@ case class HistoryServiceOperationFailed(op: HistoryServiceOperation, failure: T
 
 case class GetStatusHistory(refspec: Either[ProbeRef,Set[ProbeRef]], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends HistoryServiceQuery
 case class GetStatusHistoryResult(op: GetStatusHistory, history: Vector[ProbeStatus])
+
+case class GetNotificationHistory(refspec: Either[ProbeRef,Set[ProbeRef]], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends HistoryServiceQuery
+case class GetNotificationHistoryResult(op: GetNotificationHistory, history: Vector[ProbeNotification])
 
 case class DeleteAllHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime]) extends HistoryServiceCommand
 case class DeleteHistoryFor(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime]) extends HistoryServiceCommand

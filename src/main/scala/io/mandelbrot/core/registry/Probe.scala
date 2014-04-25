@@ -149,13 +149,13 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
         if (!squelch) {
           // send lifecycle notifications
           if (lifecycle != oldLifecycle)
-            notifier.notify(NotifyLifecycleChanges(probeRef, oldLifecycle, lifecycle, message.timestamp))
+            notifier.notify(NotifyLifecycleChanges(probeRef, message.timestamp, oldLifecycle, lifecycle))
           if (flapQueue.isFlapping)
-            notifier.notify(NotifyHealthFlaps(probeRef, flapQueue.flapStart, correlationId, message.timestamp))
+            notifier.notify(NotifyHealthFlaps(probeRef, message.timestamp, correlationId, flapQueue.flapStart))
           else if (oldHealth != health)
-            notifier.notify(NotifyHealthChanges(probeRef, oldHealth, health, correlationId, message.timestamp))
+            notifier.notify(NotifyHealthChanges(probeRef, message.timestamp, correlationId, oldHealth, health))
           else
-            notifier.notify(NotifyHealthUpdates(probeRef, health, correlationId, message.timestamp))
+            notifier.notify(NotifyHealthUpdates(probeRef, message.timestamp, correlationId, health))
         }
       }
       // reset the timer
@@ -181,11 +181,11 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
         // send health notifications if not squelched
         if (!squelch) {
           if (flapQueue.isFlapping)
-            notifier.notify(NotifyHealthFlaps(probeRef, flapQueue.flapStart, correlationId, timestamp))
+            notifier.notify(NotifyHealthFlaps(probeRef, timestamp, correlationId, flapQueue.flapStart))
           else if (health != oldHealth)
-            notifier.notify(NotifyHealthChanges(probeRef, oldHealth, health, correlationId, timestamp))
+            notifier.notify(NotifyHealthChanges(probeRef, timestamp, correlationId, oldHealth, health))
           else
-            notifier.notify(NotifyHealthExpires(probeRef, correlationId, timestamp))
+            notifier.notify(NotifyHealthExpires(probeRef, timestamp, correlationId))
         }
       }
       // reset the timer
@@ -193,9 +193,10 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
 
 
     case UserAcknowledges(acknowledgement, timestamp) =>
+      val correlation = correlationId.get
       acknowledgementId = Some(acknowledgement)
       if (!recovering) {
-        notifier.notify(NotifyAcknowledged(probeRef, correlationId.get, acknowledgement, timestamp))
+        notifier.notify(NotifyAcknowledged(probeRef, timestamp, correlation, acknowledgement))
       }
 
     case UserSetsSquelch(setSquelch, timestamp) =>

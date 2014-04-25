@@ -9,45 +9,81 @@ import java.util.UUID
  */
 sealed trait Notification
 
-sealed trait ProbeNotification extends Notification {
-  val probeRef: ProbeRef
-  val timestamp: DateTime
-  val correlation: Option[UUID]
-  def description: String
+class ProbeNotification(val probeRef: ProbeRef, val timestamp: DateTime, val description: String, val correlation: Option[UUID]) extends Notification
+
+object ProbeNotification {
+  def apply(probeRef: ProbeRef, timestamp: DateTime, description: String, correlation: Option[UUID]) = {
+    new ProbeNotification(probeRef, timestamp, description, correlation)
+  }
+  def unapply(notification: ProbeNotification): Option[(ProbeRef, DateTime, String, Option[UUID])] = {
+    Some((notification.probeRef, notification.timestamp, notification.description, notification.correlation))
+  }
 }
 
-case class NotifyLifecycleChanges(probeRef: ProbeRef, oldLifecycle: ProbeLifecycle, newLifecycle: ProbeLifecycle, timestamp: DateTime) extends ProbeNotification {
-  val correlation = None
-  def description = "probe lifecycle transitions from %s to %s".format(oldLifecycle.value, newLifecycle.value)
-}
+/**
+ *
+ */
+case class NotifyLifecycleChanges(override val probeRef: ProbeRef,
+                                  override val timestamp: DateTime,
+                                  oldLifecycle: ProbeLifecycle,
+                                  newLifecycle: ProbeLifecycle)
+extends ProbeNotification(probeRef, timestamp, "probe lifecycle transitions from %s to %s".format(oldLifecycle.value, newLifecycle.value), None)
 
-case class NotifyHealthChanges(probeRef: ProbeRef, oldHealth: ProbeHealth, newHealth: ProbeHealth, correlation: Option[UUID], timestamp: DateTime) extends ProbeNotification {
-  def description = "probe transitions from %s to %s".format(oldHealth.value, newHealth.value)
-}
+/**
+ *
+ */
+case class NotifyHealthChanges(override val probeRef: ProbeRef,
+                               override val timestamp: DateTime,
+                               override val correlation: Option[UUID],
+                               oldHealth: ProbeHealth,
+                               newHealth: ProbeHealth)
+extends ProbeNotification(probeRef, timestamp, "probe transitions from %s to %s".format(oldHealth.value, newHealth.value), correlation)
 
-case class NotifyHealthUpdates(probeRef: ProbeRef, health: ProbeHealth, correlation: Option[UUID], timestamp: DateTime) extends ProbeNotification {
-  def description = "probe is " + health.value
-}
+/**
+ *
+ */
+case class NotifyHealthUpdates(override val probeRef: ProbeRef,
+                               override val timestamp: DateTime,
+                               override val correlation: Option[UUID],
+                               health: ProbeHealth)
+extends ProbeNotification(probeRef, timestamp, "probe is " + health.value, correlation)
 
-case class NotifyHealthExpires(probeRef: ProbeRef, correlation: Option[UUID], timestamp: DateTime) extends ProbeNotification {
-  def description = "probe health expires"
-}
+/**
+ *
+ */
+case class NotifyHealthExpires(override val probeRef: ProbeRef,
+                               override val timestamp: DateTime,
+                               override val correlation: Option[UUID])
+extends ProbeNotification(probeRef, timestamp, "probe health expires", correlation)
 
-case class NotifyHealthFlaps(probeRef: ProbeRef, flapStarts: DateTime, correlation: Option[UUID], timestamp: DateTime) extends ProbeNotification {
-  def description = "probe health is flapping"
-}
+/**
+ *
+ */
+case class NotifyHealthFlaps(override val probeRef: ProbeRef,
+                             override val timestamp: DateTime,
+                             override val correlation: Option[UUID],
+                             flapStarts: DateTime)
+extends ProbeNotification(probeRef, timestamp, "probe health is flapping", correlation)
 
-case class NotifyAcknowledged(probeRef: ProbeRef, correlationId: UUID, acknowledgementId: UUID, timestamp: DateTime) extends ProbeNotification {
-  val correlation = Some(correlationId)
-  def description = "probe health is acknowledged"
-}
+/**
+ *
+ */
+case class NotifyAcknowledged(override val probeRef: ProbeRef,
+                              override val timestamp: DateTime,
+                              correlationId: UUID,
+                              acknowledgementId: UUID)
+extends ProbeNotification(probeRef, timestamp, "probe health is acknowledged", Some(correlationId))
 
-case class NotifySquelched(probeRef: ProbeRef, timestamp: DateTime) extends ProbeNotification {
-  val correlation = None
-  def description = "probe notifications disabled"
-}
+/**
+ *
+ */
+case class NotifySquelched(override val probeRef: ProbeRef,
+                           override val timestamp: DateTime)
+extends ProbeNotification(probeRef, timestamp, "probe notifications disabled", None)
 
-case class NotifyUnsquelched(probeRef: ProbeRef, timestamp: DateTime) extends ProbeNotification {
-  val correlation = None
-  def description = "probe notifications enabled"
-}
+/**
+ *
+ */
+case class NotifyUnsquelched(override val probeRef: ProbeRef,
+                             override val timestamp: DateTime)
+extends ProbeNotification(probeRef, timestamp, "probe notifications enabled", None)

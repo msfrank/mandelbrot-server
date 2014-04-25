@@ -23,6 +23,10 @@ class StatusEntries(tag: Tag) extends Table[(String,String,String,Option[String]
   def * = (probeRef, lifecycle, health, summary, detail, lastUpdate, lastChange, correlation, acknowledged, squelched)
 }
 
+object StatusEntries {
+  type StatusEntry = (String,String,String,Option[String],Option[String],Option[Long],Option[Long],Option[UUID],Option[UUID],Boolean)
+}
+
 /**
  *
  */
@@ -32,4 +36,8 @@ class NotificationEntries(tag: Tag) extends Table[(String,Long,String,Option[UUI
   def description = column[String]("description")
   def correlation = column[Option[UUID]]("correlation")
   def * = (probeRef, timestamp, description, correlation)
+}
+
+object NotificationEntries {
+  type NotificationEntry = (String,Long,String,Option[UUID])
 }

@@ -32,6 +32,7 @@ import java.nio.charset.Charset
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.history._
 import io.mandelbrot.core.messagestream._
+import io.mandelbrot.core.notification.ProbeNotification
 
 object JsonProtocol extends DefaultJsonProtocol {
 
@@ -133,6 +134,46 @@ object JsonProtocol extends DefaultJsonProtocol {
     }
   }
 
+  /* convert ProbeNotification class */
+  implicit object ProbeNotificationFormat extends RootJsonFormat[ProbeNotification] {
+    def write(notification: ProbeNotification) = {
+      val correlation = notification.correlation match {
+        case Some(_correlation) =>  Map("correlation" -> _correlation.toJson)
+        case None => Map.empty[String,JsValue]
+      }
+      JsObject(Map(
+        "probeRef" -> notification.probeRef.toJson,
+        "timestamp" -> notification.timestamp.toJson,
+        "description" -> JsString(notification.description)
+      ) ++ correlation)
+    }
+    def read(value: JsValue) = value match {
+      case JsObject(fields) =>
+        val probeRef = fields.get("probeRef") match {
+          case Some(JsString(string)) => ProbeRef(string)
+          case None => throw new DeserializationException("ProbeNotification missing field 'probeRef'")
+          case unknown => throw new DeserializationException("failed to parse ProbeNotification field 'probeRef'")
+        }
+        val timestamp = fields.get("timestamp") match {
+          case Some(JsNumber(number)) => new DateTime(number.toLong)
+          case None => throw new DeserializationException("ProbeNotification missing field 'timestamp'")
+          case unknown => throw new DeserializationException("failed to parse ProbeNotification field 'timestamp'")
+        }
+        val description = fields.get("description") match {
+          case Some(JsString(string)) => string
+          case None => throw new DeserializationException("ProbeNotification missing field 'description'")
+          case unknown => throw new DeserializationException("failed to parse ProbeNotification field 'description'")
+        }
+        val correlation = fields.get("correlation") match {
+          case Some(JsString(string)) => Some(UUID.fromString(string))
+          case None => None
+          case unknown => throw new DeserializationException("failed to parse ProbeNotification field 'correlation'")
+        }
+        ProbeNotification(probeRef, timestamp, description, correlation)
+      case unknown => throw new DeserializationException("unknown ProbeNotification " + unknown)
+    }
+  }
+
   /* registry operations */
   implicit val RegisterProbeSystemFormat = jsonFormat2(RegisterProbeSystem)
   implicit val UpdateProbeSystemFormat = jsonFormat2(UpdateProbeSystem)
@@ -151,6 +192,8 @@ object JsonProtocol extends DefaultJsonProtocol {
   /* */
   implicit val GetStatusHistoryFormat = jsonFormat4(GetStatusHistory)
   implicit val GetStatusHistoryResultFormat = jsonFormat2(GetStatusHistoryResult)
+  implicit val GetNotificationHistoryFormat = jsonFormat4(GetNotificationHistory)
+  implicit val GetNotificationHistoryResultFormat = jsonFormat2(GetNotificationHistoryResult)
 
   /* message types */
   implicit val StatusMessageFormat = jsonFormat5(StatusMessage)
