@@ -25,6 +25,7 @@ import akka.util.Timeout
 import io.mandelbrot.core.registry.RegistryService
 import io.mandelbrot.core.state.StateService
 import io.mandelbrot.core.messagestream.MessageStream
+import io.mandelbrot.core.history.HistoryService
 
 /**
  * HttpServer is responsible for listening on the HTTP port, accepting connections,
@@ -41,6 +42,7 @@ class HttpServer(val settings: HttpSettings) extends Actor with ApiService with 
 
   val registryService = RegistryService(system)
   val stateService = StateService(system)
+  val historyService = HistoryService(system)
   val messageStream = MessageStream(system)
 
   override def preStart() {

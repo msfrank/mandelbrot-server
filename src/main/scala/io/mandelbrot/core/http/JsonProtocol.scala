@@ -23,14 +23,15 @@ import spray.json._
 import spray.http.{ContentTypes, HttpEntity}
 import org.joda.time.DateTime
 import scala.concurrent.duration.{FiniteDuration, Duration}
+import org.joda.time.format.ISODateTimeFormat
 import java.util.UUID
 import java.net.URI
 import java.util.concurrent.TimeUnit
 import java.nio.charset.Charset
 
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.messagestream.{GenericMessage, Message, StatusMessage}
-import org.joda.time.format.ISODateTimeFormat
+import io.mandelbrot.core.history._
+import io.mandelbrot.core.messagestream._
 
 object JsonProtocol extends DefaultJsonProtocol {
 
@@ -146,6 +147,10 @@ object JsonProtocol extends DefaultJsonProtocol {
   implicit val AcknowledgeProbeResultFormat = jsonFormat2(AcknowledgeProbeResult)
   implicit val SetProbeSquelchFormat = jsonFormat2(SetProbeSquelch)
   implicit val SetProbeSquelchResultFormat = jsonFormat2(SetProbeSquelchResult)
+
+  /* */
+  implicit val GetStatusHistoryFormat = jsonFormat4(GetStatusHistory)
+  implicit val GetStatusHistoryResultFormat = jsonFormat2(GetStatusHistoryResult)
 
   /* message types */
   implicit val StatusMessageFormat = jsonFormat5(StatusMessage)

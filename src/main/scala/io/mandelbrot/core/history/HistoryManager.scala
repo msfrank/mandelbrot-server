@@ -3,12 +3,11 @@ package io.mandelbrot.core.history
 import akka.actor.{Cancellable, Props, ActorLogging, Actor}
 import scala.slick.driver.H2Driver.simple._
 import org.joda.time.DateTime
-import java.sql.Date
 
-import io.mandelbrot.core.registry.{ProbeStatus, ProbeRef}
+import io.mandelbrot.core.registry._
 import io.mandelbrot.core.ServerConfig
-import io.mandelbrot.core.notification.{ProbeNotification, Notification}
-import org.h2.jdbc.JdbcSQLException
+import io.mandelbrot.core.notification.ProbeNotification
+import io.mandelbrot.core.registry.ProbeStatus
 
 /**
  *
@@ -72,14 +71,38 @@ class HistoryManager extends Actor with ActorLogging {
       }
 
     /* retrieve history for the ProbeRef and all its children */
-    case query: GetAllHistory =>
-      log.debug("received query {}", query)
-      sender() ! GetAllHistoryResult(query, Vector.empty)
+    case query @ GetStatusHistory(Left(ref), from, to, limit) =>
+      var q = statusEntries.filter(_.probeRef.startsWith(ref.toString))
+      if (limit.isDefined)
+        q = q.take(limit.get)
+      val results = q.list.toVector.map { case tuple =>
+        val probeRef = ProbeRef(tuple._1)
+        val lifecycle = tuple._2 match {
+          case "joining" => ProbeJoining
+          case "known" => ProbeKnown
+          case "leaving" => ProbeLeaving
+          case "retired" => ProbeRetired
+        }
+        val health = tuple._3 match {
+          case "healthy" => ProbeHealthy
+          case "degraded" => ProbeDegraded
+          case "failed" => ProbeFailed
+          case "unknown" => ProbeUnknown
+        }
+        val summary = tuple._4
+        val detail = tuple._5
+        val lastUpdate = tuple._6.map(new DateTime(_))
+        val lastChange = tuple._7.map(new DateTime(_))
+        val correlation = tuple._8
+        val acknowledged = tuple._9
+        val squelched = tuple._10
+        ProbeStatus(probeRef, lifecycle, health, summary, detail, lastUpdate, lastChange, correlation, acknowledged, squelched)
+      }
+      sender() ! GetStatusHistoryResult(query, results)
 
-    /* retrieve history for the specified ProbeRefs only */
-    case query: GetHistoryFor =>
-      log.debug("received query {}", query)
-      sender() ! GetHistoryForResult(query, Vector.empty)
+    /* retrieve history for the ProbeRef and all its children */
+    case query @ GetStatusHistory(Right(refs), from, to, limit) =>
+      sender() ! GetStatusHistoryResult(query, Vector.empty)
 
     /* delete history older than statusHistoryAge */
     case CleanStaleHistory =>
@@ -98,11 +121,8 @@ sealed trait HistoryServiceCommand extends HistoryServiceOperation
 sealed trait HistoryServiceQuery extends HistoryServiceOperation
 case class HistoryServiceOperationFailed(op: HistoryServiceOperation, failure: Throwable)
 
-case class GetAllHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends HistoryServiceQuery
-case class GetAllHistoryResult(op: GetAllHistory, history: Vector[StatusEntries])
-
-case class GetHistoryFor(probeRefs: Set[ProbeRef], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends HistoryServiceQuery
-case class GetHistoryForResult(op: GetHistoryFor, history: Vector[StatusEntries])
+case class GetStatusHistory(refspec: Either[ProbeRef,Set[ProbeRef]], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends HistoryServiceQuery
+case class GetStatusHistoryResult(op: GetStatusHistory, history: Vector[ProbeStatus])
 
 case class DeleteAllHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime]) extends HistoryServiceCommand
 case class DeleteHistoryFor(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime]) extends HistoryServiceCommand

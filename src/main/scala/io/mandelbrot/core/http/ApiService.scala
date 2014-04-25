@@ -34,7 +34,7 @@ import io.mandelbrot.core._
 import io.mandelbrot.core.messagestream._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.state._
-import io.mandelbrot.core.history.{GetHistoryFor, GetAllHistory}
+import io.mandelbrot.core.history._
 
 /**
  * ApiService contains the REST API logic.
@@ -55,6 +55,7 @@ trait ApiService extends HttpService {
 
   val registryService: ActorRef
   val stateService: ActorRef
+  val historyService: ActorRef
   val messageStream: MessageStreamBus
 
   val datetimeParser = ISODateTimeFormat.dateTimeParser().withZoneUTC()
@@ -154,15 +155,22 @@ trait ApiService extends HttpService {
               val query = params.get("path") match {
                 case Some(paths) =>
                   val probeRefs = paths.map(ProbeRef(uri, _)).toSet
-                  GetHistoryFor(probeRefs, from, to, limit)
+                  GetStatusHistory(Right(probeRefs), from, to, limit)
                 case None =>
-                  GetAllHistory(ProbeRef(uri), from, to, limit)
+                  GetStatusHistory(Left(ProbeRef(uri)), from, to, limit)
               }
               complete {
-                stateService.ask(query).map { case _ => StatusCodes.OK }
+                historyService.ask(query).map {
+                  case result: GetStatusHistoryResult =>
+                    result.history
+                  case failure: HistoryServiceOperationFailed =>
+                    throw failure.failure
+                }
               }
             }}
           }
+        } ~
+        path("notifications") { get { complete { StatusCodes.BadRequest }}
         } ~
         path("metrics") { get { complete { StatusCodes.BadRequest }}
         } ~
