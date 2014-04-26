@@ -120,8 +120,8 @@ trait ApiService extends HttpService {
         }
       } ~
       pathPrefix("properties") {
-        path("state") {
-          /* describe the state of the ProbeSystem */
+        path("status") {
+          /* describe the status of the ProbeSystem */
           get {
             complete {
               registryService.ask(GetProbeSystemStatus(new URI(uri))).map {
