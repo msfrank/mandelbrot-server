@@ -31,7 +31,7 @@ import org.joda.time.format.ISODateTimeFormat
 import java.net.URI
 
 import io.mandelbrot.core._
-import io.mandelbrot.core.messagestream._
+import io.mandelbrot.core.message._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.history._

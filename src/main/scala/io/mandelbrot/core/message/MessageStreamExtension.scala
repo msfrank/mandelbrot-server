@@ -1,4 +1,4 @@
-package io.mandelbrot.core.messagestream
+package io.mandelbrot.core.message
 
 import akka.actor._
 import akka.event.{EventBus, SubchannelClassification}

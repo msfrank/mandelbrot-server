@@ -31,7 +31,7 @@ import java.nio.charset.Charset
 
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.history._
-import io.mandelbrot.core.messagestream._
+import io.mandelbrot.core.message._
 import io.mandelbrot.core.notification.ProbeNotification
 
 object JsonProtocol extends DefaultJsonProtocol {

@@ -26,7 +26,7 @@ import java.net.URI
 
 import io.mandelbrot.core.notification.{NotificationService, Notification}
 import io.mandelbrot.core.{ResourceNotFound, Conflict, ApiException}
-import io.mandelbrot.core.messagestream.{StatusMessage, MessageStream}
+import io.mandelbrot.core.message.{StatusMessage, MessageStream}
 
 /**
  *

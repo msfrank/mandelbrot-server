@@ -1,4 +1,4 @@
-package io.mandelbrot.core.messagestream
+package io.mandelbrot.core.message
 
 import spray.json._
 import org.joda.time.DateTime

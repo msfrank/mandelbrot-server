@@ -30,7 +30,7 @@ import java.net.URI
 
 import io.mandelbrot.core.notification.{NotificationService, Notification}
 import io.mandelbrot.core.{ResourceNotFound, ApiException}
-import io.mandelbrot.core.messagestream.MandelbrotMessage
+import io.mandelbrot.core.message.MandelbrotMessage
 import io.mandelbrot.core.state.StateService
 
 /**

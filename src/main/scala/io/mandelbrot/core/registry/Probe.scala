@@ -27,7 +27,7 @@ import java.util.UUID
 
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.state.StateService
-import io.mandelbrot.core.messagestream.StatusMessage
+import io.mandelbrot.core.message.StatusMessage
 import io.mandelbrot.core.{ResourceNotFound, Conflict, BadRequest, ApiException}
 
 /**

@@ -24,7 +24,7 @@ import akka.io.IO
 import akka.util.Timeout
 import io.mandelbrot.core.registry.RegistryService
 import io.mandelbrot.core.state.StateService
-import io.mandelbrot.core.messagestream.MessageStream
+import io.mandelbrot.core.message.MessageStream
 import io.mandelbrot.core.history.HistoryService
 
 /**
