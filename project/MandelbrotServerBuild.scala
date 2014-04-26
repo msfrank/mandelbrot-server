@@ -45,7 +45,8 @@ object MandelbrotServerBuild extends Build {
         //"org.slf4j" % "slf4j-log4j12" % "1.7.5",
         "ch.qos.logback" % "logback-classic" % "1.1.2",
         "org.scalatest" %% "scalatest" % "1.9.1" % "test",
-        "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
+        "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
+        "io.spray" % "spray-testkit" % sprayVersion % "test"
       ),
       javaOptions in test += "-Dlog4j.configuration=src/test/resources/log4j.properties"
     )

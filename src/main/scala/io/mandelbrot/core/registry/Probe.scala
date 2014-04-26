@@ -120,6 +120,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
 
     case ProbeUpdates(message, correlation, timestamp) =>
       summary = Some(message.summary)
+      detail = message.detail
       lastUpdate = Some(timestamp)
       val oldLifecycle = lifecycle
       val oldHealth = health
@@ -165,6 +166,8 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
       val oldHealth = health
       // update health
       health = ProbeUnknown
+      summary = None
+      detail = None
       if (health != oldHealth) {
         lastChange = Some(timestamp)
         flapQueue.push(timestamp)

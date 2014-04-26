@@ -73,28 +73,28 @@ class HistoryManager extends Actor with ActorLogging {
       }
 
     /* retrieve history for the ProbeRef and all its children */
-    case query @ GetStatusHistory(Left(ref), from, to, limit) =>
-      var q = statusEntries.filter(_.probeRef.startsWith(ref.toString))
+    case query @ GetStatusHistory(refs, from, to, limit) =>
+      log.debug("retrieving status history: {}", query)
+      var q = refs match {
+        case Left(base) => statusEntries.filter(_.probeRef.startsWith(base.toString))
+        case Right(refset) => statusEntries.filter(_.probeRef.inSet(refset.map(_.toString)))
+      }
       if (limit.isDefined)
         q = q.take(limit.get)
       val results = q.list.toVector.map(statusEntry2ProbeStatus)
       sender() ! GetStatusHistoryResult(query, results)
 
     /* retrieve history for the ProbeRef and all its children */
-    case query @ GetStatusHistory(Right(refs), from, to, limit) =>
-      sender() ! GetStatusHistoryResult(query, Vector.empty)
-
-    /* retrieve history for the ProbeRef and all its children */
-    case query @ GetNotificationHistory(Left(ref), from, to, limit) =>
-      var q = notificationEntries.filter(_.probeRef.startsWith(ref.toString))
+    case query @ GetNotificationHistory(refs, from, to, limit) =>
+      log.debug("retrieving notification history: {}", query)
+      var q = refs match {
+        case Left(base) => notificationEntries.filter(_.probeRef.startsWith(base.toString))
+        case Right(refset) => notificationEntries.filter(_.probeRef.inSet(refset.map(_.toString)))
+      }
       if (limit.isDefined)
         q = q.take(limit.get)
       val results = q.list.toVector.map(notificationEntry2ProbeNotification)
       sender() ! GetNotificationHistoryResult(query, results)
-
-    /* retrieve history for the ProbeRef and all its children */
-    case query @ GetNotificationHistory(Right(refs), from, to, limit) =>
-      sender() ! GetNotificationHistoryResult(query, Vector.empty)
 
     /* delete history older than statusHistoryAge */
     case CleanStaleHistory =>
