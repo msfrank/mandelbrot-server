@@ -46,8 +46,16 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
 
   def receiveCommand = {
 
+    /* register the ProbeSystem */
+    case command @ RegisterProbeSystem(uri, registration) =>
+      if (!objectSystems.containsKey(uri)) {
+        persist(Event(CreateProbeSystem(uri, registration2spec(registration))))(updateState)
+      } else {
+        sender() ! ProbeRegistryOperationFailed(command, new ApiException(Conflict))
+      }
+
     /* create the ProbeSystem */
-    case command @ RegisterProbeSystem(uri, spec) =>
+    case command @ CreateProbeSystem(uri, _) =>
       if (!objectSystems.containsKey(uri)) {
         persist(Event(command))(updateState)
       } else {
@@ -58,7 +66,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
     case UpdateProbeSystem(uri, spec) =>
       objectSystems.get(uri) match {
         case null =>
-          persist(Event(RegisterProbeSystem(uri, spec)))(updateState)
+          persist(Event(CreateProbeSystem(uri, spec)))(updateState)
         case ref: ActorRef =>
           ref.forward(Persistent(spec))
       }
@@ -122,12 +130,12 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
 
   def updateState(event: Event) = event.event match {
     /* create the ProbeSystem */
-    case command @ RegisterProbeSystem(uri, spec) =>
+    case command @ CreateProbeSystem(uri, spec) =>
       val ref = context.actorOf(ProbeSystem.props(uri))
       context.watch(ref)
       objectSystems.put(uri, ref)
       ref ! Persistent(spec)
-      sender() ! RegisterProbeSystemResult(command, ref)
+      sender() ! CreateProbeSystemResult(command, ref)
       log.debug("created probe system {} at {}", uri, ref.path)
 
     /* terminate the ProbeSystem */
@@ -136,6 +144,11 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
       log.debug("deleted probe system {}", uri)
       objectSystems.remove(uri)
       ref ! PoisonPill
+  }
+
+  def registration2spec(registration: ProbeRegistration): ProbeSpec = {
+    val children = registration.children.map { case ((name,child)) => name -> registration2spec(child) }
+    ProbeSpec(registration.objectType, registration.policy, registration.metadata, children, static = false)
   }
 }
 
@@ -155,11 +168,10 @@ case class ProbePolicy(joiningTimeout: Duration,
                        inherits: Boolean)
 
 /* the probe specification */
-case class ProbeSpec(objectType: String, metadata: Map[String,String], children: Map[String,ProbeSpec])
-//case class ProbeSpec(objectType: String, policy: ProbePolicy, metadata: Map[String,String], children: Map[String,ProbeSpec], static: Boolean)
+case class ProbeSpec(objectType: String, policy: Option[ProbePolicy], metadata: Map[String,String], children: Map[String,ProbeSpec], static: Boolean)
 
 /* a dynamic probe system registration */
-case class ProbeRegistration(objectType: String, policy: ProbePolicy, metadata: Map[String,String], children: Map[String,ProbeRegistration])
+case class ProbeRegistration(objectType: String, policy: Option[ProbePolicy], metadata: Map[String,String], children: Map[String,ProbeRegistration])
 
 /* object registry operations */
 sealed trait ProbeRegistryOperation
@@ -167,8 +179,11 @@ sealed trait ProbeRegistryQuery extends ProbeRegistryOperation
 sealed trait ProbeRegistryCommand extends ProbeRegistryOperation
 case class ProbeRegistryOperationFailed(op: ProbeRegistryOperation, failure: Throwable)
 
-case class RegisterProbeSystem(uri: URI, spec: ProbeSpec) extends ProbeRegistryCommand
+case class RegisterProbeSystem(uri: URI, registration: ProbeRegistration) extends ProbeRegistryCommand
 case class RegisterProbeSystemResult(op: RegisterProbeSystem, ref: ActorRef)
+
+case class CreateProbeSystem(uri: URI, spec: ProbeSpec) extends ProbeRegistryCommand
+case class CreateProbeSystemResult(op: CreateProbeSystem, ref: ActorRef)
 
 case class ListProbeSystems() extends ProbeRegistryQuery
 case class ListProbeSystemsResult(op: ListProbeSystems, uris: Vector[URI])

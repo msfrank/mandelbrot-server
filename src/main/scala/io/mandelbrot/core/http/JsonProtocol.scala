@@ -32,7 +32,26 @@ import java.nio.charset.Charset
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.history._
 import io.mandelbrot.core.message._
-import io.mandelbrot.core.notification.ProbeNotification
+import io.mandelbrot.core.notification._
+import io.mandelbrot.core.registry.UpdateProbeSystem
+import io.mandelbrot.core.registry.GetProbeSystemStatusResult
+import io.mandelbrot.core.registry.ProbePolicy
+import io.mandelbrot.core.registry.ProbeStatus
+import io.mandelbrot.core.registry.SetProbeSquelchResult
+import io.mandelbrot.core.registry.RegisterProbeSystem
+import io.mandelbrot.core.registry.GetProbeSystemStatus
+import scala.Some
+import io.mandelbrot.core.history.GetStatusHistory
+import io.mandelbrot.core.message.StatusMessage
+import io.mandelbrot.core.registry.SetProbeSquelch
+import io.mandelbrot.core.history.GetStatusHistoryResult
+import io.mandelbrot.core.registry.AcknowledgeProbe
+import io.mandelbrot.core.registry.ProbeSpec
+import io.mandelbrot.core.message.GenericMessage
+import io.mandelbrot.core.history.GetNotificationHistory
+import io.mandelbrot.core.registry.ProbeRegistration
+import io.mandelbrot.core.registry.AcknowledgeProbeResult
+import io.mandelbrot.core.history.GetNotificationHistoryResult
 
 object JsonProtocol extends DefaultJsonProtocol {
 
@@ -94,9 +113,33 @@ object JsonProtocol extends DefaultJsonProtocol {
     }
   }
 
+  /* convert ProbeHealth class */
+  implicit object NotificationPolicyTypeFormat extends RootJsonFormat[NotificationPolicyType] {
+    def write(policyType: NotificationPolicyType) = policyType match {
+      case NotificationPolicyTypeEmit => JsString("emit")
+      case NotificationPolicyTypeEscalate => JsString("escalate")
+      case NotificationPolicyTypeSquelch => JsString("squelch")
+      case unknown => throw new SerializationException("unknown NotificationPolicyType " + unknown.getClass)
+    }
+
+    def read(value: JsValue) = value match {
+      case JsString("emit") => NotificationPolicyTypeEmit
+      case JsString("escalate") => NotificationPolicyTypeEscalate
+      case JsString("squelch") => NotificationPolicyTypeSquelch
+      case unknown => throw new DeserializationException("unknown NotificationPolicyType " + unknown)
+    }
+  }
+
+  /* */
+  implicit val ProbePolicyFormat = jsonFormat7(ProbePolicy)
+
   /* a little extra magic here- we use lazyFormat because ProbeSpec has a recursive definition */
-  implicit val _ProbeSpecFormat: JsonFormat[ProbeSpec] = lazyFormat(jsonFormat(ProbeSpec, "objectType", "metaData", "children"))
+  implicit val _ProbeSpecFormat: JsonFormat[ProbeSpec] = lazyFormat(jsonFormat(ProbeSpec, "objectType", "policy", "metaData", "children", "static"))
   implicit val ProbeSpecFormat = rootFormat(_ProbeSpecFormat)
+
+  /* a little extra magic here- we use lazyFormat because ProbeRegistration has a recursive definition */
+  implicit val _ProbeRegistrationFormat: JsonFormat[ProbeRegistration] = lazyFormat(jsonFormat(ProbeRegistration, "objectType", "policy", "metaData", "children"))
+  implicit val ProbeRegistrationFormat = rootFormat(_ProbeRegistrationFormat)
 
   /* convert ProbeHealth class */
   implicit object ProbeHealthFormat extends RootJsonFormat[ProbeHealth] {

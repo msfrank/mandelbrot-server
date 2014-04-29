@@ -42,7 +42,9 @@ class StaticRegistry(config: Config, registrySettings: RegistrySettings) {
 
   def parseSpec(config: Config): ProbeSpec = {
     val objectType = config.getString("object-type")
-    val policy = parsePolicy(config.getConfig("policy"))
+    val policy = if (!config.hasPath("policy")) {
+      ProbePolicy(staticJoiningTimeout, staticProbeTimeout, staticLeavingTimeout, staticFlapWindow, staticFlapDeviations, staticNotificationPolicyType, inherits = true)
+    } else parsePolicy(config.getConfig("policy"))
     val metadata = Map.empty[String,String]
     val children = if (config.hasPath("children")) config.getConfig("children").entrySet().map { case entry =>
         val name = entry.getKey
@@ -53,8 +55,7 @@ class StaticRegistry(config: Config, registrySettings: RegistrySettings) {
             throw new IllegalArgumentException()
         }
     }.toMap else Map.empty[String,ProbeSpec]
-    //ProbeSpec(objectType, policy, metadata, children, static = true)
-    ProbeSpec(objectType, metadata, children)
+    ProbeSpec(objectType, Some(policy), metadata, children, static = true)
   }
 
   def parsePolicy(config: Config): ProbePolicy = {
