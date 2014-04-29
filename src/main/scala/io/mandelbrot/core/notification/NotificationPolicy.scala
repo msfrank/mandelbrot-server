@@ -57,3 +57,8 @@ class EscalatePolicy(parent: ActorRef) extends NotificationPolicy {
 class SquelchPolicy extends NotificationPolicy {
   def notify(notification: Notification): Unit = {}
 }
+
+sealed trait NotificationPolicyType
+case object NotificationPolicyTypeEmit extends NotificationPolicyType
+case object NotificationPolicyTypeEscalate extends NotificationPolicyType
+case object NotificationPolicyTypeSquelch extends NotificationPolicyType

@@ -145,6 +145,12 @@ trait ApiService extends HttpService {
               }
             }
           }
+        } ~
+        path("policy") {
+          /* return the current policy */
+          get {
+            complete { StatusCodes.BadRequest }
+          }
         }
       } ~
       pathPrefix("collections") {

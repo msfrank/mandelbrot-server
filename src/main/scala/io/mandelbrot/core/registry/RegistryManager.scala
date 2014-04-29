@@ -24,9 +24,10 @@ import akka.persistence.{SnapshotOffer, EventsourcedProcessor, Persistent}
 import scala.collection.JavaConversions._
 import java.net.URI
 
-import io.mandelbrot.core.notification.{NotificationService, Notification}
+import io.mandelbrot.core.notification.{NotificationPolicyType, NotificationService, Notification}
 import io.mandelbrot.core.{ResourceNotFound, Conflict, ApiException}
 import io.mandelbrot.core.message.{StatusMessage, MessageStream}
+import scala.concurrent.duration.Duration
 
 /**
  *
@@ -144,8 +145,21 @@ object RegistryManager {
   case class Event(event: Any)
 }
 
-/* */
+/* contains tunable parameters for the probe */
+case class ProbePolicy(joiningTimeout: Duration,
+                       probeTimeout: Duration,
+                       leavingTimeout: Duration,
+                       flapWindow: Duration,
+                       flapDeviations: Int,
+                       notificationPolicy: NotificationPolicyType,
+                       inherits: Boolean)
+
+/* the probe specification */
 case class ProbeSpec(objectType: String, metadata: Map[String,String], children: Map[String,ProbeSpec])
+//case class ProbeSpec(objectType: String, policy: ProbePolicy, metadata: Map[String,String], children: Map[String,ProbeSpec], static: Boolean)
+
+/* a dynamic probe system registration */
+case class ProbeRegistration(objectType: String, policy: ProbePolicy, metadata: Map[String,String], children: Map[String,ProbeRegistration])
 
 /* object registry operations */
 sealed trait ProbeRegistryOperation
