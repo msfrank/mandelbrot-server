@@ -166,6 +166,7 @@ object JsonProtocol extends DefaultJsonProtocol {
       case ProbeKnown => JsString("known")
       case ProbeLeaving => JsString("leaving")
       case ProbeRetired => JsString("retired")
+      case ProbeStatic => JsString("static")
       case unknown => throw new SerializationException("unknown ProbeLifecycle state " + unknown.getClass)
     }
     def read(value: JsValue) = value match {
@@ -173,6 +174,7 @@ object JsonProtocol extends DefaultJsonProtocol {
       case JsString("known") => ProbeKnown
       case JsString("leaving") => ProbeLeaving
       case JsString("retired") => ProbeRetired
+      case JsString("static") => ProbeStatic
       case unknown => throw new DeserializationException("unknown ProbeLifecycle state " + unknown)
     }
   }

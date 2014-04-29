@@ -1,15 +1,15 @@
 package io.mandelbrot.core.registry
 
-import com.typesafe.config.{ConfigFactory, ConfigObject, ConfigValue, Config}
+import com.typesafe.config.{ConfigFactory, ConfigObject, Config}
 import scala.concurrent.duration._
 import scala.collection.JavaConversions._
-import java.io.File
 import java.net.URI
-
-import io.mandelbrot.core.notification.{NotificationPolicyTypeSquelch, NotificationPolicyTypeEscalate, NotificationPolicyTypeEmit}
+import java.io.File
 import java.util.concurrent.TimeUnit
 
-class RegistrySettings(staticRegistry: Option[File])
+import io.mandelbrot.core.notification.{NotificationPolicyTypeSquelch, NotificationPolicyTypeEscalate, NotificationPolicyTypeEmit}
+
+class RegistrySettings(val staticRegistry: Option[File])
 
 object RegistrySettings {
   def parse(config: Config): RegistrySettings = {
@@ -29,14 +29,12 @@ class StaticRegistry(config: Config, registrySettings: RegistrySettings) {
   val staticNotificationPolicyType = NotificationPolicyTypeEmit
 
   val systems: Map[URI,ProbeSpec] = if (config.hasPath("registry.systems")) {
-    config.getConfig("registry.systems").entrySet.map { case entry =>
-      val system = new URI(entry.getKey)
-      entry.getValue match {
-        case o: ConfigObject =>
-          system -> parseSpec(o.toConfig)
-        case unknown =>
+    config.getConfig("registry.systems").root.map {
+      case (key: String, o: ConfigObject) =>
+        val system = new URI(key)
+        system -> parseSpec(o.toConfig)
+      case unknown =>
           throw new IllegalArgumentException()
-      }
     }.toMap
   } else Map.empty
 
@@ -84,7 +82,7 @@ class StaticRegistry(config: Config, registrySettings: RegistrySettings) {
 
 object StaticRegistry {
   def apply(staticRegistry: File, registrySettings: RegistrySettings): StaticRegistry = {
-    val config = ConfigFactory.load(staticRegistry.getAbsolutePath)
+    val config = ConfigFactory.parseFile(staticRegistry)
     new StaticRegistry(config, registrySettings)
   }
 }

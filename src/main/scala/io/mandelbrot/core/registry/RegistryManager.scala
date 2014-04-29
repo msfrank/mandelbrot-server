@@ -21,13 +21,13 @@ package io.mandelbrot.core.registry
 
 import akka.actor._
 import akka.persistence.{SnapshotOffer, EventsourcedProcessor, Persistent}
+import scala.concurrent.duration.Duration
 import scala.collection.JavaConversions._
 import java.net.URI
 
+import io.mandelbrot.core.{ServerConfig, ResourceNotFound, Conflict, ApiException}
 import io.mandelbrot.core.notification.{NotificationPolicyType, NotificationService, Notification}
-import io.mandelbrot.core.{ResourceNotFound, Conflict, ApiException}
 import io.mandelbrot.core.message.{StatusMessage, MessageStream}
-import scala.concurrent.duration.Duration
 
 /**
  *
@@ -37,11 +37,26 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
 
   // config
   override def processorId = "probe-registry"
+  val settings = ServerConfig(context.system).settings.registry
 
   // state
   val objectSystems = new java.util.HashMap[URI,ActorRef](1024)
 
-  /* */
+  /* if a static registry is defined, then load static systems */
+  for (registryFile <- settings.staticRegistry) {
+    log.debug("loading static registry from {}", registryFile.getAbsolutePath)
+    try {
+      val staticRegistry = StaticRegistry(registryFile, settings)
+      staticRegistry.systems.foreach { case ((uri, spec)) =>
+        // FIXME: this probably isn't a good idea if the set of systems is large
+        self ! CreateProbeSystem(uri, spec)
+      }
+    } catch {
+      case ex: Throwable => log.error("failed to load static registry: {}", ex.getMessage)
+    }
+  }
+
+  /* subscribe to status messages */
   MessageStream(context.system).subscribe(self, classOf[StatusMessage])
 
   def receiveCommand = {

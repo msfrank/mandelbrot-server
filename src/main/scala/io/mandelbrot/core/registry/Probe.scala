@@ -251,6 +251,7 @@ case object ProbeJoining extends ProbeLifecycle("joining")
 case object ProbeKnown extends ProbeLifecycle("known")
 case object ProbeLeaving extends ProbeLifecycle("leaving")
 case object ProbeRetired extends ProbeLifecycle("retired")
+case object ProbeStatic extends ProbeLifecycle("static")
 
 /* object state */
 sealed abstract class ProbeHealth(val value: String) {
