@@ -20,7 +20,7 @@
 package io.mandelbrot.core.registry
 
 import akka.actor._
-import akka.persistence.{SnapshotOffer, EventsourcedProcessor, Persistent}
+import akka.persistence.{Recover, SnapshotOffer, EventsourcedProcessor, Persistent}
 import scala.concurrent.duration.Duration
 import scala.collection.JavaConversions._
 import java.net.URI
@@ -40,68 +40,80 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
   val settings = ServerConfig(context.system).settings.registry
 
   // state
-  val objectSystems = new java.util.HashMap[URI,ActorRef](1024)
+  val probeSystems = new java.util.HashMap[URI,ActorRef](1024)
 
-  /* if a static registry is defined, then load static systems */
-  for (registryFile <- settings.staticRegistry) {
-    log.debug("loading static registry from {}", registryFile.getAbsolutePath)
-    try {
-      val staticRegistry = StaticRegistry(registryFile, settings)
-      staticRegistry.systems.foreach { case ((uri, spec)) =>
-        // FIXME: this probably isn't a good idea if the set of systems is large
-        self ! CreateProbeSystem(uri, spec)
-      }
-    } catch {
-      case ex: Throwable => log.error("failed to load static registry: {}", ex.getMessage)
-    }
-  }
 
   /* subscribe to status messages */
   MessageStream(context.system).subscribe(self, classOf[StatusMessage])
+
+  override def preStart(): Unit = {
+    /* if a static registry is defined, then load static systems */
+    for (registryFile <- settings.staticRegistry) {
+      log.debug("loading static registry from {}", registryFile.getAbsolutePath)
+      try {
+        val staticRegistry = StaticRegistry(registryFile, settings)
+        staticRegistry.systems.foreach { case ((uri, spec)) =>
+          val ref = context.actorOf(ProbeSystem.props(uri, Some(spec)))
+          context.watch(ref)
+          probeSystems.put(uri, ref)
+          log.debug("created static probe system {} at {}", uri, ref.path)
+        }
+      } catch {
+        case ex: Throwable => log.error("failed to load static registry: {}", ex.getMessage)
+      }
+    }
+    /* */
+    self ! Recover()
+  }
+
+  override def postStop(): Unit = {
+    log.debug("snapshotting {}", processorId)
+    saveSnapshot(RegistryManagerSnapshot(probeSystems.keySet()))
+  }
 
   def receiveCommand = {
 
     /* register the ProbeSystem */
     case command @ RegisterProbeSystem(uri, registration) =>
-      if (!objectSystems.containsKey(uri)) {
-        persist(Event(CreateProbeSystem(uri, registration2spec(registration))))(updateState)
+      if (!probeSystems.containsKey(uri)) {
+        persist(Event(command))(updateState(_, recovering = false))
       } else {
         sender() ! ProbeRegistryOperationFailed(command, new ApiException(Conflict))
       }
 
     /* create the ProbeSystem */
     case command @ CreateProbeSystem(uri, _) =>
-      if (!objectSystems.containsKey(uri)) {
-        persist(Event(command))(updateState)
+      if (!probeSystems.containsKey(uri)) {
+        persist(Event(command))(updateState(_, recovering = false))
       } else {
         sender() ! ProbeRegistryOperationFailed(command, new ApiException(Conflict))
       }
 
     /* update the ProbeSystem */
     case UpdateProbeSystem(uri, spec) =>
-      objectSystems.get(uri) match {
+      probeSystems.get(uri) match {
         case null =>
-          persist(Event(CreateProbeSystem(uri, spec)))(updateState)
+          persist(Event(CreateProbeSystem(uri, spec)))(updateState(_, recovering = false))
         case ref: ActorRef =>
           ref.forward(Persistent(spec))
       }
 
     /* terminate the ProbeSystem */
     case command @ UnregisterProbeSystem(uri) =>
-      objectSystems.get(uri) match {
+      probeSystems.get(uri) match {
         case null =>
           sender() ! ProbeRegistryOperationFailed(command, new ApiException(ResourceNotFound))
         case ref: ActorRef =>
-          persist(Event(command))(updateState)
+          persist(Event(command))(updateState(_, recovering = false))
       }
 
     /* return the list of registered ProbeSystems */
     case query: ListProbeSystems =>
-      sender() ! ListProbeSystemsResult(query, objectSystems.keySet().toVector)
+      sender() ! ListProbeSystemsResult(query, probeSystems.keySet().toVector)
 
     /* forward ProbeSystem operations or return failure if system doesn't exist */
     case op: ProbeSystemOperation =>
-      objectSystems.get(op.uri) match {
+      probeSystems.get(op.uri) match {
         case null =>
           sender() ! ProbeSystemOperationFailed(op, new ApiException(ResourceNotFound))
         case ref: ActorRef =>
@@ -110,7 +122,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
 
     /* forward Probe operations or return failure if system doesn't exist */
     case op: ProbeOperation =>
-      objectSystems.get(op.probeRef.uri) match {
+      probeSystems.get(op.probeRef.uri) match {
         case null =>
           sender() ! ProbeOperationFailed(op, new ApiException(ResourceNotFound))
         case ref: ActorRef =>
@@ -119,7 +131,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
 
     /* forward state messages to the appropriate ProbeSystem */
     case message: StatusMessage =>
-      objectSystems.get(message.source.uri) match {
+      probeSystems.get(message.source.uri) match {
         case null =>
           // do nothing
         case ref: ActorRef =>
@@ -137,28 +149,50 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
   def receiveRecover = {
 
     case event: Event =>
-      updateState(event)
+      updateState(event, recovering = true)
 
-    case SnapshotOffer(metadata, snapshot) =>
-      log.debug("received snapshot offer: metadata={}, snapshot={}", metadata, snapshot)
+    /* recreate probe systems from snapshot */
+    case SnapshotOffer(metadata, snapshot: RegistryManagerSnapshot) =>
+      log.debug("loading snapshot of {} using offer {}", processorId, metadata)
+      snapshot.probeSystems.foreach { uri =>
+        // some probe systems may have been created statically in preStart(), so check
+        // whether the actor exists before recreating
+        if (!probeSystems.contains(uri)) {
+          val ref = context.actorOf(ProbeSystem.props(uri))
+          probeSystems.put(uri, ref)
+        }
+      }
   }
 
-  def updateState(event: Event) = event.event match {
+  def updateState(event: Event, recovering: Boolean) = event.event match {
+
+    /* register the ProbeSystem */
+    case command @ RegisterProbeSystem(uri, registration) =>
+      val spec = registration2spec(registration)
+      val ref = context.actorOf(ProbeSystem.props(uri, Some(spec)))
+      context.watch(ref)
+      probeSystems.put(uri, ref)
+      log.debug("registered probe system {} at {}", uri, ref.path)
+      if (!recovering)
+        sender() ! RegisterProbeSystemResult(command, ref)
+
     /* create the ProbeSystem */
     case command @ CreateProbeSystem(uri, spec) =>
-      val ref = context.actorOf(ProbeSystem.props(uri))
+      val ref = context.actorOf(ProbeSystem.props(uri, Some(spec)))
       context.watch(ref)
-      objectSystems.put(uri, ref)
-      ref ! Persistent(spec)
-      sender() ! CreateProbeSystemResult(command, ref)
+      probeSystems.put(uri, ref)
       log.debug("created probe system {} at {}", uri, ref.path)
+      if (!recovering)
+        sender() ! CreateProbeSystemResult(command, ref)
 
     /* terminate the ProbeSystem */
     case command @ UnregisterProbeSystem(uri) =>
-      val ref = objectSystems.get(uri)
-      log.debug("deleted probe system {}", uri)
-      objectSystems.remove(uri)
+      val ref = probeSystems.get(uri)
+      probeSystems.remove(uri)
       ref ! PoisonPill
+      log.debug("deleted probe system {}", uri)
+      if (!recovering)
+        sender() ! UnregisterProbeSystemResult(command)
   }
 
   def registration2spec(registration: ProbeRegistration): ProbeSpec = {
@@ -171,6 +205,7 @@ object RegistryManager {
   def props() = Props(classOf[RegistryManager])
 
   case class Event(event: Any)
+  case class RegistryManagerSnapshot(probeSystems: java.util.Set[URI]) extends Serializable
 }
 
 /* contains tunable parameters for the probe */
@@ -180,13 +215,20 @@ case class ProbePolicy(joiningTimeout: Duration,
                        flapWindow: Duration,
                        flapDeviations: Int,
                        notificationPolicy: NotificationPolicyType,
-                       inherits: Boolean)
+                       inherits: Boolean) extends Serializable
 
 /* the probe specification */
-case class ProbeSpec(objectType: String, policy: Option[ProbePolicy], metadata: Map[String,String], children: Map[String,ProbeSpec], static: Boolean)
+case class ProbeSpec(objectType: String,
+                     policy: Option[ProbePolicy],
+                     metadata: Map[String,String],
+                     children: Map[String,ProbeSpec],
+                     static: Boolean) extends Serializable
 
 /* a dynamic probe system registration */
-case class ProbeRegistration(objectType: String, policy: Option[ProbePolicy], metadata: Map[String,String], children: Map[String,ProbeRegistration])
+case class ProbeRegistration(objectType: String,
+                             policy: Option[ProbePolicy],
+                             metadata: Map[String,String],
+                             children: Map[String,ProbeRegistration]) extends Serializable
 
 /* object registry operations */
 sealed trait ProbeRegistryOperation

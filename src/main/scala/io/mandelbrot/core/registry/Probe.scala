@@ -20,7 +20,7 @@
 package io.mandelbrot.core.registry
 
 import akka.actor.{Cancellable, ActorLogging, ActorRef, Props}
-import akka.persistence.{SnapshotOffer, EventsourcedProcessor}
+import akka.persistence.{Recover, SnapshotOffer, EventsourcedProcessor}
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 import java.util.UUID
@@ -64,6 +64,15 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
   stateService ! ProbeStatus(probeRef, lifecycle, health, None, None, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
 
   setTimer()
+
+  override def preStart(): Unit = {
+    self ! Recover()
+  }
+
+  override def postStop(): Unit = {
+    log.debug("snapshotting {}", processorId)
+    saveSnapshot(ProbeSnapshot(lifecycle, health, summary, detail, lastChange, lastUpdate, correlationId, acknowledgementId, squelch))
+  }
 
   def receiveCommand = {
 
@@ -112,8 +121,17 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
     case event: Event =>
       updateState(event, recovering = true)
 
-    case offer: SnapshotOffer =>
-      log.debug("received snapshot offer: metadata={}, snapshot={}", offer.metadata, offer.snapshot)
+    case SnapshotOffer(metadata, snapshot: ProbeSnapshot) =>
+      log.debug("loading snapshot of {} using offer {}", processorId, metadata)
+      lifecycle = snapshot.lifecycle
+      health = snapshot.health
+      summary = snapshot.summary
+      detail = snapshot.detail
+      lastChange = snapshot.lastChange
+      lastUpdate = snapshot.lastUpdate
+      correlationId = snapshot.correlationId
+      acknowledgementId = snapshot.acknowledgementId
+      squelch = snapshot.squelch
   }
 
   def updateState(event: Event, recovering: Boolean) = event match {
@@ -241,26 +259,32 @@ object Probe {
   case class UserAcknowledges(acknowledgementId: UUID, timestamp: DateTime) extends Event
   case class UserSetsSquelch(squelch: Boolean, timestamp: DateTime) extends Event
   case object ProbeStateTimeout
+
+  case class ProbeSnapshot(lifecycle: ProbeLifecycle,
+                           health: ProbeHealth,
+                           summary: Option[String],
+                           detail: Option[String],
+                           lastChange: Option[DateTime],
+                           lastUpdate: Option[DateTime],
+                           correlationId: Option[UUID],
+                           acknowledgementId: Option[UUID],
+                           squelch: Boolean) extends Serializable
 }
 
 /* object lifecycle */
-sealed abstract class ProbeLifecycle(val value: String) {
-  override def toString = value
-}
-case object ProbeJoining extends ProbeLifecycle("joining")
-case object ProbeKnown extends ProbeLifecycle("known")
-case object ProbeLeaving extends ProbeLifecycle("leaving")
-case object ProbeRetired extends ProbeLifecycle("retired")
-case object ProbeStatic extends ProbeLifecycle("static")
+sealed trait ProbeLifecycle
+case object ProbeJoining extends ProbeLifecycle { override def toString = "joining" }
+case object ProbeKnown extends ProbeLifecycle   { override def toString = "known" }
+case object ProbeLeaving extends ProbeLifecycle { override def toString = "leaving" }
+case object ProbeRetired extends ProbeLifecycle { override def toString = "retired" }
+case object ProbeStatic extends ProbeLifecycle  { override def toString = "static" }
 
 /* object state */
-sealed abstract class ProbeHealth(val value: String) {
-  override def toString = value
-}
-case object ProbeHealthy extends ProbeHealth("healthy")
-case object ProbeDegraded extends ProbeHealth("degraded")
-case object ProbeFailed extends ProbeHealth("failed")
-case object ProbeUnknown extends ProbeHealth("unknown")
+sealed trait ProbeHealth
+case object ProbeHealthy extends ProbeHealth  { override def toString = "healthy" }
+case object ProbeDegraded extends ProbeHealth { override def toString = "degraded" }
+case object ProbeFailed extends ProbeHealth   { override def toString = "failed" }
+case object ProbeUnknown extends ProbeHealth  { override def toString = "unknown" }
 
 /* */
 case class ProbeStatus(probeRef: ProbeRef,

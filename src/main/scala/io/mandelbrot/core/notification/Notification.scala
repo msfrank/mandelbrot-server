@@ -27,7 +27,7 @@ case class NotifyLifecycleChanges(override val probeRef: ProbeRef,
                                   override val timestamp: DateTime,
                                   oldLifecycle: ProbeLifecycle,
                                   newLifecycle: ProbeLifecycle)
-extends ProbeNotification(probeRef, timestamp, "probe lifecycle transitions from %s to %s".format(oldLifecycle.value, newLifecycle.value), None)
+extends ProbeNotification(probeRef, timestamp, "probe lifecycle transitions from %s to %s".format(oldLifecycle.toString, newLifecycle.toString), None)
 
 /**
  *
@@ -37,7 +37,7 @@ case class NotifyHealthChanges(override val probeRef: ProbeRef,
                                override val correlation: Option[UUID],
                                oldHealth: ProbeHealth,
                                newHealth: ProbeHealth)
-extends ProbeNotification(probeRef, timestamp, "probe transitions from %s to %s".format(oldHealth.value, newHealth.value), correlation)
+extends ProbeNotification(probeRef, timestamp, "probe transitions from %s to %s".format(oldHealth.toString, newHealth.toString), correlation)
 
 /**
  *
@@ -46,7 +46,7 @@ case class NotifyHealthUpdates(override val probeRef: ProbeRef,
                                override val timestamp: DateTime,
                                override val correlation: Option[UUID],
                                health: ProbeHealth)
-extends ProbeNotification(probeRef, timestamp, "probe is " + health.value, correlation)
+extends ProbeNotification(probeRef, timestamp, "probe is " + health.toString, correlation)
 
 /**
  *

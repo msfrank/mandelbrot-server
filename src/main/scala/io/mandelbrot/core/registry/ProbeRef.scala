@@ -24,7 +24,7 @@ import java.net.URI
 /**
  *
  */
-class ProbeRef(val uri: URI, val path: Vector[String]) extends Ordered[ProbeRef] {
+class ProbeRef(val uri: URI, val path: Vector[String]) extends Ordered[ProbeRef] with Serializable {
 
   def parentOption: Option[ProbeRef] = if (path.isEmpty) None else Some(new ProbeRef(uri, path.init))
 

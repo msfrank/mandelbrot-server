@@ -1,5 +1,6 @@
 import sbt._
 import Keys._
+import com.typesafe.sbt.SbtProguard._
 
 object MandelbrotServerBuild extends Build {
 
@@ -48,7 +49,8 @@ object MandelbrotServerBuild extends Build {
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
         "io.spray" % "spray-testkit" % sprayVersion % "test"
       ),
-      javaOptions in test += "-Dlog4j.configuration=src/test/resources/log4j.properties"
-    )
+      javaOptions in test += "-Dlog4j.configuration=src/test/resources/log4j.properties",
+      fork := true  // for akka-persistence leveldb plugin
+    ) ++ proguardSettings
   )
 }

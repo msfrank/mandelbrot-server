@@ -23,25 +23,26 @@ import akka.actor._
 import akka.pattern.ask
 import akka.pattern.pipe
 import akka.util.Timeout
-import akka.persistence.{PersistenceFailure, Persistent, Processor}
+import akka.persistence._
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import java.net.URI
 
+import io.mandelbrot.core.{ServerConfig, ResourceNotFound, ApiException}
 import io.mandelbrot.core.notification.{NotificationService, Notification}
-import io.mandelbrot.core.{ResourceNotFound, ApiException}
 import io.mandelbrot.core.message.MandelbrotMessage
 import io.mandelbrot.core.state.StateService
 
 /**
  *
  */
-class ProbeSystem(uri: URI) extends Processor with ActorLogging {
+class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Processor with ActorLogging {
   import ProbeSystem._
   import context.dispatcher
 
   // config
   override def processorId = uri.toString
+  val settings = ServerConfig(context.system)
   val timeout = Timeout(5.seconds)
 
   // state
@@ -50,33 +51,26 @@ class ProbeSystem(uri: URI) extends Processor with ActorLogging {
 
   val stateService = StateService(context.system)
 
+  override def preStart(): Unit = {
+    initialSpec.map(applyProbeSpec)
+    self ! Recover()
+  }
+
+  override def postStop(): Unit = {
+    log.debug("snapshotting {}", processorId)
+    saveSnapshot(ProbeSystemSnapshot(currentSpec))
+  }
+
   def receive = {
+
+    /* recreate probe system state from snapshot */
+    case SnapshotOffer(metadata, snapshot: ProbeSystemSnapshot) =>
+      log.debug("loading snapshot of {} using offer {}", processorId, metadata)
+      snapshot.currentSpec.map(applyProbeSpec)
 
     /* configure the probe system using the spec */
     case Persistent(spec: ProbeSpec, sequenceNr) =>
-      val specSet = probeSpec2Set(spec)
-      val probeSet = probes.keySet
-      // add new probes
-      val probesAdded = specSet -- probeSet
-      probesAdded.toVector.sorted.foreach { case ref: ProbeRef =>
-        val actor = ref.parentOption match {
-          case Some(parent) =>
-            context.actorOf(Probe.props(ref, probes(parent).actor))
-          case None =>
-            context.actorOf(Probe.props(ref, self))
-        }
-        log.debug("added probe {}", ref)
-        probes = probes + (ref -> ProbeActor(findProbeSpec(spec, ref.path), actor))
-        stateService ! ProbeMetadata(ref, spec.metadata)
-      }
-      // remove stale probes
-      val probesRemoved = probeSet -- specSet
-      probesRemoved.toVector.sorted.reverse.foreach { case ref: ProbeRef =>
-        probes(ref).actor ! PoisonPill
-        log.debug("removed probe {}", ref)
-        probes = probes - ref
-      }
-      currentSpec = Some(spec)
+      applyProbeSpec(spec)
 
     case PersistenceFailure(message, sequenceNr, cause) =>
       log.error("failed to persist message {}: {}", message, cause.getMessage)
@@ -142,6 +136,11 @@ class ProbeSystem(uri: URI) extends Processor with ActorLogging {
 
   }
 
+  def static: Boolean = initialSpec match {
+    case Some(spec) if spec.static => true
+    case otherwise => false
+  }
+
   /**
    * flatten ProbeSpec into a Set of ProbeRefs
    */
@@ -160,12 +159,42 @@ class ProbeSystem(uri: URI) extends Processor with ActorLogging {
   def findProbeSpec(spec: ProbeSpec, path: Vector[String]): ProbeSpec = {
     if (path.isEmpty) spec else findProbeSpec(spec.children(path.head), path.tail)
   }
+
+  /**
+   * apply the spec to the probe system, adding and removing probes as necessary
+   */
+  def applyProbeSpec(spec: ProbeSpec): Unit = {
+    val specSet = probeSpec2Set(spec)
+    val probeSet = probes.keySet
+    // add new probes
+    val probesAdded = specSet -- probeSet
+    probesAdded.toVector.sorted.foreach { case ref: ProbeRef =>
+      val actor = ref.parentOption match {
+        case Some(parent) =>
+          context.actorOf(Probe.props(ref, probes(parent).actor))
+        case None =>
+          context.actorOf(Probe.props(ref, self))
+      }
+      log.debug("created probe {}", ref)
+      probes = probes + (ref -> ProbeActor(findProbeSpec(spec, ref.path), actor))
+      stateService ! ProbeMetadata(ref, spec.metadata)
+    }
+    // remove stale probes
+    val probesRemoved = probeSet -- specSet
+    probesRemoved.toVector.sorted.reverse.foreach { case ref: ProbeRef =>
+      probes(ref).actor ! PoisonPill
+      log.debug("deleted probe {}", ref)
+      probes = probes - ref
+    }
+    currentSpec = Some(spec)
+  }
 }
 
 object ProbeSystem {
-  def props(uri: URI) = Props(classOf[ProbeSystem], uri)
+  def props(uri: URI, initialSpec: Option[ProbeSpec] = None) = Props(classOf[ProbeSystem], uri, initialSpec)
 
   case class ProbeActor(spec: ProbeSpec, actor: ActorRef)
+  case class ProbeSystemSnapshot(currentSpec: Option[ProbeSpec]) extends Serializable
 }
 
 /**

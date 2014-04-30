@@ -50,8 +50,8 @@ class HistoryManager extends Actor with ActorLogging {
     case status: ProbeStatus =>
       db.withSession { implicit session =>
         val probeRef = status.probeRef.toString
-        val lifecycle = status.lifecycle.value
-        val health = status.health.value
+        val lifecycle = status.lifecycle.toString
+        val health = status.health.toString
         val summary = status.summary
         val detail = status.detail
         val lastUpdate = status.lastUpdate.map(_.getMillis)
