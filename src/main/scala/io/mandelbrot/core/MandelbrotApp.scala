@@ -30,6 +30,7 @@ import io.mandelbrot.core.notification.NotificationService
 import io.mandelbrot.core.registry.RegistryService
 import io.mandelbrot.core.http.HttpServer
 import io.mandelbrot.core.history.HistoryService
+import org.slf4j.LoggerFactory
 
 /**
  * application entry point
@@ -39,6 +40,7 @@ object MandelbrotApp extends App {
   /* start the actor system */
   val system = ActorSystem("mandelbrot")
   val settings = ServerConfig(system).settings
+  val log = LoggerFactory.getLogger("io.mandelbrot.core.MandelbrotApp")
 
   /* pre-warm top level services */
   val historyService = HistoryService(system)
@@ -56,11 +58,14 @@ object MandelbrotApp extends App {
   /* */
   val watched = Vector(historyService, notificationService, stateService, registryService) ++ httpServer.toVector
   val terminator = system.actorOf(Terminator.props(watched))
-  val timeout = 30.seconds
 
   /* shut down cleanly */
   sys.addShutdownHook({
-    Await.result(terminator.ask(TerminateApplication)(Timeout(timeout)), timeout)
+    try {
+      Await.result(terminator.ask(TerminateApplication)(Timeout(settings.shutdownTimeout)), settings.shutdownTimeout)
+    } catch {
+      case ex: Throwable => log.error("application shutdown failed: " + ex.getMessage)
+    }
     system.shutdown()
     system.awaitTermination()
   })

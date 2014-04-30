@@ -24,6 +24,7 @@ import com.typesafe.config._
 import com.typesafe.config.ConfigException.WrongType
 import org.slf4j.LoggerFactory
 import scala.collection.JavaConversions._
+import scala.concurrent.duration.FiniteDuration
 import java.io.File
 
 import io.mandelbrot.core.registry.RegistrySettings
@@ -31,6 +32,7 @@ import io.mandelbrot.core.state.StateSettings
 import io.mandelbrot.core.notification.NotificationSettings
 import io.mandelbrot.core.history.HistorySettings
 import io.mandelbrot.core.http.HttpSettings
+import java.util.concurrent.TimeUnit
 
 /**
  *
@@ -39,7 +41,8 @@ case class ServerConfigSettings(registry: RegistrySettings,
                                 state: StateSettings,
                                 notifications: NotificationSettings,
                                 history: HistorySettings,
-                                http: Option[HttpSettings])
+                                http: Option[HttpSettings],
+                                shutdownTimeout: FiniteDuration)
 
 /**
  *
@@ -104,7 +107,9 @@ class ServerConfigExtension(system: ActorSystem) extends Extension {
       Some(HttpSettings.parse(mandelbrotConfig.getConfig("http")))
     }
 
-    ServerConfigSettings(registrySettings, stateSettings, notificationSettings, historySettings, httpSettings)
+    /* */
+    val shutdownTimeout = FiniteDuration(mandelbrotConfig.getDuration("shutdown-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+    ServerConfigSettings(registrySettings, stateSettings, notificationSettings, historySettings, httpSettings, shutdownTimeout)
 
   } catch {
     case ex: ServerConfigException =>
