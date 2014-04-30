@@ -19,7 +19,11 @@
 
 package io.mandelbrot.core
 
-import akka.actor.ActorSystem
+import akka.actor._
+import akka.pattern.ask
+import akka.util.Timeout
+import scala.concurrent.duration._
+import scala.concurrent.Await
 
 import io.mandelbrot.core.state.StateService
 import io.mandelbrot.core.notification.NotificationService
@@ -49,9 +53,50 @@ object MandelbrotApp extends App {
     case None => None
   }
 
+  /* */
+  val watched = Vector(historyService, notificationService, stateService, registryService) ++ httpServer.toVector
+  val terminator = system.actorOf(Terminator.props(watched))
+  val timeout = 30.seconds
+
   /* shut down cleanly */
   sys.addShutdownHook({
+    Await.result(terminator.ask(TerminateApplication)(Timeout(timeout)), timeout)
     system.shutdown()
     system.awaitTermination()
   })
 }
+
+/**
+ * responsible for terminating the specified actors, waiting for the termination
+ * message from each, then returning success to the caller.
+ */
+class Terminator(actors: Vector[ActorRef]) extends Actor with ActorLogging {
+
+  // monitor lifecycle for all specified actors
+  actors.foreach(context.watch)
+
+  // state
+  var alive = actors.toSet
+  var requestor = ActorRef.noSender
+
+  def receive = {
+    case TerminateApplication if requestor == ActorRef.noSender =>
+      log.debug("shutting down application services")
+      requestor = sender()
+      alive.foreach { _ ! PoisonPill }
+
+    case Terminated(actor) =>
+      alive = alive - actor
+      if (alive.isEmpty) {
+        log.debug("application service shutdown complete")
+        requestor ! TerminationComplete
+      }
+  }
+}
+
+object Terminator {
+  def props(actors: Vector[ActorRef]) = Props(classOf[Terminator], actors)
+}
+
+case object TerminateApplication
+case object TerminationComplete
