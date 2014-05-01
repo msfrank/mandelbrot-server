@@ -74,8 +74,6 @@ trait ApiService extends HttpService {
                 HttpResponse(StatusCodes.Accepted, headers = List(Location("/objects/systems/" + registerProbeSystem.uri.toString)))
               case failure: ProbeRegistryOperationFailed =>
                 throw failure.failure
-              case failure: ApiFailure =>
-                throw new ApiException(failure)
             }
           }
         }
@@ -86,8 +84,8 @@ trait ApiService extends HttpService {
           registryService.ask(ListProbeSystems()).map {
             case result: ListProbeSystemsResult =>
               result.uris
-            case failure: ApiFailure =>
-              throw new ApiException(failure)
+            case failure: ProbeRegistryOperationFailed =>
+              throw failure.failure
           }
         }
       }
@@ -100,8 +98,8 @@ trait ApiService extends HttpService {
             registryService.ask(DescribeProbeSystem(new URI(uri))).map {
               case result: DescribeProbeSystemResult =>
                 result.spec
-              case failure: ApiFailure =>
-                throw new ApiException(failure)
+              case failure: ProbeSystemOperationFailed =>
+                throw failure.failure
             }
           }
         } ~
@@ -112,8 +110,8 @@ trait ApiService extends HttpService {
               registryService.ask(updateProbeSystem).map {
                 case result: UpdateProbeSystemResult =>
                   HttpResponse(StatusCodes.Accepted, headers = List(Location("/objects/systems/" + updateProbeSystem.uri.toString)))
-                case failure: ApiFailure =>
-                  throw new ApiException(failure)
+                case failure: ProbeSystemOperationFailed =>
+                  throw failure.failure
               }
             }
           }
