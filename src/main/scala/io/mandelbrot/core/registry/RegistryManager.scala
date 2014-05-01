@@ -68,7 +68,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
 
   override def postStop(): Unit = {
     log.debug("snapshotting {}", processorId)
-    saveSnapshot(RegistryManagerSnapshot(probeSystems.keySet()))
+    saveSnapshot(RegistryManagerSnapshot(probeSystems.keySet().toVector))
   }
 
   def receiveCommand = {
@@ -160,6 +160,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
         if (!probeSystems.contains(uri)) {
           val ref = context.actorOf(ProbeSystem.props(uri))
           probeSystems.put(uri, ref)
+          log.debug("loading probe system: {} -> {}", uri, ref.path)
         }
       }
   }
@@ -205,7 +206,7 @@ object RegistryManager {
   def props() = Props(classOf[RegistryManager])
 
   case class Event(event: Any)
-  case class RegistryManagerSnapshot(probeSystems: java.util.Set[URI]) extends Serializable
+  case class RegistryManagerSnapshot(probeSystems: Vector[URI]) extends Serializable
 }
 
 /* contains tunable parameters for the probe */

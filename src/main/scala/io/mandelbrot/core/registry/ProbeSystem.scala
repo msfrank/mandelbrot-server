@@ -36,7 +36,7 @@ import io.mandelbrot.core.state.StateService
 /**
  *
  */
-class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Processor with ActorLogging {
+class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends EventsourcedProcessor with ActorLogging {
   import ProbeSystem._
   import context.dispatcher
 
@@ -52,8 +52,10 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Processor wi
   val stateService = StateService(context.system)
 
   override def preStart(): Unit = {
-    initialSpec.map(applyProbeSpec)
     self ! Recover()
+    // if initialSpec is defined
+    for (spec <- initialSpec)
+      self ! spec
   }
 
   override def postStop(): Unit = {
@@ -61,19 +63,15 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Processor wi
     saveSnapshot(ProbeSystemSnapshot(currentSpec))
   }
 
-  def receive = {
+  def receiveCommand = {
 
-    /* recreate probe system state from snapshot */
-    case SnapshotOffer(metadata, snapshot: ProbeSystemSnapshot) =>
-      log.debug("loading snapshot of {} using offer {}", processorId, metadata)
-      snapshot.currentSpec.map(applyProbeSpec)
+    /* initialize the probe system with the specified spec */
+    case spec: ProbeSpec =>
+      persist(Event(spec))(updateState(_, recovering = false))
 
-    /* configure the probe system using the spec */
-    case Persistent(spec: ProbeSpec, sequenceNr) =>
-      applyProbeSpec(spec)
-
-    case PersistenceFailure(message, sequenceNr, cause) =>
-      log.error("failed to persist message {}: {}", message, cause.getMessage)
+    /* update the probe system with the spec */
+    case command: UpdateProbeSystem =>
+      persist(Event(command))(updateState(_, recovering = false))
 
     /* get the ProbeSystem spec */
     case query: DescribeProbeSystem =>
@@ -136,6 +134,33 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Processor wi
 
   }
 
+  def receiveRecover = {
+
+    case event: Event =>
+      updateState(event, recovering = true)
+
+    /* recreate probe system state from snapshot */
+    case SnapshotOffer(metadata, snapshot: ProbeSystemSnapshot) =>
+      log.debug("loading snapshot of {} using offer {}", processorId, metadata)
+      snapshot.currentSpec.map(applyProbeSpec)
+  }
+
+  def updateState(event: Event, recovering: Boolean) = event.event match {
+
+    case spec: ProbeSpec =>
+      applyProbeSpec(spec)
+      log.debug("initializing probe system {}", uri)
+
+    case command @ UpdateProbeSystem(_, spec) =>
+      applyProbeSpec(spec)
+      log.debug("updated probe system {} at {}", uri, self.path)
+      if (!recovering)
+        sender() ! UpdateProbeSystemResult(command, self)
+  }
+
+  /**
+   * true if probe system is static, otherwise false
+   */
   def static: Boolean = initialSpec match {
     case Some(spec) if spec.static => true
     case otherwise => false
@@ -193,6 +218,7 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Processor wi
 object ProbeSystem {
   def props(uri: URI, initialSpec: Option[ProbeSpec] = None) = Props(classOf[ProbeSystem], uri, initialSpec)
 
+  case class Event(event: Any)
   case class ProbeActor(spec: ProbeSpec, actor: ActorRef)
   case class ProbeSystemSnapshot(currentSpec: Option[ProbeSpec]) extends Serializable
 }
