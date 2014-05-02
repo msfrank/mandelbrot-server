@@ -59,8 +59,8 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Eventsourced
   }
 
   override def postStop(): Unit = {
-    log.debug("snapshotting {}", processorId)
-    saveSnapshot(ProbeSystemSnapshot(currentSpec))
+    //log.debug("snapshotting {}", processorId)
+    //saveSnapshot(ProbeSystemSnapshot(currentSpec))
   }
 
   def receiveCommand = {

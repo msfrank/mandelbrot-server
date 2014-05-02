@@ -25,7 +25,7 @@ import scala.concurrent.duration.Duration
 import scala.collection.JavaConversions._
 import java.net.URI
 
-import io.mandelbrot.core.{ServerConfig, ResourceNotFound, Conflict, ApiException}
+import io.mandelbrot.core._
 import io.mandelbrot.core.notification.{NotificationPolicyType, NotificationService, Notification}
 import io.mandelbrot.core.message.{StatusMessage, MessageStream}
 
@@ -67,8 +67,8 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
   }
 
   override def postStop(): Unit = {
-    log.debug("snapshotting {}", processorId)
-    saveSnapshot(RegistryManagerSnapshot(probeSystems.keySet().toVector))
+    //log.debug("snapshotting {}", processorId)
+    //saveSnapshot(RegistryManagerSnapshot(probeSystems.keySet().toVector))
   }
 
   def receiveCommand = {
@@ -144,6 +144,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
 
     case Terminated(ref) =>
       log.debug("actor {} has been terminated", ref.path)
+
   }
 
   def receiveRecover = {

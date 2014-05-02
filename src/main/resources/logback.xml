@@ -4,7 +4,7 @@
         <!-- encoders are assigned the type
              ch.qos.logback.classic.encoder.PatternLayoutEncoder by default -->
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger - %msg%n</pattern>
         </encoder>
     </appender>
 
@@ -13,7 +13,7 @@
     </root>
 
     <logger name="akka.persistence" level="DEBUG"/>
-    <logger name="akka" level="INFO"/>
+    <logger name="akka" level="DEBUG"/>
     <logger name="spray" level="INFO"/>
     <logger name="scala.slick" level="INFO"/>
 

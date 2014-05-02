@@ -70,8 +70,8 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
   }
 
   override def postStop(): Unit = {
-    log.debug("snapshotting {}", processorId)
-    saveSnapshot(ProbeSnapshot(lifecycle, health, summary, detail, lastChange, lastUpdate, correlationId, acknowledgementId, squelch))
+    //log.debug("snapshotting {}", processorId)
+    //saveSnapshot(ProbeSnapshot(lifecycle, health, summary, detail, lastChange, lastUpdate, correlationId, acknowledgementId, squelch))
   }
 
   def receiveCommand = {
