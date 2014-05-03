@@ -26,6 +26,11 @@ import io.mandelbrot.core.registry.RegistryService
 import io.mandelbrot.core.state.StateService
 import io.mandelbrot.core.message.MessageStream
 import io.mandelbrot.core.history.HistoryService
+import javax.net.ssl.{SSLEngine, TrustManagerFactory, KeyManagerFactory, SSLContext}
+import java.security.KeyStore
+import java.io.FileInputStream
+import io.mandelbrot.core.ServerConfig
+import spray.io.{ServerSSLEngineProvider, PipelineContext}
 
 /**
  * HttpServer is responsible for listening on the HTTP port, accepting connections,
@@ -36,18 +41,56 @@ class HttpServer(val settings: HttpSettings) extends Actor with ApiService with 
 
   implicit val system = context.system
   implicit val dispatcher = context.dispatcher
-
   val actorRefFactory = context
-  val timeout: Timeout = settings.requestTimeout
-
   val registryService = RegistryService(system)
   val stateService = StateService(system)
   val historyService = HistoryService(system)
   val messageStream = MessageStream(system)
 
+  // config
+  val timeout: Timeout = settings.requestTimeout
+
+  // if tls is enabled, then create an SSLContext
+  val sslContext: Option[SSLContext] = settings.tls match {
+    case Some(tlsSettings) =>
+      val keystore = KeyStore.getInstance("JKS")
+      keystore.load(new FileInputStream(tlsSettings.keystore), tlsSettings.keystorePassword.toCharArray)
+      val truststore = KeyStore.getInstance("JKS")
+      truststore.load(new FileInputStream(tlsSettings.truststore), tlsSettings.truststorePassword.toCharArray)
+      val keymanagerFactory = KeyManagerFactory.getInstance("SunX509")
+      keymanagerFactory.init(keystore, tlsSettings.keymanagerPassword.toCharArray)
+      val trustmanagerFactory = TrustManagerFactory.getInstance("SunX509")
+      trustmanagerFactory.init(truststore)
+      val sslContext = SSLContext.getInstance("TLS")
+      sslContext.init(keymanagerFactory.getKeyManagers, trustmanagerFactory.getTrustManagers, null)
+      Some(sslContext)
+    case None =>
+      None
+  }
+
+  /* return the configured SSLContext if specified */
+  implicit val sslContextProvider: (PipelineContext => Option[SSLContext]) = (ctx) => sslContext
+
+  /* set SSLEngine options if SSLContext is specified */
+  implicit val sslEngineProvider: (PipelineContext => Option[SSLEngine]) = (ctx) => sslContext match {
+      case Some(ssl) =>
+        val sslEngine = ssl.createSSLEngine()
+        sslEngine.setUseClientMode(false)
+        settings.tls.get.clientAuth match {
+          case TlsClientAuthRequired => sslEngine.setNeedClientAuth(true)
+          case TlsClientAuthRequested => sslEngine.setWantClientAuth(true)
+          case otherwise =>
+        }
+        Some(sslEngine)
+      case None => None
+  }
+
+
   override def preStart() {
     IO(Http) ! Http.Bind(self, settings.interface, port = settings.port, backlog = settings.backlog)
-    log.debug("binding to %s:%d with backlog %d".format(settings.interface, settings.port, settings.backlog))
+    log.debug("binding to %s:%d with backlog %d%s".format(settings.interface, settings.port, settings.backlog,
+      if (settings.tls.isDefined) "and TLS enabled" else ""
+    ))
   }
 
   def receive = runRoute(routes) orElse {

@@ -23,7 +23,11 @@ import com.typesafe.config.Config
 import scala.concurrent.duration.FiniteDuration
 import java.util.concurrent.TimeUnit
 
-class HttpSettings(val interface: String, val port: Int, val backlog: Int, val requestTimeout: FiniteDuration)
+class HttpSettings(val interface: String,
+                   val port: Int,
+                   val backlog: Int,
+                   val requestTimeout: FiniteDuration,
+                   val tls: Option[TlsSettings])
 
 object HttpSettings {
   def parse(config: Config): HttpSettings = {
@@ -31,6 +35,39 @@ object HttpSettings {
     val interface = config.getString("interface")
     val backlog = config.getInt("backlog")
     val requestTimeout = FiniteDuration(config.getDuration("request-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
-    new HttpSettings(interface, port, backlog, requestTimeout)
+    val tls = if (config.hasPath("tls")) Some(TlsSettings.parse(config.getConfig("tls"))) else None
+    new HttpSettings(interface, port, backlog, requestTimeout, tls)
+  }
+}
+
+sealed trait TlsClientAuth
+case object TlsClientAuthRequired extends TlsClientAuth
+case object TlsClientAuthRequested extends TlsClientAuth
+case object TlsClientAuthIgnored extends TlsClientAuth
+
+case class TlsSettings(clientAuth: TlsClientAuth,
+                       keystore: String,
+                       truststore: String,
+                       keystorePassword: String,
+                       truststorePassword: String,
+                       keymanagerPassword: String)
+
+object TlsSettings {
+  def parse(config: Config): TlsSettings = {
+    val keystore = config.getString("key-store")
+    val truststore = config.getString("trust-store")
+    val password = if (config.hasPath("password")) config.getString("password") else null
+    val keystorePassword = if (config.hasPath("key-store-password")) config.getString("key-store-password") else password
+    val truststorePassword = if (config.hasPath("trust-store-password")) config.getString("trust-store-password") else password
+    val keymanagerPassword = if (config.hasPath("keymanager-password")) config.getString("keymanager-password") else password
+    val clientAuth = if (config.hasPath("client-auth")) {
+      config.getString("tls-client-auth").toLowerCase match {
+        case "required" => TlsClientAuthRequired
+        case "requested" => TlsClientAuthRequested
+        case "ignored" => TlsClientAuthIgnored
+        case unknown => throw new Exception("unknown tls client auth mode '%s'".format(unknown))
+      }
+    } else TlsClientAuthRequested
+    new TlsSettings(clientAuth, keystore, truststore, keystorePassword, truststorePassword, keymanagerPassword)
   }
 }

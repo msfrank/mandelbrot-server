@@ -113,7 +113,7 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Eventsourced
         case Some(probeActor: ProbeActor) =>
           probeActor.actor ! message
         case None =>
-          log.warning("ignoring message {}: probe no longer exists", message)
+          log.warning("ignoring message {}: probe is not known", message)
       }
 
     /* forward probe operations to the specified probe */
