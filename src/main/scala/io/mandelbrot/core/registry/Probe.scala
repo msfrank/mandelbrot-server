@@ -61,7 +61,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
 
   /* */
   val stateService = StateService(context.system)
-  stateService ! ProbeStatus(probeRef, lifecycle, health, None, None, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+  stateService ! ProbeStatus(probeRef, DateTime.now(DateTimeZone.UTC), lifecycle, health, None, None, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
 
   setTimer()
 
@@ -85,7 +85,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
       persist(ProbeUpdates(message, correlation, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
     case query: GetProbeStatus =>
-      val status = ProbeStatus(probeRef, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      val status = ProbeStatus(probeRef, DateTime.now(DateTimeZone.UTC), lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
       sender() ! GetProbeStatusResult(query, status)
 
     case command: AcknowledgeProbe =>
@@ -163,7 +163,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
       }
       if (!recovering) {
         // notify state service about updated state
-        stateService ! ProbeStatus(probeRef, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send health notifications if not squelched
         if (!squelch) {
           // send lifecycle notifications
@@ -198,7 +198,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
       if (!recovering) {
         // notify state service if we transition to unknown
         if (health != oldHealth)
-          stateService ! ProbeStatus(probeRef, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+          stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send health notifications if not squelched
         if (!squelch) {
           if (flapQueue.isFlapping)
@@ -288,15 +288,16 @@ case object ProbeUnknown extends ProbeHealth  { override def toString = "unknown
 
 /* */
 case class ProbeStatus(probeRef: ProbeRef,
-                      lifecycle: ProbeLifecycle,
-                      health: ProbeHealth,
-                      summary: Option[String],
-                      detail: Option[String],
-                      lastUpdate: Option[DateTime],
-                      lastChange: Option[DateTime],
-                      correlation: Option[UUID],
-                      acknowledged: Option[UUID],
-                      squelched: Boolean)
+                       timestamp: DateTime,
+                       lifecycle: ProbeLifecycle,
+                       health: ProbeHealth,
+                       summary: Option[String],
+                       detail: Option[String],
+                       lastUpdate: Option[DateTime],
+                       lastChange: Option[DateTime],
+                       correlation: Option[UUID],
+                       acknowledged: Option[UUID],
+                       squelched: Boolean)
 
 case class ProbeMetadata(probeRef: ProbeRef, metadata: Map[String,String])
 
