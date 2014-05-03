@@ -151,7 +151,8 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Eventsourced
       applyProbeSpec(spec)
       log.debug("initializing probe system {}", uri)
 
-    case command @ UpdateProbeSystem(_, spec) =>
+    case command @ UpdateProbeSystem(_, registration) =>
+      val spec = ProbeConversions.registration2spec(registration)
       applyProbeSpec(spec)
       log.debug("updated probe system {} at {}", uri, self.path)
       if (!recovering)
@@ -236,7 +237,7 @@ case class ProbeSystemOperationFailed(op: ProbeSystemOperation, failure: Throwab
 case class DescribeProbeSystem(uri: URI) extends ProbeSystemQuery
 case class DescribeProbeSystemResult(op: DescribeProbeSystem, spec: ProbeSpec)
 
-case class UpdateProbeSystem(uri: URI, spec: ProbeSpec) extends ProbeSystemCommand
+case class UpdateProbeSystem(uri: URI, registration: ProbeRegistration) extends ProbeSystemCommand
 case class UpdateProbeSystemResult(op: UpdateProbeSystem, ref: ActorRef)
 
 case class GetProbeSystemStatus(uri: URI) extends ProbeSystemQuery

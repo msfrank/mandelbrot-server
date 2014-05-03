@@ -90,12 +90,12 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
       }
 
     /* update the ProbeSystem */
-    case UpdateProbeSystem(uri, spec) =>
+    case command @ UpdateProbeSystem(uri, spec) =>
       probeSystems.get(uri) match {
         case null =>
-          persist(Event(CreateProbeSystem(uri, spec)))(updateState(_, recovering = false))
+          sender() ! ProbeSystemOperationFailed(command, new ApiException(ResourceNotFound))
         case ref: ActorRef =>
-          ref.forward(Persistent(spec))
+          ref.forward(command)
       }
 
     /* terminate the ProbeSystem */
@@ -170,7 +170,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
 
     /* register the ProbeSystem */
     case command @ RegisterProbeSystem(uri, registration) =>
-      val spec = registration2spec(registration)
+      val spec = ProbeConversions.registration2spec(registration)
       val ref = context.actorOf(ProbeSystem.props(uri, Some(spec)))
       context.watch(ref)
       probeSystems.put(uri, ref)
@@ -195,11 +195,6 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
       log.debug("deleted probe system {}", uri)
       if (!recovering)
         sender() ! UnregisterProbeSystemResult(command)
-  }
-
-  def registration2spec(registration: ProbeRegistration): ProbeSpec = {
-    val children = registration.children.map { case ((name,child)) => name -> registration2spec(child) }
-    ProbeSpec(registration.objectType, registration.policy, registration.metadata, children, static = false)
   }
 }
 

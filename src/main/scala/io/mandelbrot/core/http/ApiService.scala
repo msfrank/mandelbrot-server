@@ -104,7 +104,7 @@ trait ApiService extends HttpService {
           }
         } ~
         /* update the spec for the specified probe system */
-        post {
+        put {
           entity(as[UpdateProbeSystem]) { case updateProbeSystem: UpdateProbeSystem =>
             complete {
               registryService.ask(updateProbeSystem).map {

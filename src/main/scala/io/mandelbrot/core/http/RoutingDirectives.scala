@@ -3,6 +3,8 @@ package io.mandelbrot.core.http
 import org.joda.time.DateTime
 import org.joda.time.format.ISODateTimeFormat
 import io.mandelbrot.core.{BadRequest, ApiException}
+import spray.http.{HttpHeader, HttpHeaders}
+import spray.util.SSLSessionInfo
 
 object RoutingDirectives {
   import shapeless._
@@ -29,6 +31,13 @@ object RoutingDirectives {
       }
       TimeseriesParams(start, end, limit, last)
   }
+
+  private def extractSSLSessionInfo: HttpHeader => Option[SSLSessionInfo] = {
+    case header: HttpHeaders.`SSL-Session-Info` => Some(header.info)
+    case _ => None
+  }
+
+  val sslSessionInfo: Directive1[Option[SSLSessionInfo]] = optionalHeaderValue(extractSSLSessionInfo)
 }
 
 case class TimeseriesParams(from: Option[DateTime], to: Option[DateTime], limit: Option[Int], last: Option[String])
