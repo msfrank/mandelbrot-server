@@ -201,15 +201,15 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Eventsourced
         case None =>
           context.actorOf(Probe.props(ref, self))
       }
-      log.debug("created probe {}", ref)
+      log.debug("probe {} joins", ref)
       probes = probes + (ref -> ProbeActor(findProbeSpec(spec, ref.path), actor))
       stateService ! ProbeMetadata(ref, spec.metadata)
     }
     // remove stale probes
     val probesRemoved = probeSet -- specSet
     probesRemoved.toVector.sorted.reverse.foreach { case ref: ProbeRef =>
-      probes(ref).actor ! PoisonPill
-      log.debug("deleted probe {}", ref)
+      probes(ref).actor ! RetireProbe
+      log.debug("probe {} retires", ref)
       probes = probes - ref
     }
     currentSpec = Some(spec)

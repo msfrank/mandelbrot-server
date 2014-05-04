@@ -114,6 +114,9 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
 
     case notification: Notification =>
       notifier.notify(notification)
+
+    case RetireProbe =>
+      persist(ProbeRetires(DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
   }
 
   def receiveRecover = {
@@ -164,18 +167,16 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
       if (!recovering) {
         // notify state service about updated state
         stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-        // send health notifications if not squelched
-        if (!squelch) {
-          // send lifecycle notifications
-          if (lifecycle != oldLifecycle)
-            notifier.notify(NotifyLifecycleChanges(probeRef, message.timestamp, oldLifecycle, lifecycle))
-          if (flapQueue.isFlapping)
-            notifier.notify(NotifyHealthFlaps(probeRef, message.timestamp, correlationId, flapQueue.flapStart))
-          else if (oldHealth != health)
-            notifier.notify(NotifyHealthChanges(probeRef, message.timestamp, correlationId, oldHealth, health))
-          else
-            notifier.notify(NotifyHealthUpdates(probeRef, message.timestamp, correlationId, health))
-        }
+        // send lifecycle notifications
+        if (lifecycle != oldLifecycle)
+          notifier.notify(NotifyLifecycleChanges(probeRef, message.timestamp, oldLifecycle, lifecycle))
+        // send health notifications
+        if (flapQueue.isFlapping)
+          notifier.notify(NotifyHealthFlaps(probeRef, message.timestamp, correlationId, flapQueue.flapStart))
+        else if (oldHealth != health)
+          notifier.notify(NotifyHealthChanges(probeRef, message.timestamp, correlationId, oldHealth, health))
+        else
+          notifier.notify(NotifyHealthUpdates(probeRef, message.timestamp, correlationId, health))
       }
       // reset the timer
       setTimer()
@@ -199,15 +200,13 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
         // notify state service if we transition to unknown
         if (health != oldHealth)
           stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-        // send health notifications if not squelched
-        if (!squelch) {
-          if (flapQueue.isFlapping)
-            notifier.notify(NotifyHealthFlaps(probeRef, timestamp, correlationId, flapQueue.flapStart))
-          else if (health != oldHealth)
-            notifier.notify(NotifyHealthChanges(probeRef, timestamp, correlationId, oldHealth, health))
-          else
-            notifier.notify(NotifyHealthExpires(probeRef, timestamp, correlationId))
-        }
+        // send health notifications
+        if (flapQueue.isFlapping)
+          notifier.notify(NotifyHealthFlaps(probeRef, timestamp, correlationId, flapQueue.flapStart))
+        else if (health != oldHealth)
+          notifier.notify(NotifyHealthChanges(probeRef, timestamp, correlationId, oldHealth, health))
+        else
+          notifier.notify(NotifyHealthExpires(probeRef, timestamp, correlationId))
       }
       // reset the timer
       setTimer()
@@ -228,9 +227,22 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
         else
           notifier.notify(NotifyUnsquelched(probeRef, timestamp))
       }
-  }
 
-  def notify(notification: Notification): Unit = if (!squelch) notifier.notify(notification)
+    case ProbeRetires(timestamp) =>
+      val oldLifecycle = lifecycle
+      lifecycle = ProbeRetired
+      summary = None
+      detail = None
+      lastUpdate = Some(timestamp)
+      lastChange = Some(timestamp)
+      if (!recovering) {
+        // notify state service about updated state
+        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+        // send lifecycle notifications
+        notifier.notify(NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle))
+      }
+      context.stop(self)
+  }
 
   def setTimer(duration: Option[FiniteDuration] = None): Unit = {
     for (current <- timer)
@@ -258,6 +270,7 @@ object Probe {
   case class ProbeExpires(correlationId: Option[UUID], timestamp: DateTime) extends Event
   case class UserAcknowledges(acknowledgementId: UUID, timestamp: DateTime) extends Event
   case class UserSetsSquelch(squelch: Boolean, timestamp: DateTime) extends Event
+  case class ProbeRetires(timestamp: DateTime) extends Event
   case object ProbeStateTimeout
 
   case class ProbeSnapshot(lifecycle: ProbeLifecycle,
@@ -315,3 +328,5 @@ case class SetProbeSquelchResult(op: SetProbeSquelch, squelch: Boolean)
 
 case class AcknowledgeProbe(probeRef: ProbeRef, correlationId: UUID) extends ProbeCommand
 case class AcknowledgeProbeResult(op: AcknowledgeProbe, acknowledgementId: UUID)
+
+case object RetireProbe
