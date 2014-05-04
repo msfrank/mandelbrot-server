@@ -95,7 +95,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
         case null =>
           sender() ! ProbeSystemOperationFailed(command, new ApiException(ResourceNotFound))
         case ref: ActorRef =>
-          ref.forward(command)
+          persist(Event(command))(updateState(_, recovering = false))
       }
 
     /* terminate the ProbeSystem */
@@ -172,29 +172,37 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
     case command @ RegisterProbeSystem(uri, registration) =>
       val spec = ProbeConversions.registration2spec(registration)
       val actor = context.actorOf(ProbeSystem.props(uri, Some(spec)))
+      log.debug("registering probe system {} at {}", uri, actor.path)
       actor ! InitializeProbeSystem(spec)
       context.watch(actor)
       probeSystems.put(uri, actor)
-      log.debug("registered probe system {} at {}", uri, actor.path)
       if (!recovering)
         sender() ! RegisterProbeSystemResult(command, actor)
 
     /* create the ProbeSystem */
     case command @ CreateProbeSystem(uri, spec) =>
       val actor = context.actorOf(ProbeSystem.props(uri, Some(spec)))
+      log.debug("creating probe system {} at {}", uri, actor.path)
       actor ! InitializeProbeSystem(spec)
       context.watch(actor)
       probeSystems.put(uri, actor)
-      log.debug("created probe system {} at {}", uri, actor.path)
       if (!recovering)
         sender() ! CreateProbeSystemResult(command, actor)
+
+    /* update the ProbeSystem */
+    case command @ UpdateProbeSystem(uri, registration) =>
+      val actor = probeSystems.get(uri)
+      log.debug("updating probe system {} at {}", uri, actor.path)
+      actor ! command
+      if (!recovering)
+        sender() ! UpdateProbeSystemResult(command, actor)
 
     /* terminate the ProbeSystem */
     case command @ UnregisterProbeSystem(uri) =>
       val actor = probeSystems.get(uri)
+      log.debug("unregistering probe system {}", uri)
       probeSystems.remove(uri)
       actor ! PoisonPill
-      log.debug("deleted probe system {}", uri)
       if (!recovering)
         sender() ! UnregisterProbeSystemResult(command)
   }

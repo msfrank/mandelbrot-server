@@ -65,11 +65,13 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Eventsourced
     /* initialize the probe system with the specified spec */
     case InitializeProbeSystem(spec) =>
       applyProbeSpec(spec)
-      log.debug("initializing probe system {}", uri)
+      log.debug("initialized probe system {}", uri)
 
-    /* update the probe system with the spec */
-    case command: UpdateProbeSystem =>
-      persist(Event(command))(updateState(_, recovering = false))
+    /* update the probe system with the specified spec */
+    case command @ UpdateProbeSystem(_, registration) =>
+      val spec = ProbeConversions.registration2spec(registration)
+      applyProbeSpec(spec)
+      log.debug("updated probe system {}", uri)
 
     /* get the ProbeSystem spec */
     case query: DescribeProbeSystem =>
@@ -144,13 +146,7 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Eventsourced
   }
 
   def updateState(event: Event, recovering: Boolean) = event.event match {
-
-    case command @ UpdateProbeSystem(_, registration) =>
-      val spec = ProbeConversions.registration2spec(registration)
-      applyProbeSpec(spec)
-      log.debug("updated probe system {} at {}", uri, self.path)
-      if (!recovering)
-        sender() ! UpdateProbeSystemResult(command, self)
+    case _ => // TODO: reevaluate if we need this actor to be persistent
   }
 
   /**
