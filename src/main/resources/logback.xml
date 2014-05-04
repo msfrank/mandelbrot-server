@@ -12,8 +12,7 @@
         <appender-ref ref="STDOUT" />
     </root>
 
-    <logger name="akka.persistence" level="DEBUG"/>
-    <logger name="akka" level="DEBUG"/>
+    <logger name="akka" level="INFO"/>
     <logger name="spray" level="INFO"/>
     <logger name="scala.slick" level="INFO"/>
 

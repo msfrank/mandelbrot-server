@@ -35,6 +35,7 @@ import io.mandelbrot.core.{ResourceNotFound, Conflict, BadRequest, ApiException}
  */
 class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor with ActorLogging {
   import Probe._
+  import ProbeSystem.{InitProbe,RetireProbe}
   import context.dispatcher
 
   // config
@@ -61,7 +62,6 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
 
   /* */
   val stateService = StateService(context.system)
-  stateService ! ProbeStatus(probeRef, DateTime.now(DateTimeZone.UTC), lifecycle, health, None, None, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
 
   setTimer()
 
@@ -70,11 +70,17 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
   }
 
   override def postStop(): Unit = {
+    for (current <- timer)
+      current.cancel()
+    timer = None
     //log.debug("snapshotting {}", processorId)
     //saveSnapshot(ProbeSnapshot(lifecycle, health, summary, detail, lastChange, lastUpdate, correlationId, acknowledgementId, squelch))
   }
 
   def receiveCommand = {
+
+    case InitProbe =>
+      persist(ProbeInitializes(DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
     case ProbeStateTimeout =>
       val correlation = if (health == ProbeHealthy) Some(UUID.randomUUID()) else None
@@ -138,6 +144,18 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
   }
 
   def updateState(event: Event, recovering: Boolean) = event match {
+
+    case ProbeInitializes(timestamp) =>
+      lifecycle = ProbeJoining
+      summary = None
+      detail = None
+      lastUpdate = Some(timestamp)
+      lastChange = Some(timestamp)
+      if (!recovering) {
+        // notify state service about updated state
+        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+        // TODO: there should likely be a notification sent here
+      }
 
     case ProbeUpdates(message, correlation, timestamp) =>
       summary = Some(message.summary)
@@ -241,7 +259,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
         // send lifecycle notifications
         notifier.notify(NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle))
       }
-      context.stop(self)
+      // FIXME: stop timer?
   }
 
   def setTimer(duration: Option[FiniteDuration] = None): Unit = {
@@ -266,6 +284,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
 object Probe {
   def props(probeRef: ProbeRef, parent: ActorRef) = Props(classOf[Probe], probeRef, parent)
   sealed trait Event
+  case class ProbeInitializes(timestamp: DateTime) extends Event
   case class ProbeUpdates(state: StatusMessage, correlationId: Option[UUID], timestamp: DateTime) extends Event
   case class ProbeExpires(correlationId: Option[UUID], timestamp: DateTime) extends Event
   case class UserAcknowledges(acknowledgementId: UUID, timestamp: DateTime) extends Event
@@ -328,5 +347,3 @@ case class SetProbeSquelchResult(op: SetProbeSquelch, squelch: Boolean)
 
 case class AcknowledgeProbe(probeRef: ProbeRef, correlationId: UUID) extends ProbeCommand
 case class AcknowledgeProbeResult(op: AcknowledgeProbe, acknowledgementId: UUID)
-
-case object RetireProbe

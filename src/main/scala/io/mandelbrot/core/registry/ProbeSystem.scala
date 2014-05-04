@@ -53,9 +53,6 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Eventsourced
 
   override def preStart(): Unit = {
     self ! Recover()
-    // if initialSpec is defined
-    for (spec <- initialSpec)
-      self ! spec
   }
 
   override def postStop(): Unit = {
@@ -66,8 +63,9 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Eventsourced
   def receiveCommand = {
 
     /* initialize the probe system with the specified spec */
-    case spec: ProbeSpec =>
-      persist(Event(spec))(updateState(_, recovering = false))
+    case InitializeProbeSystem(spec) =>
+      applyProbeSpec(spec)
+      log.debug("initializing probe system {}", uri)
 
     /* update the probe system with the spec */
     case command: UpdateProbeSystem =>
@@ -147,10 +145,6 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Eventsourced
 
   def updateState(event: Event, recovering: Boolean) = event.event match {
 
-    case spec: ProbeSpec =>
-      applyProbeSpec(spec)
-      log.debug("initializing probe system {}", uri)
-
     case command @ UpdateProbeSystem(_, registration) =>
       val spec = ProbeConversions.registration2spec(registration)
       applyProbeSpec(spec)
@@ -202,14 +196,16 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Eventsourced
           context.actorOf(Probe.props(ref, self))
       }
       log.debug("probe {} joins", ref)
+      actor ! InitProbe
       probes = probes + (ref -> ProbeActor(findProbeSpec(spec, ref.path), actor))
       stateService ! ProbeMetadata(ref, spec.metadata)
     }
     // remove stale probes
     val probesRemoved = probeSet -- specSet
     probesRemoved.toVector.sorted.reverse.foreach { case ref: ProbeRef =>
-      probes(ref).actor ! RetireProbe
       log.debug("probe {} retires", ref)
+      probes(ref).actor ! RetireProbe
+      probes(ref).actor ! PoisonPill
       probes = probes - ref
     }
     currentSpec = Some(spec)
@@ -222,6 +218,10 @@ object ProbeSystem {
   case class Event(event: Any)
   case class ProbeActor(spec: ProbeSpec, actor: ActorRef)
   case class ProbeSystemSnapshot(currentSpec: Option[ProbeSpec]) extends Serializable
+  case class InitializeProbeSystem(spec: ProbeSpec)
+
+  case object InitProbe
+  case object RetireProbe
 }
 
 /**

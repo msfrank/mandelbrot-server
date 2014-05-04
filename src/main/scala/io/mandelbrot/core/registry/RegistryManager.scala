@@ -34,6 +34,7 @@ import io.mandelbrot.core.message.{StatusMessage, MessageStream}
  */
 class RegistryManager extends EventsourcedProcessor with ActorLogging {
   import RegistryManager._
+  import ProbeSystem.InitializeProbeSystem
 
   // config
   override def processorId = "probe-registry"
@@ -41,7 +42,6 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
 
   // state
   val probeSystems = new java.util.HashMap[URI,ActorRef](1024)
-
 
   /* subscribe to status messages */
   MessageStream(context.system).subscribe(self, classOf[StatusMessage])
@@ -171,27 +171,29 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
     /* register the ProbeSystem */
     case command @ RegisterProbeSystem(uri, registration) =>
       val spec = ProbeConversions.registration2spec(registration)
-      val ref = context.actorOf(ProbeSystem.props(uri, Some(spec)))
-      context.watch(ref)
-      probeSystems.put(uri, ref)
-      log.debug("registered probe system {} at {}", uri, ref.path)
+      val actor = context.actorOf(ProbeSystem.props(uri, Some(spec)))
+      actor ! InitializeProbeSystem(spec)
+      context.watch(actor)
+      probeSystems.put(uri, actor)
+      log.debug("registered probe system {} at {}", uri, actor.path)
       if (!recovering)
-        sender() ! RegisterProbeSystemResult(command, ref)
+        sender() ! RegisterProbeSystemResult(command, actor)
 
     /* create the ProbeSystem */
     case command @ CreateProbeSystem(uri, spec) =>
-      val ref = context.actorOf(ProbeSystem.props(uri, Some(spec)))
-      context.watch(ref)
-      probeSystems.put(uri, ref)
-      log.debug("created probe system {} at {}", uri, ref.path)
+      val actor = context.actorOf(ProbeSystem.props(uri, Some(spec)))
+      actor ! InitializeProbeSystem(spec)
+      context.watch(actor)
+      probeSystems.put(uri, actor)
+      log.debug("created probe system {} at {}", uri, actor.path)
       if (!recovering)
-        sender() ! CreateProbeSystemResult(command, ref)
+        sender() ! CreateProbeSystemResult(command, actor)
 
     /* terminate the ProbeSystem */
     case command @ UnregisterProbeSystem(uri) =>
-      val ref = probeSystems.get(uri)
+      val actor = probeSystems.get(uri)
       probeSystems.remove(uri)
-      ref ! PoisonPill
+      actor ! PoisonPill
       log.debug("deleted probe system {}", uri)
       if (!recovering)
         sender() ! UnregisterProbeSystemResult(command)
