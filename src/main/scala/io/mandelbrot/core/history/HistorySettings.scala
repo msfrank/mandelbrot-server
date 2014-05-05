@@ -4,19 +4,20 @@ import com.typesafe.config.Config
 import scala.concurrent.duration.{FiniteDuration, Duration}
 import java.io.File
 import java.util.concurrent.TimeUnit
+import io.mandelbrot.core.ServiceSettings
 
-class HistorySettings(val databasePath: File,
-                      val inMemory: Boolean,
-                      val h2databaseToUpper: Boolean,
-                      val historyRetention: Duration
-                      )
+case class HistorySettings(plugin: String,
+                           service: Option[Any],
+                           historyRetention: Duration
+                           )
 
-object HistorySettings {
+object HistorySettings extends ServiceSettings {
   def parse(config: Config): HistorySettings = {
-    val databasePath = new File(config.getString("database-path"))
-    val inMemory = config.getBoolean("in-memory")
-    val h2databaseToUpper = config.getBoolean("h2-database-to-upper")
     val historyRetention = FiniteDuration(config.getDuration("history-retention", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
-    new HistorySettings(databasePath, inMemory, h2databaseToUpper, historyRetention)
+    val plugin = config.getString("plugin")
+    val service = if (config.hasPath("plugin-settings")) {
+      makeServiceSettings(plugin, config.getConfig("plugin-settings"))
+    } else None
+    new HistorySettings(plugin, service, historyRetention)
   }
 }

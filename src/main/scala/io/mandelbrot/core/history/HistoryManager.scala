@@ -1,19 +1,23 @@
 package io.mandelbrot.core.history
 
+import com.typesafe.config.Config
 import akka.actor.{Cancellable, Props, ActorLogging, Actor}
 import scala.slick.driver.H2Driver.simple._
 import scala.concurrent.duration._
 import org.joda.time.{DateTimeZone, DateTime}
+import java.io.File
 
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.ServerConfig
 import io.mandelbrot.core.notification.ProbeNotification
 import io.mandelbrot.core.registry.ProbeStatus
 
+import io.mandelbrot.core.history.HistoryManager.ManagerSettings
+
 /**
  *
  */
-class HistoryManager extends Actor with ActorLogging {
+class HistoryManager(managerSettings: ManagerSettings) extends Actor with ActorLogging {
   import HistoryManager._
   import StatusEntries._
   import NotificationEntries._
@@ -23,11 +27,11 @@ class HistoryManager extends Actor with ActorLogging {
   val settings = ServerConfig(context.system).settings.history
   val driver = "org.h2.Driver"
   val url = "jdbc:h2:" + {
-    if (settings.inMemory) "mem:history" else "file:" + settings.databasePath.getAbsolutePath
+    if (managerSettings.inMemory) "mem:history" else "file:" + managerSettings.databasePath.getAbsolutePath
   } + ";" + {
-    if (settings.inMemory) "DB_CLOSE_DELAY=-1;" else ""
+    if (managerSettings.inMemory) "DB_CLOSE_DELAY=-1;" else ""
   } + {
-    if (!settings.h2databaseToUpper) "DATABASE_TO_UPPER=false" else "DATABASE_TO_UPPER=true"
+    if (!managerSettings.h2databaseToUpper) "DATABASE_TO_UPPER=false" else "DATABASE_TO_UPPER=true"
   }
 
   // initialize db
@@ -145,7 +149,15 @@ class HistoryManager extends Actor with ActorLogging {
 }
 
 object HistoryManager {
-  def props() = Props(classOf[HistoryManager])
+  def props(managerSettings: ManagerSettings) = Props(classOf[HistoryManager], managerSettings)
+
+  case class ManagerSettings(databasePath: File, inMemory: Boolean, h2databaseToUpper: Boolean)
+  def settings(config: Config): Option[ManagerSettings] = {
+    val databasePath = new File(config.getString("database-path"))
+    val inMemory = config.getBoolean("in-memory")
+    val h2databaseToUpper = config.getBoolean("h2-database-to-upper")
+    Some(ManagerSettings(databasePath, inMemory, h2databaseToUpper))
+  }
 
   case object CleanStaleHistory
 }

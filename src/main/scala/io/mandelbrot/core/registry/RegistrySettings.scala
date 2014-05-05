@@ -8,13 +8,20 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 import io.mandelbrot.core.notification.{NotificationPolicyTypeSquelch, NotificationPolicyTypeEscalate, NotificationPolicyTypeEmit}
+import io.mandelbrot.core.ServiceSettings
 
-class RegistrySettings(val staticRegistry: Option[File])
+case class RegistrySettings(plugin: String,
+                            service: Option[Any],
+                            staticRegistry: Option[File])
 
-object RegistrySettings {
+object RegistrySettings extends ServiceSettings {
   def parse(config: Config): RegistrySettings = {
     val staticRegistry = if (config.hasPath("static-registry")) Some(new File(config.getString("static-registry"))) else None
-    new RegistrySettings(staticRegistry)
+    val plugin = config.getString("plugin")
+    val service = if (config.hasPath("plugin-settings")) {
+      makeServiceSettings(plugin, config.getConfig("plugin-settings"))
+    } else None
+    new RegistrySettings(plugin, service, staticRegistry)
   }
 }
 

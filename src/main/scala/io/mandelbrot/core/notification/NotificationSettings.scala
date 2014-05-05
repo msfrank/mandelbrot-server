@@ -4,7 +4,7 @@ import com.typesafe.config.Config
 
 import io.mandelbrot.core.ServiceSettings
 
-class NotificationSettings(val plugin: String, val service: Option[Any])
+case class NotificationSettings(plugin: String, service: Option[Any])
 
 object NotificationSettings extends ServiceSettings {
   def parse(config: Config): NotificationSettings = {

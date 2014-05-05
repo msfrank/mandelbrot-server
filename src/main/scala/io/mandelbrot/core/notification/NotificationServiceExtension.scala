@@ -3,6 +3,7 @@ package io.mandelbrot.core.notification
 import akka.actor._
 
 import io.mandelbrot.core.{ServerConfig, ServiceExtension}
+import org.slf4j.LoggerFactory
 
 /**
  *
@@ -12,6 +13,7 @@ class NotificationServiceExtensionImpl(system: ActorSystem) extends ServiceExten
     val settings = ServerConfig(system).settings.notifications
     val plugin = settings.plugin
     val service = settings.service
+    LoggerFactory.getLogger("io.mandelbrot.core.notification.NotificationServiceExtension").info("loading plugin " + plugin)
     system.actorOf(makeServiceProps(plugin, service), "notification-service")
   }
 }

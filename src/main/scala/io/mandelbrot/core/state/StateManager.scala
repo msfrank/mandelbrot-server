@@ -1,7 +1,7 @@
 package io.mandelbrot.core.state
 
+import com.typesafe.config.Config
 import akka.actor.{Props, ActorLogging, Actor}
-
 import org.apache.lucene.store.FSDirectory
 import org.apache.lucene.index.{DirectoryReader, Term, IndexWriter, IndexWriterConfig}
 import org.apache.lucene.analysis.standard.StandardAnalyzer
@@ -10,16 +10,18 @@ import org.apache.lucene.document.Field.Store
 import org.apache.lucene.search.{ScoreDoc, IndexSearcher}
 import org.apache.lucene.queryparser.classic.{ParseException, QueryParser}
 import org.apache.lucene.util.Version
+import java.io.File
 
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.{ServerConfig, BadRequest, ApiException}
 import io.mandelbrot.core.history.HistoryService
 import io.mandelbrot.core.registry.ProbeStatus
+import io.mandelbrot.core.state.StateManager.ManagerSettings
 
 /**
  *
  */
-class StateManager extends Actor with ActorLogging {
+class StateManager(managerSettings: ManagerSettings) extends Actor with ActorLogging {
   import StateManager._
 
   // config
@@ -27,7 +29,7 @@ class StateManager extends Actor with ActorLogging {
 
   /* open the index directory */
   val analyzer = new StandardAnalyzer(LUCENE_VERSION)
-  val store = FSDirectory.open(settings.indexDirectory)
+  val store = FSDirectory.open(managerSettings.indexDirectory)
 
   val historyService = HistoryService(context.system)
 
@@ -92,7 +94,13 @@ class StateManager extends Actor with ActorLogging {
 }
 
 object StateManager {
-  def props() = Props(classOf[StateManager])
+  def props(managerSettings: ManagerSettings) = Props(classOf[StateManager], managerSettings)
+
+  case class ManagerSettings(indexDirectory: File)
+  def settings(config: Config): Option[ManagerSettings] = {
+    val indexDirectory = new File(config.getString("index-directory"))
+    Some(ManagerSettings(indexDirectory))
+  }
 
   val LUCENE_VERSION = Version.LUCENE_47
 }

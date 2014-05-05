@@ -1,12 +1,20 @@
 package io.mandelbrot.core.state
 
 import akka.actor._
+import io.mandelbrot.core.{ServerConfig, ServiceExtension}
+import org.slf4j.LoggerFactory
 
 /**
  *
  */
-class StateServiceExtensionImpl(system: ActorSystem) extends Extension {
-  val stateService = system.actorOf(StateManager.props(), "state-service")
+class StateServiceExtensionImpl(system: ActorSystem) extends ServiceExtension {
+  val stateService = {
+    val settings = ServerConfig(system).settings.state
+    val plugin = settings.plugin
+    val service = settings.service
+    LoggerFactory.getLogger("io.mandelbrot.core.state.StateServiceExtension").info("loading plugin " + plugin)
+    system.actorOf(makeServiceProps(plugin, service), "state-service")
+  }
 }
 
 /**

@@ -28,6 +28,7 @@ import java.net.URI
 import io.mandelbrot.core._
 import io.mandelbrot.core.notification.{NotificationPolicyType, NotificationService, Notification}
 import io.mandelbrot.core.message.{StatusMessage, MessageStream}
+import com.typesafe.config.Config
 
 /**
  *
@@ -210,6 +211,8 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
 
 object RegistryManager {
   def props() = Props(classOf[RegistryManager])
+
+  def settings(config: Config): Option[Any] = None
 
   case class Event(event: Any)
   case class RegistryManagerSnapshot(probeSystems: Vector[URI]) extends Serializable
