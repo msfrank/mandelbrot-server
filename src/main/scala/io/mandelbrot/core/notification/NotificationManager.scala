@@ -1,5 +1,6 @@
 package io.mandelbrot.core.notification
 
+import com.typesafe.config.Config
 import akka.actor.{Props, ActorLogging, Actor}
 import io.mandelbrot.core.ServerConfig
 import io.mandelbrot.core.history.HistoryService
@@ -21,4 +22,5 @@ class NotificationManager extends Actor with ActorLogging {
 
 object NotificationManager {
   def props() = Props(classOf[NotificationManager])
+  def settings(config: Config): Option[Any] = None
 }

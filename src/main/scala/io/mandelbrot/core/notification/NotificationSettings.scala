@@ -2,10 +2,16 @@ package io.mandelbrot.core.notification
 
 import com.typesafe.config.Config
 
-class NotificationSettings()
+import io.mandelbrot.core.ServiceSettings
 
-object NotificationSettings {
+class NotificationSettings(val plugin: String, val service: Option[Any])
+
+object NotificationSettings extends ServiceSettings {
   def parse(config: Config): NotificationSettings = {
-    new NotificationSettings()
+    val plugin = config.getString("plugin")
+    val service = if (config.hasPath("plugin-settings")) {
+      makeServiceSettings(plugin, config.getConfig("plugin-settings"))
+    } else None
+    new NotificationSettings(plugin, service)
   }
 }

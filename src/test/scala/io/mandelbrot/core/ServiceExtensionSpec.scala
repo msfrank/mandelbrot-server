@@ -10,7 +10,7 @@ class ServiceExtensionSpec extends WordSpec with MustMatchers {
 
     "return a Props instance from applying the props() method of a compatible implementation" in {
       val extension = new TestExtension()
-      val props = extension.findPropsFor("io.mandelbrot.core.TestExtension")
+      val props = extension.makeServiceProps("io.mandelbrot.core.TestExtension", None)
       props.clazz must be === classOf[TestImplementation]
     }
   }
