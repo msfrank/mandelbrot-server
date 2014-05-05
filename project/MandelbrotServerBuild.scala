@@ -6,6 +6,7 @@ object MandelbrotServerBuild extends Build {
 
   val mandelbrotVersion = "0.1"
 
+  val scalaLangVersion = "2.10.4"
   val akkaVersion = "2.3.2"
   val sprayVersion = "1.3.1"
   val luceneVersion = "4.7.1"
@@ -22,10 +23,11 @@ object MandelbrotServerBuild extends Build {
       exportJars := true,
       name := "mandelbrot-server",
       version := mandelbrotVersion,
-      scalaVersion := "2.10.4",
+      scalaVersion := scalaLangVersion,
       javacOptions ++= Seq("-source", "1.7"),
 
       libraryDependencies ++= Seq(
+        "org.scala-lang" % "scala-reflect" % scalaLangVersion,
         "com.typesafe.akka" %% "akka-actor" % akkaVersion,
         "com.typesafe.akka" %% "akka-persistence-experimental" % akkaVersion,
         "com.typesafe.akka" %% "akka-remote" % akkaVersion,
