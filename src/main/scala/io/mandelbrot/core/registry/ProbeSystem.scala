@@ -28,7 +28,7 @@ import scala.concurrent.duration._
 import java.net.URI
 
 import io.mandelbrot.core.{ServerConfig, ResourceNotFound, ApiException}
-import io.mandelbrot.core.notification.{NotificationService, Notification}
+import io.mandelbrot.core.notification.{EmitPolicy, NotificationPolicy, Notification}
 import io.mandelbrot.core.message.MandelbrotMessage
 import io.mandelbrot.core.state.StateService
 
@@ -46,6 +46,7 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Actor with A
   // state
   var probes: Map[ProbeRef,ProbeActor] = Map.empty
   var currentSpec: Option[ProbeSpec] = None
+  var notifier: NotificationPolicy = new EmitPolicy(context.system)
 
   val stateService = StateService(context.system)
 
@@ -116,7 +117,7 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Actor with A
 
     /* handle notifications which have been passed up from Probe */
     case notification: Notification =>
-      NotificationService(context.system) ! notification
+      notifier.notify(notification)
 
     case Terminated(ref) =>
       log.debug("actor {} has been terminated", ref.path)
