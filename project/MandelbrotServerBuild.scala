@@ -4,7 +4,7 @@ import com.typesafe.sbt.SbtProguard._
 
 object MandelbrotServerBuild extends Build {
 
-  val mandelbrotVersion = "0.1"
+  val mandelbrotVersion = "0.0.1"
 
   val scalaLangVersion = "2.10.4"
   val akkaVersion = "2.3.2"
