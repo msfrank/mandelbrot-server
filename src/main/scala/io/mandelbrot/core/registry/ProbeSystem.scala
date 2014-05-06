@@ -23,7 +23,6 @@ import akka.actor._
 import akka.pattern.ask
 import akka.pattern.pipe
 import akka.util.Timeout
-import akka.persistence._
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import java.net.URI
@@ -36,12 +35,11 @@ import io.mandelbrot.core.state.StateService
 /**
  *
  */
-class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends EventsourcedProcessor with ActorLogging {
+class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Actor with ActorLogging {
   import ProbeSystem._
   import context.dispatcher
 
   // config
-  override def processorId = uri.toString
   val settings = ServerConfig(context.system)
   val timeout = Timeout(5.seconds)
 
@@ -51,16 +49,7 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Eventsourced
 
   val stateService = StateService(context.system)
 
-  override def preStart(): Unit = {
-    self ! Recover()
-  }
-
-  override def postStop(): Unit = {
-    //log.debug("snapshotting {}", processorId)
-    //saveSnapshot(ProbeSystemSnapshot(currentSpec))
-  }
-
-  def receiveCommand = {
+  def receive = {
 
     /* initialize the probe system with the specified spec */
     case InitializeProbeSystem(spec) =>
@@ -134,29 +123,6 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Eventsourced
 
   }
 
-  def receiveRecover = {
-
-    case event: Event =>
-      updateState(event, recovering = true)
-
-    /* recreate probe system state from snapshot */
-    case SnapshotOffer(metadata, snapshot: ProbeSystemSnapshot) =>
-      log.debug("loading snapshot of {} using offer {}", processorId, metadata)
-      snapshot.currentSpec.map(applyProbeSpec)
-  }
-
-  def updateState(event: Event, recovering: Boolean) = event.event match {
-    case _ => // TODO: reevaluate if we need this actor to be persistent
-  }
-
-  /**
-   * true if probe system is static, otherwise false
-   */
-  def static: Boolean = initialSpec match {
-    case Some(spec) if spec.static => true
-    case otherwise => false
-  }
-
   /**
    * flatten ProbeSpec into a Set of ProbeRefs
    */
@@ -211,11 +177,8 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Eventsourced
 object ProbeSystem {
   def props(uri: URI, initialSpec: Option[ProbeSpec] = None) = Props(classOf[ProbeSystem], uri, initialSpec)
 
-  case class Event(event: Any)
   case class ProbeActor(spec: ProbeSpec, actor: ActorRef)
-  case class ProbeSystemSnapshot(currentSpec: Option[ProbeSpec]) extends Serializable
   case class InitializeProbeSystem(spec: ProbeSpec)
-
   case object InitProbe
   case object RetireProbe
 }
