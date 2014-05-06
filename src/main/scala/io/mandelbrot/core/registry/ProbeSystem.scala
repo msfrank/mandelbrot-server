@@ -187,9 +187,9 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Eventsourced
     probesAdded.toVector.sorted.foreach { case ref: ProbeRef =>
       val actor = ref.parentOption match {
         case Some(parent) =>
-          context.actorOf(Probe.props(ref, probes(parent).actor))
+          context.actorOf(Probe.props(ref, probes(parent).actor, stateService))
         case None =>
-          context.actorOf(Probe.props(ref, self))
+          context.actorOf(Probe.props(ref, self, stateService))
       }
       log.debug("probe {} joins", ref)
       actor ! InitProbe

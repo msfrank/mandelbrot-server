@@ -33,7 +33,7 @@ import io.mandelbrot.core.{ResourceNotFound, Conflict, BadRequest, ApiException}
 /**
  *
  */
-class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor with ActorLogging {
+class Probe(probeRef: ProbeRef, parent: ActorRef, stateService: ActorRef) extends EventsourcedProcessor with ActorLogging {
   import Probe._
   import ProbeSystem.{InitProbe,RetireProbe}
   import context.dispatcher
@@ -56,12 +56,9 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
   var correlationId: Option[UUID] = None
   var acknowledgementId: Option[UUID] = None
   var squelch: Boolean = false
-  var notifier: NotificationPolicy = new EmitPolicy(context.system)
+  var notifier: NotificationPolicy = new EscalatePolicy(parent)
   var timer: Option[Cancellable] = None
   val flapQueue: FlapQueue = new FlapQueue(flapCycles, flapWindow)
-
-  /* */
-  val stateService = StateService(context.system)
 
   setTimer()
 
@@ -282,7 +279,8 @@ class Probe(probeRef: ProbeRef, parent: ActorRef) extends EventsourcedProcessor 
 }
 
 object Probe {
-  def props(probeRef: ProbeRef, parent: ActorRef) = Props(classOf[Probe], probeRef, parent)
+  def props(probeRef: ProbeRef, parent: ActorRef, stateService: ActorRef) = Props(classOf[Probe], probeRef, parent, stateService)
+
   sealed trait Event
   case class ProbeInitializes(timestamp: DateTime) extends Event
   case class ProbeUpdates(state: StatusMessage, correlationId: Option[UUID], timestamp: DateTime) extends Event
