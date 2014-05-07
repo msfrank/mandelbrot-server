@@ -1,6 +1,6 @@
 import sbt._
 import Keys._
-import com.typesafe.sbt.SbtProguard._
+import com.github.retronym.SbtOneJar
 
 object MandelbrotServerBuild extends Build {
 
@@ -13,13 +13,11 @@ object MandelbrotServerBuild extends Build {
   val esperVersion = "4.11.0"
   val slickVersion = "2.0.1"
 
-  ProguardKeys.options in Proguard ++= Seq("-dontnote", "-dontwarn", "-ignorewarnings")
-  //ProguardKeys.options in Proguard += ProguardOptions.keepMain("some.MainClass")
-
   lazy val mandelbrotBuild = Project(
     id = "mandelbrot-server",
     base = file("."),
-    settings = Project.defaultSettings ++ Seq(
+    settings = Project.defaultSettings ++ SbtOneJar.oneJarSettings ++ Seq(
+
       exportJars := true,
       name := "mandelbrot-server",
       version := mandelbrotVersion,
@@ -41,13 +39,10 @@ object MandelbrotServerBuild extends Build {
         "org.apache.lucene" % "lucene-analyzers-common" % luceneVersion,
         "org.apache.lucene" % "lucene-memory" % luceneVersion,
         "org.apache.lucene" % "lucene-queryparser" % luceneVersion,
-//        "com.espertech" % "esper" % esperVersion,
         "com.typesafe.slick" %% "slick" % slickVersion,
         "com.h2database" % "h2" % "1.4.177",
-//        "com.escalatesoft.subcut" %% "subcut" % "2.0",
         "joda-time" % "joda-time" % "2.2",
         "org.joda" % "joda-convert" % "1.3.1",
-        "nl.grons" %% "metrics-scala" % "3.0.5_a2.3",
         "org.slf4j" % "slf4j-api" % "1.7.5",
         "ch.qos.logback" % "logback-classic" % "1.1.2",
         "org.scalatest" %% "scalatest" % "1.9.1" % "test",
@@ -55,17 +50,7 @@ object MandelbrotServerBuild extends Build {
         "io.spray" % "spray-testkit" % sprayVersion % "test"
       ),
 
-      fork := true, // for akka-persistence leveldb plugin
-      //fork in (Test,run) := true,
-
-      // tweaks for proguard
-      javaOptions ++= Seq("-Xmx8192M",
-                          "-XX:+UseConcMarkSweepGC",
-                          "-XX:+CMSClassUnloadingEnabled",
-                          "-XX:PermSize=512M",
-                          "-XX:MaxPermSize=2048M",
-                          "-XX:-UseGCOverheadLimit")
-
-    ) ++ proguardSettings
+      fork in (Test,run) := true  // for akka-persistence leveldb plugin
+    )
   )
 }
