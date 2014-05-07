@@ -13,13 +13,14 @@ object MandelbrotServerBuild extends Build {
   val esperVersion = "4.11.0"
   val slickVersion = "2.0.1"
 
-  ProguardKeys.options in Proguard ++= Seq("-dontnote", "-dontwarn", "-ignorewarnings")
-  //ProguardKeys.options in Proguard += ProguardOptions.keepMain("some.MainClass")
+  import ProguardKeys.{ mergeStrategies, merge, options, proguard }
+  import ProguardOptions.keepMain
+  import ProguardMerge.append
 
   lazy val mandelbrotBuild = Project(
     id = "mandelbrot-server",
     base = file("."),
-    settings = Project.defaultSettings ++ Seq(
+    settings = Project.defaultSettings ++ proguardSettings ++ Seq(
       exportJars := true,
       name := "mandelbrot-server",
       version := mandelbrotVersion,
@@ -44,7 +45,6 @@ object MandelbrotServerBuild extends Build {
 //        "com.espertech" % "esper" % esperVersion,
         "com.typesafe.slick" %% "slick" % slickVersion,
         "com.h2database" % "h2" % "1.4.177",
-//        "com.escalatesoft.subcut" %% "subcut" % "2.0",
         "joda-time" % "joda-time" % "2.2",
         "org.joda" % "joda-convert" % "1.3.1",
         "nl.grons" %% "metrics-scala" % "3.0.5_a2.3",
@@ -53,19 +53,153 @@ object MandelbrotServerBuild extends Build {
         "org.scalatest" %% "scalatest" % "1.9.1" % "test",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
         "io.spray" % "spray-testkit" % sprayVersion % "test"
-      ),
-
-      fork := true, // for akka-persistence leveldb plugin
-      //fork in (Test,run) := true,
-
-      // tweaks for proguard
-      javaOptions ++= Seq("-Xmx8192M",
-                          "-XX:+UseConcMarkSweepGC",
-                          "-XX:+CMSClassUnloadingEnabled",
-                          "-XX:PermSize=512M",
-                          "-XX:MaxPermSize=2048M",
-                          "-XX:-UseGCOverheadLimit")
-
-    ) ++ proguardSettings
+      )
+      //fork := true, // for akka-persistence leveldb plugin
+    ) ++ inConfig(Proguard)(Seq(
+      /* ProGuard configuration */
+      options in Proguard += keepMain("io.mandelbrot.core.MandelbrotApp$"),
+      options in Proguard ++= Seq("-dontoptimize", "-ignorewarnings", "-verbose"),
+      options in Proguard += MandelbrotProguardOptions.options,
+      javaOptions in proguard := Seq(
+        "-Xmx8192M",
+        "-XX:+UseConcMarkSweepGC",
+        "-XX:+CMSClassUnloadingEnabled",
+        "-XX:-UseGCOverheadLimit",
+        "-XX:PermSize=512M",
+        "-XX:MaxPermSize=2048M",
+        "-XX:NewSize=512M",
+        "-XX:MaxNewSize=2048M"
+        ))
+    )
   )
+}
+
+object MandelbrotProguardOptions {
+    val options = """
+-keepclassmembernames class * implements akka.actor.Actor {
+      akka.actor.ActorContext context;
+        akka.actor.ActorRef self;
+}
+
+-keep class * implements akka.actor.ActorRefProvider {
+      public <init>(...);
+}
+
+-keep class * implements akka.actor.ExtensionId {
+      public <init>(...);
+}
+
+-keep class * implements akka.actor.ExtensionIdProvider {
+      public <init>(...);
+}
+
+-keep class akka.actor.SerializedActorRef {
+      *;
+}
+
+-keep class * implements akka.actor.SupervisorStrategyConfigurator {
+      public <init>(...);
+}
+
+-keep class * extends akka.dispatch.ExecutorServiceConfigurator {
+      public <init>(...);
+}
+
+-keep class * implements akka.dispatch.MailboxType {
+      public <init>(...);
+}
+
+-keep class * extends akka.dispatch.MessageDispatcherConfigurator {
+      public <init>(...);
+}
+
+-keep class akka.event.Logging*
+
+-keep class akka.event.Logging$LogExt {
+      public <init>(...);
+}
+
+-keep class akka.remote.DaemonMsgCreate {
+      *;
+}
+
+-keep class * extends akka.remote.RemoteTransport {
+      public <init>(...);
+}
+
+-keep class * implements akka.routing.RouterConfig {
+      public <init>(...);
+}
+
+-keep class * implements akka.serialization.Serializer {
+      public <init>(...);
+}
+
+-dontwarn akka.remote.netty.NettySSLSupport**
+-dontnote akka.**
+
+#
+# scala
+#
+
+-keepclassmembers class * { ** MODULE$; }
+
+-keepclassmembernames class scala.concurrent.forkjoin.ForkJoinPool {
+      long ctl;
+}
+
+-keepclassmembernames class scala.concurrent.forkjoin.ForkJoinPool$WorkQueue {
+      int runState;
+}
+
+-keepclassmembernames class scala.concurrent.forkjoin.LinkedTransferQueue {
+      scala.concurrent.forkjoin.LinkedTransferQueue$Node head;
+        scala.concurrent.forkjoin.LinkedTransferQueue$Node tail;
+          int sweepVotes;
+}
+
+-keepclassmembernames class scala.concurrent.forkjoin.LinkedTransferQueue$Node {
+      java.lang.Object item;
+        scala.concurrent.forkjoin.LinkedTransferQueue$Node next;
+          java.lang.Thread waiter;
+}
+
+-dontnote scala.xml.**
+-dontnote scala.concurrent.forkjoin.ForkJoinPool
+-dontwarn scala.**
+
+#
+# protobuf
+#
+
+-keep class * extends com.google.protobuf.GeneratedMessage {
+      ** newBuilder();
+}
+
+#
+# netty
+#
+
+-keep class * implements org.jboss.netty.channel.ChannelHandler
+
+-dontnote org.jboss.netty.util.internal.**
+-dontwarn org.jboss.netty.**
+
+#
+# uncommons math
+#
+
+-dontwarn org.uncommons.maths.random.AESCounterRNG
+
+#
+#
+#
+
+-keep class org.apache.lucene.** {
+    *;
+}
+-keep class org.tartarus.snowball.** {
+    *;
+}
+"""
 }
