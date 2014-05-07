@@ -71,9 +71,59 @@ object MandelbrotProguardOptions {
         "-XX:MaxNewSize=2048M"
         ),
       options in Proguard += keepMain("io.mandelbrot.core.MandelbrotApp$"),
-      options in Proguard ++= Seq("-dontoptimize", "-ignorewarnings", "-verbose"),
+      options in Proguard ++= Seq("-dontshrink", "-dontoptimize", "-dontobfuscate", "-verbose"),
       options in Proguard +=
         """
+          |#
+          |# MANDELBROT
+          |#
+          |
+          |-keep class io.mandelbrot.** {
+          |      *;
+          |}
+          |
+          |#
+          |# SCALA
+          |#
+          |
+          |-keepclasseswithmembers public class * {
+          |    public static void main(java.lang.String[]);
+          |}
+          |
+          |-keepclassmembers class * { ** MODULE$; }
+          |
+          |-keepclassmembernames class scala.concurrent.forkjoin.ForkJoinPool {
+          |      long ctl;
+          |}
+          |
+          |-keepclassmembernames class scala.concurrent.forkjoin.ForkJoinPool$WorkQueue {
+          |      int runState;
+          |}
+          |
+          |-keepclassmembernames class scala.concurrent.forkjoin.LinkedTransferQueue {
+          |      scala.concurrent.forkjoin.LinkedTransferQueue$Node head;
+          |        scala.concurrent.forkjoin.LinkedTransferQueue$Node tail;
+          |          int sweepVotes;
+          |}
+          |
+          |-keepclassmembernames class scala.concurrent.forkjoin.LinkedTransferQueue$Node {
+          |      java.lang.Object item;
+          |        scala.concurrent.forkjoin.LinkedTransferQueue$Node next;
+          |          java.lang.Thread waiter;
+          |}
+          |
+          |-dontnote scala.xml.**
+          |-dontnote scala.concurrent.forkjoin.ForkJoinPool
+          |-dontwarn scala.**
+          |
+          |#
+          |# AKKA
+          |#
+          |
+          |-keep class akka.actor.** {
+          |      *;
+          |}
+          |
           |-keepclassmembernames class * implements akka.actor.Actor {
           |      akka.actor.ActorContext context;
           |        akka.actor.ActorRef self;
@@ -136,46 +186,43 @@ object MandelbrotProguardOptions {
           |-dontwarn akka.remote.netty.NettySSLSupport**
           |-dontnote akka.**
           |
-          |#
-          |# scala
-          |#
-          |
-          |-keepclassmembers class * { ** MODULE$; }
-          |
-          |-keepclassmembernames class scala.concurrent.forkjoin.ForkJoinPool {
-          |      long ctl;
-          |}
-          |
-          |-keepclassmembernames class scala.concurrent.forkjoin.ForkJoinPool$WorkQueue {
-          |      int runState;
-          |}
-          |
-          |-keepclassmembernames class scala.concurrent.forkjoin.LinkedTransferQueue {
-          |      scala.concurrent.forkjoin.LinkedTransferQueue$Node head;
-          |        scala.concurrent.forkjoin.LinkedTransferQueue$Node tail;
-          |          int sweepVotes;
-          |}
-          |
-          |-keepclassmembernames class scala.concurrent.forkjoin.LinkedTransferQueue$Node {
-          |      java.lang.Object item;
-          |        scala.concurrent.forkjoin.LinkedTransferQueue$Node next;
-          |          java.lang.Thread waiter;
-          |}
-          |
-          |-dontnote scala.xml.**
-          |-dontnote scala.concurrent.forkjoin.ForkJoinPool
-          |-dontwarn scala.**
           |
           |#
-          |# protobuf
+          |# SPRAY
+          |#
+          |
+          |-keep class spray.** {
+          |      *;
+          |}
+          |
+          |
+          |#
+          |# H2
+          |#
+          |
+          |-dontwarn org.h2.server.web.**
+          |
+          |
+          |#
+          |# LOGBACK
+          |#
+          |
+          |-keep class ch.qos.logback.** {
+          |      *;
+          |}
+          |
+          |
+          |#
+          |# PROTOBUF
           |#
           |
           |-keep class * extends com.google.protobuf.GeneratedMessage {
           |      ** newBuilder();
           |}
           |
+          |
           |#
-          |# netty
+          |# NETTY
           |#
           |
           |-keep class * implements org.jboss.netty.channel.ChannelHandler
@@ -184,13 +231,7 @@ object MandelbrotProguardOptions {
           |-dontwarn org.jboss.netty.**
           |
           |#
-          |# uncommons math
-          |#
-          |
-          |-dontwarn org.uncommons.maths.random.AESCounterRNG
-          |
-          |#
-          |#
+          |# LUCENE
           |#
           |
           |-keep class org.apache.lucene.** {
