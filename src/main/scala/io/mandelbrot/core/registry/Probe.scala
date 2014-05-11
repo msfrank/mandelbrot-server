@@ -103,7 +103,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, stateService: ActorRef) extend
         case Some(correlation) =>
           val acknowledgement = UUID.randomUUID()
           val timestamp = DateTime.now(DateTimeZone.UTC)
-          persist(UserAcknowledges(acknowledgement, timestamp))(updateState(_, recovering = false))
+          persist(UserAcknowledges(acknowledgement, command.message, timestamp))(updateState(_, recovering = false))
           AcknowledgeProbeResult(command, acknowledgement)
       }
       sender() ! result
@@ -227,10 +227,13 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, stateService: ActorRef) extend
       setTimer()
 
 
-    case UserAcknowledges(acknowledgement, timestamp) =>
+    case UserAcknowledges(acknowledgement, message, timestamp) =>
       val correlation = correlationId.get
       acknowledgementId = Some(acknowledgement)
       if (!recovering) {
+        // notify state service that we are acknowledged
+        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+        // send acknowledgement notification
         notifier.notify(NotifyAcknowledged(probeRef, timestamp, correlation, acknowledgement))
       }
 
@@ -285,7 +288,7 @@ object Probe {
   case class ProbeInitializes(timestamp: DateTime) extends Event
   case class ProbeUpdates(state: StatusMessage, correlationId: Option[UUID], timestamp: DateTime) extends Event
   case class ProbeExpires(correlationId: Option[UUID], timestamp: DateTime) extends Event
-  case class UserAcknowledges(acknowledgementId: UUID, timestamp: DateTime) extends Event
+  case class UserAcknowledges(acknowledgementId: UUID, message: String, timestamp: DateTime) extends Event
   case class UserSetsSquelch(squelch: Boolean, timestamp: DateTime) extends Event
   case class ProbeRetires(timestamp: DateTime) extends Event
   case object ProbeStateTimeout
@@ -343,5 +346,5 @@ case class GetProbeStatusResult(op: GetProbeStatus, state: ProbeStatus)
 case class SetProbeSquelch(probeRef: ProbeRef, squelch: Boolean) extends ProbeCommand
 case class SetProbeSquelchResult(op: SetProbeSquelch, squelch: Boolean)
 
-case class AcknowledgeProbe(probeRef: ProbeRef, correlationId: UUID) extends ProbeCommand
+case class AcknowledgeProbe(probeRef: ProbeRef, correlationId: UUID, message: String) extends ProbeCommand
 case class AcknowledgeProbeResult(op: AcknowledgeProbe, acknowledgementId: UUID)
