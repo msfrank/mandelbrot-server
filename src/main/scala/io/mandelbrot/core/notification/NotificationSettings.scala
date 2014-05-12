@@ -34,3 +34,9 @@ object NotificationSettings extends ServiceSettings {
     new NotificationSettings(plugin, service)
   }
 }
+
+/* */
+sealed trait NotificationPolicy
+case object EmitNotificationPolicy extends NotificationPolicy
+case object EscalateNotificationPolicy extends NotificationPolicy
+case object SquelchNotificationPolicy extends NotificationPolicy

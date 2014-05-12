@@ -348,11 +348,11 @@ class Probe(probeRef: ProbeRef,
    */
   def updatePolicy(policy: ProbePolicy): Unit = {
     policy.notificationPolicy match {
-      case NotificationPolicyTypeEscalate =>
+      case EscalateNotificationPolicy =>
         notifier = Some(parent)
-      case NotificationPolicyTypeEmit =>
+      case EmitNotificationPolicy =>
         notifier = Some(notificationService)
-      case NotificationPolicyTypeSquelch =>
+      case SquelchNotificationPolicy =>
         notifier = None
     }
     currentPolicy = Some(policy)

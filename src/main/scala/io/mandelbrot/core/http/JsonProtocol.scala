@@ -114,18 +114,18 @@ object JsonProtocol extends DefaultJsonProtocol {
   }
 
   /* convert ProbeHealth class */
-  implicit object NotificationPolicyTypeFormat extends RootJsonFormat[NotificationPolicyType] {
-    def write(policyType: NotificationPolicyType) = policyType match {
-      case NotificationPolicyTypeEmit => JsString("emit")
-      case NotificationPolicyTypeEscalate => JsString("escalate")
-      case NotificationPolicyTypeSquelch => JsString("squelch")
+  implicit object NotificationPolicyTypeFormat extends RootJsonFormat[NotificationPolicy] {
+    def write(policyType: NotificationPolicy) = policyType match {
+      case EmitNotificationPolicy => JsString("emit")
+      case EscalateNotificationPolicy => JsString("escalate")
+      case SquelchNotificationPolicy => JsString("squelch")
       case unknown => throw new SerializationException("unknown NotificationPolicyType " + unknown.getClass)
     }
 
     def read(value: JsValue) = value match {
-      case JsString("emit") => NotificationPolicyTypeEmit
-      case JsString("escalate") => NotificationPolicyTypeEscalate
-      case JsString("squelch") => NotificationPolicyTypeSquelch
+      case JsString("emit") => EmitNotificationPolicy
+      case JsString("escalate") => EscalateNotificationPolicy
+      case JsString("squelch") => SquelchNotificationPolicy
       case unknown => throw new DeserializationException("unknown NotificationPolicyType " + unknown)
     }
   }

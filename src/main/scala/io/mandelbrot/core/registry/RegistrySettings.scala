@@ -26,7 +26,7 @@ import java.net.URI
 import java.io.File
 import java.util.concurrent.TimeUnit
 
-import io.mandelbrot.core.notification.{NotificationPolicyTypeSquelch, NotificationPolicyTypeEscalate, NotificationPolicyTypeEmit}
+import io.mandelbrot.core.notification.{SquelchNotificationPolicy, EscalateNotificationPolicy, EmitNotificationPolicy}
 import io.mandelbrot.core.ServiceSettings
 
 case class RegistrySettings(plugin: String,
@@ -44,9 +44,9 @@ object RegistrySettings extends ServiceSettings {
       val flapWindow = FiniteDuration(config.getDuration("flap-window", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
       val flapDeviations = config.getInt("flap-deviations")
       val notificationPolicyType = config.getString("notification-policy") match {
-        case "emit" => NotificationPolicyTypeEmit
-        case "escalate" => NotificationPolicyTypeEscalate
-        case "squelch" => NotificationPolicyTypeSquelch
+        case "emit" => EmitNotificationPolicy
+        case "escalate" => EscalateNotificationPolicy
+        case "squelch" => SquelchNotificationPolicy
         case "unknown" => throw new IllegalArgumentException()
       }
       ProbePolicy(joiningTimeout, probeTimeout, alertTimeout, leavingTimeout, flapWindow, flapDeviations, notificationPolicyType, inherits = false)
@@ -69,7 +69,7 @@ class StaticRegistry(config: Config, registrySettings: RegistrySettings) {
   val staticLeavingTimeout = 5.minutes
   val staticFlapWindow = 10.minutes
   val staticFlapDeviations = 10
-  val staticNotificationPolicyType = NotificationPolicyTypeEmit
+  val staticNotificationPolicyType = EmitNotificationPolicy
 
   val systems: Map[URI,ProbeSpec] = if (config.hasPath("registry.systems")) {
     config.getConfig("registry.systems").root.map {
@@ -117,9 +117,9 @@ class StaticRegistry(config: Config, registrySettings: RegistrySettings) {
     } else staticFlapWindow
     val flapDeviations = if (config.hasPath("flap-deviations")) config.getInt("flap-deviations") else staticFlapDeviations
     val notificationPolicyType = if (config.hasPath("notification-policy")) { config.getString("notification-policy") match {
-      case "emit" => NotificationPolicyTypeEmit
-      case "escalate" => NotificationPolicyTypeEscalate
-      case "squelch" => NotificationPolicyTypeSquelch
+      case "emit" => EmitNotificationPolicy
+      case "escalate" => EscalateNotificationPolicy
+      case "squelch" => SquelchNotificationPolicy
       case "unknown" => throw new IllegalArgumentException()
     }} else staticNotificationPolicyType
     ProbePolicy(joiningTimeout, probeTimeout, alertTimeout, leavingTimeout, flapWindow, flapDeviations, notificationPolicyType, inherits = false)
