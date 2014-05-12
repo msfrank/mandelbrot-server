@@ -78,6 +78,16 @@ extends ProbeNotification(probeRef, timestamp, "probe health expires", correlati
 /**
  *
  */
+case class NotifyHealthAlerts(override val probeRef: ProbeRef,
+                             override val timestamp: DateTime,
+                             health: ProbeHealth,
+                             correlationId: UUID,
+                             acknowledgementId: Option[UUID])
+extends ProbeNotification(probeRef, timestamp, "probe is " + health.toString, Some(correlationId))
+
+/**
+ *
+ */
 case class NotifyHealthFlaps(override val probeRef: ProbeRef,
                              override val timestamp: DateTime,
                              override val correlation: Option[UUID],

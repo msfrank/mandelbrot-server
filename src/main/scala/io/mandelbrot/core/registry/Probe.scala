@@ -66,12 +66,8 @@ class Probe(probeRef: ProbeRef,
   }
 
   override def postStop(): Unit = {
-    for (current <- expiryTimer)
-      current.cancel()
-    expiryTimer = None
-    for (current <- alertTimer)
-      current.cancel()
-    alertTimer = None
+    cancelExpiryTimer()
+    cancelAlertTimer()
     //log.debug("snapshotting {}", processorId)
     //saveSnapshot(ProbeSnapshot(lifecycle, health, summary, detail, lastChange, lastUpdate, correlationId, acknowledgementId, squelch))
   }
@@ -84,6 +80,9 @@ class Probe(probeRef: ProbeRef,
     case ProbeExpiryTimeout =>
       val correlation = if (health == ProbeHealthy) Some(UUID.randomUUID()) else None
       persist(ProbeExpires(correlation, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
+
+    case ProbeAlertTimeout =>
+      persist(ProbeAlerts(DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
     case message: StatusMessage =>
       val correlation = if (health == ProbeHealthy && message.health != ProbeHealthy) Some(UUID.randomUUID()) else None
@@ -146,7 +145,7 @@ class Probe(probeRef: ProbeRef,
     case ProbeInitializes(initialPolicy, timestamp) =>
       // set the initial policy
       updatePolicy(initialPolicy)
-      rearmExpiryTimer()
+      resetExpiryTimer()
       //
       lifecycle = ProbeJoining
       summary = None
@@ -175,11 +174,13 @@ class Probe(probeRef: ProbeRef,
         if (oldHealth == ProbeHealthy) {
           correlationId = correlation
           acknowledgementId = None
+          startAlertTimer()
         }
         // we transition from non-healthy to healthy
         else if (health == ProbeHealthy) {
           correlationId = None
           acknowledgementId = None
+          cancelAlertTimer()
         }
       }
       if (!recovering) {
@@ -198,8 +199,8 @@ class Probe(probeRef: ProbeRef,
             notifier.foreach(_ ! NotifyHealthUpdates(probeRef, message.timestamp, correlationId, health))
         }
       }
-      // reset the timer
-      rearmExpiryTimer()
+      // reset the expiry timer
+      resetExpiryTimer()
 
     case ProbeExpires(correlation, timestamp) =>
       val oldHealth = health
@@ -213,6 +214,7 @@ class Probe(probeRef: ProbeRef,
         if (oldHealth == ProbeHealthy) {
           correlationId = correlation
           acknowledgementId = None
+          cancelAlertTimer()
         }
       }
       if (!recovering) {
@@ -229,9 +231,19 @@ class Probe(probeRef: ProbeRef,
             notifier.foreach(_ ! NotifyHealthExpires(probeRef, timestamp, correlationId))
         }
       }
-      // reset the timer
-      rearmExpiryTimer()
+      // reset the expiry timer
+      resetExpiryTimer()
 
+    case ProbeAlerts(timestamp) =>
+      // reset the alert timer
+      resetAlertTimer()
+      if (!recovering) {
+        correlationId match {
+          case Some(correlation) =>
+            notifier.foreach(_ ! NotifyHealthAlerts(probeRef, timestamp, health, correlation, acknowledgementId))
+          case None =>  // do nothing
+        }
+      }
 
     case UserAcknowledges(acknowledgement, message, timestamp) =>
       val correlation = correlationId.get
@@ -260,17 +272,20 @@ class Probe(probeRef: ProbeRef,
       lastChange = Some(timestamp)
       if (!recovering) {
         // notify state service about updated state
+        // FIXME: delete probe state
         stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send lifecycle notifications
         notifier.foreach(_ ! NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle))
       }
-      // FIXME: stop timer?
+      // cancel timers
+      cancelExpiryTimer()
+      cancelAlertTimer()
   }
 
   /**
    *
    */
-  def rearmExpiryTimer(duration: Option[FiniteDuration] = None): Unit = {
+  def resetExpiryTimer(): Unit = {
     for (current <- expiryTimer)
       current.cancel()
     expiryTimer = currentPolicy match {
@@ -285,6 +300,47 @@ class Probe(probeRef: ProbeRef,
         }
       case None => None   // FIXME: shouldn't ever happen, so throw exception here?
     }
+  }
+
+  /**
+   *
+   */
+  def cancelExpiryTimer(): Unit = {
+    for (current <- expiryTimer)
+      current.cancel()
+    expiryTimer = None
+  }
+
+  /**
+   *
+   */
+  def startAlertTimer(): Unit = if (alertTimer.isEmpty) {
+    alertTimer = currentPolicy match {
+      case Some(policy) => Some(context.system.scheduler.scheduleOnce(policy.alertTimeout, self, ProbeAlertTimeout))
+      case None => None   // FIXME: shouldn't ever happen, so throw exception here?
+    }
+  }
+
+  /**
+   *
+   */
+  def resetAlertTimer(): Unit = {
+    for (current <- alertTimer)
+      current.cancel()
+    alertTimer = currentPolicy match {
+      case Some(policy) => Some(context.system.scheduler.scheduleOnce(policy.alertTimeout, self, ProbeAlertTimeout))
+      case None => None   // FIXME: shouldn't ever happen, so throw exception here?
+    }
+  }
+
+  /**
+   *
+   *
+   */
+  def cancelAlertTimer(): Unit = {
+    for (current <- alertTimer)
+      current.cancel()
+    alertTimer = None
   }
 
   /**
@@ -310,6 +366,7 @@ object Probe {
 
   sealed trait Event
   case class ProbeInitializes(policy: ProbePolicy, timestamp: DateTime) extends Event
+  case class ProbeAlerts(timestamp: DateTime) extends Event
   case class ProbeUpdates(state: StatusMessage, correlationId: Option[UUID], timestamp: DateTime) extends Event
   case class ProbeExpires(correlationId: Option[UUID], timestamp: DateTime) extends Event
   case class UserAcknowledges(acknowledgementId: UUID, message: String, timestamp: DateTime) extends Event
