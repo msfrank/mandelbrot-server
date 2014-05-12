@@ -214,7 +214,7 @@ class Probe(probeRef: ProbeRef,
         if (oldHealth == ProbeHealthy) {
           correlationId = correlation
           acknowledgementId = None
-          cancelAlertTimer()
+          startAlertTimer()
         }
       }
       if (!recovering) {
