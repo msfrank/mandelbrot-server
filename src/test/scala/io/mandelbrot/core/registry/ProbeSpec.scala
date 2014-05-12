@@ -33,7 +33,6 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       probe.lifecycle must be(ProbeJoining)
       probe.health must be(ProbeUnknown)
       probe.summary must be(None)
-      probe.detail must be(None)
       probe.lastChange must be(None)
       probe.lastUpdate must be(None)
       probe.correlationId must be(None)

@@ -81,13 +81,12 @@ class HistoryManager(managerSettings: ManagerSettings) extends Actor with ActorL
         val lifecycle = status.lifecycle.toString
         val health = status.health.toString
         val summary = status.summary
-        val detail = status.detail
         val lastUpdate = status.lastUpdate.map(_.getMillis)
         val lastChange = status.lastChange.map(_.getMillis)
         val correlation = status.correlation
         val acknowledged = status.acknowledged
         val squelched = status.squelched
-        statusEntries += ((probeRef, timestamp, lifecycle, health, summary, detail, lastUpdate, lastChange, correlation, acknowledged, squelched))
+        statusEntries += ((probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlation, acknowledged, squelched))
       }
 
     /* append notification to history */
@@ -149,13 +148,12 @@ class HistoryManager(managerSettings: ManagerSettings) extends Actor with ActorL
       case "unknown" => ProbeUnknown
     }
     val summary = entry._5
-    val detail = entry._6
-    val lastUpdate = entry._7.map(new DateTime(_))
-    val lastChange = entry._8.map(new DateTime(_))
-    val correlation = entry._9
-    val acknowledged = entry._10
-    val squelched = entry._11
-    ProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail, lastUpdate, lastChange, correlation, acknowledged, squelched)
+    val lastUpdate = entry._6.map(new DateTime(_))
+    val lastChange = entry._7.map(new DateTime(_))
+    val correlation = entry._8
+    val acknowledged = entry._9
+    val squelched = entry._10
+    ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlation, acknowledged, squelched)
   }
 
   def notificationEntry2ProbeNotification(entry: NotificationEntry): ProbeNotification = {

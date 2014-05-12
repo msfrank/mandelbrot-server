@@ -49,7 +49,6 @@ class Probe(probeRef: ProbeRef,
   var lifecycle: ProbeLifecycle = ProbeJoining
   var health: ProbeHealth = ProbeUnknown
   var summary: Option[String] = None
-  var detail: Option[String] = None
   var lastChange: Option[DateTime] = None
   var lastUpdate: Option[DateTime] = None
   var correlationId: Option[UUID] = None
@@ -70,6 +69,9 @@ class Probe(probeRef: ProbeRef,
     for (current <- expiryTimer)
       current.cancel()
     expiryTimer = None
+    for (current <- alertTimer)
+      current.cancel()
+    alertTimer = None
     //log.debug("snapshotting {}", processorId)
     //saveSnapshot(ProbeSnapshot(lifecycle, health, summary, detail, lastChange, lastUpdate, correlationId, acknowledgementId, squelch))
   }
@@ -88,7 +90,7 @@ class Probe(probeRef: ProbeRef,
       persist(ProbeUpdates(message, correlation, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
     case query: GetProbeStatus =>
-      val status = ProbeStatus(probeRef, DateTime.now(DateTimeZone.UTC), lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      val status = ProbeStatus(probeRef, DateTime.now(DateTimeZone.UTC), lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
       sender() ! GetProbeStatusResult(query, status)
 
     case command: AcknowledgeProbe =>
@@ -132,7 +134,6 @@ class Probe(probeRef: ProbeRef,
       lifecycle = snapshot.lifecycle
       health = snapshot.health
       summary = snapshot.summary
-      detail = snapshot.detail
       lastChange = snapshot.lastChange
       lastUpdate = snapshot.lastUpdate
       correlationId = snapshot.correlationId
@@ -149,18 +150,16 @@ class Probe(probeRef: ProbeRef,
       //
       lifecycle = ProbeJoining
       summary = None
-      detail = None
       lastUpdate = Some(timestamp)
       lastChange = Some(timestamp)
       if (!recovering) {
         // notify state service about updated state
-        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // TODO: there should likely be a notification sent here
       }
 
     case ProbeUpdates(message, correlation, timestamp) =>
       summary = Some(message.summary)
-      detail = message.detail
       lastUpdate = Some(timestamp)
       val oldLifecycle = lifecycle
       val oldHealth = health
@@ -185,7 +184,7 @@ class Probe(probeRef: ProbeRef,
       }
       if (!recovering) {
         // notify state service about updated state
-        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send lifecycle notifications
         if (lifecycle != oldLifecycle)
           notifier.foreach(_ ! NotifyLifecycleChanges(probeRef, message.timestamp, oldLifecycle, lifecycle))
@@ -207,7 +206,6 @@ class Probe(probeRef: ProbeRef,
       // update health
       health = ProbeUnknown
       summary = None
-      detail = None
       if (health != oldHealth) {
         lastChange = Some(timestamp)
         flapQueue.foreach(_.push(timestamp))
@@ -220,7 +218,7 @@ class Probe(probeRef: ProbeRef,
       if (!recovering) {
         // notify state service if we transition to unknown
         if (health != oldHealth)
-          stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+          stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send health notifications
         flapQueue match {
           case Some(flapDetector) if flapDetector.isFlapping =>
@@ -240,7 +238,7 @@ class Probe(probeRef: ProbeRef,
       acknowledgementId = Some(acknowledgement)
       if (!recovering) {
         // notify state service that we are acknowledged
-        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send acknowledgement notification
         notifier.foreach(_ ! NotifyAcknowledged(probeRef, timestamp, correlation, acknowledgement))
       }
@@ -258,12 +256,11 @@ class Probe(probeRef: ProbeRef,
       val oldLifecycle = lifecycle
       lifecycle = ProbeRetired
       summary = None
-      detail = None
       lastUpdate = Some(timestamp)
       lastChange = Some(timestamp)
       if (!recovering) {
         // notify state service about updated state
-        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send lifecycle notifications
         notifier.foreach(_ ! NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle))
       }
@@ -353,7 +350,6 @@ case class ProbeStatus(probeRef: ProbeRef,
                        lifecycle: ProbeLifecycle,
                        health: ProbeHealth,
                        summary: Option[String],
-                       detail: Option[String],
                        lastUpdate: Option[DateTime],
                        lastChange: Option[DateTime],
                        correlation: Option[UUID],
