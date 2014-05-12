@@ -94,9 +94,10 @@ class HistoryManager(managerSettings: ManagerSettings) extends Actor with ActorL
       db.withSession { implicit session =>
         val probeRef = notification.probeRef.toString
         val timestamp = notification.timestamp.getMillis
+        val kind = notification.kind
         val description = notification.description
         val correlation = notification.correlation
-        notificationEntries += ((probeRef, timestamp, description, correlation))
+        notificationEntries += ((probeRef, timestamp, kind, description, correlation))
       }
 
     /* retrieve history for the ProbeRef and all its children */
@@ -159,9 +160,10 @@ class HistoryManager(managerSettings: ManagerSettings) extends Actor with ActorL
   def notificationEntry2ProbeNotification(entry: NotificationEntry): ProbeNotification = {
     val probeRef = ProbeRef(entry._1)
     val timestamp = new DateTime(entry._2)
-    val description = entry._3
-    val correlation = entry._4
-    ProbeNotification(probeRef, timestamp, description, correlation)
+    val kind = entry._3
+    val description = entry._4
+    val correlation = entry._5
+    ProbeNotification(probeRef, timestamp, kind, description, correlation)
   }
 }
 

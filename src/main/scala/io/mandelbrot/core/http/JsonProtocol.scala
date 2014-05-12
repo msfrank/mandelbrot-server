@@ -189,6 +189,7 @@ object JsonProtocol extends DefaultJsonProtocol {
       JsObject(Map(
         "probeRef" -> notification.probeRef.toJson,
         "timestamp" -> notification.timestamp.toJson,
+        "kind" -> JsString(notification.kind),
         "description" -> JsString(notification.description)
       ) ++ correlation)
     }
@@ -204,6 +205,11 @@ object JsonProtocol extends DefaultJsonProtocol {
           case None => throw new DeserializationException("ProbeNotification missing field 'timestamp'")
           case unknown => throw new DeserializationException("failed to parse ProbeNotification field 'timestamp'")
         }
+        val kind = fields.get("kind") match {
+          case Some(JsString(string)) => string
+          case None => throw new DeserializationException("ProbeNotification missing field 'kind'")
+          case unknown => throw new DeserializationException("failed to parse ProbeNotification field 'kind'")
+        }
         val description = fields.get("description") match {
           case Some(JsString(string)) => string
           case None => throw new DeserializationException("ProbeNotification missing field 'description'")
@@ -214,7 +220,7 @@ object JsonProtocol extends DefaultJsonProtocol {
           case None => None
           case unknown => throw new DeserializationException("failed to parse ProbeNotification field 'correlation'")
         }
-        ProbeNotification(probeRef, timestamp, description, correlation)
+        ProbeNotification(probeRef, timestamp, kind, description, correlation)
       case unknown => throw new DeserializationException("unknown ProbeNotification " + unknown)
     }
   }

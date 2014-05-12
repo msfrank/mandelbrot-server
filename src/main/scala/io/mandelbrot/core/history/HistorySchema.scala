@@ -49,14 +49,15 @@ object StatusEntries {
 /**
  *
  */
-class NotificationEntries(tag: Tag) extends Table[(String,Long,String,Option[UUID])](tag, "NotificationEntries") with HistorySchema {
+class NotificationEntries(tag: Tag) extends Table[(String,Long,String,String,Option[UUID])](tag, "NotificationEntries") with HistorySchema {
   def probeRef = column[String]("probeRef")
   def timestamp = column[Long]("timestamp")
+  def kind = column[String]("kind")
   def description = column[String]("description")
   def correlation = column[Option[UUID]]("correlation")
-  def * = (probeRef, timestamp, description, correlation)
+  def * = (probeRef, timestamp, kind, description, correlation)
 }
 
 object NotificationEntries {
-  type NotificationEntry = (String,Long,String,Option[UUID])
+  type NotificationEntry = (String,Long,String,String,Option[UUID])
 }
