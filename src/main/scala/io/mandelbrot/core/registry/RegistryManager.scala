@@ -20,8 +20,8 @@
 package io.mandelbrot.core.registry
 
 import akka.actor._
-import akka.persistence.{Recover, SnapshotOffer, EventsourcedProcessor, Persistent}
-import scala.concurrent.duration.Duration
+import akka.persistence.{Recover, SnapshotOffer, EventsourcedProcessor}
+import scala.concurrent.duration.{FiniteDuration, Duration}
 import scala.collection.JavaConversions._
 import java.net.URI
 
@@ -219,10 +219,11 @@ object RegistryManager {
 }
 
 /* contains tunable parameters for the probe */
-case class ProbePolicy(joiningTimeout: Duration,
-                       probeTimeout: Duration,
-                       leavingTimeout: Duration,
-                       flapWindow: Duration,
+case class ProbePolicy(joiningTimeout: FiniteDuration,
+                       probeTimeout: FiniteDuration,
+                       alertTimeout: FiniteDuration,
+                       leavingTimeout: FiniteDuration,
+                       flapWindow: FiniteDuration,
                        flapDeviations: Int,
                        notificationPolicy: NotificationPolicyType,
                        inherits: Boolean) extends Serializable

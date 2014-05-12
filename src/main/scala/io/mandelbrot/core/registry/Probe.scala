@@ -33,18 +33,17 @@ import io.mandelbrot.core.{ResourceNotFound, Conflict, BadRequest, ApiException}
 /**
  *
  */
-class Probe(probeRef: ProbeRef, parent: ActorRef, stateService: ActorRef) extends EventsourcedProcessor with ActorLogging {
+class Probe(probeRef: ProbeRef,
+            parent: ActorRef,
+            stateService: ActorRef,
+            notificationService: ActorRef,
+            historyService: ActorRef) extends EventsourcedProcessor with ActorLogging {
   import Probe._
   import ProbeSystem.{InitProbe,RetireProbe}
   import context.dispatcher
 
   // config
   override def processorId = probeRef.toString
-  val flapCycles = 10
-  val flapWindow = 5.minutes
-  val joiningTimeout = 5.minutes
-  val runningTimeout = 1.minute
-  val leavingTimeout = 5.minutes
 
   // state
   var lifecycle: ProbeLifecycle = ProbeJoining
@@ -56,30 +55,31 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, stateService: ActorRef) extend
   var correlationId: Option[UUID] = None
   var acknowledgementId: Option[UUID] = None
   var squelch: Boolean = false
-  var notifier: NotificationPolicy = new EscalatePolicy(parent)
-  var timer: Option[Cancellable] = None
-  val flapQueue: FlapQueue = new FlapQueue(flapCycles, flapWindow)
 
-  setTimer()
+  var currentPolicy: Option[ProbePolicy] = None
+  var notifier: Option[ActorRef] = None
+  var flapQueue: Option[FlapQueue] = None
+  var expiryTimer: Option[Cancellable] = None
+  var alertTimer: Option[Cancellable] = None
 
   override def preStart(): Unit = {
     self ! Recover()
   }
 
   override def postStop(): Unit = {
-    for (current <- timer)
+    for (current <- expiryTimer)
       current.cancel()
-    timer = None
+    expiryTimer = None
     //log.debug("snapshotting {}", processorId)
     //saveSnapshot(ProbeSnapshot(lifecycle, health, summary, detail, lastChange, lastUpdate, correlationId, acknowledgementId, squelch))
   }
 
   def receiveCommand = {
 
-    case InitProbe =>
-      persist(ProbeInitializes(DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
+    case InitProbe(initialPolicy) =>
+      persist(ProbeInitializes(initialPolicy, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
-    case ProbeStateTimeout =>
+    case ProbeExpiryTimeout =>
       val correlation = if (health == ProbeHealthy) Some(UUID.randomUUID()) else None
       persist(ProbeExpires(correlation, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
@@ -116,7 +116,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, stateService: ActorRef) extend
       sender() ! result
 
     case notification: Notification =>
-      notifier.notify(notification)
+      notifier.foreach(_ ! notification)
 
     case RetireProbe =>
       persist(ProbeRetires(DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
@@ -142,7 +142,11 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, stateService: ActorRef) extend
 
   def updateState(event: Event, recovering: Boolean) = event match {
 
-    case ProbeInitializes(timestamp) =>
+    case ProbeInitializes(initialPolicy, timestamp) =>
+      // set the initial policy
+      updatePolicy(initialPolicy)
+      rearmExpiryTimer()
+      //
       lifecycle = ProbeJoining
       summary = None
       detail = None
@@ -167,7 +171,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, stateService: ActorRef) extend
       health = message.health
       if (health != oldHealth) {
         lastChange = Some(timestamp)
-        flapQueue.push(message.timestamp)
+        flapQueue.foreach(_.push(message.timestamp))
         // we transition from healthy to non-healthy
         if (oldHealth == ProbeHealthy) {
           correlationId = correlation
@@ -184,17 +188,19 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, stateService: ActorRef) extend
         stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send lifecycle notifications
         if (lifecycle != oldLifecycle)
-          notifier.notify(NotifyLifecycleChanges(probeRef, message.timestamp, oldLifecycle, lifecycle))
+          notifier.foreach(_ ! NotifyLifecycleChanges(probeRef, message.timestamp, oldLifecycle, lifecycle))
         // send health notifications
-        if (flapQueue.isFlapping)
-          notifier.notify(NotifyHealthFlaps(probeRef, message.timestamp, correlationId, flapQueue.flapStart))
-        else if (oldHealth != health)
-          notifier.notify(NotifyHealthChanges(probeRef, message.timestamp, correlationId, oldHealth, health))
-        else
-          notifier.notify(NotifyHealthUpdates(probeRef, message.timestamp, correlationId, health))
+        flapQueue match {
+          case Some(flapDetector) if flapDetector.isFlapping =>
+            notifier.foreach(_ ! NotifyHealthFlaps(probeRef, message.timestamp, correlationId, flapDetector.flapStart))
+          case _ if oldHealth != health =>
+            notifier.foreach(_ ! NotifyHealthChanges(probeRef, message.timestamp, correlationId, oldHealth, health))
+          case _ =>
+            notifier.foreach(_ ! NotifyHealthUpdates(probeRef, message.timestamp, correlationId, health))
+        }
       }
       // reset the timer
-      setTimer()
+      rearmExpiryTimer()
 
     case ProbeExpires(correlation, timestamp) =>
       val oldHealth = health
@@ -204,7 +210,7 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, stateService: ActorRef) extend
       detail = None
       if (health != oldHealth) {
         lastChange = Some(timestamp)
-        flapQueue.push(timestamp)
+        flapQueue.foreach(_.push(timestamp))
         // we transition from healthy to non-healthy
         if (oldHealth == ProbeHealthy) {
           correlationId = correlation
@@ -216,15 +222,17 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, stateService: ActorRef) extend
         if (health != oldHealth)
           stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send health notifications
-        if (flapQueue.isFlapping)
-          notifier.notify(NotifyHealthFlaps(probeRef, timestamp, correlationId, flapQueue.flapStart))
-        else if (health != oldHealth)
-          notifier.notify(NotifyHealthChanges(probeRef, timestamp, correlationId, oldHealth, health))
-        else
-          notifier.notify(NotifyHealthExpires(probeRef, timestamp, correlationId))
+        flapQueue match {
+          case Some(flapDetector) if flapDetector.isFlapping =>
+            notifier.foreach(_ ! NotifyHealthFlaps(probeRef, timestamp, correlationId, flapDetector.flapStart))
+          case _ if oldHealth != health =>
+            notifier.foreach(_ ! NotifyHealthChanges(probeRef, timestamp, correlationId, oldHealth, health))
+          case _ =>
+            notifier.foreach(_ ! NotifyHealthExpires(probeRef, timestamp, correlationId))
+        }
       }
       // reset the timer
-      setTimer()
+      rearmExpiryTimer()
 
 
     case UserAcknowledges(acknowledgement, message, timestamp) =>
@@ -234,16 +242,16 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, stateService: ActorRef) extend
         // notify state service that we are acknowledged
         stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send acknowledgement notification
-        notifier.notify(NotifyAcknowledged(probeRef, timestamp, correlation, acknowledgement))
+        notifier.foreach(_ ! NotifyAcknowledged(probeRef, timestamp, correlation, acknowledgement))
       }
 
     case UserSetsSquelch(setSquelch, timestamp) =>
       squelch = setSquelch
       if (!recovering) {
         if (setSquelch)
-          notifier.notify(NotifySquelched(probeRef, timestamp))
+          notifier.foreach(_ ! NotifySquelched(probeRef, timestamp))
         else
-          notifier.notify(NotifyUnsquelched(probeRef, timestamp))
+          notifier.foreach(_ ! NotifyUnsquelched(probeRef, timestamp))
       }
 
     case ProbeRetires(timestamp) =>
@@ -257,41 +265,61 @@ class Probe(probeRef: ProbeRef, parent: ActorRef, stateService: ActorRef) extend
         // notify state service about updated state
         stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, detail, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send lifecycle notifications
-        notifier.notify(NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle))
+        notifier.foreach(_ ! NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle))
       }
       // FIXME: stop timer?
   }
 
-  def setTimer(duration: Option[FiniteDuration] = None): Unit = {
-    for (current <- timer)
+  /**
+   *
+   */
+  def rearmExpiryTimer(duration: Option[FiniteDuration] = None): Unit = {
+    for (current <- expiryTimer)
       current.cancel()
-    timer = duration match {
-      case Some(delay) =>
-        Some(context.system.scheduler.scheduleOnce(delay, self, ProbeStateTimeout))
-      case None =>
+    expiryTimer = currentPolicy match {
+      case Some(policy) =>
         lifecycle match {
           case ProbeJoining =>
-            Some(context.system.scheduler.scheduleOnce(joiningTimeout, self, ProbeStateTimeout))
+            Some(context.system.scheduler.scheduleOnce(policy.joiningTimeout, self, ProbeExpiryTimeout))
           case ProbeLeaving =>
-            Some(context.system.scheduler.scheduleOnce(leavingTimeout, self, ProbeStateTimeout))
+            Some(context.system.scheduler.scheduleOnce(policy.leavingTimeout, self, ProbeExpiryTimeout))
           case _ =>
-            Some(context.system.scheduler.scheduleOnce(runningTimeout, self, ProbeStateTimeout))
+            Some(context.system.scheduler.scheduleOnce(policy.probeTimeout, self, ProbeExpiryTimeout))
         }
+      case None => None   // FIXME: shouldn't ever happen, so throw exception here?
     }
+  }
+
+  /**
+   *
+   */
+  def updatePolicy(policy: ProbePolicy): Unit = {
+    policy.notificationPolicy match {
+      case NotificationPolicyTypeEscalate =>
+        notifier = Some(parent)
+      case NotificationPolicyTypeEmit =>
+        notifier = Some(notificationService)
+      case NotificationPolicyTypeSquelch =>
+        notifier = None
+    }
+    currentPolicy = Some(policy)
   }
 }
 
 object Probe {
-  def props(probeRef: ProbeRef, parent: ActorRef, stateService: ActorRef) = Props(classOf[Probe], probeRef, parent, stateService)
+  def props(probeRef: ProbeRef, parent: ActorRef, stateService: ActorRef, notificationService: ActorRef, historyService: ActorRef) = {
+    Props(classOf[Probe], probeRef, parent, stateService, notificationService, historyService)
+  }
 
   sealed trait Event
-  case class ProbeInitializes(timestamp: DateTime) extends Event
+  case class ProbeInitializes(policy: ProbePolicy, timestamp: DateTime) extends Event
   case class ProbeUpdates(state: StatusMessage, correlationId: Option[UUID], timestamp: DateTime) extends Event
   case class ProbeExpires(correlationId: Option[UUID], timestamp: DateTime) extends Event
   case class UserAcknowledges(acknowledgementId: UUID, message: String, timestamp: DateTime) extends Event
   case class UserSetsSquelch(squelch: Boolean, timestamp: DateTime) extends Event
   case class ProbeRetires(timestamp: DateTime) extends Event
-  case object ProbeStateTimeout
+  case object ProbeAlertTimeout
+  case object ProbeExpiryTimeout
 
   case class ProbeSnapshot(lifecycle: ProbeLifecycle,
                            health: ProbeHealth,

@@ -29,9 +29,15 @@ class NotificationManager extends Actor with ActorLogging {
   // config
   val settings = ServerConfig(context.system).settings.notifications
 
+  // state
+  var enabled = true
+
   val historyService = HistoryService(context.system)
 
   def receive = {
+
+    case notification: Notification if !enabled =>
+      // do nothing
 
     case notification: Notification =>
       historyService ! notification

@@ -131,7 +131,7 @@ object JsonProtocol extends DefaultJsonProtocol {
   }
 
   /* */
-  implicit val ProbePolicyFormat = jsonFormat7(ProbePolicy)
+  implicit val ProbePolicyFormat = jsonFormat8(ProbePolicy)
 
   /* a little extra magic here- we use lazyFormat because ProbeSpec has a recursive definition */
   implicit val _ProbeSpecFormat: JsonFormat[ProbeSpec] = lazyFormat(jsonFormat(ProbeSpec, "objectType", "policy", "metaData", "children", "static"))

@@ -28,9 +28,10 @@ import scala.concurrent.duration._
 import java.net.URI
 
 import io.mandelbrot.core.{ServerConfig, ResourceNotFound, ApiException}
-import io.mandelbrot.core.notification.{EmitPolicy, NotificationPolicy, Notification}
+import io.mandelbrot.core.notification.{NotificationService, Notification}
 import io.mandelbrot.core.message.MandelbrotMessage
 import io.mandelbrot.core.state.StateService
+import io.mandelbrot.core.history.HistoryService
 
 /**
  *
@@ -40,15 +41,18 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Actor with A
   import context.dispatcher
 
   // config
-  val settings = ServerConfig(context.system)
+  val settings = ServerConfig(context.system).settings
   val timeout = Timeout(5.seconds)
 
   // state
   var probes: Map[ProbeRef,ProbeActor] = Map.empty
   var currentSpec: Option[ProbeSpec] = None
-  var notifier: NotificationPolicy = new EmitPolicy(context.system)
 
   val stateService = StateService(context.system)
+  val notificationService = NotificationService(context.system)
+  val historyService = HistoryService(context.system)
+
+  var notifier: Option[ActorRef] = Some(notificationService)
 
   def receive = {
 
@@ -117,7 +121,7 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Actor with A
 
     /* handle notifications which have been passed up from Probe */
     case notification: Notification =>
-      notifier.notify(notification)
+      notifier.foreach(_ ! notification)
 
     case Terminated(ref) =>
       log.debug("actor {} has been terminated", ref.path)
@@ -154,13 +158,15 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Actor with A
     probesAdded.toVector.sorted.foreach { case ref: ProbeRef =>
       val actor = ref.parentOption match {
         case Some(parent) =>
-          context.actorOf(Probe.props(ref, probes(parent).actor, stateService))
+          context.actorOf(Probe.props(ref, probes(parent).actor, stateService, notificationService, historyService))
         case None =>
-          context.actorOf(Probe.props(ref, self, stateService))
+          context.actorOf(Probe.props(ref, self, stateService, notificationService, historyService))
       }
       log.debug("probe {} joins", ref)
-      actor ! InitProbe
-      probes = probes + (ref -> ProbeActor(findProbeSpec(spec, ref.path), actor))
+      val probeSpec = findProbeSpec(spec, ref.path)
+      val probePolicy = probeSpec.policy.getOrElse(settings.registry.defaultPolicy)
+      actor ! InitProbe(probePolicy)
+      probes = probes + (ref -> ProbeActor(probeSpec, actor))
       stateService ! ProbeMetadata(ref, spec.metadata)
     }
     // remove stale probes
@@ -180,7 +186,7 @@ object ProbeSystem {
 
   case class ProbeActor(spec: ProbeSpec, actor: ActorRef)
   case class InitializeProbeSystem(spec: ProbeSpec)
-  case object InitProbe
+  case class InitProbe(initialPolicy: ProbePolicy)
   case object RetireProbe
 }
 

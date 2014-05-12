@@ -31,16 +31,32 @@ import io.mandelbrot.core.ServiceSettings
 
 case class RegistrySettings(plugin: String,
                             service: Option[Any],
+                            defaultPolicy: ProbePolicy,
                             staticRegistry: Option[File])
 
 object RegistrySettings extends ServiceSettings {
   def parse(config: Config): RegistrySettings = {
+    val defaultPolicy: ProbePolicy = {
+      val joiningTimeout = FiniteDuration(config.getDuration("joining-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+      val probeTimeout = FiniteDuration(config.getDuration("probe-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+      val alertTimeout = FiniteDuration(config.getDuration("alert-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+      val leavingTimeout = FiniteDuration(config.getDuration("leaving-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+      val flapWindow = FiniteDuration(config.getDuration("flap-window", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+      val flapDeviations = config.getInt("flap-deviations")
+      val notificationPolicyType = config.getString("notification-policy") match {
+        case "emit" => NotificationPolicyTypeEmit
+        case "escalate" => NotificationPolicyTypeEscalate
+        case "squelch" => NotificationPolicyTypeSquelch
+        case "unknown" => throw new IllegalArgumentException()
+      }
+      ProbePolicy(joiningTimeout, probeTimeout, alertTimeout, leavingTimeout, flapWindow, flapDeviations, notificationPolicyType, inherits = false)
+    }
     val staticRegistry = if (config.hasPath("static-registry")) Some(new File(config.getString("static-registry"))) else None
     val plugin = config.getString("plugin")
     val service = if (config.hasPath("plugin-settings")) {
       makeServiceSettings(plugin, config.getConfig("plugin-settings"))
     } else None
-    new RegistrySettings(plugin, service, staticRegistry)
+    new RegistrySettings(plugin, service, defaultPolicy, staticRegistry)
   }
 }
 
@@ -49,6 +65,7 @@ class StaticRegistry(config: Config, registrySettings: RegistrySettings) {
   // static registry defaults
   val staticJoiningTimeout = 5.minutes
   val staticProbeTimeout = 5.minutes
+  val staticAlertTimeout = 5.minutes
   val staticLeavingTimeout = 5.minutes
   val staticFlapWindow = 10.minutes
   val staticFlapDeviations = 10
@@ -67,7 +84,7 @@ class StaticRegistry(config: Config, registrySettings: RegistrySettings) {
   def parseSpec(config: Config): ProbeSpec = {
     val objectType = config.getString("object-type")
     val policy = if (!config.hasPath("policy")) {
-      ProbePolicy(staticJoiningTimeout, staticProbeTimeout, staticLeavingTimeout, staticFlapWindow, staticFlapDeviations, staticNotificationPolicyType, inherits = true)
+      ProbePolicy(staticJoiningTimeout, staticProbeTimeout, staticAlertTimeout, staticLeavingTimeout, staticFlapWindow, staticFlapDeviations, staticNotificationPolicyType, inherits = true)
     } else parsePolicy(config.getConfig("policy"))
     val metadata = Map.empty[String,String]
     val children = if (config.hasPath("children")) config.getConfig("children").entrySet().map { case entry =>
@@ -83,16 +100,19 @@ class StaticRegistry(config: Config, registrySettings: RegistrySettings) {
   }
 
   def parsePolicy(config: Config): ProbePolicy = {
-    val joiningTimeout: Duration = if (config.hasPath("joining-timeout")) {
+    val joiningTimeout = if (config.hasPath("joining-timeout")) {
       FiniteDuration(config.getDuration("joining-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     } else staticJoiningTimeout
-    val probeTimeout: Duration = if (config.hasPath("probe-timeout")) {
+    val probeTimeout = if (config.hasPath("probe-timeout")) {
       FiniteDuration(config.getDuration("probe-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     } else staticProbeTimeout
-    val leavingTimeout: Duration = if (config.hasPath("leaving-timeout")) {
+    val alertTimeout = if (config.hasPath("alert-timeout")) {
+      FiniteDuration(config.getDuration("alert-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+    } else staticAlertTimeout
+    val leavingTimeout = if (config.hasPath("leaving-timeout")) {
       FiniteDuration(config.getDuration("leaving-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     } else staticLeavingTimeout
-    val flapWindow: Duration = if (config.hasPath("flap-window")) {
+    val flapWindow = if (config.hasPath("flap-window")) {
       FiniteDuration(config.getDuration("flap-window", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     } else staticFlapWindow
     val flapDeviations = if (config.hasPath("flap-deviations")) config.getInt("flap-deviations") else staticFlapDeviations
@@ -102,7 +122,7 @@ class StaticRegistry(config: Config, registrySettings: RegistrySettings) {
       case "squelch" => NotificationPolicyTypeSquelch
       case "unknown" => throw new IllegalArgumentException()
     }} else staticNotificationPolicyType
-    ProbePolicy(joiningTimeout, probeTimeout, leavingTimeout, flapWindow, flapDeviations, notificationPolicyType, inherits = false)
+    ProbePolicy(joiningTimeout, probeTimeout, alertTimeout, leavingTimeout, flapWindow, flapDeviations, notificationPolicyType, inherits = false)
   }
 }
 

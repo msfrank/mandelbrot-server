@@ -28,7 +28,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
   "A Probe" must {
 
     "have an initial state" in {
-      val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), self, self))
+      val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), self, self, self, self))
       val probe = actor.underlyingActor
       probe.lifecycle must be(ProbeJoining)
       probe.health must be(ProbeUnknown)
