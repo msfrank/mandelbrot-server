@@ -50,7 +50,7 @@ case class MatchRegex(regex: Pattern) extends SegmentMatcher {
   def matches(candidate: String) = regex.matcher(candidate).matches()
 }
 
-class PathMatcher(segments: Vector[SegmentMatcher]) {
+case class PathMatcher(segments: Vector[SegmentMatcher]) {
   def matches(candidate: Vector[String]): Boolean = {
     for (i <- 0.until(segments.length)) {
       if (!candidate.isDefinedAt(i))
@@ -108,26 +108,20 @@ object ProbeMatcherParser extends RegexParsers {
     }
   }
 
-  //def schemeGlob: Parser[SegmentMatcher] = regex("""[a-zA-Z?*][a-zA-Z0-9+.\-*?]*""".r) ^^ parseGlob
-  //def schemeLiteral: Parser[SegmentMatcher] = regex("""[a-zA-Z][a-zA-Z0-9+.\-]*""".r) ^^ MatchExact
-  //def schemeMatcher: Parser[SegmentMatcher] = (literal("*") | schemeLiteral | schemeGlob) ^^ {
-  //  case "*" => MatchAny
-  //  case matcher: SegmentMatcher => matcher
-  //}
   def schemeMatcher: Parser[SegmentMatcher] = regex("""[a-zA-Z?*][a-zA-Z0-9+.\-*?]*""".r) ^^ parseGlob
 
   def locationMatcher: Parser[SegmentMatcher] = regex("""[^/]+""".r) ^^ parseGlob
 
-  def pathMatcher: Parser[PathMatcher] = rep1(regex("""[^/]*""".r)) ^^ {
-    case segments: List[String] => new PathMatcher(segments.map(parseGlob).toVector)
+  def pathMatcher: Parser[PathMatcher] = rep1(regex("""/[^/]*""".r)) ^^ {
+    case segments: List[String] => PathMatcher(segments.map(segment => parseGlob(segment.tail)).toVector)
   }
 
   def schemeLocation: Parser[ProbeMatcher] = (schemeMatcher ~ literal(":") ~ locationMatcher) ^^ {
     case scheme ~ ":" ~ location => new ProbeMatcher(Some(scheme), Some(location), None)
   }
 
-  def schemeLocationPath: Parser[ProbeMatcher] = (schemeMatcher ~ literal(":") ~ locationMatcher ~ literal("/") ~ pathMatcher) ^^ {
-    case scheme ~ ":" ~ location ~ "/" ~ path => new ProbeMatcher(Some(scheme), Some(location), Some(path))
+  def schemeLocationPath: Parser[ProbeMatcher] = (schemeMatcher ~ literal(":") ~ locationMatcher ~ pathMatcher) ^^ {
+    case scheme ~ ":" ~ location ~ path => new ProbeMatcher(Some(scheme), Some(location), Some(path))
   }
 
   def probeMatcher: Parser[ProbeMatcher] = (schemeLocationPath | schemeLocation | literal("*")) ^^ {
@@ -137,7 +131,7 @@ object ProbeMatcherParser extends RegexParsers {
 
   def apply(input: String): ProbeMatcher = parseAll(probeMatcher, input) match {
     case Success(matcher: ProbeMatcher, _) => matcher
-    case Success(other, _) => throw new Exception("")
-    case failure : NoSuccess => throw new Exception("")
+    case Success(other, _) => throw new Exception("unexpected parse result")
+    case failure : NoSuccess => throw new Exception(failure.msg)
   }
 }

@@ -25,6 +25,15 @@ class ProbeMatcherParserSpec extends WordSpec with MustMatchers {
       }
     }
 
+    "parse '*:example.com'" in {
+      val matcher = ProbeMatcherParser("*:example.com")
+      println(matcher)
+      inside(matcher) {
+        case ProbeMatcher(Some(MatchAny), Some(location: MatchExact), None) =>
+          location.string must be === "example.com"
+      }
+    }
+
     "parse 'fqdn:*.com'" in {
       val matcher = ProbeMatcherParser("fqdn:*.com")
       println(matcher)
@@ -45,14 +54,38 @@ class ProbeMatcherParserSpec extends WordSpec with MustMatchers {
       }
     }
 
-//    "parse 'fqdn:example.com/foo'" in {
-//      val matcher = ProbeMatcherParser("fqdn:example.com/foo")
-//      println(matcher)
-//      inside(matcher) {
-//        case ProbeMatcher(Some(scheme: MatchExact), Some(location: MatchExact), Some(path: PathMatcher)) =>
-//          scheme.string must be === "fqdn"
-//          location.string must be === "example.com"
-//      }
-//    }
+    "parse 'fqdn:example.com/foo'" in {
+      val matcher = ProbeMatcherParser("fqdn:example.com/foo")
+      println(matcher)
+      inside(matcher) {
+        case ProbeMatcher(Some(scheme: MatchExact), Some(location: MatchExact), Some(path: PathMatcher)) =>
+          scheme.string must be === "fqdn"
+          location.string must be === "example.com"
+          path.segments must be === Vector(MatchExact("foo"))
+      }
+    }
+
+    "parse 'fqdn:example.com/foo/bar/baz'" in {
+      val matcher = ProbeMatcherParser("fqdn:example.com/foo/bar/baz")
+      println(matcher)
+      inside(matcher) {
+        case ProbeMatcher(Some(scheme: MatchExact), Some(location: MatchExact), Some(path: PathMatcher)) =>
+          scheme.string must be === "fqdn"
+          location.string must be === "example.com"
+          path.segments must be === Vector(MatchExact("foo"), MatchExact("bar"), MatchExact("baz"))
+      }
+    }
+
+    "parse 'fqdn:example.com/foo/*'" in {
+      val matcher = ProbeMatcherParser("fqdn:example.com/foo/*")
+      println(matcher)
+      inside(matcher) {
+        case ProbeMatcher(Some(scheme: MatchExact), Some(location: MatchExact), Some(path: PathMatcher)) =>
+          scheme.string must be === "fqdn"
+          location.string must be === "example.com"
+          path.segments must be === Vector(MatchExact("foo"), MatchAny)
+      }
+    }
+
   }
 }
