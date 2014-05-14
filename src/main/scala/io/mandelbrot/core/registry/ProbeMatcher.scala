@@ -70,6 +70,8 @@ object ProbeMatcherParser extends RegexParsers {
 
   override val skipWhitespace = false
 
+  def escape(literal: String): String = """\Q""" + literal + """\E"""
+
   def parseGlob(glob: String): SegmentMatcher = {
     val tokens: Vector[String] = glob.foldLeft(Vector.empty[String]) {
       case (t, ch) if t.isEmpty => Vector(ch.toString)
@@ -100,7 +102,7 @@ object ProbeMatcherParser extends RegexParsers {
         val regex = tokens.map {
           case "*" => ".*"
           case "?" => ".?"
-          case token => token
+          case token => escape(token)
         }.mkString
         MatchRegex(Pattern.compile(regex))
     }
