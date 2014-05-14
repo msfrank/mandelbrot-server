@@ -211,3 +211,6 @@ case class GetProbeSystemStatusResult(op: GetProbeSystemStatus, state: Vector[Pr
 
 case class GetProbeSystemMetadata(uri: URI) extends ProbeSystemQuery
 case class GetProbeSystemMetadataResult(op: GetProbeSystemMetadata, metadata: Map[ProbeRef,Map[String,String]])
+
+case class GetProbeSystemPolicy(uri: URI) extends ProbeSystemQuery
+case class GetProbeSystemPolicyResult(op: GetProbeSystemPolicy, policy: Map[ProbeRef,ProbePolicy])

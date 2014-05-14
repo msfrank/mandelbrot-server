@@ -28,6 +28,8 @@ class NotificationManager extends Actor with ActorLogging {
 
   // config
   val settings = ServerConfig(context.system).settings.notifications
+  val defaultEvaluation = Accept
+  val filters: Vector[NotificationFilter] = Vector(AcceptAll())
 
   // state
   var enabled = true
@@ -36,16 +38,42 @@ class NotificationManager extends Actor with ActorLogging {
 
   def receive = {
 
-    case notification: Notification if !enabled =>
-      // do nothing
-
     case notification: Notification =>
       historyService ! notification
-
+//      if (enabled && evaluate(notification) == Accept) {
+//      }
+  }
+  
+  def evaluate(notification: Notification): NotificationFilterEvaluation = {
+    filters.foreach { filter =>
+      filter.evaluate(notification) match {
+        case Accept => return Accept
+        case Reject => return Reject
+        case Abstain =>   // go to the next filter
+      }
+    }
+    defaultEvaluation
   }
 }
 
 object NotificationManager {
   def props() = Props(classOf[NotificationManager])
   def settings(config: Config): Option[Any] = None
+}
+
+sealed trait NotificationFilter {
+  def evaluate(notification: Notification): NotificationFilterEvaluation
+}
+
+sealed trait NotificationFilterEvaluation
+case object Accept extends NotificationFilterEvaluation
+case object Reject extends NotificationFilterEvaluation
+case object Abstain extends NotificationFilterEvaluation
+
+case class AcceptAll() extends NotificationFilter {
+  def evaluate(notification: Notification): NotificationFilterEvaluation = Accept
+}
+
+case class RejectAll() extends NotificationFilter {
+  def evaluate(notification: Notification): NotificationFilterEvaluation = Reject
 }
