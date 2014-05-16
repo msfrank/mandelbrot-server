@@ -23,37 +23,27 @@ import com.typesafe.config.Config
 import akka.actor.{Props, ActorLogging, Actor}
 import io.mandelbrot.core.ServerConfig
 import io.mandelbrot.core.history.HistoryService
+import io.mandelbrot.core.registry.ProbeMatcherParser
 
 class NotificationManager extends Actor with ActorLogging {
 
   // config
   val settings = ServerConfig(context.system).settings.notifications
-  val defaultEvaluation = Accept
-  val filters: Vector[NotificationFilter] = Vector(AcceptAll())
-
-  // state
-  var enabled = true
+  val contacts = Set(Contact("Michael Frank", "michael.frank@mandelbrot.io", Map.empty))
+  val notifiers = Map("logging" -> context.actorOf(LoggingNotifier.props()))
+  val rules = new NotificationRules(Vector(
+    NotificationRule(Set(ProbeMatcherParser("*")), NotifyContacts, contacts)
+  ), notifiers)
 
   val historyService = HistoryService(context.system)
 
   def receive = {
 
     case notification: Notification =>
+      rules.evaluate(notification)
       historyService ! notification
-//      if (enabled && evaluate(notification) == Accept) {
-//      }
   }
-  
-  def evaluate(notification: Notification): NotificationFilterEvaluation = {
-    filters.foreach { filter =>
-      filter.evaluate(notification) match {
-        case Accept => return Accept
-        case Reject => return Reject
-        case Abstain =>   // go to the next filter
-      }
-    }
-    defaultEvaluation
-  }
+
 }
 
 object NotificationManager {
@@ -61,19 +51,3 @@ object NotificationManager {
   def settings(config: Config): Option[Any] = None
 }
 
-sealed trait NotificationFilter {
-  def evaluate(notification: Notification): NotificationFilterEvaluation
-}
-
-sealed trait NotificationFilterEvaluation
-case object Accept extends NotificationFilterEvaluation
-case object Reject extends NotificationFilterEvaluation
-case object Abstain extends NotificationFilterEvaluation
-
-case class AcceptAll() extends NotificationFilter {
-  def evaluate(notification: Notification): NotificationFilterEvaluation = Accept
-}
-
-case class RejectAll() extends NotificationFilter {
-  def evaluate(notification: Notification): NotificationFilterEvaluation = Reject
-}
