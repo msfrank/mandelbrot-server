@@ -97,7 +97,7 @@ trait ApiService extends HttpService {
           complete {
             registryService.ask(DescribeProbeSystem(new URI(uri))).map {
               case result: DescribeProbeSystemResult =>
-                result.spec
+                result.registration
               case failure: ProbeSystemOperationFailed =>
                 throw failure.failure
             }

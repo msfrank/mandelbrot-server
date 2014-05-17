@@ -19,6 +19,7 @@
 
 package io.mandelbrot.core.registry
 
+import com.typesafe.config.Config
 import akka.actor._
 import akka.persistence.{Recover, SnapshotOffer, EventsourcedProcessor}
 import scala.concurrent.duration.{FiniteDuration, Duration}
@@ -28,7 +29,6 @@ import java.net.URI
 import io.mandelbrot.core._
 import io.mandelbrot.core.notification.{NotificationPolicy, NotificationService, Notification}
 import io.mandelbrot.core.message.{StatusMessage, MessageStream}
-import com.typesafe.config.Config
 
 /**
  *
@@ -48,22 +48,6 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
   MessageStream(context.system).subscribe(self, classOf[StatusMessage])
 
   override def preStart(): Unit = {
-    /* if a static registry is defined, then load static systems */
-    for (registryFile <- settings.staticRegistry) {
-      log.debug("loading static registry from {}", registryFile.getAbsolutePath)
-      try {
-        val staticRegistry = StaticRegistry(registryFile, settings)
-        staticRegistry.systems.foreach { case ((uri, spec)) =>
-          val ref = context.actorOf(ProbeSystem.props(uri, Some(spec)))
-          context.watch(ref)
-          probeSystems.put(uri, ref)
-          log.debug("created static probe system {} at {}", uri, ref.path)
-        }
-      } catch {
-        case ex: Throwable => log.error("failed to load static registry: {}", ex.getMessage)
-      }
-    }
-    /* */
     self ! Recover()
   }
 
@@ -76,14 +60,6 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
 
     /* register the ProbeSystem */
     case command @ RegisterProbeSystem(uri, registration) =>
-      if (!probeSystems.containsKey(uri)) {
-        persist(Event(command))(updateState(_, recovering = false))
-      } else {
-        sender() ! ProbeRegistryOperationFailed(command, new ApiException(Conflict))
-      }
-
-    /* create the ProbeSystem */
-    case command @ CreateProbeSystem(uri, _) =>
       if (!probeSystems.containsKey(uri)) {
         persist(Event(command))(updateState(_, recovering = false))
       } else {
@@ -171,24 +147,13 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
 
     /* register the ProbeSystem */
     case command @ RegisterProbeSystem(uri, registration) =>
-      val spec = ProbeConversions.registration2spec(registration)
-      val actor = context.actorOf(ProbeSystem.props(uri, Some(spec)))
+      val actor = context.actorOf(ProbeSystem.props(uri))
       log.debug("registering probe system {} at {}", uri, actor.path)
-      actor ! InitializeProbeSystem(spec)
+      actor ! InitializeProbeSystem(registration)
       context.watch(actor)
       probeSystems.put(uri, actor)
       if (!recovering)
         sender() ! RegisterProbeSystemResult(command, actor)
-
-    /* create the ProbeSystem */
-    case command @ CreateProbeSystem(uri, spec) =>
-      val actor = context.actorOf(ProbeSystem.props(uri, Some(spec)))
-      log.debug("creating probe system {} at {}", uri, actor.path)
-      actor ! InitializeProbeSystem(spec)
-      context.watch(actor)
-      probeSystems.put(uri, actor)
-      if (!recovering)
-        sender() ! CreateProbeSystemResult(command, actor)
 
     /* update the ProbeSystem */
     case command @ UpdateProbeSystem(uri, registration) =>
@@ -225,21 +190,18 @@ case class ProbePolicy(joiningTimeout: FiniteDuration,
                        leavingTimeout: FiniteDuration,
                        flapWindow: FiniteDuration,
                        flapDeviations: Int,
-                       notificationPolicy: NotificationPolicy,
-                       inherits: Boolean) extends Serializable
+                       notificationPolicy: NotificationPolicy) extends Serializable
 
 /* the probe specification */
-case class ProbeSpec(objectType: String,
-                     policy: Option[ProbePolicy],
+case class ProbeSpec(probeType: String,
                      metadata: Map[String,String],
-                     children: Map[String,ProbeSpec],
-                     static: Boolean) extends Serializable
+                     policy: Option[ProbePolicy],
+                     children: Map[String,ProbeSpec]) extends Serializable
 
 /* a dynamic probe system registration */
-case class ProbeRegistration(objectType: String,
-                             policy: Option[ProbePolicy],
+case class ProbeRegistration(systemType: String,
                              metadata: Map[String,String],
-                             children: Map[String,ProbeRegistration]) extends Serializable
+                             probes: Map[String,ProbeSpec]) extends Serializable
 
 /* object registry operations */
 sealed trait ProbeRegistryOperation
@@ -249,9 +211,6 @@ case class ProbeRegistryOperationFailed(op: ProbeRegistryOperation, failure: Thr
 
 case class RegisterProbeSystem(uri: URI, registration: ProbeRegistration) extends ProbeRegistryCommand
 case class RegisterProbeSystemResult(op: RegisterProbeSystem, ref: ActorRef)
-
-case class CreateProbeSystem(uri: URI, spec: ProbeSpec) extends ProbeRegistryCommand
-case class CreateProbeSystemResult(op: CreateProbeSystem, ref: ActorRef)
 
 case class ListProbeSystems() extends ProbeRegistryQuery
 case class ListProbeSystemsResult(op: ListProbeSystems, uris: Vector[URI])

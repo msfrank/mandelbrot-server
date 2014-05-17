@@ -36,7 +36,7 @@ import io.mandelbrot.core.history.HistoryService
 /**
  *
  */
-class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Actor with ActorLogging {
+class ProbeSystem(uri: URI) extends Actor with ActorLogging {
   import ProbeSystem._
   import context.dispatcher
 
@@ -46,7 +46,7 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Actor with A
 
   // state
   var probes: Map[ProbeRef,ProbeActor] = Map.empty
-  var currentSpec: Option[ProbeSpec] = None
+  var currentRegistration: Option[ProbeRegistration] = None
 
   val stateService = StateService(context.system)
   val notificationService = NotificationService(context.system)
@@ -57,28 +57,27 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Actor with A
   def receive = {
 
     /* initialize the probe system with the specified spec */
-    case InitializeProbeSystem(spec) =>
-      applyProbeSpec(spec)
+    case InitializeProbeSystem(registration) =>
+      applyProbeRegistration(registration)
       log.debug("initialized probe system {}", uri)
 
     /* update the probe system with the specified spec */
     case command @ UpdateProbeSystem(_, registration) =>
-      val spec = ProbeConversions.registration2spec(registration)
-      applyProbeSpec(spec)
+      applyProbeRegistration(registration)
       log.debug("updated probe system {}", uri)
 
     /* get the ProbeSystem spec */
     case query: DescribeProbeSystem =>
-      currentSpec match {
-        case Some(spec) =>
-          sender() ! DescribeProbeSystemResult(query, spec)
+      currentRegistration match {
+        case Some(registration) =>
+          sender() ! DescribeProbeSystemResult(query, registration)
         case None =>
           sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
       }
 
     /* get the state of all probes in the system */
     case query: GetProbeSystemStatus =>
-      currentSpec match {
+      currentRegistration match {
         case Some(spec) =>
           val futures = probes.toVector.map { case (ref: ProbeRef, actor: ProbeActor) =>
             actor.actor.ask(GetProbeStatus(ref))(timeout).mapTo[GetProbeStatusResult]
@@ -93,7 +92,7 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Actor with A
 
     /* get the metadata of all probes in the system */
     case query: GetProbeSystemMetadata =>
-      currentSpec match {
+      currentRegistration match {
         case Some(spec) =>
           val metadata = probes.keys.map { ref => ref -> findProbeSpec(spec, ref.path).metadata }.toMap
           sender() ! GetProbeSystemMetadataResult(query, metadata)
@@ -129,45 +128,53 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Actor with A
   }
 
   /**
-   * flatten ProbeSpec into a Set of ProbeRefs
+   * flatten ProbeRegistration into a Set of ProbeRefs
    */
-  def probeSpec2Set(path: Vector[String], spec: ProbeSpec): Set[ProbeRef] = {
+  def spec2RefSet(path: Vector[String], spec: ProbeSpec): Set[ProbeRef] = {
     val iterChildren = spec.children.toSet
     val childRefs = iterChildren.map { case (name: String, childSpec: ProbeSpec) =>
-      probeSpec2Set(path :+ name, childSpec)
+      spec2RefSet(path :+ name, childSpec)
     }.flatten
     childRefs + ProbeRef(uri, path)
   }
-  def probeSpec2Set(spec: ProbeSpec): Set[ProbeRef] = probeSpec2Set(Vector.empty, spec)
+  def registration2RefSet(registration: ProbeRegistration): Set[ProbeRef] = {
+    registration.probes.flatMap { case (name,spec) =>
+      spec2RefSet(Vector(name), spec)
+    }.toSet
+  }
 
   /**
-   * find the ProbeSpec referenced by path
+   * find the ProbeSpec referenced by path.  NOTE: It is assumed that the specified
+   * ProbeRef exists!  if it doesn't, this code will throw an exception.
    */
   def findProbeSpec(spec: ProbeSpec, path: Vector[String]): ProbeSpec = {
     if (path.isEmpty) spec else findProbeSpec(spec.children(path.head), path.tail)
+  }
+  def findProbeSpec(registration: ProbeRegistration, path: Vector[String]): ProbeSpec = {
+    findProbeSpec(registration.probes(path.head), path.tail)
   }
 
   /**
    * apply the spec to the probe system, adding and removing probes as necessary
    */
-  def applyProbeSpec(spec: ProbeSpec): Unit = {
-    val specSet = probeSpec2Set(spec)
+  def applyProbeRegistration(registration: ProbeRegistration): Unit = {
+    val specSet = registration2RefSet(registration)
     val probeSet = probes.keySet
     // add new probes
     val probesAdded = specSet -- probeSet
     probesAdded.toVector.sorted.foreach { case ref: ProbeRef =>
       val actor = ref.parentOption match {
-        case Some(parent) =>
+        case Some(parent) if !parent.path.isEmpty =>
           context.actorOf(Probe.props(ref, probes(parent).actor, stateService, notificationService, historyService))
-        case None =>
+        case _ =>
           context.actorOf(Probe.props(ref, self, stateService, notificationService, historyService))
       }
       log.debug("probe {} joins", ref)
-      val probeSpec = findProbeSpec(spec, ref.path)
+      val probeSpec = findProbeSpec(registration, ref.path)
       val probePolicy = probeSpec.policy.getOrElse(settings.registry.defaultPolicy)
       actor ! InitProbe(probePolicy)
       probes = probes + (ref -> ProbeActor(probeSpec, actor))
-      stateService ! ProbeMetadata(ref, spec.metadata)
+      stateService ! ProbeMetadata(ref, registration.metadata)
     }
     // remove stale probes
     val probesRemoved = probeSet -- specSet
@@ -177,15 +184,15 @@ class ProbeSystem(uri: URI, initialSpec: Option[ProbeSpec]) extends Actor with A
       probes(ref).actor ! PoisonPill
       probes = probes - ref
     }
-    currentSpec = Some(spec)
+    currentRegistration = Some(registration)
   }
 }
 
 object ProbeSystem {
-  def props(uri: URI, initialSpec: Option[ProbeSpec] = None) = Props(classOf[ProbeSystem], uri, initialSpec)
+  def props(uri: URI) = Props(classOf[ProbeSystem], uri)
 
   case class ProbeActor(spec: ProbeSpec, actor: ActorRef)
-  case class InitializeProbeSystem(spec: ProbeSpec)
+  case class InitializeProbeSystem(registration: ProbeRegistration)
   case class InitProbe(initialPolicy: ProbePolicy)
   case object RetireProbe
 }
@@ -201,7 +208,7 @@ sealed trait ProbeSystemQuery extends ProbeSystemOperation
 case class ProbeSystemOperationFailed(op: ProbeSystemOperation, failure: Throwable)
 
 case class DescribeProbeSystem(uri: URI) extends ProbeSystemQuery
-case class DescribeProbeSystemResult(op: DescribeProbeSystem, spec: ProbeSpec)
+case class DescribeProbeSystemResult(op: DescribeProbeSystem, registration: ProbeRegistration)
 
 case class UpdateProbeSystem(uri: URI, registration: ProbeRegistration) extends ProbeSystemCommand
 case class UpdateProbeSystemResult(op: UpdateProbeSystem, ref: ActorRef)

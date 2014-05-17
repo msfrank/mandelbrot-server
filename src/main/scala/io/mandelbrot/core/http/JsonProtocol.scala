@@ -130,16 +130,15 @@ object JsonProtocol extends DefaultJsonProtocol {
     }
   }
 
-  /* */
-  implicit val ProbePolicyFormat = jsonFormat8(ProbePolicy)
+  /* convert ProbePolicy class */
+  implicit val ProbePolicyFormat = jsonFormat7(ProbePolicy)
 
   /* a little extra magic here- we use lazyFormat because ProbeSpec has a recursive definition */
-  implicit val _ProbeSpecFormat: JsonFormat[ProbeSpec] = lazyFormat(jsonFormat(ProbeSpec, "objectType", "policy", "metaData", "children", "static"))
+  implicit val _ProbeSpecFormat: JsonFormat[ProbeSpec] = lazyFormat(jsonFormat(ProbeSpec, "probeType", "metadata", "policy", "children"))
   implicit val ProbeSpecFormat = rootFormat(_ProbeSpecFormat)
 
-  /* a little extra magic here- we use lazyFormat because ProbeRegistration has a recursive definition */
-  implicit val _ProbeRegistrationFormat: JsonFormat[ProbeRegistration] = lazyFormat(jsonFormat(ProbeRegistration, "objectType", "policy", "metaData", "children"))
-  implicit val ProbeRegistrationFormat = rootFormat(_ProbeRegistrationFormat)
+  /* convert ProbeRegistration class */
+  implicit val ProbeRegistrationFormat = jsonFormat3(ProbeRegistration)
 
   /* convert ProbeHealth class */
   implicit object ProbeHealthFormat extends RootJsonFormat[ProbeHealth] {

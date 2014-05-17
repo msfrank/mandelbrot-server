@@ -30,12 +30,16 @@ sealed trait NotificationAction {
   import NotificationAction._
   def execute(notification: Notification, contacts: Set[Contact], notifiers: Map[String,ActorRef]): NotificationActionResult
 }
+
 object NotificationAction {
   sealed trait NotificationActionResult
   case object Continue extends NotificationActionResult
   case object Stop extends NotificationActionResult
 }
 
+/**
+ *
+ */
 case object NotifyContacts extends NotificationAction {
   import NotificationAction.Continue
   def execute(notification: Notification, contacts: Set[Contact], notifiers: Map[String,ActorRef]) = {
@@ -46,6 +50,9 @@ case object NotifyContacts extends NotificationAction {
   }
 }
 
+/**
+ *
+ */
 case object NotifyOnlyContacts extends NotificationAction {
   import NotificationAction.Stop
   def execute(notification: Notification, contacts: Set[Contact], notifiers: Map[String,ActorRef]) = {
@@ -56,6 +63,9 @@ case object NotifyOnlyContacts extends NotificationAction {
   }
 }
 
+/**
+ *
+ */
 case object DropNotification extends NotificationAction {
   import NotificationAction.Stop
   def execute(notification: Notification, contacts: Set[Contact], notifiers: Map[String,ActorRef]) = Stop
