@@ -171,8 +171,7 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
       }
       log.debug("probe {} joins", ref)
       val probeSpec = findProbeSpec(registration, ref.path)
-      val probePolicy = probeSpec.policy.getOrElse(settings.registry.defaultPolicy)
-      actor ! InitProbe(probePolicy)
+      actor ! InitProbe(probeSpec.policy)
       probes = probes + (ref -> ProbeActor(probeSpec, actor))
       stateService ! ProbeMetadata(ref, registration.metadata)
     }

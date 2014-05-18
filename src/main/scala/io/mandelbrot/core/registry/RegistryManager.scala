@@ -195,7 +195,7 @@ case class ProbePolicy(joiningTimeout: FiniteDuration,
 /* the probe specification */
 case class ProbeSpec(probeType: String,
                      metadata: Map[String,String],
-                     policy: Option[ProbePolicy],
+                     policy: ProbePolicy,
                      children: Map[String,ProbeSpec]) extends Serializable
 
 /* a dynamic probe system registration */
