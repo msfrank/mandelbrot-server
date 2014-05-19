@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit
  */
 case class ServerConfigSettings(registry: RegistrySettings,
                                 state: StateSettings,
-                                notifications: NotificationSettings,
+                                notification: NotificationSettings,
                                 history: HistorySettings,
                                 http: Option[HttpSettings],
                                 shutdownTimeout: FiniteDuration)
@@ -97,7 +97,7 @@ class ServerConfigExtension(system: ActorSystem) extends Extension {
     val stateSettings = StateSettings.parse(mandelbrotConfig.getConfig("state"))
 
     /* parse notification settings */
-    val notificationSettings = NotificationSettings.parse(mandelbrotConfig.getConfig("notifications"))
+    val notificationSettings = NotificationSettings.parse(mandelbrotConfig.getConfig("notification"))
 
     /* parse history settings */
     val historySettings = HistorySettings.parse(mandelbrotConfig.getConfig("history"))

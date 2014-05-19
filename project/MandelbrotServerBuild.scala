@@ -41,6 +41,7 @@ object MandelbrotServerBuild extends Build {
         "org.apache.lucene" % "lucene-queryparser" % luceneVersion,
         "com.typesafe.slick" %% "slick" % slickVersion,
         "com.h2database" % "h2" % "1.4.177",
+        "javax.mail" % "mail" % "1.4.7",
         "joda-time" % "joda-time" % "2.2",
         "org.joda" % "joda-convert" % "1.3.1",
         "org.slf4j" % "slf4j-api" % "1.7.5",

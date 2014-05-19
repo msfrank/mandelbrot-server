@@ -24,7 +24,7 @@ import akka.actor.{Extension, Props}
 import scala.reflect.runtime.universe._
 import scala.reflect.runtime.{currentMirror => cm}
 
-trait ServiceExtension extends Extension {
+object ServiceExtension {
 
   /**
    * given a fully-qualified class name and optional service config, return
@@ -41,17 +41,13 @@ trait ServiceExtension extends Extension {
     val instanceMirror = cm.reflect(moduleMirror.instance)
     val propsSymbol = moduleMirror.symbol.typeSignature.member(newTermName("props")).asMethod
     val methodMirror = instanceMirror.reflectMethod(propsSymbol)
-    val props = serviceConfig match {
+    val serviceProps = serviceConfig match {
       case Some(value) => methodMirror.apply(value).asInstanceOf[Props]
       case None => methodMirror.apply().asInstanceOf[Props]
     }
-    props
+    serviceProps
   }
 
-}
-
-trait ServiceSettings {
-  
   /**
    * 
    */

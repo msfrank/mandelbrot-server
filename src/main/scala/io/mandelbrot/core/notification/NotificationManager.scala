@@ -19,18 +19,23 @@
 
 package io.mandelbrot.core.notification
 
-import com.typesafe.config.Config
-import akka.actor.{Props, ActorLogging, Actor}
-import io.mandelbrot.core.ServerConfig
+import akka.actor.{ActorRef, Props, ActorLogging, Actor}
+
+import io.mandelbrot.core.{ServiceExtension, ServerConfig}
 import io.mandelbrot.core.history.HistoryService
 import io.mandelbrot.core.registry.ProbeMatcherParser
 
 class NotificationManager extends Actor with ActorLogging {
 
   // config
-  val settings = ServerConfig(context.system).settings.notifications
+  val settings = ServerConfig(context.system).settings.notification
+  val notifiers: Map[String,ActorRef] = settings.notifiers.map { case (name, notifierSettings) =>
+    val props = ServiceExtension.makeServiceProps(notifierSettings.plugin, notifierSettings.settings)
+    log.info("loading notifier plugin {}", name)
+    name -> context.actorOf(props, name)
+  }
+
   val contacts = Set(Contact("Michael Frank", "michael.frank@mandelbrot.io", Map.empty))
-  val notifiers = Map("logging" -> context.actorOf(LoggingNotifier.props()))
   val rules = new NotificationRules(Vector(
     NotificationRule(Set(ProbeMatcherParser("*")), NotifyContacts, contacts)
   ), notifiers)
@@ -48,6 +53,5 @@ class NotificationManager extends Actor with ActorLogging {
 
 object NotificationManager {
   def props() = Props(classOf[NotificationManager])
-  def settings(config: Config): Option[Any] = None
 }
 

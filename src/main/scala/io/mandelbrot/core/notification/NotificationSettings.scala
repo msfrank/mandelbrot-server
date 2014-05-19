@@ -19,19 +19,29 @@
 
 package io.mandelbrot.core.notification
 
-import com.typesafe.config.Config
+import com.typesafe.config.{ConfigObject, ConfigValueType, Config}
+import scala.collection.JavaConversions._
 
-import io.mandelbrot.core.ServiceSettings
+import io.mandelbrot.core.ServiceExtension
 
-case class NotificationSettings(plugin: String, service: Option[Any])
+case class NotifierSettings(plugin: String, settings: Option[Any])
 
-object NotificationSettings extends ServiceSettings {
+case class NotificationSettings(notifiers: Map[String,NotifierSettings])
+
+object NotificationSettings {
   def parse(config: Config): NotificationSettings = {
-    val plugin = config.getString("plugin")
-    val service = if (config.hasPath("plugin-settings")) {
-      makeServiceSettings(plugin, config.getConfig("plugin-settings"))
-    } else None
-    new NotificationSettings(plugin, service)
+    val notifiers = config.getConfig("notifiers").root.flatMap {
+      case (name,configValue) if configValue.valueType() == ConfigValueType.OBJECT =>
+        val notifierConfig = configValue.asInstanceOf[ConfigObject].toConfig
+        val plugin = notifierConfig.getString("plugin")
+        val settings = if (config.hasPath("plugin-settings")) {
+          ServiceExtension.makeServiceSettings(plugin, config.getConfig("plugin-settings"))
+        } else None
+        Some(name -> NotifierSettings(plugin, settings))
+      case unknown =>
+        None
+    }.toMap
+    new NotificationSettings(notifiers)
   }
 }
 

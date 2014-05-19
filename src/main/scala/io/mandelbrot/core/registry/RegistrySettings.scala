@@ -19,42 +19,50 @@
 
 package io.mandelbrot.core.registry
 
-import com.typesafe.config.{ConfigFactory, ConfigObject, Config}
+import com.typesafe.config.Config
 import scala.concurrent.duration._
-import scala.collection.JavaConversions._
-import java.net.URI
-import java.io.File
 import java.util.concurrent.TimeUnit
 
-import io.mandelbrot.core.notification.{SquelchNotificationPolicy, EscalateNotificationPolicy, EmitNotificationPolicy}
-import io.mandelbrot.core.ServiceSettings
+case class PolicyDefaults(joiningTimeout: Option[FiniteDuration],
+                          probeTimeout: Option[FiniteDuration],
+                          alertTimeout: Option[FiniteDuration],
+                          leavingTimeout: Option[FiniteDuration])
 
-case class RegistrySettings(plugin: String,
-                            service: Option[Any],
-                            defaultPolicy: ProbePolicy)
+case class RegistrySettings(policyMin: PolicyDefaults, policyMax: PolicyDefaults)
 
-object RegistrySettings extends ServiceSettings {
+object RegistrySettings {
   def parse(config: Config): RegistrySettings = {
-    val defaultPolicy: ProbePolicy = {
-      val joiningTimeout = FiniteDuration(config.getDuration("joining-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
-      val probeTimeout = FiniteDuration(config.getDuration("probe-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
-      val alertTimeout = FiniteDuration(config.getDuration("alert-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
-      val leavingTimeout = FiniteDuration(config.getDuration("leaving-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
-      val flapWindow = FiniteDuration(config.getDuration("flap-window", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
-      val flapDeviations = config.getInt("flap-deviations")
-      val notificationPolicyType = config.getString("notification-policy") match {
-        case "emit" => EmitNotificationPolicy
-        case "escalate" => EscalateNotificationPolicy
-        case "squelch" => SquelchNotificationPolicy
-        case unknown => throw new IllegalArgumentException()
+    val policyMin = {
+      val joiningTimeoutMin = if (!config.hasPath("min-joining-timeout")) None else {
+        Some(FiniteDuration(config.getDuration("min-joining-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
       }
-      ProbePolicy(joiningTimeout, probeTimeout, alertTimeout, leavingTimeout, flapWindow, flapDeviations, notificationPolicyType)
+      val probeTimeoutMin = if (!config.hasPath("min-probe-timeout")) None else {
+        Some(FiniteDuration(config.getDuration("min-probe-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
+      }
+      val alertTimeoutMin = if (!config.hasPath("min-alert-timeout")) None else {
+        Some(FiniteDuration(config.getDuration("min-alert-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
+      }
+      val leavingTimeoutMin = if (!config.hasPath("min-leaving-timeout")) None else {
+        Some(FiniteDuration(config.getDuration("min-leaving-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
+      }
+      PolicyDefaults(joiningTimeoutMin, probeTimeoutMin, alertTimeoutMin, leavingTimeoutMin)
     }
-    val plugin = config.getString("plugin")
-    val service = if (config.hasPath("plugin-settings")) {
-      makeServiceSettings(plugin, config.getConfig("plugin-settings"))
-    } else None
-    new RegistrySettings(plugin, service, defaultPolicy)
+    val policyMax = {
+      val joiningTimeoutMax = if (!config.hasPath("max-joining-timeout")) None else {
+        Some(FiniteDuration(config.getDuration("max-joining-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
+      }
+      val probeTimeoutMax = if (!config.hasPath("max-probe-timeout")) None else {
+        Some(FiniteDuration(config.getDuration("max-probe-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
+      }
+      val alertTimeoutMax = if (!config.hasPath("max-alert-timeout")) None else {
+        Some(FiniteDuration(config.getDuration("max-alert-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
+      }
+      val leavingTimeoutMax = if (!config.hasPath("max-leaving-timeout")) None else {
+        Some(FiniteDuration(config.getDuration("max-leaving-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
+      }
+      PolicyDefaults(joiningTimeoutMax, probeTimeoutMax, alertTimeoutMax, leavingTimeoutMax)
+    }
+    new RegistrySettings(policyMin, policyMax)
   }
 }
 

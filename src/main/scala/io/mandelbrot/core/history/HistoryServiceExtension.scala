@@ -20,19 +20,20 @@
 package io.mandelbrot.core.history
 
 import akka.actor._
-import io.mandelbrot.core.{ServiceExtension, ServerConfig}
 import org.slf4j.LoggerFactory
+
+import io.mandelbrot.core.{ServiceExtension, ServerConfig}
 
 /**
  *
  */
-class HistoryServiceExtensionImpl(system: ActorSystem) extends ServiceExtension {
+class HistoryServiceExtensionImpl(system: ActorSystem) extends Extension {
   val stateService = {
     val settings = ServerConfig(system).settings.history
     val plugin = settings.plugin
     val service = settings.service
-    LoggerFactory.getLogger("io.mandelbrot.core.history.HistoryServiceExtension").info("loading plugin " + plugin)
-    system.actorOf(makeServiceProps(plugin, service), "history-service")
+    LoggerFactory.getLogger("io.mandelbrot.core.history.HistoryServiceExtension").info("loading history service plugin " + plugin)
+    system.actorOf(ServiceExtension.makeServiceProps(plugin, service), "history-service")
   }
 }
 
