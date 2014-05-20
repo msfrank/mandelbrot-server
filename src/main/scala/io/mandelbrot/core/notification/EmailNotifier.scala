@@ -19,11 +19,13 @@
 
 package io.mandelbrot.core.notification
 
-import akka.actor.{Props, ActorLogging, Actor}
+import com.typesafe.config.Config
+import akka.actor.{ActorRef, Props, ActorLogging, Actor}
 import javax.mail.{Transport, MessagingException, Message, Session}
 import javax.mail.internet.{InternetAddress, MimeMessage}
-import com.typesafe.config.Config
+import javax.mail.event.{TransportEvent, ConnectionEvent, TransportListener, ConnectionListener}
 import scala.concurrent.Future
+import org.slf4j.LoggerFactory
 
 /**
  *
@@ -35,15 +37,17 @@ class EmailNotifier(notifierSettings: EmailNotifier.NotifierSettings) extends Ac
   val props = new java.util.Properties()
   props.put("mail.smtp.host", notifierSettings.smtpServer)
   props.put("mail.smtp.port", notifierSettings.smtpPort.toString)
-  props.put("mail.transport.protocol", if (notifierSettings.enableTls) "smtps" else "smtp")
+  props.put("mail.transport.protocol", "smtp")
   props.put("mail.smtp.auth", if (notifierSettings.requireAuth) "true" else "false")
   //props.put("mail.user", "username")
   //props.put("mail.password", "password")
   val senderAddress = new InternetAddress(notifierSettings.senderAddress)
 
-  // state
   val session = Session.getDefaultInstance(props, null)
-
+  val transport = session.getTransport
+  transport.addConnectionListener(new EmailConnectionListener(self))
+  transport.addTransportListener(new EmailTransportListener(self))
+  transport.connect()
 
   def receive = {
 
@@ -53,13 +57,14 @@ class EmailNotifier(notifierSettings: EmailNotifier.NotifierSettings) extends Ac
           try {
             val msg = new MimeMessage(session)
             msg.setFrom(senderAddress)
-            msg.setRecipient(Message.RecipientType.TO, new InternetAddress(emailContact.address))
+            val recipientAddress = new InternetAddress(emailContact.address)
+            msg.setRecipient(Message.RecipientType.TO, recipientAddress)
             msg.setSubject("Mandelbrot notification")
             msg.setText(notification.toString)
             log.debug("sending email to {} => {}", emailContact.address, msg.getContent.toString)
-            Future(Transport.send(msg))
+            transport.sendMessage(msg, Array(recipientAddress))
           } catch {
-            case ex: MessagingException =>
+            case ex: Throwable =>
               log.debug("failed to send email to {}: {}", emailContact.address, ex.getMessage)
           }
         case None =>  // do nothing
@@ -90,4 +95,30 @@ object EmailNotifier {
     }.toMap
     Some(NotifierSettings(smtpServer, smtpPort, enableTls, requireAuth, senderAddress, emailContacts))
   }
+}
+
+/**
+ *
+ */
+class EmailConnectionListener(notifier: ActorRef) extends ConnectionListener {
+  val logger = LoggerFactory.getLogger(classOf[EmailConnectionListener])
+
+  override def opened(e: ConnectionEvent): Unit = logger.debug("connected: " + e)
+
+  override def disconnected(e: ConnectionEvent): Unit = logger.debug("disconnected: " + e)
+
+  override def closed(e: ConnectionEvent): Unit = logger.debug("closed: " + e)
+}
+
+/**
+ *
+ */
+class EmailTransportListener(notifier: ActorRef) extends TransportListener {
+  val logger = LoggerFactory.getLogger(classOf[EmailConnectionListener])
+
+  override def messageDelivered(e: TransportEvent): Unit = logger.debug("message delivered: " + e)
+
+  override def messagePartiallyDelivered(e: TransportEvent): Unit = logger.debug("message partially delivered: " + e)
+
+  override def messageNotDelivered(e: TransportEvent): Unit = logger.debug("message not delivered: " + e)
 }
