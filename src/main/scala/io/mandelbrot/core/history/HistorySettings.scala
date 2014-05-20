@@ -35,7 +35,7 @@ object HistorySettings {
     val historyRetention = FiniteDuration(config.getDuration("history-retention", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     val plugin = config.getString("plugin")
     val service = if (config.hasPath("plugin-settings")) {
-      ServiceExtension.makeServiceSettings(plugin, config.getConfig("plugin-settings"))
+      ServiceExtension.makePluginSettings(plugin, config.getConfig("plugin-settings"))
     } else None
     new HistorySettings(plugin, service, historyRetention)
   }

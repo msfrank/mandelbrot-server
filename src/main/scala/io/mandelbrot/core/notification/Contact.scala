@@ -3,12 +3,12 @@ package io.mandelbrot.core.notification
 /**
  *
  */
-case class Contact(name: String, address: String, metadata: Map[String,String])
+case class Contact(id: String, name: String, metadata: Map[String,String])
 
 /**
  *
  */
-case class ContactGroup(name: String, contacts: Vector[Contact])
+case class ContactGroup(id: String, name: String, contacts: Vector[Contact])
 
 /**
  *

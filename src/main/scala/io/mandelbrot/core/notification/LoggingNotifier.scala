@@ -20,8 +20,12 @@
 package io.mandelbrot.core.notification
 
 import akka.actor.{Props, ActorLogging, Actor}
+import com.typesafe.config.Config
 
-class LoggingNotifier extends Actor with ActorLogging {
+/**
+ *
+ */
+class LoggingNotifier extends Actor with Notifier with ActorLogging {
 
   def receive = {
 
@@ -32,4 +36,5 @@ class LoggingNotifier extends Actor with ActorLogging {
 
 object LoggingNotifier {
   def props() = Props(classOf[LoggingNotifier])
+  def settings(config: Config, unused: Any): Option[Any] = None
 }

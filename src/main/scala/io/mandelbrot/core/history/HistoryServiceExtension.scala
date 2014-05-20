@@ -33,7 +33,7 @@ class HistoryServiceExtensionImpl(system: ActorSystem) extends Extension {
     val plugin = settings.plugin
     val service = settings.service
     LoggerFactory.getLogger("io.mandelbrot.core.history.HistoryServiceExtension").info("loading history service plugin " + plugin)
-    system.actorOf(ServiceExtension.makeServiceProps(plugin, service), "history-service")
+    system.actorOf(ServiceExtension.makePluginProps(plugin, service), "history-service")
   }
 }
 

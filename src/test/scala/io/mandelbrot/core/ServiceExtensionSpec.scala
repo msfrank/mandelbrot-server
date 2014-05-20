@@ -6,16 +6,22 @@ import akka.actor.{Props, Actor}
 
 class ServiceExtensionSpec extends WordSpec with MustMatchers {
 
-  "A class extending ServiceExtension" must {
+  "A ServiceExtension class" must {
+
+    "return true if the class implements a specified interface" in {
+      ServiceExtension.pluginImplements("io.mandelbrot.core.TestExtension", classOf[TestInterface]) must be(true)
+    }
 
     "return a Props instance from applying the props() method of a compatible implementation" in {
-      val props = ServiceExtension.makeServiceProps("io.mandelbrot.core.TestExtension", None)
+      val props = ServiceExtension.makePluginProps("io.mandelbrot.core.TestExtension", None)
       props.clazz must be === classOf[TestExtension]
     }
   }
 }
 
-class TestExtension extends Actor {
+trait TestInterface
+
+class TestExtension extends Actor with TestInterface {
   def receive = {
     case _ => sender() ! None
   }

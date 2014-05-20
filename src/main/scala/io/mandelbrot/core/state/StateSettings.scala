@@ -40,7 +40,7 @@ object StateSettings {
     val defaultSearchLimit = config.getInt("default-search-limit")
     val plugin = config.getString("plugin")
     val service = if (config.hasPath("plugin-settings")) {
-      ServiceExtension.makeServiceSettings(plugin, config.getConfig("plugin-settings"))
+      ServiceExtension.makePluginSettings(plugin, config.getConfig("plugin-settings"))
     } else None
     new StateSettings(plugin, service, maxSummarySize, maxDetailSize, statusHistoryAge, defaultSearchLimit)
   }

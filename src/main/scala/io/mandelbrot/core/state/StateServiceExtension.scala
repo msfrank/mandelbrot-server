@@ -33,7 +33,7 @@ class StateServiceExtensionImpl(system: ActorSystem) extends Extension {
     val plugin = settings.plugin
     val service = settings.service
     LoggerFactory.getLogger("io.mandelbrot.core.state.StateServiceExtension").info("loading state service plugin " + plugin)
-    system.actorOf(ServiceExtension.makeServiceProps(plugin, service), "state-service")
+    system.actorOf(ServiceExtension.makePluginProps(plugin, service), "state-service")
   }
 }
 

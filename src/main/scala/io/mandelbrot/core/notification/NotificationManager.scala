@@ -30,14 +30,12 @@ class NotificationManager extends Actor with ActorLogging {
   // config
   val settings = ServerConfig(context.system).settings.notification
   val notifiers: Map[String,ActorRef] = settings.notifiers.map { case (name, notifierSettings) =>
-    val props = ServiceExtension.makeServiceProps(notifierSettings.plugin, notifierSettings.settings)
+    val props = ServiceExtension.makePluginProps(notifierSettings.plugin, notifierSettings.settings)
     log.info("loading notifier plugin {}", name)
     name -> context.actorOf(props, name)
   }
-
-  val contacts = Set(Contact("Michael Frank", "michael.frank@mandelbrot.io", Map.empty))
   val rules = new NotificationRules(Vector(
-    NotificationRule(Set(ProbeMatcherParser("*")), NotifyContacts, contacts)
+    NotificationRule(Set(ProbeMatcherParser("*")), NotifyContacts, settings.contacts.values.toSet)
   ), notifiers)
 
   val historyService = HistoryService(context.system)
@@ -55,3 +53,5 @@ object NotificationManager {
   def props() = Props(classOf[NotificationManager])
 }
 
+/* marker trait for Notifier implementations */
+trait Notifier
