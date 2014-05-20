@@ -20,8 +20,10 @@
 package io.mandelbrot.core.notification
 
 import akka.actor.ActorRef
+import java.io._
 
 import io.mandelbrot.core.registry.{ProbeRef, ProbeMatcher}
+import io.mandelbrot.core.registry.ProbeMatcher
 
 /**
  * 
@@ -94,5 +96,54 @@ class NotificationRules(rules: Vector[NotificationRule], notifiers: Map[String,A
           return
       }
     case unknown => // FIXME
+  }
+}
+
+object NotificationRules {
+
+  /**
+   *
+   */
+  def parse(file: File): NotificationRules = parse(new FileReader(file))
+
+  /**
+   *
+   */
+  def parse(reader: Reader): NotificationRules = {
+    var rules = Vector.empty[NotificationRule]
+    val lines = new LineNumberReader(reader)
+    var rule = new StringBuilder()
+    var line = lines.readLine()
+    var lineNumber = lines.getLineNumber
+    while (line != null) {
+      line match {
+        case empty if line.trim.isEmpty =>            // ignore blank lines
+        case comment if line.trim.startsWith("#") =>  // ignore lines starting with comment char '#'
+        case continuation if line(0).isSpaceChar =>   // process continuation
+          if (rule.isEmpty) {
+            lineNumber = lines.getLineNumber
+            rule.append(line.trim)
+          } else rule.append(" " + line.trim)
+        case string =>                                // process new rule
+          val ruleString = rule.toString()
+          if (!rule.isEmpty)
+            rules = rules :+ parseRule(ruleString, lineNumber)
+          rule = new StringBuilder()
+          lineNumber = lines.getLineNumber
+          rule.append(string.trim)
+      }
+      line = lines.readLine()
+    }
+    if (!rule.isEmpty)
+      rules = rules :+ parseRule(rule.toString(), lineNumber)
+    new NotificationRules(rules, Map.empty)
+  }
+
+  /**
+   *
+   */
+  def parseRule(string: String, lineNumber: Int): NotificationRule = {
+    println("rule @ line %d: %s".format(lineNumber, string))
+    NotificationRule(Set.empty, DropNotification, Set.empty)
   }
 }
