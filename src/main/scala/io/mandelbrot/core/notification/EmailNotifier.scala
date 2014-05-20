@@ -20,56 +20,158 @@
 package io.mandelbrot.core.notification
 
 import com.typesafe.config.Config
-import akka.actor.{ActorRef, Props, ActorLogging, Actor}
+import akka.actor._
+import akka.pattern.pipe
 import javax.mail.{Transport, MessagingException, Message, Session}
 import javax.mail.internet.{InternetAddress, MimeMessage}
 import javax.mail.event.{TransportEvent, ConnectionEvent, TransportListener, ConnectionListener}
 import scala.concurrent.Future
+import scala.concurrent.duration._
 import org.slf4j.LoggerFactory
+import scala.util.{Failure, Success, Try}
 
 /**
  *
  */
-class EmailNotifier(notifierSettings: EmailNotifier.NotifierSettings) extends Actor with Notifier with ActorLogging {
+class EmailNotifier(notifierSettings: EmailNotifier.NotifierSettings) extends LoggingFSM[EmailNotifier.State,EmailNotifier.Data] with Notifier {
+  import EmailNotifier._
   import context.dispatcher
 
   // config
+  val maxQueued = 100   // TODO: implement bounded command buffer
+  val senderAddress = new InternetAddress(notifierSettings.senderAddress)
+  val sleepingTimeout = 30.seconds
+  val connectTimeout = 10.seconds
+  val readTimeout = 10.seconds
+  val writeTimeout = 10.seconds
+
+  // configure the session and underlying transport
   val props = new java.util.Properties()
+  props.put("mail.transport.protocol", "smtp")
   props.put("mail.smtp.host", notifierSettings.smtpServer)
   props.put("mail.smtp.port", notifierSettings.smtpPort.toString)
-  props.put("mail.transport.protocol", "smtp")
   props.put("mail.smtp.auth", if (notifierSettings.requireAuth) "true" else "false")
+  props.put("mail.smtp.connectiontimeout", connectTimeout.toMillis.toString)
+  props.put("mail.smtp.timeout", readTimeout.toMillis.toString)
+  props.put("mail.smtp.writetimeout", writeTimeout.toMillis.toString)
   //props.put("mail.user", "username")
   //props.put("mail.password", "password")
-  val senderAddress = new InternetAddress(notifierSettings.senderAddress)
-
   val session = Session.getDefaultInstance(props, null)
   val transport = session.getTransport
   transport.addConnectionListener(new EmailConnectionListener(self))
   transport.addTransportListener(new EmailTransportListener(self))
-  transport.connect()
 
-  def receive = {
+  // start in Connecting state
+  startWith(Connecting, CommandBuffer(Vector.empty))
 
-    case NotifyContact(contact, notification) =>
-      notifierSettings.contacts.get(contact.id) match {
-        case Some(emailContact) =>
-          try {
-            val msg = new MimeMessage(session)
-            msg.setFrom(senderAddress)
-            val recipientAddress = new InternetAddress(emailContact.address)
-            msg.setRecipient(Message.RecipientType.TO, recipientAddress)
-            msg.setSubject("Mandelbrot notification")
-            msg.setText(notification.toString)
-            log.debug("sending email to {} => {}", emailContact.address, msg.getContent.toString)
-            transport.sendMessage(msg, Array(recipientAddress))
-          } catch {
-            case ex: Throwable =>
-              log.debug("failed to send email to {}: {}", emailContact.address, ex.getMessage)
-          }
-        case None =>  // do nothing
-      }
+  // invoke initial connect to smtp server
+  connect().pipeTo(self)
 
+  when(Connecting) {
+
+    // buffer notifications until we are connected
+    case Event(command: NotifyContact, CommandBuffer(buffer)) =>
+      if (notifierSettings.contacts.contains(command.contact.id)) {
+        stay() using CommandBuffer(buffer :+ command)
+      } else stay()
+
+    // connect succeeded and we have no queued notifications
+    case Event(Success(_), CommandBuffer(buffer)) if buffer.isEmpty =>
+      goto(Connected)
+
+    // connect succeeded and we have queued notifications
+    case Event(Success(_), CommandBuffer(buffer)) =>
+      self ! ProcessCommand
+      goto(Connected)
+
+    // connect failed
+    case Event(Failure(ex), _) =>
+      log.debug("failed to connect: {}", ex.getMessage)
+      setTimer("sleep-timeout", SleepExpires, sleepingTimeout)
+      goto(Sleeping)
+
+    // ignore ProcessCommand message in Connecting state
+    case Event(ProcessCommand, _) =>
+      stay()
+  }
+
+  when(Connected) {
+
+    // if the notifier isn't configured to handle the contact, then ignore
+    case Event(NotifyContact(contact, _), _) if !notifierSettings.contacts.contains(contact.id) =>
+      stay()
+
+    // if transport isn't connected, then buffer the notification and move to Connecting state
+    case Event(command: NotifyContact, CommandBuffer(buffer)) if !transport.isConnected =>
+      connect().pipeTo(self)
+      goto(Connecting) using CommandBuffer(buffer :+ command)
+
+    // buffer the notification and immediately signal to send
+    case Event(command: NotifyContact, CommandBuffer(buffer)) =>
+      if (buffer.isEmpty)
+        self ! ProcessCommand
+      stay() using CommandBuffer(buffer :+ command)
+
+    // send the email message
+    case Event(ProcessCommand, CommandBuffer(buffer)) =>
+      sendMessage(buffer.head).pipeTo(self)
+      stay()
+
+    // email message send succeeded, remove the command from the queue
+    case Event(Success(command), CommandBuffer(buffer)) =>
+      if (buffer.length > 1)
+        self ! ProcessCommand
+      stay() using CommandBuffer(buffer.tail)
+
+    // email message send failed
+    case Event(Failure(ex), CommandBuffer(buffer)) =>
+      log.debug("failed to send message: {}", ex.getMessage)
+      stay() using CommandBuffer(buffer.tail)
+  }
+
+  when(Sleeping) {
+
+    // buffer notifications until we are connected
+    case Event(command: NotifyContact, CommandBuffer(buffer)) =>
+      if (notifierSettings.contacts.contains(command.contact.id)) {
+        stay() using CommandBuffer(buffer :+ command)
+      } else stay()
+
+    // we have slept long enough, retry connecting to smtp server
+    case Event(SleepExpires, _) =>
+      connect().pipeTo(self)
+      goto(Connecting)
+
+    // ignore ProcessCommand message in Sleeping state
+    case Event(ProcessCommand, _) =>
+      stay()
+  }
+
+  def connect(): Future[Try[Transport]] = Future {
+    try {
+      log.debug("connecting to smtp server {}:{}", notifierSettings.smtpServer, notifierSettings.smtpPort)
+      transport.connect()
+      Success(transport)
+    } catch {
+      case ex: Throwable => Failure(ex)
+    }
+  }
+
+  def sendMessage(message: NotifyContact): Future[Try[NotifyContact]] = Future {
+    try {
+      val msg = new MimeMessage(session)
+      msg.setFrom(senderAddress)
+      val recipientAddress = new InternetAddress(notifierSettings.contacts(message.contact.id).address)
+      msg.setRecipient(Message.RecipientType.TO, recipientAddress)
+      msg.setSubject("Mandelbrot notification")
+      msg.setText(message.notification.toString)
+      log.debug("sending email to {} => {}", recipientAddress, msg.getContent.toString)
+      transport.sendMessage(msg, Array(recipientAddress))
+      Success(message)
+    } catch {
+      case ex: Throwable =>
+        Failure(ex)
+    }
   }
 }
 
@@ -95,6 +197,17 @@ object EmailNotifier {
     }.toMap
     Some(NotifierSettings(smtpServer, smtpPort, enableTls, requireAuth, senderAddress, emailContacts))
   }
+
+  sealed trait State
+  case object Sleeping extends State
+  case object Connecting extends State
+  case object Connected extends State
+
+  sealed trait Data
+  case class CommandBuffer(queued: Vector[NotifyContact]) extends Data
+
+  case object ProcessCommand
+  case object SleepExpires
 }
 
 /**
