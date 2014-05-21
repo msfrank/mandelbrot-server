@@ -24,13 +24,19 @@ import org.joda.time.DateTime
 import java.util.UUID
 
 /**
- *
+ * base trait for Notifications
  */
-sealed trait Notification
-
-class ProbeNotification(val probeRef: ProbeRef, val timestamp: DateTime, val kind: String, val description: String, val correlation: Option[UUID]) extends Notification {
+sealed trait Notification {
+  val timestamp: DateTime
+  val kind: String
+  val description: String
   override def toString = kind
 }
+
+/**
+ * A notification about a probe
+ */
+class ProbeNotification(val probeRef: ProbeRef, val timestamp: DateTime, val kind: String, val description: String, val correlation: Option[UUID]) extends Notification
 
 object ProbeNotification {
   def apply(probeRef: ProbeRef, timestamp: DateTime, kind: String, description: String, correlation: Option[UUID]) = {
