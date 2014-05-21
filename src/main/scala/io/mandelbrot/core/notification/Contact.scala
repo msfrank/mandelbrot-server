@@ -8,7 +8,7 @@ case class Contact(id: String, name: String, metadata: Map[String,String])
 /**
  *
  */
-case class ContactGroup(id: String, name: String, contacts: Vector[Contact])
+case class ContactGroup(id: String, name: String, metadata: Map[String,String], contacts: Set[Contact])
 
 /**
  *

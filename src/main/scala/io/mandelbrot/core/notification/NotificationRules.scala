@@ -126,14 +126,14 @@ object NotificationRules {
   /**
    *
    */
-  def parse(file: File, contacts: Map[String,Contact], groups: Map[String,Set[Contact]]): NotificationRules = {
+  def parse(file: File, contacts: Map[String,Contact], groups: Map[String,ContactGroup]): NotificationRules = {
     parse(new FileReader(file), contacts, groups)
   }
 
   /**
    *
    */
-  def parse(reader: Reader, contacts: Map[String,Contact], groups: Map[String,Set[Contact]]): NotificationRules = {
+  def parse(reader: Reader, contacts: Map[String,Contact], groups: Map[String,ContactGroup]): NotificationRules = {
     val parser = new NotificationRuleParser(contacts, groups)
     var rules = Vector.empty[NotificationRule]
     val lines = new LineNumberReader(reader)
@@ -168,7 +168,7 @@ object NotificationRules {
 /**
  *
  */
-class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,Set[Contact]]) extends JavaTokenParsers {
+class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,ContactGroup]) extends JavaTokenParsers {
   import io.mandelbrot.core.registry.ProbeMatcherParser
 
   val logger = LoggerFactory.getLogger(classOf[NotificationRuleParser])
@@ -201,7 +201,7 @@ class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,S
   def group: Parser[Set[Contact]] = _log(literal("@") ~ (ident | unwrappedStringLiteral))("group") ^^ {
     case "@" ~ name =>
       groups.get(name) match {
-        case Some(_group) => _group
+        case Some(_group) => _group.contacts
         case None => Set.empty
       }
   }

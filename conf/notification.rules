@@ -3,7 +3,10 @@
 #
 
 # send all probe notifications to contact 'michael.frank'
-when probe(*):              notify("michael.frank")
+#when probe(*):              notify("michael.frank")
+
+# send all probe notifications to contact group 'sysadmins'
+when probe(*):              notify(@sysadmins)
 
 # send notification if expression does _not_ match
 #unless probe(fqdn:*):      drop()

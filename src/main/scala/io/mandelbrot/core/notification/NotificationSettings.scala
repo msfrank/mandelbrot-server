@@ -36,7 +36,7 @@ case class NotifierSettings(plugin: String, settings: Option[Any])
  *
  */
 case class NotificationSettings(contacts: Map[String,Contact],
-                                groups: Map[String,Set[Contact]],
+                                groups: Map[String,ContactGroup],
                                 notifiers: Map[String,NotifierSettings],
                                 rules: NotificationRules)
 
@@ -56,7 +56,7 @@ object NotificationSettings {
         val contactConfig = contactConfigValue.asInstanceOf[ConfigObject].toConfig
         // create the contact
         val contactName = contactConfig.getString("contact-name")
-        val contactMetadata = if (contactConfig.hasPath("contact-metadata")) Map.empty[String,String] else {
+        val contactMetadata = if (!contactConfig.hasPath("contact-metadata")) Map.empty[String,String] else {
           contactConfig.getConfig("contact-metadata").root().unwrapped().map { case (key,value) => key -> value.toString }.toMap
         }
         val contact = Contact(id, contactName, contactMetadata)
@@ -81,7 +81,20 @@ object NotificationSettings {
     }.toMap
 
     // parse contact groups
-    val groups = Map.empty[String,Set[Contact]]
+    val groups = config.getConfig("groups").root.flatMap {
+      case (id, groupConfigValue) if groupConfigValue.valueType() == ConfigValueType.OBJECT =>
+        val groupConfig = groupConfigValue.asInstanceOf[ConfigObject].toConfig
+        // create the group
+        val groupName = groupConfig.getString("group-name")
+        val groupMetadata = if (!groupConfig.hasPath("group-metadata")) Map.empty[String, String]
+        else {
+          groupConfig.getConfig("group-metadata").root().unwrapped().map { case (key, value) => key -> value.toString}.toMap
+        }
+        val groupMembers = groupConfig.getStringList("group-members").flatMap(contacts.get).toSet
+        Some(id -> ContactGroup(id, groupName, groupMetadata, groupMembers))
+      case unknown =>
+        None
+    }.toMap
 
     // parse notifier configuration
     val notifiers = config.getConfig("notifiers").root.flatMap {

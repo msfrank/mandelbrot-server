@@ -17,7 +17,7 @@ class NotificationRulesParserSpec extends WordSpec with MustMatchers {
   val contacts = Map("user1" -> user1, "user2" -> user2, "user3" -> user3, "user4" -> user4, "user5" -> user5)
 
   val groups = Map(
-    "group1" -> Set(user4, user5)
+    "group1" -> ContactGroup("group1", "Group One", Map.empty, Set(user4, user5))
   )
 
   "NotificationRulesParser" must {
