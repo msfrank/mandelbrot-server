@@ -25,6 +25,7 @@ import scala.collection.JavaConversions._
 import io.mandelbrot.core.ServiceExtension
 import scala.collection.mutable
 import org.slf4j.LoggerFactory
+import java.io.File
 
 /**
  *
@@ -34,7 +35,10 @@ case class NotifierSettings(plugin: String, settings: Option[Any])
 /**
  *
  */
-case class NotificationSettings(contacts: Map[String,Contact], notifiers: Map[String,NotifierSettings])
+case class NotificationSettings(contacts: Map[String,Contact],
+                                groups: Map[String,Set[Contact]],
+                                notifiers: Map[String,NotifierSettings],
+                                rules: NotificationRules)
 
 /**
  *
@@ -76,6 +80,9 @@ object NotificationSettings {
         None
     }.toMap
 
+    // parse contact groups
+    val groups = Map.empty[String,Set[Contact]]
+
     // parse notifier configuration
     val notifiers = config.getConfig("notifiers").root.flatMap {
       case (name,configValue) if configValue.valueType() == ConfigValueType.OBJECT =>
@@ -99,7 +106,11 @@ object NotificationSettings {
         None
     }.toMap
 
-    new NotificationSettings(contacts, notifiers)
+    // parse notification rules
+    val rulesFile = new File(config.getString("notification-rules-file"))
+    val rules = NotificationRules.parse(rulesFile, contacts, groups)
+
+    new NotificationSettings(contacts, groups, notifiers, rules)
   }
 }
 

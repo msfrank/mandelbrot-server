@@ -181,6 +181,9 @@ class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,S
     r
   }
 
+  // matches a double-quoted string, removes the quotes
+  def unwrappedStringLiteral: Parser[String] = stringLiteral ^^ (_.tail.init)
+
   /*
    *
    */
@@ -195,14 +198,14 @@ class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,S
   /*
    * parse a mixed parameter list of contacts and groups
    */
-  def group: Parser[Set[Contact]] = _log(literal("@") ~ (ident | stringLiteral))("group") ^^ {
+  def group: Parser[Set[Contact]] = _log(literal("@") ~ (ident | unwrappedStringLiteral))("group") ^^ {
     case "@" ~ name =>
       groups.get(name) match {
         case Some(_group) => _group
         case None => Set.empty
       }
   }
-  def contact: Parser[Set[Contact]] = _log(ident | stringLiteral)("contact") ^^ {
+  def contact: Parser[Set[Contact]] = _log(ident | unwrappedStringLiteral)("contact") ^^ {
     case name =>
       contacts.get(name) match {
         case Some(_contact) => Set(_contact)

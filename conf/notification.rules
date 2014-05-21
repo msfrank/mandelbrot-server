@@ -1,0 +1,12 @@
+#
+# notification rules file
+#
+
+# send all probe notifications to contact 'michael.frank'
+when probe(*):              notify("michael.frank")
+
+# send notification if expression does _not_ match
+#unless probe(fqdn:*):      drop()
+
+# send notification to only the notifier(s) specified after the '->'
+#when probe(*):             notify() -> "debug"
