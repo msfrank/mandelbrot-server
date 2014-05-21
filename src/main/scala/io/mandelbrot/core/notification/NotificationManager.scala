@@ -35,15 +35,15 @@ class NotificationManager extends Actor with ActorLogging {
     name -> context.actorOf(props, name)
   }
   val rules = new NotificationRules(Vector(
-    NotificationRule(Set(ProbeMatcherParser("*")), NotifyContacts, settings.contacts.values.toSet)
-  ), notifiers)
+    NotificationRule(RuleMatchesAll, NotifyContacts(settings.contacts.values.toSet))
+  ))
 
   val historyService = HistoryService(context.system)
 
   def receive = {
 
     case notification: Notification =>
-      rules.evaluate(notification)
+      rules.evaluate(notification, notifiers)
       historyService ! notification
   }
 

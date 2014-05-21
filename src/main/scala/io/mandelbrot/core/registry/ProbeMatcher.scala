@@ -2,6 +2,7 @@ package io.mandelbrot.core.registry
 
 import java.util.regex.Pattern
 import scala.util.parsing.combinator.RegexParsers
+import org.slf4j.LoggerFactory
 
 /**
  * Matches a ProbeRef by individually comparing the uri scheme,  uri location,
@@ -66,7 +67,17 @@ case class PathMatcher(segments: Vector[SegmentMatcher]) {
 /**
  *
  */
-object ProbeMatcherParser extends RegexParsers {
+class ProbeMatcherParser extends RegexParsers {
+
+  val logger = LoggerFactory.getLogger(classOf[ProbeMatcherParser])
+
+  /* shamelessly copied from Parsers.scala */
+  def _log[T](p: => Parser[T])(name: String): Parser[T] = Parser { in =>
+    logger.debug("trying " + name + " at "+ in)
+    val r = p(in)
+    logger.debug(name + " --> " + r)
+    r
+  }
 
   override val skipWhitespace = false
 
@@ -124,12 +135,12 @@ object ProbeMatcherParser extends RegexParsers {
     case scheme ~ ":" ~ location ~ path => new ProbeMatcher(Some(scheme), Some(location), Some(path))
   }
 
-  def probeMatcher: Parser[ProbeMatcher] = (schemeLocationPath | schemeLocation | literal("*")) ^^ {
+  val probeMatcher: Parser[ProbeMatcher] = (schemeLocationPath | schemeLocation | literal("*")) ^^ {
     case "*" => MatchesAll
     case matcher: ProbeMatcher => matcher
   }
 
-  def apply(input: String): ProbeMatcher = parseAll(probeMatcher, input) match {
+  def parseProbeMatcher(input: String): ProbeMatcher = parseAll(probeMatcher, input) match {
     case Success(matcher: ProbeMatcher, _) => matcher
     case Success(other, _) => throw new Exception("unexpected parse result")
     case failure : NoSuccess => throw new Exception(failure.msg)

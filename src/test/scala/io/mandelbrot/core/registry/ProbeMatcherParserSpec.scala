@@ -9,13 +9,13 @@ class ProbeMatcherParserSpec extends WordSpec with MustMatchers {
   "ProbeMatcherParser" must {
 
     "parse '*'" in {
-      val matcher = ProbeMatcherParser("*")
+      val matcher = new ProbeMatcherParser().parseProbeMatcher("*")
       println(matcher)
       matcher.getClass must be === MatchesAll.getClass
     }
 
     "parse '*:*'" in {
-      val matcher = ProbeMatcherParser("*:*")
+      val matcher = new ProbeMatcherParser().parseProbeMatcher("*:*")
       println(matcher)
       inside(matcher) {
         case ProbeMatcher(scheme, location, path) =>
@@ -26,7 +26,7 @@ class ProbeMatcherParserSpec extends WordSpec with MustMatchers {
     }
 
     "parse '*:example.com'" in {
-      val matcher = ProbeMatcherParser("*:example.com")
+      val matcher = new ProbeMatcherParser().parseProbeMatcher("*:example.com")
       println(matcher)
       inside(matcher) {
         case ProbeMatcher(Some(MatchAny), Some(location: MatchExact), None) =>
@@ -35,7 +35,7 @@ class ProbeMatcherParserSpec extends WordSpec with MustMatchers {
     }
 
     "parse 'fqdn:*.com'" in {
-      val matcher = ProbeMatcherParser("fqdn:*.com")
+      val matcher = new ProbeMatcherParser().parseProbeMatcher("fqdn:*.com")
       println(matcher)
       inside(matcher) {
         case ProbeMatcher(Some(scheme: MatchExact), Some(location: MatchRegex), None) =>
@@ -45,7 +45,7 @@ class ProbeMatcherParserSpec extends WordSpec with MustMatchers {
     }
 
     "parse 'fqdn:example.com'" in {
-      val matcher = ProbeMatcherParser("fqdn:example.com")
+      val matcher = new ProbeMatcherParser().parseProbeMatcher("fqdn:example.com")
       println(matcher)
       inside(matcher) {
         case ProbeMatcher(Some(scheme: MatchExact), Some(location: MatchExact), None) =>
@@ -55,7 +55,7 @@ class ProbeMatcherParserSpec extends WordSpec with MustMatchers {
     }
 
     "parse 'fqdn:example.com/foo'" in {
-      val matcher = ProbeMatcherParser("fqdn:example.com/foo")
+      val matcher = new ProbeMatcherParser().parseProbeMatcher("fqdn:example.com/foo")
       println(matcher)
       inside(matcher) {
         case ProbeMatcher(Some(scheme: MatchExact), Some(location: MatchExact), Some(path: PathMatcher)) =>
@@ -66,7 +66,7 @@ class ProbeMatcherParserSpec extends WordSpec with MustMatchers {
     }
 
     "parse 'fqdn:example.com/foo/bar/baz'" in {
-      val matcher = ProbeMatcherParser("fqdn:example.com/foo/bar/baz")
+      val matcher = new ProbeMatcherParser().parseProbeMatcher("fqdn:example.com/foo/bar/baz")
       println(matcher)
       inside(matcher) {
         case ProbeMatcher(Some(scheme: MatchExact), Some(location: MatchExact), Some(path: PathMatcher)) =>
@@ -77,7 +77,7 @@ class ProbeMatcherParserSpec extends WordSpec with MustMatchers {
     }
 
     "parse 'fqdn:example.com/foo/*'" in {
-      val matcher = ProbeMatcherParser("fqdn:example.com/foo/*")
+      val matcher = new ProbeMatcherParser().parseProbeMatcher("fqdn:example.com/foo/*")
       println(matcher)
       inside(matcher) {
         case ProbeMatcher(Some(scheme: MatchExact), Some(location: MatchExact), Some(path: PathMatcher)) =>
