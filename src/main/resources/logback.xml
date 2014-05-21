@@ -8,8 +8,6 @@
         </encoder>
     </appender>
 
-
-    <logger name="io.mandelbrot.core.notification.NotificationRuleParser" level="INFO" additive="false"/>
     <logger name="akka" level="INFO"/>
     <logger name="spray" level="INFO"/>
     <logger name="scala.slick" level="INFO"/>
