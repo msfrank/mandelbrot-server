@@ -58,16 +58,16 @@ class Probe(probeRef: ProbeRef,
   var currentPolicy: Option[ProbePolicy] = None
   var notifier: Option[ActorRef] = None
   var flapQueue: Option[FlapQueue] = None
-  var expiryTimer: Option[Cancellable] = None
-  var alertTimer: Option[Cancellable] = None
+  var expiryTimer = new Timer(context, self, ProbeExpiryTimeout)
+  var alertTimer = new Timer(context, self, ProbeAlertTimeout)
 
   override def preStart(): Unit = {
     self ! Recover()
   }
 
   override def postStop(): Unit = {
-    cancelExpiryTimer()
-    cancelAlertTimer()
+    expiryTimer.stop()
+    alertTimer.stop()
     //log.debug("snapshotting {}", processorId)
     //saveSnapshot(ProbeSnapshot(lifecycle, health, summary, detail, lastChange, lastUpdate, correlationId, acknowledgementId, squelch))
   }
@@ -78,7 +78,7 @@ class Probe(probeRef: ProbeRef,
       persist(ProbeInitializes(initialPolicy, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
     case UpdateProbe(policy) =>
-      if (currentPolicy.isDefined && policy == currentPolicy.get)
+      if (currentPolicy.isDefined && policy != currentPolicy.get)
         persist(ProbeConfigures(policy, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
     case ProbeExpiryTimeout =>
@@ -181,13 +181,13 @@ class Probe(probeRef: ProbeRef,
         if (oldHealth == ProbeHealthy) {
           correlationId = correlation
           acknowledgementId = None
-          startAlertTimer()
+          alertTimer.start(currentPolicy.get.alertTimeout)
         }
         // we transition from non-healthy to healthy
         else if (health == ProbeHealthy) {
           correlationId = None
           acknowledgementId = None
-          cancelAlertTimer()
+          alertTimer.stop()
         }
       }
       if (!recovering) {
@@ -221,7 +221,7 @@ class Probe(probeRef: ProbeRef,
         if (oldHealth == ProbeHealthy) {
           correlationId = correlation
           acknowledgementId = None
-          startAlertTimer()
+          alertTimer.start(currentPolicy.get.alertTimeout)
         }
       }
       if (!recovering) {
@@ -243,7 +243,7 @@ class Probe(probeRef: ProbeRef,
 
     case ProbeAlerts(timestamp) =>
       // reset the alert timer
-      resetAlertTimer()
+      alertTimer.reset(currentPolicy.get.alertTimeout)
       if (!recovering) {
         correlationId match {
           case Some(correlation) =>
@@ -285,8 +285,8 @@ class Probe(probeRef: ProbeRef,
         sendNotification(NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle))
       }
       // cancel timers
-      cancelExpiryTimer()
-      cancelAlertTimer()
+      expiryTimer.stop()
+      alertTimer.stop()
   }
 
   /**
@@ -306,61 +306,18 @@ class Probe(probeRef: ProbeRef,
    *
    */
   def resetExpiryTimer(): Unit = {
-    for (current <- expiryTimer)
-      current.cancel()
-    expiryTimer = currentPolicy match {
+    currentPolicy match {
       case Some(policy) =>
         lifecycle match {
           case ProbeJoining =>
-            Some(context.system.scheduler.scheduleOnce(policy.joiningTimeout, self, ProbeExpiryTimeout))
+            expiryTimer.reset(policy.joiningTimeout)
           case ProbeLeaving =>
-            Some(context.system.scheduler.scheduleOnce(policy.leavingTimeout, self, ProbeExpiryTimeout))
+            expiryTimer.reset(policy.leavingTimeout)
           case _ =>
-            Some(context.system.scheduler.scheduleOnce(policy.probeTimeout, self, ProbeExpiryTimeout))
+            expiryTimer.reset(policy.probeTimeout)
         }
       case None => None   // FIXME: shouldn't ever happen, so throw exception here?
     }
-  }
-
-  /**
-   *
-   */
-  def cancelExpiryTimer(): Unit = {
-    for (current <- expiryTimer)
-      current.cancel()
-    expiryTimer = None
-  }
-
-  /**
-   *
-   */
-  def startAlertTimer(): Unit = if (alertTimer.isEmpty) {
-    alertTimer = currentPolicy match {
-      case Some(policy) => Some(context.system.scheduler.scheduleOnce(policy.alertTimeout, self, ProbeAlertTimeout))
-      case None => None   // FIXME: shouldn't ever happen, so throw exception here?
-    }
-  }
-
-  /**
-   *
-   */
-  def resetAlertTimer(): Unit = {
-    for (current <- alertTimer)
-      current.cancel()
-    alertTimer = currentPolicy match {
-      case Some(policy) => Some(context.system.scheduler.scheduleOnce(policy.alertTimeout, self, ProbeAlertTimeout))
-      case None => None   // FIXME: shouldn't ever happen, so throw exception here?
-    }
-  }
-
-  /**
-   *
-   *
-   */
-  def cancelAlertTimer(): Unit = {
-    for (current <- alertTimer)
-      current.cancel()
-    alertTimer = None
   }
 
   /**
