@@ -39,7 +39,7 @@ class Probe(probeRef: ProbeRef,
             notificationService: ActorRef,
             historyService: ActorRef) extends EventsourcedProcessor with ActorLogging {
   import Probe._
-  import ProbeSystem.{InitProbe,RetireProbe}
+  import ProbeSystem.{InitProbe,UpdateProbe,RetireProbe}
   import context.dispatcher
 
   // config
@@ -76,6 +76,10 @@ class Probe(probeRef: ProbeRef,
 
     case InitProbe(initialPolicy) =>
       persist(ProbeInitializes(initialPolicy, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
+
+    case UpdateProbe(policy) =>
+      if (currentPolicy.isDefined && policy == currentPolicy.get)
+        persist(ProbeConfigures(policy, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
     case ProbeExpiryTimeout =>
       val correlation = if (health == ProbeHealthy) Some(UUID.randomUUID()) else None
@@ -145,8 +149,7 @@ class Probe(probeRef: ProbeRef,
     case ProbeInitializes(initialPolicy, timestamp) =>
       // set the initial policy
       updatePolicy(initialPolicy)
-      resetExpiryTimer()
-      //
+      // initialize probe state
       lifecycle = ProbeJoining
       summary = None
       lastUpdate = Some(timestamp)
@@ -156,6 +159,10 @@ class Probe(probeRef: ProbeRef,
         stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // TODO: there should likely be a notification sent here
       }
+
+    case ProbeConfigures(policy, timestamp) =>
+      updatePolicy(policy)
+      // TODO: there should likely be a notification sent here
 
     case ProbeUpdates(message, correlation, timestamp) =>
       summary = Some(message.summary)
@@ -360,6 +367,7 @@ class Probe(probeRef: ProbeRef,
    *
    */
   def updatePolicy(policy: ProbePolicy): Unit = {
+    log.debug("probe {} updates configuration: {}", probeRef, policy)
     policy.notificationPolicy.behavior match {
       case EscalateNotifications =>
         notifier = Some(parent)
@@ -369,6 +377,7 @@ class Probe(probeRef: ProbeRef,
         notifier = None
     }
     currentPolicy = Some(policy)
+    resetExpiryTimer()
   }
 }
 
@@ -379,6 +388,7 @@ object Probe {
 
   sealed trait Event
   case class ProbeInitializes(policy: ProbePolicy, timestamp: DateTime) extends Event
+  case class ProbeConfigures(policy: ProbePolicy, timestamp: DateTime) extends Event
   case class ProbeAlerts(timestamp: DateTime) extends Event
   case class ProbeUpdates(state: StatusMessage, correlationId: Option[UUID], timestamp: DateTime) extends Event
   case class ProbeExpires(correlationId: Option[UUID], timestamp: DateTime) extends Event

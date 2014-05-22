@@ -183,6 +183,12 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
       probes(ref).actor ! PoisonPill
       probes = probes - ref
     }
+    // update existing probes
+    val probesUpdated = probeSet.intersect(specSet)
+    probesUpdated.foreach { case ref: ProbeRef =>
+      val probeSpec = findProbeSpec(registration, ref.path)
+      probes(ref).actor ! UpdateProbe(probeSpec.policy)
+    }
     currentRegistration = Some(registration)
   }
 }
@@ -193,6 +199,7 @@ object ProbeSystem {
   case class ProbeActor(spec: ProbeSpec, actor: ActorRef)
   case class InitializeProbeSystem(registration: ProbeRegistration)
   case class InitProbe(initialPolicy: ProbePolicy)
+  case class UpdateProbe(policy: ProbePolicy)
   case object RetireProbe
 }
 
