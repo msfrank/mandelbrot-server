@@ -192,11 +192,11 @@ class Probe(probeRef: ProbeRef,
         // send health notifications
         flapQueue match {
           case Some(flapDetector) if flapDetector.isFlapping =>
-            notifier.foreach(_ ! NotifyHealthFlaps(probeRef, message.timestamp, correlationId, flapDetector.flapStart))
+            sendNotification(NotifyHealthFlaps(probeRef, message.timestamp, correlationId, flapDetector.flapStart))
           case _ if oldHealth != health =>
-            notifier.foreach(_ ! NotifyHealthChanges(probeRef, message.timestamp, correlationId, oldHealth, health))
+            sendNotification(NotifyHealthChanges(probeRef, message.timestamp, correlationId, oldHealth, health))
           case _ =>
-            notifier.foreach(_ ! NotifyHealthUpdates(probeRef, message.timestamp, correlationId, health))
+            sendNotification(NotifyHealthUpdates(probeRef, message.timestamp, correlationId, health))
         }
       }
       // reset the expiry timer
@@ -224,11 +224,11 @@ class Probe(probeRef: ProbeRef,
         // send health notifications
         flapQueue match {
           case Some(flapDetector) if flapDetector.isFlapping =>
-            notifier.foreach(_ ! NotifyHealthFlaps(probeRef, timestamp, correlationId, flapDetector.flapStart))
+            sendNotification(NotifyHealthFlaps(probeRef, timestamp, correlationId, flapDetector.flapStart))
           case _ if oldHealth != health =>
-            notifier.foreach(_ ! NotifyHealthChanges(probeRef, timestamp, correlationId, oldHealth, health))
+            sendNotification(NotifyHealthChanges(probeRef, timestamp, correlationId, oldHealth, health))
           case _ =>
-            notifier.foreach(_ ! NotifyHealthExpires(probeRef, timestamp, correlationId))
+            sendNotification(NotifyHealthExpires(probeRef, timestamp, correlationId))
         }
       }
       // reset the expiry timer
@@ -240,7 +240,7 @@ class Probe(probeRef: ProbeRef,
       if (!recovering) {
         correlationId match {
           case Some(correlation) =>
-            notifier.foreach(_ ! NotifyHealthAlerts(probeRef, timestamp, health, correlation, acknowledgementId))
+            sendNotification(NotifyHealthAlerts(probeRef, timestamp, health, correlation, acknowledgementId))
           case None =>  // do nothing
         }
       }
@@ -252,16 +252,16 @@ class Probe(probeRef: ProbeRef,
         // notify state service that we are acknowledged
         stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send acknowledgement notification
-        notifier.foreach(_ ! NotifyAcknowledged(probeRef, timestamp, correlation, acknowledgement))
+        sendNotification(NotifyAcknowledged(probeRef, timestamp, correlation, acknowledgement))
       }
 
     case UserSetsSquelch(setSquelch, timestamp) =>
       squelch = setSquelch
       if (!recovering) {
         if (setSquelch)
-          notifier.foreach(_ ! NotifySquelched(probeRef, timestamp))
+          sendNotification(NotifySquelched(probeRef, timestamp))
         else
-          notifier.foreach(_ ! NotifyUnsquelched(probeRef, timestamp))
+          sendNotification(NotifyUnsquelched(probeRef, timestamp))
       }
 
     case ProbeRetires(timestamp) =>
@@ -275,11 +275,24 @@ class Probe(probeRef: ProbeRef,
         // FIXME: delete probe state
         stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send lifecycle notifications
-        notifier.foreach(_ ! NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle))
+        sendNotification(NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle))
       }
       // cancel timers
       cancelExpiryTimer()
       cancelAlertTimer()
+  }
+
+  /**
+   *
+   */
+  def sendNotification(notification: Notification): Unit = notifier.foreach { _notifier =>
+    currentPolicy.foreach {
+      case policy if policy.notificationPolicy.notifications.isEmpty =>
+        _notifier ! notification
+      case policy if policy.notificationPolicy.notifications.get.contains(notification.kind) =>
+        _notifier ! notification
+      case _ => // do nothing
+    }
   }
 
   /**
@@ -347,12 +360,12 @@ class Probe(probeRef: ProbeRef,
    *
    */
   def updatePolicy(policy: ProbePolicy): Unit = {
-    policy.notificationPolicy match {
-      case EscalateNotificationPolicy =>
+    policy.notificationPolicy.behavior match {
+      case EscalateNotifications =>
         notifier = Some(parent)
-      case EmitNotificationPolicy =>
+      case EmitNotifications =>
         notifier = Some(notificationService)
-      case SquelchNotificationPolicy =>
+      case SquelchNotifications =>
         notifier = None
     }
     currentPolicy = Some(policy)

@@ -27,7 +27,7 @@ import scala.collection.JavaConversions._
 import java.net.URI
 
 import io.mandelbrot.core._
-import io.mandelbrot.core.notification.{NotificationPolicy, NotificationService, Notification}
+import io.mandelbrot.core.notification.{NotificationPolicy, NotificationBehavior, NotificationService, Notification}
 import io.mandelbrot.core.message.{StatusMessage, MessageStream}
 
 /**
@@ -38,7 +38,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
   import ProbeSystem.InitializeProbeSystem
 
   // config
-  override def processorId = "probe-registry"
+  override def processorId = "registry-manager"
   val settings = ServerConfig(context.system).settings.registry
 
   // state
