@@ -27,18 +27,21 @@ import java.io._
 import io.mandelbrot.core.registry._
 
 /**
- *
+ * interface for implementing a rule matcher.
  */
 sealed trait RuleMatcher {
   def matches(notification: Notification): Boolean
 }
 
+/**
+ * 'any' matches all notifications.
+ */
 case object AnyMatcher extends RuleMatcher {
   def matches(notification: Notification): Boolean = true
 }
 
 /**
- *
+ * 'probe' matches if notification is a ProbeNotification and probeRef matches.
  */
 case class ProbeRuleMatcher(matcher: ProbeMatcher) extends RuleMatcher {
   def matches(notification: Notification): Boolean = notification match {
@@ -50,14 +53,14 @@ case class ProbeRuleMatcher(matcher: ProbeMatcher) extends RuleMatcher {
 }
 
 /**
- *
+ * 'type' matches if notification kind matches.
  */
 case class TypeRuleMatcher(kind: String) extends RuleMatcher {
   def matches(notification: Notification): Boolean = notification.kind == kind
 }
 
 /**
- *
+ * 'lifecycle' matches if notification is of type NotifyLifecycleChanges and newLifecycle matches.
  */
 case class LifecycleRuleMatcher(lifecycle: ProbeLifecycle) extends RuleMatcher {
   def matches(notification: Notification): Boolean = notification match {
@@ -69,7 +72,7 @@ case class LifecycleRuleMatcher(lifecycle: ProbeLifecycle) extends RuleMatcher {
 }
 
 /**
- *
+ * 'health' matches if notification is of type NotifyHealthChanges and newHealth matches.
  */
 case class HealthRuleMatcher(health: ProbeHealth) extends RuleMatcher {
   def matches(notification: Notification): Boolean = notification match {
@@ -81,7 +84,7 @@ case class HealthRuleMatcher(health: ProbeHealth) extends RuleMatcher {
 }
 
 /**
- *
+ * 'alert' matches if notification is of type NotifyHealthAlerts and health matches.
  */
 case class AlertRuleMatcher(health: ProbeHealth) extends RuleMatcher {
   def matches(notification: Notification): Boolean = notification match {
@@ -91,6 +94,34 @@ case class AlertRuleMatcher(health: ProbeHealth) extends RuleMatcher {
       false
   }
 }
+
+/**
+ * 'and' matches if and only if all of its children match.
+ */
+case class AndOperator(children: Vector[RuleMatcher]) extends RuleMatcher {
+  def matches(notification: Notification): Boolean = {
+    children.foreach(child => if (!child.matches(notification)) return false)
+    true
+  }
+}
+
+/**
+ * 'or' matches if any of its children match.
+ */
+case class OrOperator(children: Vector[RuleMatcher]) extends RuleMatcher {
+  def matches(notification: Notification): Boolean = {
+    children.foreach(child => if (child.matches(notification)) return true)
+    false
+  }
+}
+
+/**
+ * 'not' matches if its child does _not_ match.
+ */
+case class NotOperator(child: RuleMatcher) extends RuleMatcher {
+  def matches(notification: Notification): Boolean = !child.matches(notification)
+}
+
 
 /**
  * 
@@ -288,6 +319,44 @@ class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,C
 
   def ruleMatcher: Parser[RuleMatcher] = _log(anyMatcher | probeMatcher | typeMatcher | lifecycleMatcher | healthMatcher | alertMatcher)("ruleMatcher")
 
+
+  /*
+   * <Query>        ::= <OrOperator>
+   * <OrOperator>   ::= <AndOperator> ('OR' <AndOperator>)*
+   * <AndOperator>  ::= <NotOperator> ('AND' <NotOperator>)*
+   * <NotOperator>  ::= ['NOT'] <NotOperator> | <Group>
+   * <Group>        ::= '(' <OrOperator> ')' | <Expression>
+   */
+
+  def groupOperator: Parser[RuleMatcher] = _log((literal("(") ~> orOperator <~ literal(")")) | ruleMatcher)("groupOperator") ^^ {
+    case group: RuleMatcher => group
+  }
+
+  def notOperator: Parser[RuleMatcher] = _log(("not" ~ notOperator) | groupOperator)("notOperator") ^^ {
+    case "not" ~ (not: RuleMatcher) => NotOperator(not)
+    case group: RuleMatcher => group
+  }
+
+  def andOperator: Parser[RuleMatcher] = _log(notOperator ~ rep("and" ~ notOperator))("andOperator") ^^ {
+    case not1 ~ nots if nots.isEmpty =>
+      not1
+    case not1 ~ nots =>
+      val children: Vector[RuleMatcher] = nots.map { case "and" ~ group => group }.toVector
+      AndOperator(not1 +: children)
+  }
+
+  def orOperator: Parser[RuleMatcher] = _log(andOperator ~ rep("or" ~ andOperator))("orOperator") ^^ {
+    case and1 ~ ands if ands.isEmpty =>
+      and1
+    case and1 ~ ands =>
+      val children: Vector[RuleMatcher] = ands.map { case "or" ~ group => group }.toVector
+      OrOperator(and1 +: children)
+  }
+
+  /* the entry point */
+  val ruleExpression: Parser[RuleMatcher] = _log(orOperator)("ruleExpression")
+
+
   /*
    * parse a mixed parameter list of contacts and groups
    */
@@ -310,6 +379,7 @@ class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,C
     case list => list.flatten.toSet
   }
 
+
   /*
    * match actions
    */
@@ -329,7 +399,7 @@ class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,C
   def ruleAction: Parser[RuleAction] = _log(notifyAction | notifyOnlyAction | dropAction)("ruleAction")
 
   /* */
-  def notificationRule: Parser[NotificationRule] = _log(literal("when") ~ ruleMatcher ~ ":" ~ ruleAction)("notificationRule") ^^ {
+  def notificationRule: Parser[NotificationRule] = _log(literal("when") ~ ruleExpression ~ ":" ~ ruleAction)("notificationRule") ^^ {
     case "when" ~ matcher ~ ":" ~ action =>
       NotificationRule(matcher, action)
   }

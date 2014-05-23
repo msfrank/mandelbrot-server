@@ -78,6 +78,32 @@ class NotificationRulesParserSpec extends WordSpec with MustMatchers {
       val matcher = parser.parseAll(parser.alertMatcher, "alert(failed)")
       matcher.get must be === AlertRuleMatcher(ProbeFailed)
     }
-  }
 
+    "parse and operator expression" in {
+      val parser = new NotificationRuleParser(contacts, groups)
+      val matcher = parser.parseAll(parser.ruleExpression, "alert(failed) and lifecycle(known)")
+      matcher.get must be === AndOperator(Vector(AlertRuleMatcher(ProbeFailed), LifecycleRuleMatcher(ProbeKnown)))
+    }
+
+    "parse or operator expression" in {
+      val parser = new NotificationRuleParser(contacts, groups)
+      val matcher = parser.parseAll(parser.ruleExpression, "alert(failed) or lifecycle(known)")
+      matcher.get must be === OrOperator(Vector(AlertRuleMatcher(ProbeFailed), LifecycleRuleMatcher(ProbeKnown)))
+    }
+
+    "parse not operator expression" in {
+      val parser = new NotificationRuleParser(contacts, groups)
+      val matcher = parser.parseAll(parser.ruleExpression, "alert(failed) and not lifecycle(known)")
+      matcher.get must be === AndOperator(Vector(AlertRuleMatcher(ProbeFailed), NotOperator(LifecycleRuleMatcher(ProbeKnown))))
+    }
+
+    "parse group operator expression" in {
+      val parser = new NotificationRuleParser(contacts, groups)
+      val matcher = parser.parseAll(parser.ruleExpression, "(alert(failed) or alert(degraded)) and (lifecycle(known) or lifecycle(leaving))")
+      matcher.get must be === AndOperator(Vector(
+        OrOperator(Vector(AlertRuleMatcher(ProbeFailed), AlertRuleMatcher(ProbeDegraded))),
+        OrOperator(Vector(LifecycleRuleMatcher(ProbeKnown), LifecycleRuleMatcher(ProbeLeaving)))
+      ))
+    }
+  }
 }
