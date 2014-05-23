@@ -3,6 +3,8 @@
 * complete test coverage for all rule matchers, rules file parsing
 * add action notifier targeting to notification rules
 * implement notification deduplication logic 
+* fix ProbeSystemStatusResult to return a Map of results instead of
+  a Vector
 
 
 0.0.4

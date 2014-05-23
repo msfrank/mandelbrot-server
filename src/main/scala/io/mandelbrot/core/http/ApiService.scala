@@ -121,33 +121,43 @@ trait ApiService extends HttpService {
         path("status") {
           /* describe the status of the ProbeSystem */
           get {
+            pathParams { paths =>
             complete {
-              registryService.ask(GetProbeSystemStatus(uri)).map {
+              registryService.ask(GetProbeSystemStatus(uri, paths)).map {
                 case result: GetProbeSystemStatusResult =>
                   result.state
                 case failure: ProbeSystemOperationFailed =>
                   throw failure.failure
               }
-            }
+            }}
           }
         } ~
         path("metadata") {
-          /* return all metadata attached to the ProbeSystem */
+          /* return metadata attached to the ProbeSystem */
           get {
+            pathParams { paths =>
             complete {
-              registryService.ask(GetProbeSystemMetadata(uri)).map {
+              registryService.ask(GetProbeSystemMetadata(uri, paths)).map {
                 case result: GetProbeSystemMetadataResult =>
                   result.metadata
                 case failure: ProbeSystemOperationFailed =>
                   throw failure.failure
               }
-            }
+            }}
           }
         } ~
         path("policy") {
           /* return the current policy */
           get {
-            complete { StatusCodes.BadRequest }
+            pathParams { paths =>
+            complete {
+              registryService.ask(GetProbeSystemPolicy(uri, paths)).map {
+                case result: GetProbeSystemPolicyResult =>
+                  result.policy
+                case failure: ProbeSystemOperationFailed =>
+                  throw failure.failure
+              }
+            }}
           }
         }
       } ~
