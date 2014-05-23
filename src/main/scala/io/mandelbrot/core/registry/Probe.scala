@@ -372,7 +372,6 @@ case object ProbeJoining extends ProbeLifecycle { override def toString = "joini
 case object ProbeKnown extends ProbeLifecycle   { override def toString = "known" }
 case object ProbeLeaving extends ProbeLifecycle { override def toString = "leaving" }
 case object ProbeRetired extends ProbeLifecycle { override def toString = "retired" }
-case object ProbeStatic extends ProbeLifecycle  { override def toString = "static" }
 
 /* object state */
 sealed trait ProbeHealth
