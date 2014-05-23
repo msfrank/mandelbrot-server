@@ -21,9 +21,15 @@ package io.mandelbrot.core.http
 
 import org.joda.time.DateTime
 import org.joda.time.format.ISODateTimeFormat
-import io.mandelbrot.core.{BadRequest, ApiException}
 import spray.http.{HttpHeader, HttpHeaders}
+import spray.http.Uri.Path
+import spray.routing.PathMatcher1
 import spray.util.SSLSessionInfo
+import java.net.URI
+
+import io.mandelbrot.core.{BadRequest, ApiException}
+import spray.routing.PathMatcher.{Unmatched, Matched}
+import shapeless.HNil
 
 object RoutingDirectives {
   import shapeless._
@@ -32,10 +38,25 @@ object RoutingDirectives {
 
   val datetimeParser = ISODateTimeFormat.dateTimeParser().withZoneUTC()
 
+  /**
+   *
+   */
+  type PathParams = Option[Set[String]]
+  private val parameterMultimap2pathParams: Directive[Map[String,List[String]] :: HNil] = parameterMultiMap
+  val pathParams: Directive1[PathParams] = parameterMultimap2pathParams.hmap {
+    case params :: HNil =>
+      params.get("path") match {
+        case Some(paths) => Some(paths.toSet)
+        case None => None
+      }
+  }
+
+  /**
+   *
+   */
   private val parameters2timeseriesParams: Directive[Option[String] :: Option[String] :: Option[Int] :: Option[String] :: HNil] = {
     parameters('from.as[String].?, 'to.as[String].?, 'limit.as[Int].?, 'last.as[String].?)
   }
-
   val timeseriesParams: Directive1[TimeseriesParams] = parameters2timeseriesParams.hmap {
     case from :: to :: limit :: last :: HNil =>
       val start = try {
@@ -51,12 +72,27 @@ object RoutingDirectives {
       TimeseriesParams(start, end, limit, last)
   }
 
+  /**
+   *
+   */
   private def extractSSLSessionInfo: HttpHeader => Option[SSLSessionInfo] = {
     case header: HttpHeaders.`SSL-Session-Info` => Some(header.info)
     case _ => None
   }
-
   val sslSessionInfo: Directive1[Option[SSLSessionInfo]] = optionalHeaderValue(extractSSLSessionInfo)
 }
 
+/**
+ *
+ */
 case class TimeseriesParams(from: Option[DateTime], to: Option[DateTime], limit: Option[Int], last: Option[String])
+
+/**
+ *
+ */
+object Uri extends PathMatcher1[URI] {
+  def apply(path: Path) = path match {
+    case Path.Segment(segment, tail) ⇒ Matched(tail, new URI(segment) :: HNil)
+    case _                           ⇒ Unmatched
+  }
+}

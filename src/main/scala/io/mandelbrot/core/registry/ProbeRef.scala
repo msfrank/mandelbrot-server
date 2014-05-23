@@ -54,10 +54,14 @@ object ProbeRef {
     }
   }
 
-  def apply(uri: String, path: String): ProbeRef = {
+  def apply(uri: URI): ProbeRef = apply(uri, Vector.empty)
+
+  def apply(uri: URI, path: String): ProbeRef = {
     val segments = path.split('/').filter(_ != "").toVector
-    new ProbeRef(new URI(uri), segments)
+    new ProbeRef(uri, segments)
   }
+
+  def apply(uri: String, path: String): ProbeRef = apply(new URI(uri), path)
 
   def unapply(probeRef: ProbeRef): Option[(URI,Vector[String])] = Some((probeRef.uri, probeRef.path))
 }

@@ -90,12 +90,12 @@ trait ApiService extends HttpService {
         }
       }
     } ~
-    pathPrefix("systems" / Segment) { case uri: String =>
+    pathPrefix("systems" / Uri) { case uri: URI =>
       pathEndOrSingleSlash {
         /* retrieve the spec for the specified probe system */
         get {
           complete {
-            registryService.ask(DescribeProbeSystem(new URI(uri))).map {
+            registryService.ask(DescribeProbeSystem(uri)).map {
               case result: DescribeProbeSystemResult =>
                 result.registration
               case failure: ProbeSystemOperationFailed =>
@@ -122,7 +122,7 @@ trait ApiService extends HttpService {
           /* describe the status of the ProbeSystem */
           get {
             complete {
-              registryService.ask(GetProbeSystemStatus(new URI(uri))).map {
+              registryService.ask(GetProbeSystemStatus(uri)).map {
                 case result: GetProbeSystemStatusResult =>
                   result.state
                 case failure: ProbeSystemOperationFailed =>
@@ -135,7 +135,7 @@ trait ApiService extends HttpService {
           /* return all metadata attached to the ProbeSystem */
           get {
             complete {
-              registryService.ask(GetProbeSystemMetadata(new URI(uri))).map {
+              registryService.ask(GetProbeSystemMetadata(uri)).map {
                 case result: GetProbeSystemMetadataResult =>
                   result.metadata
                 case failure: ProbeSystemOperationFailed =>
