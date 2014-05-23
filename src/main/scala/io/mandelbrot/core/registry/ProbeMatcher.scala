@@ -85,29 +85,36 @@ class ProbeMatcherParser extends RegexParsers {
 
   def parseGlob(glob: String): SegmentMatcher = {
     val tokens: Vector[String] = glob.foldLeft(Vector.empty[String]) {
+      /* first time around we just store the char */
       case (t, ch) if t.isEmpty => Vector(ch.toString)
+      /* if ch is '?' */
+      case (t, '?') =>
+        val curr = t.last
+        /* if last char was *, then don't store anything, otherwise append the ? */
+        if (curr == "*") t else t :+ "?"
+      /* if ch is '*' */
+      case (t, '*') =>
+        val curr = t.last
+        /*
+         * if last char was *, then don't store anything, otherwise if last char
+         * was ? then we back out any ? chars and replace with a single *, otherwise
+         * just append the *
+         */
+        if (curr == "*") t else if (curr == "?") {
+          var prefix: Vector[String] = t
+          while (prefix.last == "?")
+            prefix = prefix.init
+          prefix :+ "*"
+        } else t :+ "*"
+      /* if ch is not a matcher ('?' or '*') */
       case (t, ch) =>
         val curr = t.last
-        ch match {
-          case '?' if curr == "*" =>
-            t
-          case '?' =>
-            t :+ "?"
-          case '*' if curr == "*" =>
-            t
-          case '*' if curr == "?" =>
-            var prefix: Vector[String] = t
-            while (prefix.last == "?")
-              prefix = prefix.init
-            prefix :+ "*"
-          case _ if curr == "*" || curr == "?" =>
-            t :+ ch.toString
-          case _ =>
-            t.init :+ (curr + ch)
-        }
+        /* if last char was a matcher, then append to tokens list, otherwise append to last token */
+        if (curr == "*" || curr == "?") t :+ ch.toString else t.init :+ (curr + ch)
     }
     tokens match {
       case Vector("*") => MatchAny
+      case Vector("?") => MatchRegex(Pattern.compile(".?"))
       case vector if vector.length == 1 => MatchExact(vector.head)
       case _ =>
         val regex = tokens.map {

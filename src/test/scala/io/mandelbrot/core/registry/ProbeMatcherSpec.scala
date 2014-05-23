@@ -46,5 +46,39 @@ class ProbeMatcherSpec extends WordSpec with MustMatchers {
       val matcher = new ProbeMatcherParser().parseProbeMatcher("*:*/load")
       matcher.matches(ProbeRef("fqdn:localhost/cpu")) must be(false)
     }
+
+    "match when path wildcard prefix matches" in {
+      val matcher = new ProbeMatcherParser().parseProbeMatcher("*:*/*ad")
+      println(matcher)
+      matcher.matches(ProbeRef("fqdn:example.com/load")) must be(true)
+    }
+
+    "not match when path wildcard prefix doesn't match" in {
+      val matcher = new ProbeMatcherParser().parseProbeMatcher("*:*/*ad")
+      matcher.matches(ProbeRef("fqdn:localhost/cpu")) must be(false)
+    }
+
+    "match when path wildcard matches" in {
+      val matcher = new ProbeMatcherParser().parseProbeMatcher("*:*/l*d")
+      println(matcher)
+      matcher.matches(ProbeRef("fqdn:example.com/load")) must be(true)
+    }
+
+    "not match when path wildcard doesn't match" in {
+      val matcher = new ProbeMatcherParser().parseProbeMatcher("*:*/l*d")
+      matcher.matches(ProbeRef("fqdn:localhost/cpu")) must be(false)
+    }
+
+    "match when path wildcard suffix matches" in {
+      val matcher = new ProbeMatcherParser().parseProbeMatcher("*:*/lo*")
+      println(matcher)
+      matcher.matches(ProbeRef("fqdn:example.com/load")) must be(true)
+    }
+
+    "not match when path wildcard suffix doesn't match" in {
+      val matcher = new ProbeMatcherParser().parseProbeMatcher("*:*/lo*")
+      matcher.matches(ProbeRef("fqdn:localhost/cpu")) must be(false)
+    }
+
   }
 }
