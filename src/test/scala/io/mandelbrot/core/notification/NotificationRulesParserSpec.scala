@@ -4,7 +4,11 @@ import org.scalatest.WordSpec
 import org.scalatest.matchers.MustMatchers
 import java.io.StringReader
 
-import io.mandelbrot.core.registry.{MatchAny, MatchExact, PathMatcher, ProbeMatcher}
+import io.mandelbrot.core.registry._
+import io.mandelbrot.core.registry.ProbeMatcher
+import io.mandelbrot.core.registry.PathMatcher
+import io.mandelbrot.core.registry.MatchExact
+import scala.Some
 
 class NotificationRulesParserSpec extends WordSpec with MustMatchers {
 
@@ -39,6 +43,41 @@ class NotificationRulesParserSpec extends WordSpec with MustMatchers {
       rules.rules(2).action must be === DropNotification
     }
 
+    "parse any matcher" in {
+      val parser = new NotificationRuleParser(contacts, groups)
+      val matcher = parser.parseAll(parser.anyMatcher, "any()")
+      matcher.get must be(AnyMatcher)
+    }
+
+    "parse probe matcher" in {
+      val parser = new NotificationRuleParser(contacts, groups)
+      val matcher = parser.parseAll(parser.probeMatcher, "probe(*)")
+      matcher.get must be === ProbeRuleMatcher(ProbeMatcher(None, None, None))
+    }
+
+    "parse type matcher" in {
+      val parser = new NotificationRuleParser(contacts, groups)
+      val matcher = parser.parseAll(parser.typeMatcher, "type(probe-acknowledged)")
+      matcher.get must be === TypeRuleMatcher("probe-acknowledged")
+    }
+
+    "parse lifecycle matcher" in {
+      val parser = new NotificationRuleParser(contacts, groups)
+      val matcher = parser.parseAll(parser.lifecycleMatcher, "lifecycle(joining)")
+      matcher.get must be === LifecycleRuleMatcher(ProbeJoining)
+    }
+
+    "parse health matcher" in {
+      val parser = new NotificationRuleParser(contacts, groups)
+      val matcher = parser.parseAll(parser.healthMatcher, "health(healthy)")
+      matcher.get must be === HealthRuleMatcher(ProbeHealthy)
+    }
+
+    "parse alert matcher" in {
+      val parser = new NotificationRuleParser(contacts, groups)
+      val matcher = parser.parseAll(parser.alertMatcher, "alert(failed)")
+      matcher.get must be === AlertRuleMatcher(ProbeFailed)
+    }
   }
 
 }

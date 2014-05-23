@@ -21,10 +21,10 @@ package io.mandelbrot.core.notification
 
 import akka.actor.ActorRef
 import scala.util.parsing.combinator.JavaTokenParsers
+import org.slf4j.LoggerFactory
 import java.io._
 
-import io.mandelbrot.core.registry.ProbeMatcher
-import org.slf4j.LoggerFactory
+import io.mandelbrot.core.registry._
 
 /**
  *
@@ -33,7 +33,7 @@ sealed trait RuleMatcher {
   def matches(notification: Notification): Boolean
 }
 
-case object RuleMatchesAll extends RuleMatcher {
+case object AnyMatcher extends RuleMatcher {
   def matches(notification: Notification): Boolean = true
 }
 
@@ -52,8 +52,44 @@ case class ProbeRuleMatcher(matcher: ProbeMatcher) extends RuleMatcher {
 /**
  *
  */
-case class TypeRuleMatcher(notificationType: Class[_]) extends RuleMatcher {
-  def matches(notification: Notification): Boolean = false
+case class TypeRuleMatcher(kind: String) extends RuleMatcher {
+  def matches(notification: Notification): Boolean = notification.kind == kind
+}
+
+/**
+ *
+ */
+case class LifecycleRuleMatcher(lifecycle: ProbeLifecycle) extends RuleMatcher {
+  def matches(notification: Notification): Boolean = notification match {
+    case n: NotifyLifecycleChanges if n.newLifecycle == lifecycle =>
+      true
+    case otherwise =>
+      false
+  }
+}
+
+/**
+ *
+ */
+case class HealthRuleMatcher(health: ProbeHealth) extends RuleMatcher {
+  def matches(notification: Notification): Boolean = notification match {
+    case n: NotifyHealthChanges if n.newHealth == health =>
+      true
+    case otherwise =>
+      false
+  }
+}
+
+/**
+ *
+ */
+case class AlertRuleMatcher(health: ProbeHealth) extends RuleMatcher {
+  def matches(notification: Notification): Boolean = notification match {
+    case n: NotifyHealthAlerts if n.health == health =>
+      true
+    case otherwise =>
+      false
+  }
 }
 
 /**
@@ -187,13 +223,70 @@ class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,C
   /*
    *
    */
+  def anyMatcher: Parser[RuleMatcher] = _log(literal("any") ~ literal("(") ~ literal(")"))("anyMatcher") ^^ {
+    case "any" ~ "(" ~ ")" => AnyMatcher
+  }
+
   val probeMatcherParser = new ProbeMatcherParser()
-  def probeMatcher: Parser[RuleMatcher] = _log(ident ~ literal("(") ~ regex("""[^)]*""".r) ~ literal(")"))("probeMatcher") ^^ {
+  def probeMatcher: Parser[RuleMatcher] = _log(literal("probe") ~ literal("(") ~ regex("""[^)]*""".r) ~ literal(")"))("probeMatcher") ^^ {
     case "probe" ~ "(" ~ matchString ~ ")" =>
       ProbeRuleMatcher(probeMatcherParser.parseProbeMatcher(matchString.trim))
   }
 
-  def ruleMatcher: Parser[RuleMatcher] = _log(probeMatcher)("ruleMatcher")
+  def typeMatcher: Parser[RuleMatcher] = _log(literal("type") ~ literal("(") ~ regex("""[^)]*""".r) ~ literal(")"))("typeMatcher") ^^ {
+    case "type" ~ "(" ~ matchString ~ ")" =>
+      TypeRuleMatcher(matchString.trim)
+  }
+
+  def lifecycleMatcher: Parser[RuleMatcher] = _log(literal("lifecycle") ~ literal("(") ~ regex("""[^)]*""".r) ~ literal(")"))("lifecycleMatcher") ^^ {
+    case "lifecycle" ~ "(" ~ matchString ~ ")" =>
+      matchString.trim match {
+        case "joining" =>
+          LifecycleRuleMatcher(ProbeJoining)
+        case "known" =>
+          LifecycleRuleMatcher(ProbeKnown)
+        case "leaving" =>
+          LifecycleRuleMatcher(ProbeLeaving)
+        case "retired" =>
+          LifecycleRuleMatcher(ProbeRetired)
+        case unknown =>
+          throw new Exception("unknown lifecycle '%s'".format(unknown))
+      }
+  }
+
+  def healthMatcher: Parser[RuleMatcher] = _log(literal("health") ~ literal("(") ~ regex("""[^)]*""".r) ~ literal(")"))("healthMatcher") ^^ {
+    case "health" ~ "(" ~ matchString ~ ")" =>
+      matchString.trim match {
+        case "healthy" =>
+          HealthRuleMatcher(ProbeHealthy)
+        case "degraded" =>
+          HealthRuleMatcher(ProbeDegraded)
+        case "failed" =>
+          HealthRuleMatcher(ProbeFailed)
+        case "unknown" =>
+          HealthRuleMatcher(ProbeUnknown)
+        case unknown =>
+          throw new Exception("unknown health '%s'".format(unknown))
+      }
+  }
+
+  def alertMatcher: Parser[RuleMatcher] = _log(literal("alert") ~ literal("(") ~ regex("""[^)]*""".r) ~ literal(")"))("healthMatcher") ^^ {
+    case "alert" ~ "(" ~ matchString ~ ")" =>
+      matchString.trim match {
+        case "healthy" =>
+          AlertRuleMatcher(ProbeHealthy)
+        case "degraded" =>
+          AlertRuleMatcher(ProbeDegraded)
+        case "failed" =>
+          AlertRuleMatcher(ProbeFailed)
+        case "unknown" =>
+          AlertRuleMatcher(ProbeUnknown)
+        case unknown =>
+          throw new Exception("unknown health '%s'".format(unknown))
+      }
+  }
+
+  def ruleMatcher: Parser[RuleMatcher] = _log(anyMatcher | probeMatcher | typeMatcher | lifecycleMatcher | healthMatcher | alertMatcher)("ruleMatcher")
 
   /*
    * parse a mixed parameter list of contacts and groups
