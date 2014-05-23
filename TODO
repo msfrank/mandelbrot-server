@@ -1,0 +1,20 @@
+0.0.3
+-----
+* complete test coverage for all rule matchers, rules file parsing
+
+
+0.0.4
+-----
+* re-enable akka-persistence snapshotting for RegistryManager and Probes
+* allow path= query param for /objects/systems/ GET requests to filter
+  individual probes from system responses
+
+
+backlog
+-------
+* implement management of scheduled downtime
+* notification templating (use scalate?)
+* implement search interface for state service, history service,
+  notification service
+* implement metrics storage
+* implement snapshots storage
