@@ -33,7 +33,7 @@ class Timer(context: ActorContext, receiver: ActorRef, message: Any) {
   private var lastArmed: Option[DateTime] = None
 
   /**
-   *
+   * if timer is not running, then starts the timer, otherwise does nothing.
    */
   def start(timeout: FiniteDuration): Unit = if (timer.isEmpty) {
     timer = Some(context.system.scheduler.scheduleOnce(timeout, receiver, message))
@@ -42,7 +42,32 @@ class Timer(context: ActorContext, receiver: ActorRef, message: Any) {
   }
 
   /**
-   *
+   * if the timer is running, then stops the timer, otherwise does nothing.
+   */
+  def stop(): Unit = {
+    for (current <- timer)
+      current.cancel()
+    timer = None
+    lastArmed = None
+  }
+
+  /**
+   * returns true if the timer is running, otherwise false.
+   */
+  def isRunning: Boolean = timer.isDefined
+
+  /**
+   * shorthand to stop and start the timer.
+   */
+  def restart(timeout: FiniteDuration): Unit = {
+    stop()
+    start(timeout)
+  }
+
+  /**
+   * first stops the current timer, if it is running.  then, checks the duration between now
+   * and the last timeout, and if it is larger than the new specified timeout, it sends the
+   * message to the receiver.  finally, it starts the timer with the new specified timeout.
    */
   def reset(timeout: FiniteDuration): Unit = {
     val now = DateTime.now(DateTimeZone.UTC)
@@ -53,16 +78,4 @@ class Timer(context: ActorContext, receiver: ActorRef, message: Any) {
       receiver ! message
     start(timeout)
   }
-
-  /**
-   *
-   */
-  def stop(): Unit = {
-    for (current <- timer)
-      current.cancel()
-    timer = None
-    lastArmed = None
-  }
-
-  def isRunning: Boolean = timer.isDefined
 }

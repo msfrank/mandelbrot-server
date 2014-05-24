@@ -149,6 +149,7 @@ class Probe(probeRef: ProbeRef,
     case ProbeInitializes(initialPolicy, timestamp) =>
       // set the initial policy
       updatePolicy(initialPolicy)
+      resetExpiryTimer()
       // initialize probe state
       lifecycle = ProbeJoining
       summary = None
@@ -162,6 +163,7 @@ class Probe(probeRef: ProbeRef,
 
     case ProbeConfigures(policy, timestamp) =>
       updatePolicy(policy)
+      resetExpiryTimer()
       // TODO: there should likely be a notification sent here
 
     case ProbeUpdates(message, correlation, timestamp) =>
@@ -239,11 +241,11 @@ class Probe(probeRef: ProbeRef,
         }
       }
       // reset the expiry timer
-      resetExpiryTimer()
+      restartExpiryTimer()
 
     case ProbeAlerts(timestamp) =>
       // reset the alert timer
-      alertTimer.reset(currentPolicy.get.alertTimeout)
+      alertTimer.restart(currentPolicy.get.alertTimeout)
       if (!recovering) {
         correlationId match {
           case Some(correlation) =>
@@ -290,7 +292,9 @@ class Probe(probeRef: ProbeRef,
   }
 
   /**
-   *
+   * send the notification if the notification set policy is not specified (meaning
+   * send all notifications) or if the policy is specified and this specific notification
+   * type is in the notification set.
    */
   def sendNotification(notification: Notification): Unit = notifier.foreach { _notifier =>
     currentPolicy.foreach {
@@ -303,7 +307,9 @@ class Probe(probeRef: ProbeRef,
   }
 
   /**
-   *
+   * reset the expiry timer, checking lastTimeout.  this will potentially send
+   * a ProbeExpiryTimeout message if the timeout from a new policy is smaller than
+   * the old policy.
    */
   def resetExpiryTimer(): Unit = {
     currentPolicy match {
@@ -321,7 +327,26 @@ class Probe(probeRef: ProbeRef,
   }
 
   /**
-   *
+   * restart the expiry timer, but don't check lastTimeout when re-arming, otherwise
+   * we may get duplicate ProbeExpiryTimeout messages.
+   */
+  def restartExpiryTimer(): Unit = {
+    currentPolicy match {
+      case Some(policy) =>
+        lifecycle match {
+          case ProbeJoining =>
+            expiryTimer.restart(policy.joiningTimeout)
+          case ProbeLeaving =>
+            expiryTimer.restart(policy.leavingTimeout)
+          case _ =>
+            expiryTimer.restart(policy.probeTimeout)
+        }
+      case None => None   // FIXME: shouldn't ever happen, so throw exception here?
+    }
+  }
+
+  /**
+   * update state based on the new policy.
    */
   def updatePolicy(policy: ProbePolicy): Unit = {
     log.debug("probe {} updates configuration: {}", probeRef, policy)
@@ -334,7 +359,6 @@ class Probe(probeRef: ProbeRef,
         notifier = None
     }
     currentPolicy = Some(policy)
-    resetExpiryTimer()
   }
 }
 

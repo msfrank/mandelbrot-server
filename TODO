@@ -1,11 +1,18 @@
+immediately
+-----------
+* fix double alert Notification when server is restarted
+
+
 0.0.3
 -----
+* upgrade akka to 2.3.3
 * complete test coverage for all rule matchers, rules file parsing
 * add action notifier targeting to notification rules
 * implement notification deduplication logic 
 * fix ProbeSystemStatusResult to return a Map of results instead of
   a Vector
-
+* add NotifyRecovers notification
+* add behavior to Probe to drop messages before InitProbe is received
 
 0.0.4
 -----
