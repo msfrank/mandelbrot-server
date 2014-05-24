@@ -1,11 +1,10 @@
 immediately
 -----------
-* fix double alert Notification when server is restarted
+* preserve probe lifecycle across restarts?  or perhaps make it a setting
 
 
-0.0.3
+0.0.4
 -----
-* upgrade akka to 2.3.3
 * complete test coverage for all rule matchers, rules file parsing
 * add action notifier targeting to notification rules
 * implement notification deduplication logic 
@@ -13,9 +12,6 @@ immediately
   a Vector
 * add NotifyRecovers notification
 * add behavior to Probe to drop messages before InitProbe is received
-
-0.0.4
------
 * re-enable akka-persistence snapshotting for RegistryManager and Probes
 * allow path= query param for /objects/systems/ GET requests to filter
   individual probes from system responses

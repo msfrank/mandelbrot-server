@@ -28,10 +28,17 @@ import scala.concurrent.duration._
 import java.net.URI
 
 import io.mandelbrot.core.{ServerConfig, ResourceNotFound, ApiException}
-import io.mandelbrot.core.notification.{NotificationService, Notification}
+import io.mandelbrot.core.notification.{ProbeNotification, NotificationService, Notification}
 import io.mandelbrot.core.message.MandelbrotMessage
 import io.mandelbrot.core.state.StateService
-import io.mandelbrot.core.history.HistoryService
+import io.mandelbrot.core.history._
+import io.mandelbrot.core.http.TimeseriesParams
+import scala.Some
+import io.mandelbrot.core.history.GetStatusHistoryResult
+import io.mandelbrot.core.http.TimeseriesParams
+import io.mandelbrot.core.history.GetStatusHistory
+import akka.actor.Terminated
+import io.mandelbrot.core.history.HistoryServiceOperationFailed
 
 /**
  *
@@ -42,7 +49,7 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
 
   // config
   val settings = ServerConfig(context.system).settings
-  val timeout = Timeout(5.seconds)
+  implicit val timeout = Timeout(5.seconds)   // TODO: pull this from settings
 
   // state
   var probes: Map[ProbeRef,ProbeActor] = Map.empty
@@ -113,6 +120,38 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
         case None =>
           sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
       }
+
+    /* get the status history for the specified probes */
+    case query: GetProbeSystemStatusHistory =>
+      val from = query.params.from
+      val to = query.params.to
+      val limit = query.params.limit
+      val q = if (query.paths.isEmpty) GetStatusHistory(Left(ProbeRef(uri)), from, to, limit) else {
+        val refs = findMatching(query.paths).map(_._1)
+        GetStatusHistory(Right(refs), from, to, limit)
+      }
+      historyService.ask(q).map {
+        case GetStatusHistoryResult(_, history) =>
+          GetProbeSystemStatusHistoryResult(query, history)
+        case failure: HistoryServiceOperationFailed =>
+          ProbeSystemOperationFailed(query, failure.failure)
+      }.pipeTo(sender())
+
+    /* get the notification history for the specified probes */
+    case query: GetProbeSystemNotificationHistory =>
+      val from = query.params.from
+      val to = query.params.to
+      val limit = query.params.limit
+      val q = if (query.paths.isEmpty) GetNotificationHistory(Left(ProbeRef(uri)), from, to, limit) else {
+        val refs = findMatching(query.paths).map(_._1)
+        GetNotificationHistory(Right(refs), from, to, limit)
+      }
+      historyService.ask(q).map {
+        case GetNotificationHistoryResult(_, history) =>
+          GetProbeSystemNotificationHistoryResult(query, history)
+        case failure: HistoryServiceOperationFailed =>
+          ProbeSystemOperationFailed(query, failure.failure)
+      }.pipeTo(sender())
 
     /* send message to specified probe */
     case message: MandelbrotMessage =>
@@ -258,3 +297,9 @@ case class GetProbeSystemMetadataResult(op: GetProbeSystemMetadata, metadata: Ma
 
 case class GetProbeSystemPolicy(uri: URI, paths: Option[Set[String]]) extends ProbeSystemQuery
 case class GetProbeSystemPolicyResult(op: GetProbeSystemPolicy, policy: Map[ProbeRef,ProbePolicy])
+
+case class GetProbeSystemStatusHistory(uri: URI, paths: Option[Set[String]], params: TimeseriesParams) extends ProbeSystemQuery
+case class GetProbeSystemStatusHistoryResult(op: GetProbeSystemStatusHistory, history: Vector[ProbeStatus])
+
+case class GetProbeSystemNotificationHistory(uri: URI, paths: Option[Set[String]], params: TimeseriesParams) extends ProbeSystemQuery
+case class GetProbeSystemNotificationHistoryResult(op: GetProbeSystemNotificationHistory, history: Vector[ProbeNotification])

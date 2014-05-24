@@ -244,7 +244,7 @@ class Probe(probeRef: ProbeRef,
       restartExpiryTimer()
 
     case ProbeAlerts(timestamp) =>
-      // reset the alert timer
+      // restart the alert timer
       alertTimer.restart(currentPolicy.get.alertTimeout)
       if (!recovering) {
         correlationId match {

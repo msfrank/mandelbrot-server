@@ -164,20 +164,13 @@ trait ApiService extends HttpService {
       pathPrefix("collections") {
         path("history") {
           get {
-            timeseriesParams { case TimeseriesParams(from, to, limit, last) =>
-            parameterMultiMap { case params =>
-              val query = params.get("path") match {
-                case Some(paths) =>
-                  val probeRefs = paths.map(ProbeRef(uri, _)).toSet
-                  GetStatusHistory(Right(probeRefs), from, to, limit)
-                case None =>
-                  GetStatusHistory(Left(ProbeRef(uri)), from, to, limit)
-              }
+            timeseriesParams { params =>
+            pathParams { paths =>
               complete {
-                historyService.ask(query).map {
-                  case result: GetStatusHistoryResult =>
+                registryService.ask(GetProbeSystemStatusHistory(uri, paths, params)).map {
+                  case result: GetProbeSystemStatusHistoryResult =>
                     result.history
-                  case failure: HistoryServiceOperationFailed =>
+                  case failure: ProbeSystemOperationFailed =>
                     throw failure.failure
                 }
               }
@@ -186,20 +179,13 @@ trait ApiService extends HttpService {
         } ~
         path("notifications") {
           get {
-            timeseriesParams { case TimeseriesParams(from, to, limit, last) =>
-            parameterMultiMap { case params =>
-              val query = params.get("path") match {
-                case Some(paths) =>
-                  val probeRefs = paths.map(ProbeRef(uri, _)).toSet
-                  GetNotificationHistory(Right(probeRefs), from, to, limit)
-                case None =>
-                  GetNotificationHistory(Left(ProbeRef(uri)), from, to, limit)
-              }
+            timeseriesParams { params =>
+            pathParams { paths =>
               complete {
-                historyService.ask(query).map {
-                  case result: GetNotificationHistoryResult =>
+                registryService.ask(GetProbeSystemNotificationHistory(uri, paths, params)).map {
+                  case result: GetProbeSystemNotificationHistoryResult =>
                     result.history
-                  case failure: HistoryServiceOperationFailed =>
+                  case failure: ProbeSystemOperationFailed =>
                     throw failure.failure
                 }
               }
