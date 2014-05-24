@@ -86,12 +86,14 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
     case query: GetProbeSystemStatus =>
       currentRegistration match {
         case Some(spec) =>
-          val futures = findMatching(query.paths).toVector.map { case (ref: ProbeRef, actor: ProbeActor) =>
+          val futures = findMatching(query.paths).map { case (ref: ProbeRef, actor: ProbeActor) =>
             actor.actor.ask(GetProbeStatus(ref))(timeout).mapTo[GetProbeStatusResult]
           }
-          // FIXME: handle error reply
-          Future.sequence(futures).map { case results: Vector[GetProbeStatusResult] =>
-            GetProbeSystemStatusResult(query, results.map(_.state))
+          Future.sequence(futures).map {
+            case results: Set[GetProbeStatusResult] =>
+              GetProbeSystemStatusResult(query, results.map(result => result.state.probeRef -> result.state).toMap)
+          }.recover {
+            case ex: Throwable => ProbeSystemOperationFailed(query, ex)
           }.pipeTo(sender())
         case None =>
           sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
@@ -290,7 +292,7 @@ case class UpdateProbeSystem(uri: URI, registration: ProbeRegistration) extends 
 case class UpdateProbeSystemResult(op: UpdateProbeSystem, ref: ActorRef)
 
 case class GetProbeSystemStatus(uri: URI, paths: Option[Set[String]]) extends ProbeSystemQuery
-case class GetProbeSystemStatusResult(op: GetProbeSystemStatus, state: Vector[ProbeStatus])
+case class GetProbeSystemStatusResult(op: GetProbeSystemStatus, state: Map[ProbeRef,ProbeStatus])
 
 case class GetProbeSystemMetadata(uri: URI, paths: Option[Set[String]]) extends ProbeSystemQuery
 case class GetProbeSystemMetadataResult(op: GetProbeSystemMetadata, metadata: Map[ProbeRef,Map[String,String]])
