@@ -257,8 +257,7 @@ class Probe(probeRef: ProbeRef,
       acknowledgementId = Some(acknowledgement)
       if (!recovering) {
         // create new acknowledgement
-        val worknote = Worknote(acknowledgement, timestamp, command.message, command.internal.getOrElse(true))
-        stateService ! Acknowledgement(probeRef, acknowledgement, correlation, timestamp, worknote)
+        stateService ! Acknowledgement(probeRef, acknowledgement, correlation, timestamp)
         // notify state service that we are acknowledged
         stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send acknowledgement notification
@@ -436,5 +435,8 @@ case class GetProbeStatusResult(op: GetProbeStatus, state: ProbeStatus)
 case class SetProbeSquelch(probeRef: ProbeRef, squelch: Boolean) extends ProbeCommand
 case class SetProbeSquelchResult(op: SetProbeSquelch, squelch: Boolean)
 
-case class AcknowledgeProbe(probeRef: ProbeRef, correlationId: UUID, message: String, internal: Option[Boolean]) extends ProbeCommand
+case class AcknowledgeProbe(probeRef: ProbeRef, correlationId: UUID) extends ProbeCommand
 case class AcknowledgeProbeResult(op: AcknowledgeProbe, acknowledgementId: UUID)
+
+case class AppendProbeWorknote(probeRef: ProbeRef, acknowledgementId: UUID, comment: String, internal: Option[Boolean]) extends ProbeCommand
+case class AppendProbeWorknoteResult(op: AppendProbeWorknote, worknoteId: UUID)

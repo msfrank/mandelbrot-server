@@ -8,8 +8,6 @@ immediately
 * complete test coverage for all rule matchers, rules file parsing
 * add action notifier targeting to notification rules
 * implement notification deduplication logic 
-* fix ProbeSystemStatusResult to return a Map of results instead of
-  a Vector
 * add NotifyRecovers notification
 * add behavior to Probe to drop messages before InitProbe is received
 * re-enable akka-persistence snapshotting for RegistryManager and Probes
@@ -27,3 +25,4 @@ backlog
   notification service
 * implement metrics storage
 * implement snapshots storage
+* rethink probe squelch logic

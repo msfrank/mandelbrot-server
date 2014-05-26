@@ -203,6 +203,7 @@ trait ApiService extends HttpService {
         path("submit") {
           /* publish message to the message stream */
           post {
+            // FIXME: reject message if proberef doesn't match
             entity(as[Message]) { case message: Message =>
               complete {
                 messageStream.publish(message)
@@ -214,16 +215,22 @@ trait ApiService extends HttpService {
         path("acknowledge") {
           /* acknowledge an unhealthy probe */
           post {
-            entity(as[AcknowledgeProbe]) { case command: AcknowledgeProbe =>
+            entity(as[AcknowledgeProbeSystem]) { case command: AcknowledgeProbeSystem =>
               complete {
                 registryService.ask(command).map {
-                  case result: AcknowledgeProbeResult =>
-                    result
-                  case failure: ProbeOperationFailed =>
+                  case result: AcknowledgeProbeSystemResult =>
+                    result.acknowledgements
+                  case failure: ProbeSystemOperationFailed =>
                     throw failure.failure
                 }
               }
             }
+          }
+        } ~
+        path("comment") {
+          /* add worknote to acknowledged probe */
+          post {
+            complete { StatusCodes.BadRequest }
           }
         } ~
         path("squelch") {

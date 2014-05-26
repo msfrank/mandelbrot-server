@@ -51,10 +51,18 @@ trait ResourceNotFound
 case object ResourceNotFound extends ApiFailure("resource not found") with ResourceNotFound
 
 /**
- *
+ * trait and companion object for API failures which indicate mutating the
+ * specified resource conflicts with policy.
  */
 trait Conflict
 case object Conflict extends ApiFailure("resource conflict") with Conflict
+
+/**
+ * trait and companion object for API failures which indicate querying or
+ * mutating the specified resource is forbidden by policy.
+ */
+trait Forbidden
+case object Forbidden extends ApiFailure("forbidden action") with Forbidden
 
 /**
  * Exception which wraps an API failure.

@@ -26,19 +26,14 @@ import akka.util.Timeout
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import java.net.URI
+import java.util.UUID
 
 import io.mandelbrot.core.{ServerConfig, ResourceNotFound, ApiException}
 import io.mandelbrot.core.notification.{ProbeNotification, NotificationService, Notification}
+import io.mandelbrot.core.http.TimeseriesParams
 import io.mandelbrot.core.message.MandelbrotMessage
 import io.mandelbrot.core.state.StateService
 import io.mandelbrot.core.history._
-import io.mandelbrot.core.http.TimeseriesParams
-import scala.Some
-import io.mandelbrot.core.history.GetStatusHistoryResult
-import io.mandelbrot.core.http.TimeseriesParams
-import io.mandelbrot.core.history.GetStatusHistory
-import akka.actor.Terminated
-import io.mandelbrot.core.history.HistoryServiceOperationFailed
 
 /**
  *
@@ -81,6 +76,25 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
         case None =>
           sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
       }
+
+    /* acknowledge the specified probes in the probe system */
+    case command: AcknowledgeProbeSystem =>
+      val futures: Iterable[Future[Option[(ProbeRef,UUID)]]] = command.correlations.filter {
+        case (ref: ProbeRef, correlation: UUID) => probes.contains(ref)
+      }.map { case (ref: ProbeRef, correlation: UUID) =>
+        val future = probes(ref).actor.ask(AcknowledgeProbe(ref, correlation))(timeout)
+        future.map {
+          case result: AcknowledgeProbeResult => Some(ref -> result.acknowledgementId)
+          case result: ProbeOperationFailed => None
+        }.mapTo[Option[(ProbeRef,UUID)]]
+      }
+      Future.sequence(futures).map {
+        case results: Iterable[Option[(ProbeRef,UUID)]] =>
+          val acknowledgements = results.flatten.toMap
+          AcknowledgeProbeSystemResult(command, acknowledgements)
+      }.recover {
+        case ex: Throwable => ProbeSystemOperationFailed(command, ex)
+      }.pipeTo(sender())
 
     /* get the state of probes in the system */
     case query: GetProbeSystemStatus =>
@@ -290,6 +304,9 @@ case class DescribeProbeSystemResult(op: DescribeProbeSystem, registration: Prob
 
 case class UpdateProbeSystem(uri: URI, registration: ProbeRegistration) extends ProbeSystemCommand
 case class UpdateProbeSystemResult(op: UpdateProbeSystem, ref: ActorRef)
+
+case class AcknowledgeProbeSystem(uri: URI, correlations: Map[ProbeRef,UUID]) extends ProbeSystemCommand
+case class AcknowledgeProbeSystemResult(op: AcknowledgeProbeSystem, acknowledgements: Map[ProbeRef,UUID])
 
 case class GetProbeSystemStatus(uri: URI, paths: Option[Set[String]]) extends ProbeSystemQuery
 case class GetProbeSystemStatusResult(op: GetProbeSystemStatus, state: Map[ProbeRef,ProbeStatus])
