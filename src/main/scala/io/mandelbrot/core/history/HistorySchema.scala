@@ -61,3 +61,34 @@ class NotificationEntries(tag: Tag) extends Table[(String,Long,String,String,Opt
 object NotificationEntries {
   type NotificationEntry = (String,Long,String,String,Option[UUID])
 }
+
+/**
+ *
+ */
+class AcknowledgementEntries(tag: Tag) extends Table[(String,Long,UUID,UUID)](tag, "AcknowledgementEntries") with HistorySchema {
+  def probeRef = column[String]("probeRef")
+  def timestamp = column[Long]("timestamp")
+  def acknowledgement = column[UUID]("acknowledgement")
+  def correlation = column[UUID]("correlation")
+  def * = (probeRef, timestamp, acknowledgement, correlation)
+}
+
+object AcknowledgementEntries {
+  type AcknowledgementEntry = (String,Long,String,String,Option[UUID])
+}
+
+/**
+ *
+ */
+class WorknoteEntries(tag: Tag) extends Table[(String,Long,String,UUID,Boolean)](tag, "WorknoteEntries") with HistorySchema {
+  def probeRef = column[String]("probeRef")
+  def timestamp = column[Long]("timestamp")
+  def description = column[String]("description")
+  def acknowledgement = column[UUID]("acknowledgement")
+  def internal = column[Boolean]("internal")
+  def * = (probeRef, timestamp, description, acknowledgement, internal)
+}
+
+object WorknoteEntries {
+  type WorknoteEntry = (String,Long,String,String,Option[UUID])
+}

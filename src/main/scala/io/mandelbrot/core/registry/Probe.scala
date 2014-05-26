@@ -26,7 +26,7 @@ import scala.concurrent.duration._
 import java.util.UUID
 
 import io.mandelbrot.core.notification._
-import io.mandelbrot.core.state.StateService
+import io.mandelbrot.core.state.{Worknote, Acknowledgement, StateService}
 import io.mandelbrot.core.message.StatusMessage
 import io.mandelbrot.core.{ResourceNotFound, Conflict, BadRequest, ApiException}
 
@@ -97,28 +97,26 @@ class Probe(probeRef: ProbeRef,
       sender() ! GetProbeStatusResult(query, status)
 
     case command: AcknowledgeProbe =>
-      val result = correlationId match {
+      correlationId match {
         case None =>
-          ProbeOperationFailed(command, new ApiException(ResourceNotFound))
+          sender() ! ProbeOperationFailed(command, new ApiException(ResourceNotFound))
         case Some(correlation) if acknowledgementId.isDefined =>
-          ProbeOperationFailed(command, new ApiException(Conflict))
+          sender() ! ProbeOperationFailed(command, new ApiException(Conflict))
         case Some(correlation) if correlation != command.correlationId =>
           log.debug("failed to acknowledge")
-          ProbeOperationFailed(command, new ApiException(BadRequest))
+          sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
         case Some(correlation) =>
           val acknowledgement = UUID.randomUUID()
           val timestamp = DateTime.now(DateTimeZone.UTC)
-          persist(UserAcknowledges(acknowledgement, command.message, timestamp))(updateState(_, recovering = false))
-          AcknowledgeProbeResult(command, acknowledgement)
+          persist(UserAcknowledges(command, acknowledgement, timestamp))(updateState(_, recovering = false))
       }
-      sender() ! result
 
     case command: SetProbeSquelch =>
-      val result = if (squelch != command.squelch) {
-        persist(UserSetsSquelch(command.squelch, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
-        SetProbeSquelchResult(command, command.squelch)
-      } else ProbeOperationFailed(command, new ApiException(BadRequest))
-      sender() ! result
+      if (squelch == command.squelch) {
+        sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
+      } else {
+        persist(UserSetsSquelch(command, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
+      }
 
     case notification: Notification =>
       notifier.foreach(_ ! notification)
@@ -254,23 +252,30 @@ class Probe(probeRef: ProbeRef,
         }
       }
 
-    case UserAcknowledges(acknowledgement, message, timestamp) =>
+    case UserAcknowledges(command, acknowledgement, timestamp) =>
       val correlation = correlationId.get
       acknowledgementId = Some(acknowledgement)
       if (!recovering) {
+        // create new acknowledgement
+        val worknote = Worknote(acknowledgement, timestamp, command.message, command.internal.getOrElse(true))
+        stateService ! Acknowledgement(probeRef, acknowledgement, correlation, timestamp, worknote)
         // notify state service that we are acknowledged
         stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send acknowledgement notification
         sendNotification(NotifyAcknowledged(probeRef, timestamp, correlation, acknowledgement))
+        // reply to sender
+        sender() ! AcknowledgeProbeResult(command, acknowledgement)
       }
 
-    case UserSetsSquelch(setSquelch, timestamp) =>
-      squelch = setSquelch
+    case UserSetsSquelch(command, timestamp) =>
+      squelch = command.squelch
       if (!recovering) {
-        if (setSquelch)
+        if (command.squelch)
           sendNotification(NotifySquelched(probeRef, timestamp))
         else
           sendNotification(NotifyUnsquelched(probeRef, timestamp))
+        // reply to sender
+        sender() ! SetProbeSquelchResult(command, squelch)
       }
 
     case ProbeRetires(timestamp) =>
@@ -373,9 +378,10 @@ object Probe {
   case class ProbeAlerts(timestamp: DateTime) extends Event
   case class ProbeUpdates(state: StatusMessage, correlationId: Option[UUID], timestamp: DateTime) extends Event
   case class ProbeExpires(correlationId: Option[UUID], timestamp: DateTime) extends Event
-  case class UserAcknowledges(acknowledgementId: UUID, message: String, timestamp: DateTime) extends Event
-  case class UserSetsSquelch(squelch: Boolean, timestamp: DateTime) extends Event
+  case class UserAcknowledges(op: AcknowledgeProbe, acknowledgementId: UUID, timestamp: DateTime) extends Event
+  case class UserSetsSquelch(op: SetProbeSquelch, timestamp: DateTime) extends Event
   case class ProbeRetires(timestamp: DateTime) extends Event
+
   case object ProbeAlertTimeout
   case object ProbeExpiryTimeout
 
@@ -430,5 +436,5 @@ case class GetProbeStatusResult(op: GetProbeStatus, state: ProbeStatus)
 case class SetProbeSquelch(probeRef: ProbeRef, squelch: Boolean) extends ProbeCommand
 case class SetProbeSquelchResult(op: SetProbeSquelch, squelch: Boolean)
 
-case class AcknowledgeProbe(probeRef: ProbeRef, correlationId: UUID, message: String) extends ProbeCommand
+case class AcknowledgeProbe(probeRef: ProbeRef, correlationId: UUID, message: String, internal: Option[Boolean]) extends ProbeCommand
 case class AcknowledgeProbeResult(op: AcknowledgeProbe, acknowledgementId: UUID)

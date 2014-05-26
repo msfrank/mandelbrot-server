@@ -25,12 +25,16 @@ import java.util.concurrent.TimeUnit
 
 import io.mandelbrot.core.ServiceExtension
 
-case class StateSettings(plugin: String,
-                         service: Option[Any],
-                         maxSummarySize: Long,
+/**
+ *
+ */
+case class SearcherSettings(plugin: String, settings: Option[Any])
+
+case class StateSettings(maxSummarySize: Long,
                          maxDetailSize: Long,
                          statusHistoryAge: Duration,
-                         defaultSearchLimit: Int)
+                         defaultSearchLimit: Int,
+                         searcher: SearcherSettings)
 
 object StateSettings {
   def parse(config: Config): StateSettings = {
@@ -42,6 +46,6 @@ object StateSettings {
     val service = if (config.hasPath("plugin-settings")) {
       ServiceExtension.makePluginSettings(plugin, config.getConfig("plugin-settings"))
     } else None
-    new StateSettings(plugin, service, maxSummarySize, maxDetailSize, statusHistoryAge, defaultSearchLimit)
+    StateSettings(maxSummarySize, maxDetailSize, statusHistoryAge, defaultSearchLimit, SearcherSettings(plugin, service))
   }
 }

@@ -29,11 +29,10 @@ import io.mandelbrot.core.{ServiceExtension, ServerConfig}
  */
 class StateServiceExtensionImpl(system: ActorSystem) extends Extension {
   val stateService = {
-    val settings = ServerConfig(system).settings.state
-    val plugin = settings.plugin
-    val service = settings.service
+    val plugin = ServerConfig(system).settings.state.searcher.plugin
+    val settings = ServerConfig(system).settings.state.searcher.settings
     LoggerFactory.getLogger("io.mandelbrot.core.state.StateServiceExtension").info("loading state service plugin " + plugin)
-    system.actorOf(ServiceExtension.makePluginProps(plugin, service), "state-service")
+    system.actorOf(ServiceExtension.makePluginProps(plugin, settings), "state-service")
   }
 }
 
