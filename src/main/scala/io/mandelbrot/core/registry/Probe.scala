@@ -28,26 +28,10 @@ import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 import java.util.UUID
 
+import io.mandelbrot.core.{ResourceNotFound, Conflict, BadRequest, ApiException}
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.message.StatusMessage
-import io.mandelbrot.core.{ResourceNotFound, Conflict, BadRequest, ApiException}
 import io.mandelbrot.core.tracking._
-import io.mandelbrot.core.notification.NotifyAcknowledged
-import io.mandelbrot.core.notification.NotifySquelched
-import scala.Some
-import io.mandelbrot.core.tracking.CreateTicket
-import io.mandelbrot.core.message.StatusMessage
-import io.mandelbrot.core.tracking.CreateTicketResult
-import io.mandelbrot.core.tracking.DeleteTicket
-import io.mandelbrot.core.notification.NotifyUnsquelched
-import io.mandelbrot.core.notification.NotifyLifecycleChanges
-import io.mandelbrot.core.notification.NotifyHealthChanges
-import akka.persistence.SnapshotOffer
-import io.mandelbrot.core.notification.NotifyHealthAlerts
-import io.mandelbrot.core.notification.NotifyHealthFlaps
-import io.mandelbrot.core.notification.NotifyHealthUpdates
-import io.mandelbrot.core.notification.NotifyHealthExpires
-import io.mandelbrot.core.tracking.TrackingServiceOperationFailed
 
 /**
  *
@@ -95,8 +79,11 @@ class Probe(probeRef: ProbeRef,
 
   def receiveCommand = {
 
-    case InitProbe(initialPolicy) =>
+    case InitProbe(initialPolicy) if currentPolicy.isEmpty =>
       persist(ProbeInitializes(initialPolicy, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
+
+    case _ if currentPolicy.isEmpty =>
+      // TODO: handle this exception
 
     case UpdateProbe(policy) =>
       if (currentPolicy.isDefined && policy != currentPolicy.get)
