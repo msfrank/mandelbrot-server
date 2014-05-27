@@ -98,6 +98,25 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
         case ex: Throwable => ProbeSystemOperationFailed(command, ex)
       }.pipeTo(sender())
 
+    /* unacknowledge the specified probes in the probe system */
+    case command: UnacknowledgeProbeSystem =>
+      val futures: Iterable[Future[Option[(ProbeRef,UUID)]]] = command.unacknowledgements.filter {
+        case (ref: ProbeRef, unacknowledgement: UUID) => probes.contains(ref)
+      }.map { case (ref: ProbeRef, unacknowledgement: UUID) =>
+        val future = probes(ref).actor.ask(UnacknowledgeProbe(ref, unacknowledgement))(timeout)
+        future.map {
+          case result: UnacknowledgeProbeResult => Some(ref -> result.acknowledgementId)
+          case result: ProbeOperationFailed => None
+        }.mapTo[Option[(ProbeRef,UUID)]]
+      }
+      Future.sequence(futures).map {
+        case results: Iterable[Option[(ProbeRef,UUID)]] =>
+          val unacknowledgements = results.flatten.toMap
+          UnacknowledgeProbeSystemResult(command, unacknowledgements)
+      }.recover {
+        case ex: Throwable => ProbeSystemOperationFailed(command, ex)
+      }.pipeTo(sender())
+
     /* get the state of probes in the system */
     case query: GetProbeSystemStatus =>
       currentRegistration match {
@@ -309,6 +328,9 @@ case class UpdateProbeSystemResult(op: UpdateProbeSystem, ref: ActorRef)
 
 case class AcknowledgeProbeSystem(uri: URI, correlations: Map[ProbeRef,UUID]) extends ProbeSystemCommand
 case class AcknowledgeProbeSystemResult(op: AcknowledgeProbeSystem, acknowledgements: Map[ProbeRef,UUID])
+
+case class UnacknowledgeProbeSystem(uri: URI, unacknowledgements: Map[ProbeRef,UUID]) extends ProbeSystemCommand
+case class UnacknowledgeProbeSystemResult(op: UnacknowledgeProbeSystem, unacknowledgements: Map[ProbeRef,UUID])
 
 case class GetProbeSystemStatus(uri: URI, paths: Option[Set[String]]) extends ProbeSystemQuery
 case class GetProbeSystemStatusResult(op: GetProbeSystemStatus, state: Map[ProbeRef,ProbeStatus])

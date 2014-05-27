@@ -233,6 +233,21 @@ trait ApiService extends HttpService {
             complete { StatusCodes.BadRequest }
           }
         } ~
+        path("unacknowledge") {
+          /* acknowledge an unhealthy probe */
+          post {
+            entity(as[UnacknowledgeProbeSystem]) { case command: UnacknowledgeProbeSystem =>
+              complete {
+                registryService.ask(command).map {
+                  case result: UnacknowledgeProbeSystemResult =>
+                    result.unacknowledgements
+                  case failure: ProbeSystemOperationFailed =>
+                    throw failure.failure
+                }
+              }
+            }
+          }
+        } ~
         path("squelch") {
           /* enable/disable probe notifications */
           post {

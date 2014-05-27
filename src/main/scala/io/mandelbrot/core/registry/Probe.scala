@@ -31,7 +31,23 @@ import java.util.UUID
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.message.StatusMessage
 import io.mandelbrot.core.{ResourceNotFound, Conflict, BadRequest, ApiException}
-import io.mandelbrot.core.tracking.{TrackingServiceOperationFailed, CreateTicketResult, CreateTicket}
+import io.mandelbrot.core.tracking._
+import io.mandelbrot.core.notification.NotifyAcknowledged
+import io.mandelbrot.core.notification.NotifySquelched
+import scala.Some
+import io.mandelbrot.core.tracking.CreateTicket
+import io.mandelbrot.core.message.StatusMessage
+import io.mandelbrot.core.tracking.CreateTicketResult
+import io.mandelbrot.core.tracking.DeleteTicket
+import io.mandelbrot.core.notification.NotifyUnsquelched
+import io.mandelbrot.core.notification.NotifyLifecycleChanges
+import io.mandelbrot.core.notification.NotifyHealthChanges
+import akka.persistence.SnapshotOffer
+import io.mandelbrot.core.notification.NotifyHealthAlerts
+import io.mandelbrot.core.notification.NotifyHealthFlaps
+import io.mandelbrot.core.notification.NotifyHealthUpdates
+import io.mandelbrot.core.notification.NotifyHealthExpires
+import io.mandelbrot.core.tracking.TrackingServiceOperationFailed
 
 /**
  *
@@ -108,12 +124,33 @@ class Probe(probeRef: ProbeRef,
         case Some(correlation) if acknowledgementId.isDefined =>
           sender() ! ProbeOperationFailed(command, new ApiException(Conflict))
         case Some(correlation) if correlation != command.correlationId =>
-          log.debug("failed to acknowledge")
           sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
         case Some(correlation) =>
           val acknowledgement = UUID.randomUUID()
           val timestamp = DateTime.now(DateTimeZone.UTC)
           persist(UserAcknowledges(command, acknowledgement, timestamp))(updateState(_, recovering = false))
+      }
+
+    case command: AppendProbeWorknote =>
+      acknowledgementId match {
+        case None =>
+          sender() ! ProbeOperationFailed(command, new ApiException(ResourceNotFound))
+        case Some(acknowledgement) if acknowledgement != command.acknowledgementId =>
+          sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
+        case Some(acknowledgement) =>
+          val timestamp = DateTime.now(DateTimeZone.UTC)
+          trackingService.tell(AppendWorknote(acknowledgement, timestamp, command.comment, command.internal.getOrElse(false)), sender())
+      }
+
+    case command: UnacknowledgeProbe =>
+      acknowledgementId match {
+        case None =>
+          sender() ! ProbeOperationFailed(command, new ApiException(ResourceNotFound))
+        case Some(acknowledgement) if acknowledgement != command.acknowledgementId =>
+          sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
+        case Some(acknowledgement) =>
+          val timestamp = DateTime.now(DateTimeZone.UTC)
+          persist(UserUnacknowledges(command, acknowledgement, timestamp))(updateState(_, recovering = false))
       }
 
     case command: SetProbeSquelch =>
@@ -274,6 +311,21 @@ class Probe(probeRef: ProbeRef,
         }.pipeTo(sender())
       }
 
+    case UserUnacknowledges(command, acknowledgement, timestamp) =>
+      acknowledgementId = None
+      if (!recovering) {
+        // notify state service that we are acknowledged
+        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+        // TODO: send unacknowledgement notification
+        // track the acknowledgement
+        trackingService.ask(DeleteTicket(acknowledgement)).map {
+          case result: DeleteTicketResult =>
+            UnacknowledgeProbeResult(command, acknowledgement)
+          case failure: TrackingServiceOperationFailed =>
+            ProbeOperationFailed(command, failure.failure)
+        }.pipeTo(sender())
+      }
+
     case UserSetsSquelch(command, timestamp) =>
       squelch = command.squelch
       if (!recovering) {
@@ -386,6 +438,7 @@ object Probe {
   case class ProbeUpdates(state: StatusMessage, correlationId: Option[UUID], timestamp: DateTime) extends Event
   case class ProbeExpires(correlationId: Option[UUID], timestamp: DateTime) extends Event
   case class UserAcknowledges(op: AcknowledgeProbe, acknowledgementId: UUID, timestamp: DateTime) extends Event
+  case class UserUnacknowledges(op: UnacknowledgeProbe, acknowledgementId: UUID, timestamp: DateTime) extends Event
   case class UserSetsSquelch(op: SetProbeSquelch, timestamp: DateTime) extends Event
   case class ProbeRetires(timestamp: DateTime) extends Event
 
@@ -448,3 +501,6 @@ case class AcknowledgeProbeResult(op: AcknowledgeProbe, acknowledgementId: UUID)
 
 case class AppendProbeWorknote(probeRef: ProbeRef, acknowledgementId: UUID, comment: String, internal: Option[Boolean]) extends ProbeCommand
 case class AppendProbeWorknoteResult(op: AppendProbeWorknote, worknoteId: UUID)
+
+case class UnacknowledgeProbe(probeRef: ProbeRef, acknowledgementId: UUID) extends ProbeCommand
+case class UnacknowledgeProbeResult(op: UnacknowledgeProbe, acknowledgementId: UUID)
