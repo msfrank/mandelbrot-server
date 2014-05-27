@@ -41,9 +41,6 @@ class StateManager(managerSettings: ManagerSettings) extends Actor with ActorLog
     context.actorOf(props, "searcher")
   }
 
-  // state
-  val acknowledgements = new java.util.HashMap[UUID,Acknowledgement](1024)
-
   val historyService = HistoryService(context.system)
 
   def receive = {
@@ -55,10 +52,11 @@ class StateManager(managerSettings: ManagerSettings) extends Actor with ActorLog
     case metadata: ProbeMetadata =>
       searcher ! metadata
 
-    case acknowledgement: Acknowledgement =>
-      acknowledgements.put(acknowledgement.id, acknowledgement)
-      searcher ! acknowledgement
+    case acknowledgement: ProbeAcknowledgement =>
       historyService ! acknowledgement
+
+    case worknote: Worknote =>
+      historyService ! worknote
 
     case query: QueryProbes =>
       searcher ! query

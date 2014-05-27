@@ -7,7 +7,7 @@ import io.mandelbrot.core.registry.ProbeRef
 /**
  *
  */
-case class Acknowledgement(probeRef: ProbeRef, id: UUID, correlation: UUID, timestamp: DateTime)
+case class ProbeAcknowledgement(probeRef: ProbeRef, id: UUID, correlation: UUID, timestamp: DateTime)
 
 /**
  *

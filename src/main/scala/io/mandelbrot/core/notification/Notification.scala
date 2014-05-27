@@ -36,7 +36,9 @@ sealed trait Notification {
 /**
  * A notification about a probe
  */
-class ProbeNotification(val probeRef: ProbeRef, val timestamp: DateTime, val kind: String, val description: String, val correlation: Option[UUID]) extends Notification
+class ProbeNotification(val probeRef: ProbeRef, val timestamp: DateTime, val kind: String, val description: String, val correlation: Option[UUID]) extends Notification {
+  override def toString = "%s: %s %s".format(kind, probeRef, description)
+}
 
 object ProbeNotification {
   def apply(probeRef: ProbeRef, timestamp: DateTime, kind: String, description: String, correlation: Option[UUID]) = {

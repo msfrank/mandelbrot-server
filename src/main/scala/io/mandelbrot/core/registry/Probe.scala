@@ -26,7 +26,7 @@ import scala.concurrent.duration._
 import java.util.UUID
 
 import io.mandelbrot.core.notification._
-import io.mandelbrot.core.state.{Worknote, Acknowledgement, StateService}
+import io.mandelbrot.core.state.{Worknote, ProbeAcknowledgement, StateService}
 import io.mandelbrot.core.message.StatusMessage
 import io.mandelbrot.core.{ResourceNotFound, Conflict, BadRequest, ApiException}
 
@@ -257,7 +257,7 @@ class Probe(probeRef: ProbeRef,
       acknowledgementId = Some(acknowledgement)
       if (!recovering) {
         // create new acknowledgement
-        stateService ! Acknowledgement(probeRef, acknowledgement, correlation, timestamp)
+        stateService ! ProbeAcknowledgement(probeRef, acknowledgement, correlation, timestamp)
         // notify state service that we are acknowledged
         stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send acknowledgement notification
