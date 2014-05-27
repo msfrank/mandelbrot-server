@@ -31,6 +31,7 @@ import io.mandelbrot.core.registry.RegistryService
 import io.mandelbrot.core.http.HttpServer
 import io.mandelbrot.core.history.HistoryService
 import org.slf4j.LoggerFactory
+import io.mandelbrot.core.tracking.TrackingService
 
 /**
  * application entry point
@@ -43,6 +44,7 @@ object MandelbrotApp extends App {
   val log = LoggerFactory.getLogger("io.mandelbrot.core.MandelbrotApp")
 
   /* pre-warm top level services */
+  val trackingService = TrackingService(system)
   val historyService = HistoryService(system)
   val notificationService = NotificationService(system)
   val stateService = StateService(system)
@@ -56,7 +58,7 @@ object MandelbrotApp extends App {
   }
 
   /* */
-  val watched = Vector(historyService, notificationService, stateService, registryService) ++ httpServer.toVector
+  val watched = Vector(trackingService, historyService, notificationService, stateService, registryService) ++ httpServer.toVector
   val terminator = system.actorOf(Terminator.props(watched))
 
   /* shut down cleanly */

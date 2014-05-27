@@ -20,18 +20,16 @@
 package io.mandelbrot.core.state
 
 import akka.actor.{Props, ActorRef, ActorLogging, Actor}
-import java.util.UUID
 
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.{ServiceExtension, ServerConfig}
 import io.mandelbrot.core.history.HistoryService
 import io.mandelbrot.core.registry.ProbeStatus
-import io.mandelbrot.core.state.LuceneSearcher.ManagerSettings
 
 /**
  *
  */
-class StateManager(managerSettings: ManagerSettings) extends Actor with ActorLogging {
+class StateManager extends Actor with ActorLogging {
 
   // config
   val settings = ServerConfig(context.system).settings.state
@@ -52,19 +50,13 @@ class StateManager(managerSettings: ManagerSettings) extends Actor with ActorLog
     case metadata: ProbeMetadata =>
       searcher ! metadata
 
-    case acknowledgement: ProbeAcknowledgement =>
-      historyService ! acknowledgement
-
-    case worknote: Worknote =>
-      historyService ! worknote
-
     case query: QueryProbes =>
       searcher ! query
   }
 }
 
 object StateManager {
-  def props() = Props(classOf[LuceneSearcher])
+  def props() = Props(classOf[StateManager])
 }
 
 /**

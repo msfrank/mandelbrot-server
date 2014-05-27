@@ -17,26 +17,25 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.state
+package io.mandelbrot.core.tracking
 
-import akka.actor._
+import com.typesafe.config.Config
 
-/**
- *
- */
-class StateServiceExtensionImpl(system: ActorSystem) extends Extension {
-  val stateService = system.actorOf(StateManager.props(), "state-service")
-}
+import io.mandelbrot.core.ServiceExtension
 
 /**
  *
  */
-object StateServiceExtension extends ExtensionId[StateServiceExtensionImpl] with ExtensionIdProvider {
-  override def lookup() = StateServiceExtension
-  override def createExtension(system: ExtendedActorSystem) = new StateServiceExtensionImpl(system)
-  override def get(system: ActorSystem): StateServiceExtensionImpl = super.get(system)
-}
+case class TrackerSettings(plugin: String, settings: Option[Any])
 
-object StateService {
-  def apply(system: ActorSystem): ActorRef = StateServiceExtension(system).stateService
+case class TrackingSettings(tracker: TrackerSettings)
+
+object TrackingSettings {
+  def parse(config: Config): TrackingSettings = {
+    val plugin = config.getString("plugin")
+    val service = if (config.hasPath("plugin-settings")) {
+      ServiceExtension.makePluginSettings(plugin, config.getConfig("plugin-settings"))
+    } else None
+    TrackingSettings(TrackerSettings(plugin, service))
+  }
 }

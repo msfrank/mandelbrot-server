@@ -33,6 +33,7 @@ import io.mandelbrot.core.notification.NotificationSettings
 import io.mandelbrot.core.history.HistorySettings
 import io.mandelbrot.core.http.HttpSettings
 import java.util.concurrent.TimeUnit
+import io.mandelbrot.core.tracking.TrackingSettings
 
 /**
  *
@@ -41,6 +42,7 @@ case class ServerConfigSettings(registry: RegistrySettings,
                                 state: StateSettings,
                                 notification: NotificationSettings,
                                 history: HistorySettings,
+                                tracking: TrackingSettings,
                                 http: Option[HttpSettings],
                                 shutdownTimeout: FiniteDuration)
 
@@ -102,6 +104,9 @@ class ServerConfigExtension(system: ActorSystem) extends Extension {
     /* parse history settings */
     val historySettings = HistorySettings.parse(mandelbrotConfig.getConfig("history"))
 
+    /* parse tracking settings */
+    val trackingSettings = TrackingSettings.parse(mandelbrotConfig.getConfig("tracking"))
+
     /* parse http settings */
     val httpSettings = if (!mandelbrotConfig.hasPath("http")) None else {
       Some(HttpSettings.parse(mandelbrotConfig.getConfig("http")))
@@ -109,7 +114,7 @@ class ServerConfigExtension(system: ActorSystem) extends Extension {
 
     /* */
     val shutdownTimeout = FiniteDuration(mandelbrotConfig.getDuration("shutdown-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
-    ServerConfigSettings(registrySettings, stateSettings, notificationSettings, historySettings, httpSettings, shutdownTimeout)
+    ServerConfigSettings(registrySettings, stateSettings, notificationSettings, historySettings, trackingSettings, httpSettings, shutdownTimeout)
 
   } catch {
     case ex: ServerConfigException =>

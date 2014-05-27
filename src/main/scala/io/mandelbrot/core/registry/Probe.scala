@@ -19,16 +19,19 @@
 
 package io.mandelbrot.core.registry
 
-import akka.actor.{Cancellable, ActorLogging, ActorRef, Props}
+import akka.actor.{ActorLogging, ActorRef, Props}
+import akka.pattern.ask
+import akka.pattern.pipe
+import akka.util.Timeout
 import akka.persistence.{Recover, SnapshotOffer, EventsourcedProcessor}
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 import java.util.UUID
 
 import io.mandelbrot.core.notification._
-import io.mandelbrot.core.state.{Worknote, ProbeAcknowledgement, StateService}
 import io.mandelbrot.core.message.StatusMessage
 import io.mandelbrot.core.{ResourceNotFound, Conflict, BadRequest, ApiException}
+import io.mandelbrot.core.tracking.{TrackingServiceOperationFailed, CreateTicketResult, CreateTicket}
 
 /**
  *
@@ -37,13 +40,15 @@ class Probe(probeRef: ProbeRef,
             parent: ActorRef,
             stateService: ActorRef,
             notificationService: ActorRef,
-            historyService: ActorRef) extends EventsourcedProcessor with ActorLogging {
+            historyService: ActorRef,
+            trackingService: ActorRef) extends EventsourcedProcessor with ActorLogging {
   import Probe._
   import ProbeSystem.{InitProbe,UpdateProbe,RetireProbe}
   import context.dispatcher
 
   // config
   override def processorId = probeRef.toString
+  implicit val timeout: Timeout = 5.seconds   // TODO: pull this from settings
 
   // state
   var lifecycle: ProbeLifecycle = ProbeJoining
@@ -256,14 +261,17 @@ class Probe(probeRef: ProbeRef,
       val correlation = correlationId.get
       acknowledgementId = Some(acknowledgement)
       if (!recovering) {
-        // create new acknowledgement
-        stateService ! ProbeAcknowledgement(probeRef, acknowledgement, correlation, timestamp)
         // notify state service that we are acknowledged
         stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send acknowledgement notification
         sendNotification(NotifyAcknowledged(probeRef, timestamp, correlation, acknowledgement))
-        // reply to sender
-        sender() ! AcknowledgeProbeResult(command, acknowledgement)
+        // track the acknowledgement
+        trackingService.ask(CreateTicket(acknowledgement, timestamp, probeRef, correlation)).map {
+          case result: CreateTicketResult =>
+            AcknowledgeProbeResult(command, acknowledgement)
+          case failure: TrackingServiceOperationFailed =>
+            ProbeOperationFailed(command, failure.failure)
+        }.pipeTo(sender())
       }
 
     case UserSetsSquelch(command, timestamp) =>
@@ -367,8 +375,8 @@ class Probe(probeRef: ProbeRef,
 }
 
 object Probe {
-  def props(probeRef: ProbeRef, parent: ActorRef, stateService: ActorRef, notificationService: ActorRef, historyService: ActorRef) = {
-    Props(classOf[Probe], probeRef, parent, stateService, notificationService, historyService)
+  def props(probeRef: ProbeRef, parent: ActorRef, stateService: ActorRef, notificationService: ActorRef, historyService: ActorRef, trackingService: ActorRef) = {
+    Props(classOf[Probe], probeRef, parent, stateService, notificationService, historyService, trackingService)
   }
 
   sealed trait Event

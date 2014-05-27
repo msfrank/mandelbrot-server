@@ -32,7 +32,6 @@ import io.mandelbrot.core.notification.ProbeNotification
 import io.mandelbrot.core.registry.ProbeStatus
 
 import io.mandelbrot.core.history.HistoryManager.ManagerSettings
-import io.mandelbrot.core.state.{Worknote, ProbeAcknowledgement}
 
 /**
  *
@@ -58,14 +57,20 @@ class HistoryManager(managerSettings: ManagerSettings) extends Actor with ActorL
   val db = Database.forURL(url = url, driver = driver)
   val statusEntries = TableQuery[StatusEntries]
   val notificationEntries = TableQuery[NotificationEntries]
-  val acknowledgementEntries = TableQuery[AcknowledgementEntries]
   implicit val session = db.createSession()
 
   // define (and possibly create) tables
-  try {
-    db.withSession(implicit session => (statusEntries.ddl ++ notificationEntries.ddl ++ acknowledgementEntries.ddl).create)
-  } catch {
-    case ex: Throwable => log.debug("skipping table creation: {}", ex.getMessage)
+  db.withSession { implicit session =>
+    try {
+      statusEntries.ddl.create
+    } catch {
+      case ex: Throwable => log.debug("skipping table creation: {}", ex.getMessage)
+    }
+    try {
+      notificationEntries.ddl.create
+    } catch {
+      case ex: Throwable => log.debug("skipping table creation: {}", ex.getMessage)
+    }
   }
 
   //
@@ -102,19 +107,6 @@ class HistoryManager(managerSettings: ManagerSettings) extends Actor with ActorL
         notificationEntries += ((probeRef, timestamp, kind, description, correlation))
       }
 
-    /* append acknowledgement to history */
-    case acknowledgement: ProbeAcknowledgement =>
-      db.withSession { implicit session =>
-        val probeRef = acknowledgement.probeRef.toString
-        val timestamp = acknowledgement.timestamp.getMillis
-        val id = acknowledgement.id
-        val correlation = acknowledgement.correlation
-        acknowledgementEntries += ((probeRef, timestamp, id, correlation))
-      }
-
-    /* append worknote to history */
-    case worknote: Worknote =>
-
     /* retrieve history for the ProbeRef and all its children */
     case query @ GetStatusHistory(refs, from, to, limit) =>
       log.debug("retrieving status history: {}", query)
@@ -146,8 +138,6 @@ class HistoryManager(managerSettings: ManagerSettings) extends Actor with ActorL
       log.debug("cleaned {} records from statusEntries", staleStatus)
       val staleNotifications = notificationEntries.filter(_.timestamp < maxAge).delete
       log.debug("cleaned {} records from notificationEntries", staleNotifications)
-      val staleAcknowledgements = acknowledgementEntries.filter(_.timestamp < maxAge).delete
-      log.debug("cleaned {} records from acknowledgementEntries", staleNotifications)
   }
 
   def statusEntry2ProbeStatus(entry: StatusEntry): ProbeStatus = {

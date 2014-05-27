@@ -34,6 +34,7 @@ import io.mandelbrot.core.http.TimeseriesParams
 import io.mandelbrot.core.message.MandelbrotMessage
 import io.mandelbrot.core.state.StateService
 import io.mandelbrot.core.history._
+import io.mandelbrot.core.tracking.TrackingService
 
 /**
  *
@@ -53,6 +54,7 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
   val stateService = StateService(context.system)
   val notificationService = NotificationService(context.system)
   val historyService = HistoryService(context.system)
+  val trackingService = TrackingService(context.system)
 
   var notifier: Option[ActorRef] = Some(notificationService)
 
@@ -234,9 +236,9 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
     probesAdded.toVector.sorted.foreach { case ref: ProbeRef =>
       val actor = ref.parentOption match {
         case Some(parent) if !parent.path.isEmpty =>
-          context.actorOf(Probe.props(ref, probes(parent).actor, stateService, notificationService, historyService))
+          context.actorOf(Probe.props(ref, probes(parent).actor, stateService, notificationService, historyService, trackingService))
         case _ =>
-          context.actorOf(Probe.props(ref, self, stateService, notificationService, historyService))
+          context.actorOf(Probe.props(ref, self, stateService, notificationService, historyService, trackingService))
       }
       log.debug("probe {} joins", ref)
       val probeSpec = findProbeSpec(registration, ref.path)
