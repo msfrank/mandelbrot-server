@@ -78,4 +78,6 @@ class Timer(context: ActorContext, receiver: ActorRef, message: Any) {
       receiver ! message
     start(timeout)
   }
+
+  override def toString = "Timer(timeout=%s, armed=%s)".format(lastTimeout, lastArmed)
 }

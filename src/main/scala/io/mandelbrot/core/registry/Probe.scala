@@ -90,14 +90,16 @@ class Probe(probeRef: ProbeRef,
         persist(ProbeConfigures(policy, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
     case ProbeExpiryTimeout =>
-      val correlation = if (health == ProbeHealthy) Some(UUID.randomUUID()) else None
+      val correlation = if (correlationId.isDefined) correlationId else Some(UUID.randomUUID())
       persist(ProbeExpires(correlation, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
     case ProbeAlertTimeout =>
       persist(ProbeAlerts(DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
     case message: StatusMessage =>
-      val correlation = if (health == ProbeHealthy && message.health != ProbeHealthy) Some(UUID.randomUUID()) else None
+      val correlation = if (message.health == ProbeHealthy) None else {
+        if (correlationId.isDefined) correlationId else Some(UUID.randomUUID())
+      }
       persist(ProbeUpdates(message, correlation, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
     case query: GetProbeStatus =>
@@ -206,25 +208,26 @@ class Probe(probeRef: ProbeRef,
       if (health != oldHealth) {
         lastChange = Some(timestamp)
         flapQueue.foreach(_.push(message.timestamp))
-        // we transition from healthy to non-healthy
-        if (oldHealth == ProbeHealthy) {
+      }
+      // we are healthy
+      if (health == ProbeHealthy) {
+        correlationId = None
+        acknowledgementId = None
+        alertTimer.stop()
+      }
+      // we are non-healthy
+      else {
+        if (correlationId != correlation)
           correlationId = correlation
-          acknowledgementId = None
+        if (!alertTimer.isRunning)
           alertTimer.start(currentPolicy.get.alertTimeout)
-        }
-        // we transition from non-healthy to healthy
-        else if (health == ProbeHealthy) {
-          correlationId = None
-          acknowledgementId = None
-          alertTimer.stop()
-        }
       }
       if (!recovering) {
         // notify state service about updated state
         stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send lifecycle notifications
         if (lifecycle != oldLifecycle)
-          notifier.foreach(_ ! NotifyLifecycleChanges(probeRef, message.timestamp, oldLifecycle, lifecycle))
+          sendNotification(NotifyLifecycleChanges(probeRef, message.timestamp, oldLifecycle, lifecycle))
         // send health notifications
         flapQueue match {
           case Some(flapDetector) if flapDetector.isFlapping =>
@@ -246,17 +249,15 @@ class Probe(probeRef: ProbeRef,
       if (health != oldHealth) {
         lastChange = Some(timestamp)
         flapQueue.foreach(_.push(timestamp))
-        // we transition from healthy to non-healthy
-        if (oldHealth == ProbeHealthy) {
-          correlationId = correlation
-          acknowledgementId = None
-          alertTimer.start(currentPolicy.get.alertTimeout)
-        }
       }
+      // we transition from healthy to non-healthy
+      if (correlationId != correlation)
+        correlationId = correlation
+      if (!alertTimer.isRunning)
+        alertTimer.start(currentPolicy.get.alertTimeout)
       if (!recovering) {
         // notify state service if we transition to unknown
-        if (health != oldHealth)
-          stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // send health notifications
         flapQueue match {
           case Some(flapDetector) if flapDetector.isFlapping =>
