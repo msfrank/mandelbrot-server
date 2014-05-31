@@ -83,7 +83,7 @@ trait ApiService extends HttpService {
         complete {
           registryService.ask(ListProbeSystems()).map {
             case result: ListProbeSystemsResult =>
-              result.uris
+              result.systems
             case failure: ProbeRegistryOperationFailed =>
               throw failure.failure
           }

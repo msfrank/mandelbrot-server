@@ -143,6 +143,9 @@ object JsonProtocol extends DefaultJsonProtocol {
   /* convert ProbeRegistration class */
   implicit val ProbeRegistrationFormat = jsonFormat3(ProbeRegistration)
 
+  /* convert ProbeSystemMetadata class */
+  implicit val ProbeSystemMetadataFormat = jsonFormat3(ProbeSystemMetadata)
+
   /* convert ProbeHealth class */
   implicit object ProbeHealthFormat extends RootJsonFormat[ProbeHealth] {
     def write(health: ProbeHealth) = health match {
@@ -225,12 +228,14 @@ object JsonProtocol extends DefaultJsonProtocol {
     }
   }
 
+  /* convert ProbeStatus class */
+  implicit val ProbeStatusFormat = jsonFormat10(ProbeStatus)
+
   /* registry operations */
   implicit val RegisterProbeSystemFormat = jsonFormat2(RegisterProbeSystem)
   implicit val UpdateProbeSystemFormat = jsonFormat2(UpdateProbeSystem)
 
   /* probe system operations */
-  implicit val ProbeStatusFormat = jsonFormat10(ProbeStatus)
   implicit val GetProbeSystemStatusFormat = jsonFormat2(GetProbeSystemStatus)
   implicit val GetProbeSystemStatusResultFormat = jsonFormat2(GetProbeSystemStatusResult)
   implicit val GetProbeSystemMetadataFormat = jsonFormat2(GetProbeSystemMetadata)
