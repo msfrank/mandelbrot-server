@@ -8,11 +8,8 @@ immediately
 * complete test coverage for all rule matchers, rules file parsing
 * add action notifier targeting to notification rules
 * implement notification deduplication logic 
-* add NotifyRecovers notification
 * add behavior to Probe to drop messages before InitProbe is received
 * re-enable akka-persistence snapshotting for RegistryManager and Probes
-* allow path= query param for /objects/systems/ GET requests to filter
-  individual probes from system responses
 * implement probe notification escalation logic, including merging behavior
 
 

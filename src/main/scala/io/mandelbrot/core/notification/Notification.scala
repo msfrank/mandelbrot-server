@@ -113,6 +113,16 @@ case class NotifyAcknowledged(override val probeRef: ProbeRef,
                               acknowledgementId: UUID)
 extends ProbeNotification(probeRef, timestamp, "probe-acknowledged", "probe health is acknowledged", Some(correlationId))
 
+
+/**
+ *
+ */
+case class NotifyRecovers(override val probeRef: ProbeRef,
+                          override val timestamp: DateTime,
+                          correlationId: UUID,
+                          acknowledgementId: UUID)
+extends ProbeNotification(probeRef, timestamp, "probe-recovers", "probe health recovers", Some(correlationId))
+
 /**
  *
  */

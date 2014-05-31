@@ -200,6 +200,8 @@ class Probe(probeRef: ProbeRef,
       lastUpdate = Some(timestamp)
       val oldLifecycle = lifecycle
       val oldHealth = health
+      val oldCorrelation = correlationId
+      val oldAcknowledgement = acknowledgementId
       // update lifecycle
       if (oldLifecycle == ProbeJoining)
         lifecycle = ProbeKnown
@@ -237,6 +239,9 @@ class Probe(probeRef: ProbeRef,
           case _ =>
             sendNotification(NotifyHealthUpdates(probeRef, message.timestamp, correlationId, health))
         }
+        // send recovery notification
+        if (health == ProbeHealthy && oldAcknowledgement.isDefined)
+          sendNotification(NotifyRecovers(probeRef, timestamp, oldCorrelation.get, oldAcknowledgement.get))
       }
       // reset the expiry timer
       resetExpiryTimer()
