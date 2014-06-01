@@ -33,25 +33,6 @@ import io.mandelbrot.core.registry._
 import io.mandelbrot.core.history._
 import io.mandelbrot.core.message._
 import io.mandelbrot.core.notification._
-import io.mandelbrot.core.registry.UpdateProbeSystem
-import io.mandelbrot.core.registry.GetProbeSystemStatusResult
-import io.mandelbrot.core.registry.ProbePolicy
-import io.mandelbrot.core.registry.ProbeStatus
-import io.mandelbrot.core.registry.SetProbeSquelchResult
-import io.mandelbrot.core.registry.RegisterProbeSystem
-import io.mandelbrot.core.registry.GetProbeSystemStatus
-import scala.Some
-import io.mandelbrot.core.history.GetStatusHistory
-import io.mandelbrot.core.message.StatusMessage
-import io.mandelbrot.core.registry.SetProbeSquelch
-import io.mandelbrot.core.history.GetStatusHistoryResult
-import io.mandelbrot.core.registry.AcknowledgeProbe
-import io.mandelbrot.core.registry.ProbeSpec
-import io.mandelbrot.core.message.GenericMessage
-import io.mandelbrot.core.history.GetNotificationHistory
-import io.mandelbrot.core.registry.ProbeRegistration
-import io.mandelbrot.core.registry.AcknowledgeProbeResult
-import io.mandelbrot.core.history.GetNotificationHistoryResult
 
 object JsonProtocol extends DefaultJsonProtocol {
 
@@ -110,6 +91,16 @@ object JsonProtocol extends DefaultJsonProtocol {
         val parts = string.split('/')
         ProbeRef(new URI(parts.head), parts.tail.toVector)
       case _ => throw new DeserializationException("expected ProbeRef")
+    }
+  }
+
+  /* convert ProbeMatcher class */
+  implicit object ProbeMatcherFormat extends RootJsonFormat[ProbeMatcher] {
+    val probeMatcherParser = new ProbeMatcherParser()
+    def write(matcher: ProbeMatcher) = JsString(matcher.toString)
+    def read(value: JsValue) = value match {
+      case JsString(string) => probeMatcherParser.parseProbeMatcher(string)
+      case _ => throw new DeserializationException("expected ProbeMatcher")
     }
   }
 
@@ -228,6 +219,9 @@ object JsonProtocol extends DefaultJsonProtocol {
     }
   }
 
+  /* convert MaintenanceWindow class */
+  implicit val MaintenanceWindowFormat = jsonFormat4(MaintenanceWindow)
+
   /* convert ProbeStatus class */
   implicit val ProbeStatusFormat = jsonFormat10(ProbeStatus)
 
@@ -260,6 +254,12 @@ object JsonProtocol extends DefaultJsonProtocol {
   implicit val GetStatusHistoryResultFormat = jsonFormat2(GetStatusHistoryResult)
   implicit val GetNotificationHistoryFormat = jsonFormat4(GetNotificationHistory)
   implicit val GetNotificationHistoryResultFormat = jsonFormat2(GetNotificationHistoryResult)
+
+  /* notification service operations */
+  implicit val RegisterMaintenanceWindowFormat = jsonFormat3(RegisterMaintenanceWindow)
+  implicit val RegisterMaintenanceWindowResultFormat = jsonFormat2(RegisterMaintenanceWindowResult)
+  implicit val UnregisterMaintenanceWindowFormat = jsonFormat1(UnregisterMaintenanceWindow)
+  implicit val UnregisterMaintenanceWindowResultFormat = jsonFormat2(UnregisterMaintenanceWindowResult)
 
   /* message types */
   implicit val StatusMessageFormat = jsonFormat5(StatusMessage)

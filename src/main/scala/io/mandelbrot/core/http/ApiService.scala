@@ -29,12 +29,14 @@ import spray.http.HttpHeaders.Location
 import spray.util.LoggingContext
 import org.joda.time.format.ISODateTimeFormat
 import java.net.URI
+import java.util.UUID
 
 import io.mandelbrot.core._
 import io.mandelbrot.core.message._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.history._
+import io.mandelbrot.core.notification._
 
 /**
  * ApiService contains the REST API logic.
@@ -56,6 +58,7 @@ trait ApiService extends HttpService {
   val registryService: ActorRef
   val stateService: ActorRef
   val historyService: ActorRef
+  val notificationService: ActorRef
   val messageStream: MessageStreamBus
 
   val datetimeParser = ISODateTimeFormat.dateTimeParser().withZoneUTC()
@@ -63,7 +66,7 @@ trait ApiService extends HttpService {
   /**
    * Spray routes for managing objects
    */
-  val objectsRoutes = pathPrefix("objects") {
+  val objectsSystemsRoutes = {
     path("systems") {
       /* register new probe system, or fail if it already exists */
       post {
@@ -278,6 +281,52 @@ trait ApiService extends HttpService {
         }
       }
     }
+  }
+
+  val objectsWindowsRoutes = {
+    path("windows") {
+      /* register new maintenance window */
+      post {
+        entity(as[RegisterMaintenanceWindow]) { case registerMaintenanceWindow: RegisterMaintenanceWindow =>
+          complete {
+            notificationService.ask(registerMaintenanceWindow).map {
+              case result: RegisterMaintenanceWindowResult =>
+                HttpResponse(StatusCodes.Accepted, headers = List(Location("/objects/windows/" + result.id.toString)))
+              case failure: NotificationManagerOperationFailed =>
+                throw failure.failure
+            }
+          }
+        }
+      } ~
+      /* enumerate all maintenance windows */
+      get {
+        complete {
+          notificationService.ask(ListMaintenanceWindows()).map {
+            case result: ListMaintenanceWindowsResult =>
+              result.windows
+            case failure: NotificationManagerOperationFailed =>
+              throw failure.failure
+          }
+        }
+      }
+    } ~
+    pathPrefix("windows" / JavaUUID) { case uuid: UUID =>
+      /* unregister new maintenance window */
+      delete {
+        complete {
+          notificationService.ask(UnregisterMaintenanceWindow(uuid)).map {
+            case result: UnregisterMaintenanceWindowResult =>
+              HttpResponse(StatusCodes.OK)
+            case failure: NotificationManagerOperationFailed =>
+              throw failure.failure
+          }
+        }
+      }
+    }
+  }
+
+  val objectsRoutes = pathPrefix("objects") {
+    objectsSystemsRoutes ~ objectsWindowsRoutes
   }
 
   /**

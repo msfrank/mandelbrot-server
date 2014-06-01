@@ -22,15 +22,17 @@ package io.mandelbrot.core.http
 import akka.actor.{Props, Actor, ActorLogging}
 import akka.io.IO
 import akka.util.Timeout
+import spray.io.{ServerSSLEngineProvider, PipelineContext}
+import javax.net.ssl.{SSLEngine, TrustManagerFactory, KeyManagerFactory, SSLContext}
+import java.security.KeyStore
+import java.io.FileInputStream
+
+import io.mandelbrot.core.notification.NotificationService
 import io.mandelbrot.core.registry.RegistryService
 import io.mandelbrot.core.state.StateService
 import io.mandelbrot.core.message.MessageStream
 import io.mandelbrot.core.history.HistoryService
-import javax.net.ssl.{SSLEngine, TrustManagerFactory, KeyManagerFactory, SSLContext}
-import java.security.KeyStore
-import java.io.FileInputStream
 import io.mandelbrot.core.ServerConfig
-import spray.io.{ServerSSLEngineProvider, PipelineContext}
 
 /**
  * HttpServer is responsible for listening on the HTTP port, accepting connections,
@@ -45,6 +47,7 @@ class HttpServer(val settings: HttpSettings) extends Actor with ApiService with 
   val registryService = RegistryService(system)
   val stateService = StateService(system)
   val historyService = HistoryService(system)
+  val notificationService = NotificationService(system)
   val messageStream = MessageStream(system)
 
   // config
