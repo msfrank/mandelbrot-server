@@ -53,8 +53,9 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
   }
 
   override def postStop(): Unit = {
-    //log.debug("snapshotting {}", processorId)
-    //saveSnapshot(RegistryManagerSnapshot(probeSystems.keySet().toVector))
+//    log.debug("snapshotting {}", processorId)
+//    val systems = probeSystems.map {case (uri,system) => uri -> (system.registration,system.meta)}.toMap
+//    saveSnapshot(RegistryManagerSnapshot(systems))
   }
 
   def receiveCommand = {
@@ -165,7 +166,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
       val system = probeSystems.get(uri)
       log.debug("updating probe system {} at {}", uri, system.actor.path)
       system.actor ! command
-      probeSystems.put(uri, system.copy(meta = system.meta.copy(lastUpdated = event.timestamp)))
+      probeSystems.put(uri, system.copy(meta = system.meta.copy(lastUpdate = event.timestamp)))
       if (!recovering)
         sender() ! UpdateProbeSystemResult(command, system.actor)
 
@@ -220,7 +221,7 @@ case class ProbeRegistration(systemType: String,
                              probes: Map[String,ProbeSpec]) extends Serializable
 
 /* */
-case class ProbeSystemMetadata(createdOn: DateTime, lastUpdated: DateTime, retiredOn: Option[DateTime])
+case class ProbeSystemMetadata(joinedOn: DateTime, lastUpdate: DateTime, retiredOn: Option[DateTime])
 
 /* object registry operations */
 sealed trait ProbeRegistryOperation
