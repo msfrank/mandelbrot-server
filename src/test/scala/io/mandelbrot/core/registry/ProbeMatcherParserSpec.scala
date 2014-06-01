@@ -38,7 +38,7 @@ class ProbeMatcherParserSpec extends WordSpec with MustMatchers {
       val matcher = new ProbeMatcherParser().parseProbeMatcher("fqdn:*.com")
       println(matcher)
       inside(matcher) {
-        case ProbeMatcher(Some(scheme: MatchExact), Some(location: MatchRegex), None) =>
+        case ProbeMatcher(Some(scheme: MatchExact), Some(location: MatchGlob), None) =>
           scheme.string must be === "fqdn"
           location.regex.toString must be === """.*\Q.com\E"""
       }

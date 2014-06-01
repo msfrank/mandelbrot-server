@@ -18,6 +18,13 @@ case class ProbeMatcher(scheme: Option[SegmentMatcher], location: Option[Segment
       return false
     true
   }
+  override def toString = if (scheme.isEmpty && location.isEmpty && path.isEmpty) "*" else {
+    val schemestring = if (scheme.isDefined) scheme.get.toString else "*"
+    val locationstring = if (location.isDefined) location.get.toString else "*"
+    if (path.isEmpty) schemestring + ":" + locationstring else {
+      schemestring + ":" + locationstring + "/" + path.get.toString
+    }
+  }
 }
 
 /**
@@ -25,6 +32,7 @@ case class ProbeMatcher(scheme: Option[SegmentMatcher], location: Option[Segment
  */
 object MatchesAll extends ProbeMatcher(None, None, None) {
   override def matches(probeRef: ProbeRef): Boolean = true
+  override def toString = "*"
 }
 
 sealed trait SegmentMatcher {
@@ -33,22 +41,33 @@ sealed trait SegmentMatcher {
 
 case object MatchAny extends SegmentMatcher {
   def matches(candidate: String) = true
+  override def toString = "*"
 }
 
 case class MatchExact(string: String) extends SegmentMatcher {
   def matches(candidate: String) = candidate == string
+  override def toString = string
 }
 
 case class MatchPrefix(prefix: String) extends SegmentMatcher {
   def matches(candidate: String) = candidate.startsWith(prefix)
+  override def toString = prefix + "*"
 }
 
 case class MatchSuffix(suffix: String) extends SegmentMatcher {
   def matches(candidate: String) = candidate.endsWith(suffix)
+  override def toString = "*" + suffix
 }
 
-case class MatchRegex(regex: Pattern) extends SegmentMatcher {
+case class MatchGlob(tokens: Vector[String]) extends SegmentMatcher {
+  def escape(literal: String): String = """\Q""" + literal + """\E"""
+  val regex = Pattern.compile(tokens.map {
+    case "*" => ".*"
+    case "?" => ".?"
+    case token => escape(token)
+  }.mkString)
   def matches(candidate: String) = regex.matcher(candidate).matches()
+  override def toString = tokens.mkString
 }
 
 case class PathMatcher(segments: Vector[SegmentMatcher]) {
@@ -62,6 +81,7 @@ case class PathMatcher(segments: Vector[SegmentMatcher]) {
     }
     true
   }
+  override def toString = segments.mkString("/")
 }
 
 /**
@@ -80,8 +100,6 @@ class ProbeMatcherParser extends RegexParsers {
   }
 
   override val skipWhitespace = false
-
-  def escape(literal: String): String = """\Q""" + literal + """\E"""
 
   def parseGlob(glob: String): SegmentMatcher = {
     val tokens: Vector[String] = glob.foldLeft(Vector.empty[String]) {
@@ -114,15 +132,9 @@ class ProbeMatcherParser extends RegexParsers {
     }
     tokens match {
       case Vector("*") => MatchAny
-      case Vector("?") => MatchRegex(Pattern.compile(".?"))
+      case Vector("?") => MatchGlob(tokens)
       case vector if vector.length == 1 => MatchExact(vector.head)
-      case _ =>
-        val regex = tokens.map {
-          case "*" => ".*"
-          case "?" => ".?"
-          case token => escape(token)
-        }.mkString
-        MatchRegex(Pattern.compile(regex))
+      case _ => MatchGlob(tokens)
     }
   }
 
