@@ -282,6 +282,7 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
         case _ =>
           context.actorOf(Probe.props(ref, self, stateService, notificationService, historyService, trackingService))
       }
+      context.watch(actor)
       log.debug("probe {} joins", ref)
       val probeSpec = findProbeSpec(registration, ref.path)
       actor ! InitProbe(probeSpec.policy)
