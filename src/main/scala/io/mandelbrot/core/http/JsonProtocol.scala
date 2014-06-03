@@ -160,14 +160,12 @@ object JsonProtocol extends DefaultJsonProtocol {
     def write(lifecycle: ProbeLifecycle) = lifecycle match {
       case ProbeJoining => JsString("joining")
       case ProbeKnown => JsString("known")
-      case ProbeLeaving => JsString("leaving")
       case ProbeRetired => JsString("retired")
       case unknown => throw new SerializationException("unknown ProbeLifecycle state " + unknown.getClass)
     }
     def read(value: JsValue) = value match {
       case JsString("joining") => ProbeJoining
       case JsString("known") => ProbeKnown
-      case JsString("leaving") => ProbeLeaving
       case JsString("retired") => ProbeRetired
       case unknown => throw new DeserializationException("unknown ProbeLifecycle state " + unknown)
     }

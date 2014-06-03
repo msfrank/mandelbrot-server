@@ -51,6 +51,7 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
   // state
   var probes: Map[ProbeRef,ProbeActor] = Map.empty
   val retiredProbes = new mutable.HashMap[ActorRef,ProbeRef]()
+  //val zombieProbes = new mutable.HashMap[ActorRef,]
   var currentRegistration: Option[ProbeRegistration] = None
 
   val stateService = StateService(context.system)
@@ -285,11 +286,11 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
     val probesRemoved = probeSet -- specSet
     probesRemoved.toVector.sorted.reverse.foreach { case ref: ProbeRef =>
       log.debug("probe {} retires", ref)
-      probes(ref).actor ! RetireProbe
-      probes(ref).actor ! PoisonPill
-      probes = probes - ref
+      val probeactor = probes(ref)
+      probeactor.actor ! RetireProbe
+      retiredProbes.put(probeactor.actor, ref)
     }
-    // update existing probes
+    // update existing probes and mark zombie probes
     val probesUpdated = probeSet.intersect(specSet)
     probesUpdated.foreach { case ref: ProbeRef =>
       val probeSpec = findProbeSpec(registration, ref.path)

@@ -276,8 +276,6 @@ class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,C
           LifecycleRuleMatcher(ProbeJoining)
         case "known" =>
           LifecycleRuleMatcher(ProbeKnown)
-        case "leaving" =>
-          LifecycleRuleMatcher(ProbeLeaving)
         case "retired" =>
           LifecycleRuleMatcher(ProbeRetired)
         case unknown =>

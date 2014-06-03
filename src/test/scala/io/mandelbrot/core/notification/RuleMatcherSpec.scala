@@ -47,7 +47,7 @@ class RuleMatcherSpec extends WordSpec with MustMatchers {
     }
     "not match when lifecycle doesn't match" in {
       val matcher = LifecycleRuleMatcher(ProbeKnown)
-      matcher.matches(NotifyLifecycleChanges(ProbeRef("fqdn:localhost/load"), DateTime.now(), ProbeKnown, ProbeLeaving)) must be(false)
+      matcher.matches(NotifyLifecycleChanges(ProbeRef("fqdn:localhost/load"), DateTime.now(), ProbeKnown, ProbeJoining)) must be(false)
     }
     "not match when notification type is not NotifyLifecycleChanges" in {
       val matcher = LifecycleRuleMatcher(ProbeKnown)

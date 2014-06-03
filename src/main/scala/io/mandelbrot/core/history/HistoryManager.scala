@@ -146,7 +146,6 @@ class HistoryManager(managerSettings: ManagerSettings) extends Actor with ActorL
     val lifecycle = entry._3 match {
       case "joining" => ProbeJoining
       case "known" => ProbeKnown
-      case "leaving" => ProbeLeaving
       case "retired" => ProbeRetired
     }
     val health = entry._4 match {

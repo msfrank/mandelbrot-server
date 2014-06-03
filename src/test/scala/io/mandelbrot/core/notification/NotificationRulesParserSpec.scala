@@ -99,10 +99,10 @@ class NotificationRulesParserSpec extends WordSpec with MustMatchers {
 
     "parse group operator expression" in {
       val parser = new NotificationRuleParser(contacts, groups)
-      val matcher = parser.parseAll(parser.ruleExpression, "(alert(failed) or alert(degraded)) and (lifecycle(known) or lifecycle(leaving))")
+      val matcher = parser.parseAll(parser.ruleExpression, "(alert(failed) or alert(degraded)) and (lifecycle(known) or lifecycle(joining))")
       matcher.get must be === AndOperator(Vector(
         OrOperator(Vector(AlertRuleMatcher(ProbeFailed), AlertRuleMatcher(ProbeDegraded))),
-        OrOperator(Vector(LifecycleRuleMatcher(ProbeKnown), LifecycleRuleMatcher(ProbeLeaving)))
+        OrOperator(Vector(LifecycleRuleMatcher(ProbeKnown), LifecycleRuleMatcher(ProbeJoining)))
       ))
     }
   }
