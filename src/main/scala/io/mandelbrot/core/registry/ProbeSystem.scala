@@ -25,6 +25,7 @@ import akka.pattern.pipe
 import akka.util.Timeout
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import scala.collection.mutable
 import java.net.URI
 import java.util.UUID
 
@@ -49,6 +50,7 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
 
   // state
   var probes: Map[ProbeRef,ProbeActor] = Map.empty
+  val retiredProbes = new mutable.HashMap[ActorRef,ProbeRef]()
   var currentRegistration: Option[ProbeRegistration] = None
 
   val stateService = StateService(context.system)
@@ -212,8 +214,22 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
     case notification: Notification =>
       notifier.foreach(_ ! notification)
 
-    case Terminated(ref) =>
-      log.debug("actor {} has been terminated", ref.path)
+    /* retire all running probes */
+    case command: UnregisterProbeSystem =>
+      probes.foreach {
+        case (ref,probeactor) if !retiredProbes.contains(probeactor.actor) =>
+          probeactor.actor ! RetireProbe
+          retiredProbes.put(probeactor.actor, ref)
+        case _ => // do nothing
+      }
+
+    case Terminated(actorref) =>
+      val proberef = retiredProbes(actorref)
+      log.debug("probe {} has been terminated", proberef)
+      probes = probes - proberef
+      retiredProbes.remove(actorref)
+      if (probes.isEmpty)
+        context.stop(self)
 
   }
 

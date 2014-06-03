@@ -118,6 +118,17 @@ trait ApiService extends HttpService {
               }
             }
           }
+        } ~
+        /* unregister the probe system */
+        delete {
+          complete {
+            registryService.ask(UnregisterProbeSystem(uri)).map {
+              case result: UnregisterProbeSystemResult =>
+                HttpResponse(StatusCodes.Accepted)
+              case failure: ProbeSystemOperationFailed =>
+                throw failure.failure
+            }
+          }
         }
       } ~
       pathPrefix("properties") {

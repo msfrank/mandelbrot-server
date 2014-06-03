@@ -82,16 +82,20 @@ class Probe(probeRef: ProbeRef,
     case InitProbe(initialPolicy) if currentPolicy.isEmpty =>
       persist(ProbeInitializes(initialPolicy, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
-    case _ if currentPolicy.isEmpty =>
-      // TODO: handle this exception
+    case message if currentPolicy.isEmpty =>
+      throw new Exception("current policy is empty, cannot process " + message)
 
     case UpdateProbe(policy) =>
       if (currentPolicy.isDefined && policy != currentPolicy.get)
         persist(ProbeConfigures(policy, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
 
     case ProbeExpiryTimeout =>
-      val correlation = if (correlationId.isDefined) correlationId else Some(UUID.randomUUID())
-      persist(ProbeExpires(correlation, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
+      if (lifecycle == ProbeLeaving) {
+        persist(ProbeRetires(DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
+      } else {
+        val correlation = if (correlationId.isDefined) correlationId else Some(UUID.randomUUID())
+        persist(ProbeExpires(correlation, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
+      }
 
     case ProbeAlertTimeout =>
       persist(ProbeAlerts(DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
@@ -153,7 +157,7 @@ class Probe(probeRef: ProbeRef,
       notifier.foreach(_ ! notification)
 
     case RetireProbe =>
-      persist(ProbeRetires(DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
+      persist(ProbeLeaves(DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
   }
 
   def receiveRecover = {
@@ -175,6 +179,7 @@ class Probe(probeRef: ProbeRef,
 
   def updateState(event: Event, recovering: Boolean) = event match {
 
+    /* set the initial policy and state, and start expiry timer with joining timeout */
     case ProbeInitializes(initialPolicy, timestamp) =>
       // set the initial policy
       updatePolicy(initialPolicy)
@@ -190,11 +195,39 @@ class Probe(probeRef: ProbeRef,
         // TODO: there should likely be a notification sent here
       }
 
+    /* reconfigure policy */
     case ProbeConfigures(policy, timestamp) =>
       updatePolicy(policy)
       resetExpiryTimer()
       // TODO: there should likely be a notification sent here
 
+    /*
+     * if we receive a status message while leaving, we update probe state but we
+     * don't send out notifications.
+     */
+    case ProbeUpdates(message, correlation, timestamp) if lifecycle == ProbeLeaving =>
+      summary = Some(message.summary)
+      lastUpdate = Some(timestamp)
+      val oldHealth = health
+      // update health
+      health = message.health
+      if (health != oldHealth) {
+        lastChange = Some(timestamp)
+        flapQueue.foreach(_.push(message.timestamp))
+      }
+      if (!recovering) {
+        // notify state service about updated state
+        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      }
+
+    /*
+     * if we receive a status message while joining or known, then update probe state
+     * and send notifications.  if the previous lifecycle was joining, then we move to
+     * known.  if we transition from non-healthy to healthy, then we clear the correlation
+     * and acknowledgement (if set).  if we transition from healthy to non-healthy, then
+     * we set the correlation if it is different from the current correlation, and we start
+     * the alert timer.
+     */
     case ProbeUpdates(message, correlation, timestamp) =>
       summary = Some(message.summary)
       lastUpdate = Some(timestamp)
@@ -205,6 +238,8 @@ class Probe(probeRef: ProbeRef,
       // update lifecycle
       if (oldLifecycle == ProbeJoining)
         lifecycle = ProbeKnown
+      // reset the expiry timer
+      resetExpiryTimer()
       // update health
       health = message.health
       if (health != oldHealth) {
@@ -243,9 +278,13 @@ class Probe(probeRef: ProbeRef,
         if (health == ProbeHealthy && oldAcknowledgement.isDefined)
           sendNotification(NotifyRecovers(probeRef, timestamp, oldCorrelation.get, oldAcknowledgement.get))
       }
-      // reset the expiry timer
-      resetExpiryTimer()
 
+    /*
+     * if we haven't received a status message within the current expiry window, then update probe
+     * state and send notifications.  probe health becomes unknown, and correlation is set if it is
+     * different from the current correlation.  we restart the expiry timer, and we start the alert
+      * timer if it is not already running.
+     */
     case ProbeExpires(correlation, timestamp) =>
       val oldHealth = health
       // update health
@@ -276,6 +315,9 @@ class Probe(probeRef: ProbeRef,
       // reset the expiry timer
       restartExpiryTimer()
 
+    /*
+     *
+     */
     case ProbeAlerts(timestamp) =>
       // restart the alert timer
       alertTimer.restart(currentPolicy.get.alertTimeout)
@@ -330,9 +372,14 @@ class Probe(probeRef: ProbeRef,
         sender() ! SetProbeSquelchResult(command, squelch)
       }
 
-    case ProbeRetires(timestamp) =>
+    /*
+     * the probe system notifies the probe to retire.  probe lifecycle is set to leaving, state is
+     * updated, and lifecycle-changes notification is sent.  the expiry timer is reset using the
+     * leaving timeout, and the alert timer is stopped if it is running.
+     */
+    case ProbeLeaves(timestamp) =>
       val oldLifecycle = lifecycle
-      lifecycle = ProbeRetired
+      lifecycle = ProbeLeaving
       summary = None
       lastUpdate = Some(timestamp)
       lastChange = Some(timestamp)
@@ -343,9 +390,30 @@ class Probe(probeRef: ProbeRef,
         // send lifecycle notifications
         sendNotification(NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle))
       }
-      // cancel timers
+      resetExpiryTimer()
+      // cancel alert timer if it is running
+      alertTimer.stop()
+
+    /*
+     * probe lifecycle is leaving and the leaving timeout has expired.  probe lifecycle is set to
+     * retired, state is updated, and lifecycle-changes notification is sent.  finally, all timers
+     * are stopped, then the actor itself is stopped.
+     */
+    case ProbeRetires(timestamp) =>
+      val oldLifecycle = lifecycle
+      lifecycle = ProbeRetired
+      summary = None
+      lastUpdate = Some(timestamp)
+      lastChange = Some(timestamp)
+      if (!recovering) {
+        // notify state service about updated state
+        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+        // send lifecycle notifications
+        sendNotification(NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle))
+      }
       expiryTimer.stop()
       alertTimer.stop()
+      context.stop(self)
   }
 
   /**
@@ -374,12 +442,15 @@ class Probe(probeRef: ProbeRef,
         lifecycle match {
           case ProbeJoining =>
             expiryTimer.reset(policy.joiningTimeout)
+          case ProbeKnown =>
+            expiryTimer.reset(policy.probeTimeout)
           case ProbeLeaving =>
             expiryTimer.reset(policy.leavingTimeout)
-          case _ =>
-            expiryTimer.reset(policy.probeTimeout)
+          case ProbeRetired =>
+            throw new Exception("resetting expiry timer for retired probe")
         }
-      case None => None   // FIXME: shouldn't ever happen, so throw exception here?
+      case None => None
+        throw new Exception("resetting expiry timer for unconfigured probe")
     }
   }
 
@@ -433,6 +504,7 @@ object Probe {
   case class UserAcknowledges(op: AcknowledgeProbe, acknowledgementId: UUID, timestamp: DateTime) extends Event
   case class UserUnacknowledges(op: UnacknowledgeProbe, acknowledgementId: UUID, timestamp: DateTime) extends Event
   case class UserSetsSquelch(op: SetProbeSquelch, timestamp: DateTime) extends Event
+  case class ProbeLeaves(timestamp: DateTime) extends Event
   case class ProbeRetires(timestamp: DateTime) extends Event
 
   case object ProbeAlertTimeout

@@ -44,6 +44,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
 
   // state
   val probeSystems = new java.util.HashMap[URI,ProbeSystemActor](1024)
+  val unregisteredRefs = new java.util.HashMap[ActorRef,URI](64)
 
   /* subscribe to status messages */
   MessageStream(context.system).subscribe(self, classOf[StatusMessage])
@@ -82,11 +83,13 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
           persist(Event(command, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
       }
 
-    /* terminate the ProbeSystem */
+    /* unregister the ProbeSystem */
     case command: UnregisterProbeSystem =>
       probeSystems.get(command.uri) match {
         case null =>
           sender() ! ProbeRegistryOperationFailed(command, new ApiException(ResourceNotFound))
+        case system: ProbeSystemActor if unregisteredRefs.contains(system.actor) =>
+          sender() ! ProbeRegistryOperationFailed(command, new ApiException(Conflict))
         case system: ProbeSystemActor =>
           persist(Event(command, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
       }
@@ -127,8 +130,12 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
     case notification: Notification =>
       NotificationService(context.system) ! notification
 
+    /* probe system actor has terminated */
     case Terminated(ref) =>
-      log.debug("actor {} has been terminated", ref.path)
+      val uri = unregisteredRefs.get(ref)
+      log.debug("probe system {} has been terminated", uri)
+      probeSystems.remove(uri)
+      unregisteredRefs.remove(ref)
 
   }
 
@@ -174,8 +181,8 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
     case command @ UnregisterProbeSystem(uri) =>
       val system = probeSystems.get(uri)
       log.debug("unregistering probe system {}", uri)
-      probeSystems.remove(uri)
-      system.actor ! PoisonPill
+      unregisteredRefs.put(system.actor, uri)
+      system.actor ! command
       if (!recovering)
         sender() ! UnregisterProbeSystemResult(command)
   }
