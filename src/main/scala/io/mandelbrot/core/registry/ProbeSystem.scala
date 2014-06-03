@@ -51,7 +51,7 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
   // state
   var probes: Map[ProbeRef,ProbeActor] = Map.empty
   val retiredProbes = new mutable.HashMap[ActorRef,ProbeRef]()
-  //val zombieProbes = new mutable.HashMap[ActorRef,]
+  val zombieProbes = new mutable.HashSet[ProbeRef]
   var currentRegistration: Option[ProbeRegistration] = None
 
   val stateService = StateService(context.system)
@@ -224,11 +224,17 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
         case _ => // do nothing
       }
 
+    /* clean up retired probes, reanimate zombie probes */
     case Terminated(actorref) =>
       val proberef = retiredProbes(actorref)
-      log.debug("probe {} has been terminated", proberef)
       probes = probes - proberef
       retiredProbes.remove(actorref)
+      if (zombieProbes.contains(proberef)) {
+        zombieProbes.remove(proberef)
+        applyProbeRegistration(currentRegistration.get)
+      } else {
+        log.debug("probe {} has been terminated", proberef)
+      }
       if (probes.isEmpty)
         context.stop(self)
 
@@ -292,9 +298,12 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
     }
     // update existing probes and mark zombie probes
     val probesUpdated = probeSet.intersect(specSet)
-    probesUpdated.foreach { case ref: ProbeRef =>
-      val probeSpec = findProbeSpec(registration, ref.path)
-      probes(ref).actor ! UpdateProbe(probeSpec.policy)
+    probesUpdated.foreach {
+      case ref: ProbeRef if retiredProbes.contains(probes(ref).actor) =>
+        zombieProbes.add(ref)
+      case ref: ProbeRef =>
+        val probeSpec = findProbeSpec(registration, ref.path)
+        probes(ref).actor ! UpdateProbe(probeSpec.policy)
     }
     currentRegistration = Some(registration)
   }
