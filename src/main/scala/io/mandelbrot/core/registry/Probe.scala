@@ -90,6 +90,11 @@ class Probe(probeRef: ProbeRef,
 
   def receive = {
 
+    case status: ProbeStatus if status.lifecycle == ProbeRetired =>
+      context.become(retired)
+      log.debug("probe {} becomes retired", probeRef)
+      unstashAll()
+
     case status: ProbeStatus =>
       // initialize probe state
       lifecycle = status.lifecycle
@@ -102,6 +107,7 @@ class Probe(probeRef: ProbeRef,
       squelch = status.squelched
       // switch to running behavior and replay any stashed messages
       context.become(running)
+      log.debug("probe {} becomes running", probeRef)
       unstashAll()
       // notify state service about updated state
       stateService ! ProbeStatus(probeRef, status.timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
@@ -114,6 +120,15 @@ class Probe(probeRef: ProbeRef,
 
     case other =>
       stash()
+  }
+
+  def retired: Receive = {
+
+    case RetireProbe =>
+      context.stop(self)
+
+    case _ =>
+      // ignore any other message
   }
 
   def running: Receive = {
@@ -240,6 +255,7 @@ class Probe(probeRef: ProbeRef,
       }
 
     /*
+     *
      *
      */
     case query: GetProbeStatus =>
