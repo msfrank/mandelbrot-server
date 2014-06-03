@@ -276,16 +276,15 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
     // add new probes
     val probesAdded = specSet -- probeSet
     probesAdded.toVector.sorted.foreach { case ref: ProbeRef =>
+      val probeSpec = findProbeSpec(registration, ref.path)
       val actor = ref.parentOption match {
         case Some(parent) if !parent.path.isEmpty =>
-          context.actorOf(Probe.props(ref, probes(parent).actor, stateService, notificationService, historyService, trackingService))
+          context.actorOf(Probe.props(ref, probes(parent).actor, probeSpec.policy, stateService, notificationService, trackingService))
         case _ =>
-          context.actorOf(Probe.props(ref, self, stateService, notificationService, historyService, trackingService))
+          context.actorOf(Probe.props(ref, self, probeSpec.policy, stateService, notificationService, trackingService))
       }
       context.watch(actor)
       log.debug("probe {} joins", ref)
-      val probeSpec = findProbeSpec(registration, ref.path)
-      actor ! InitProbe(probeSpec.policy)
       probes = probes + (ref -> ProbeActor(probeSpec, actor))
       stateService ! ProbeMetadata(ref, registration.metadata)
     }
@@ -332,7 +331,6 @@ object ProbeSystem {
 
   case class ProbeActor(spec: ProbeSpec, actor: ActorRef)
   case class InitializeProbeSystem(registration: ProbeRegistration)
-  case class InitProbe(initialPolicy: ProbePolicy)
   case class UpdateProbe(policy: ProbePolicy)
   case object RetireProbe
 }

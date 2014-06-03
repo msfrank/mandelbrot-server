@@ -19,11 +19,10 @@
 
 package io.mandelbrot.core.registry
 
-import akka.actor.{ActorLogging, ActorRef, Props}
+import akka.actor._
 import akka.pattern.ask
 import akka.pattern.pipe
 import akka.util.Timeout
-import akka.persistence.{Recover, SnapshotOffer, EventsourcedProcessor}
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 import java.util.UUID
@@ -32,22 +31,26 @@ import io.mandelbrot.core.{ResourceNotFound, Conflict, BadRequest, ApiException}
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.message.StatusMessage
 import io.mandelbrot.core.tracking._
+import io.mandelbrot.core.state.{StateServiceOperationFailed, GetCurrentStatusResult, GetCurrentStatus}
+import io.mandelbrot.core.notification.NotifyRecovers
+import io.mandelbrot.core.notification.NotifyAcknowledged
+import io.mandelbrot.core.tracking.DeleteTicketResult
+import io.mandelbrot.core.notification.NotifySquelched
 
 /**
  *
  */
 class Probe(probeRef: ProbeRef,
             parent: ActorRef,
+            var policy: ProbePolicy,
             stateService: ActorRef,
             notificationService: ActorRef,
-            historyService: ActorRef,
-            trackingService: ActorRef) extends EventsourcedProcessor with ActorLogging {
+            trackingService: ActorRef) extends Actor with Stash with ActorLogging {
   import Probe._
-  import ProbeSystem.{InitProbe,UpdateProbe,RetireProbe}
+  import ProbeSystem.{UpdateProbe,RetireProbe}
   import context.dispatcher
 
   // config
-  override def processorId = probeRef.toString
   implicit val timeout: Timeout = 5.seconds   // TODO: pull this from settings
 
   // state
@@ -60,142 +63,68 @@ class Probe(probeRef: ProbeRef,
   var acknowledgementId: Option[UUID] = None
   var squelch: Boolean = false
 
-  var currentPolicy: Option[ProbePolicy] = None
   var notifier: Option[ActorRef] = None
   var flapQueue: Option[FlapQueue] = None
   var expiryTimer = new Timer(context, self, ProbeExpiryTimeout)
   var alertTimer = new Timer(context, self, ProbeAlertTimeout)
 
+
   override def preStart(): Unit = {
-    self ! Recover()
+    // set the initial policy
+    applyPolicy(policy)
+    // ask state service what our current status is
+    stateService.ask(GetCurrentStatus(Left(probeRef))).map {
+      case result: GetCurrentStatusResult =>
+        result.status.head
+      case StateServiceOperationFailed(_, failure: ApiException) if failure.failure == ResourceNotFound =>
+        ProbeStatus(probeRef, DateTime.now(DateTimeZone.UTC), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
+      case failure: StateServiceOperationFailed =>
+        failure
+    }.pipeTo(self)
   }
 
   override def postStop(): Unit = {
     expiryTimer.stop()
     alertTimer.stop()
-    //log.debug("snapshotting {}", processorId)
-    //saveSnapshot(ProbeSnapshot(lifecycle, health, summary, detail, lastChange, lastUpdate, correlationId, acknowledgementId, squelch))
   }
 
-  def receiveCommand = {
+  def receive = {
 
-    case InitProbe(initialPolicy) if currentPolicy.isEmpty =>
-      persist(ProbeInitializes(initialPolicy, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
-
-    case message if currentPolicy.isEmpty =>
-      throw new Exception("current policy is empty, cannot process " + message)
-
-    case UpdateProbe(policy) =>
-      if (currentPolicy.isDefined && policy != currentPolicy.get)
-        persist(ProbeConfigures(policy, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
-
-    case ProbeExpiryTimeout =>
-      val correlation = if (correlationId.isDefined) correlationId else Some(UUID.randomUUID())
-      persist(ProbeExpires(correlation, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
-
-    case ProbeAlertTimeout =>
-      persist(ProbeAlerts(DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
-
-    case message: StatusMessage =>
-      val correlation = if (message.health == ProbeHealthy) None else {
-        if (correlationId.isDefined) correlationId else Some(UUID.randomUUID())
-      }
-      persist(ProbeUpdates(message, correlation, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
-
-    case query: GetProbeStatus =>
-      val status = ProbeStatus(probeRef, DateTime.now(DateTimeZone.UTC), lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-      sender() ! GetProbeStatusResult(query, status)
-
-    case command: AcknowledgeProbe =>
-      correlationId match {
-        case None =>
-          sender() ! ProbeOperationFailed(command, new ApiException(ResourceNotFound))
-        case Some(correlation) if acknowledgementId.isDefined =>
-          sender() ! ProbeOperationFailed(command, new ApiException(Conflict))
-        case Some(correlation) if correlation != command.correlationId =>
-          sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
-        case Some(correlation) =>
-          val acknowledgement = UUID.randomUUID()
-          val timestamp = DateTime.now(DateTimeZone.UTC)
-          persist(UserAcknowledges(command, acknowledgement, timestamp))(updateState(_, recovering = false))
-      }
-
-    case command: AppendProbeWorknote =>
-      acknowledgementId match {
-        case None =>
-          sender() ! ProbeOperationFailed(command, new ApiException(ResourceNotFound))
-        case Some(acknowledgement) if acknowledgement != command.acknowledgementId =>
-          sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
-        case Some(acknowledgement) =>
-          val timestamp = DateTime.now(DateTimeZone.UTC)
-          trackingService.tell(AppendWorknote(acknowledgement, timestamp, command.comment, command.internal.getOrElse(false)), sender())
-      }
-
-    case command: UnacknowledgeProbe =>
-      acknowledgementId match {
-        case None =>
-          sender() ! ProbeOperationFailed(command, new ApiException(ResourceNotFound))
-        case Some(acknowledgement) if acknowledgement != command.acknowledgementId =>
-          sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
-        case Some(acknowledgement) =>
-          val timestamp = DateTime.now(DateTimeZone.UTC)
-          persist(UserUnacknowledges(command, acknowledgement, timestamp))(updateState(_, recovering = false))
-      }
-
-    case command: SetProbeSquelch =>
-      if (squelch == command.squelch) {
-        sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
-      } else {
-        persist(UserSetsSquelch(command, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
-      }
-
-    case notification: Notification =>
-      notifier.foreach(_ ! notification)
-
-    case RetireProbe =>
-      persist(ProbeRetires(DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
-  }
-
-  def receiveRecover = {
-
-    case event: Event =>
-      updateState(event, recovering = true)
-
-    case SnapshotOffer(metadata, snapshot: ProbeSnapshot) =>
-      log.debug("loading snapshot of {} using offer {}", processorId, metadata)
-      lifecycle = snapshot.lifecycle
-      health = snapshot.health
-      summary = snapshot.summary
-      lastChange = snapshot.lastChange
-      lastUpdate = snapshot.lastUpdate
-      correlationId = snapshot.correlationId
-      acknowledgementId = snapshot.acknowledgementId
-      squelch = snapshot.squelch
-  }
-
-  def updateState(event: Event, recovering: Boolean) = event match {
-
-    /* set the initial policy and state, and start expiry timer with joining timeout */
-    case ProbeInitializes(initialPolicy, timestamp) =>
-      // set the initial policy
-      updatePolicy(initialPolicy)
-      resetExpiryTimer()
+    case status: ProbeStatus =>
       // initialize probe state
-      lifecycle = ProbeJoining
-      summary = None
-      lastUpdate = Some(timestamp)
-      lastChange = Some(timestamp)
-      if (!recovering) {
-        // notify state service about updated state
-        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-        // TODO: there should likely be a notification sent here
-      }
-
-    /* reconfigure policy */
-    case ProbeConfigures(policy, timestamp) =>
-      updatePolicy(policy)
+      lifecycle = status.lifecycle
+      health = status.health
+      summary = status.summary
+      lastChange = status.lastChange
+      lastUpdate = status.lastUpdate
+      correlationId = status.correlation
+      acknowledgementId = status.acknowledged
+      squelch = status.squelched
+      // switch to running behavior and replay any stashed messages
+      context.become(running)
+      unstashAll()
+      // notify state service about updated state
+      stateService ! ProbeStatus(probeRef, status.timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      // start the expiry timer using the joining timeout
       resetExpiryTimer()
-      // TODO: there should likely be a notification sent here
+
+    /* bail and let actor supervision decide what to do */
+    case failure: StateServiceOperationFailed =>
+      throw failure.failure
+
+    case other =>
+      stash()
+  }
+
+  def running: Receive = {
+
+    /*
+     *
+     */
+    case UpdateProbe(newPolicy) =>
+      applyPolicy(newPolicy)
+      resetExpiryTimer()
+      // FIXME: reset alert timer as well?
 
     /*
      * if we receive a status message while joining or known, then update probe state
@@ -205,7 +134,11 @@ class Probe(probeRef: ProbeRef,
      * we set the correlation if it is different from the current correlation, and we start
      * the alert timer.
      */
-    case ProbeUpdates(message, correlation, timestamp) =>
+    case message: StatusMessage =>
+      val timestamp = DateTime.now(DateTimeZone.UTC)
+      val correlation = if (message.health == ProbeHealthy) None else {
+        if (correlationId.isDefined) correlationId else Some(UUID.randomUUID())
+      }
       summary = Some(message.summary)
       lastUpdate = Some(timestamp)
       val oldLifecycle = lifecycle
@@ -234,35 +167,36 @@ class Probe(probeRef: ProbeRef,
         if (correlationId != correlation)
           correlationId = correlation
         if (!alertTimer.isRunning)
-          alertTimer.start(currentPolicy.get.alertTimeout)
+          alertTimer.start(policy.alertTimeout)
       }
-      if (!recovering) {
-        // notify state service about updated state
-        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-        // send lifecycle notifications
-        if (lifecycle != oldLifecycle)
-          sendNotification(NotifyLifecycleChanges(probeRef, message.timestamp, oldLifecycle, lifecycle))
-        // send health notifications
-        flapQueue match {
-          case Some(flapDetector) if flapDetector.isFlapping =>
-            sendNotification(NotifyHealthFlaps(probeRef, message.timestamp, correlationId, flapDetector.flapStart))
-          case _ if oldHealth != health =>
-            sendNotification(NotifyHealthChanges(probeRef, message.timestamp, correlationId, oldHealth, health))
-          case _ =>
-            sendNotification(NotifyHealthUpdates(probeRef, message.timestamp, correlationId, health))
-        }
-        // send recovery notification
-        if (health == ProbeHealthy && oldAcknowledgement.isDefined)
-          sendNotification(NotifyRecovers(probeRef, timestamp, oldCorrelation.get, oldAcknowledgement.get))
+      // notify state service about updated state
+      stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      // send lifecycle notifications
+      if (lifecycle != oldLifecycle)
+        sendNotification(NotifyLifecycleChanges(probeRef, message.timestamp, oldLifecycle, lifecycle))
+      // send health notifications
+      flapQueue match {
+        case Some(flapDetector) if flapDetector.isFlapping =>
+          sendNotification(NotifyHealthFlaps(probeRef, message.timestamp, correlationId, flapDetector.flapStart))
+        case _ if oldHealth != health =>
+          sendNotification(NotifyHealthChanges(probeRef, message.timestamp, correlationId, oldHealth, health))
+        case _ =>
+          sendNotification(NotifyHealthUpdates(probeRef, message.timestamp, correlationId, health))
       }
+      // send recovery notification
+      if (health == ProbeHealthy && oldAcknowledgement.isDefined)
+        sendNotification(NotifyRecovers(probeRef, timestamp, oldCorrelation.get, oldAcknowledgement.get))
+
 
     /*
      * if we haven't received a status message within the current expiry window, then update probe
      * state and send notifications.  probe health becomes unknown, and correlation is set if it is
      * different from the current correlation.  we restart the expiry timer, and we start the alert
-      * timer if it is not already running.
+     * timer if it is not already running.
      */
-    case ProbeExpires(correlation, timestamp) =>
+    case ProbeExpiryTimeout =>
+      val timestamp = DateTime.now(DateTimeZone.UTC)
+      val correlation = if (correlationId.isDefined) correlationId else Some(UUID.randomUUID())
       val oldHealth = health
       // update health
       health = ProbeUnknown
@@ -275,57 +209,95 @@ class Probe(probeRef: ProbeRef,
       if (correlationId != correlation)
         correlationId = correlation
       if (!alertTimer.isRunning)
-        alertTimer.start(currentPolicy.get.alertTimeout)
-      if (!recovering) {
-        // notify state service if we transition to unknown
-        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-        // send health notifications
-        flapQueue match {
-          case Some(flapDetector) if flapDetector.isFlapping =>
-            sendNotification(NotifyHealthFlaps(probeRef, timestamp, correlationId, flapDetector.flapStart))
-          case _ if oldHealth != health =>
-            sendNotification(NotifyHealthChanges(probeRef, timestamp, correlationId, oldHealth, health))
-          case _ =>
-            sendNotification(NotifyHealthExpires(probeRef, timestamp, correlationId))
-        }
+        alertTimer.start(policy.alertTimeout)
+      // notify state service if we transition to unknown
+      stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      // send health notifications
+      flapQueue match {
+        case Some(flapDetector) if flapDetector.isFlapping =>
+          sendNotification(NotifyHealthFlaps(probeRef, timestamp, correlationId, flapDetector.flapStart))
+        case _ if oldHealth != health =>
+          sendNotification(NotifyHealthChanges(probeRef, timestamp, correlationId, oldHealth, health))
+        case _ =>
+          sendNotification(NotifyHealthExpires(probeRef, timestamp, correlationId))
       }
       // reset the expiry timer
       restartExpiryTimer()
 
+
+    /*
+     * if the alert timer expires, then send a health-alerts notification and restart the alert timer.
+     */
+    case ProbeAlertTimeout =>
+      val timestamp = DateTime.now(DateTimeZone.UTC)
+      // restart the alert timer
+      alertTimer.restart(policy.alertTimeout)
+      // send alert notification
+      correlationId match {
+        case Some(correlation) =>
+          sendNotification(NotifyHealthAlerts(probeRef, timestamp, health, correlation, acknowledgementId))
+        case None =>  // do nothing
+      }
+
     /*
      *
      */
-    case ProbeAlerts(timestamp) =>
-      // restart the alert timer
-      alertTimer.restart(currentPolicy.get.alertTimeout)
-      if (!recovering) {
-        correlationId match {
-          case Some(correlation) =>
-            sendNotification(NotifyHealthAlerts(probeRef, timestamp, health, correlation, acknowledgementId))
-          case None =>  // do nothing
-        }
+    case query: GetProbeStatus =>
+      val status = ProbeStatus(probeRef, DateTime.now(DateTimeZone.UTC), lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      sender() ! GetProbeStatusResult(query, status)
+
+    /*
+     *
+     */
+    case command: AcknowledgeProbe =>
+      correlationId match {
+        case None =>
+          sender() ! ProbeOperationFailed(command, new ApiException(ResourceNotFound))
+        case Some(correlation) if acknowledgementId.isDefined =>
+          sender() ! ProbeOperationFailed(command, new ApiException(Conflict))
+        case Some(correlation) if correlation != command.correlationId =>
+          sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
+        case Some(correlation) =>
+          val acknowledgement = UUID.randomUUID()
+          val timestamp = DateTime.now(DateTimeZone.UTC)
+          val correlation = correlationId.get
+          acknowledgementId = Some(acknowledgement)
+          // notify state service that we are acknowledged
+          stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+          // send acknowledgement notification
+          sendNotification(NotifyAcknowledged(probeRef, timestamp, correlation, acknowledgement))
+          // track the acknowledgement
+          trackingService.ask(CreateTicket(acknowledgement, timestamp, probeRef, correlation)).map {
+            case result: CreateTicketResult =>
+              AcknowledgeProbeResult(command, acknowledgement)
+            case failure: TrackingServiceOperationFailed =>
+              ProbeOperationFailed(command, failure.failure)
+          }.pipeTo(sender())
       }
 
-    case UserAcknowledges(command, acknowledgement, timestamp) =>
-      val correlation = correlationId.get
-      acknowledgementId = Some(acknowledgement)
-      if (!recovering) {
-        // notify state service that we are acknowledged
-        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-        // send acknowledgement notification
-        sendNotification(NotifyAcknowledged(probeRef, timestamp, correlation, acknowledgement))
-        // track the acknowledgement
-        trackingService.ask(CreateTicket(acknowledgement, timestamp, probeRef, correlation)).map {
-          case result: CreateTicketResult =>
-            AcknowledgeProbeResult(command, acknowledgement)
-          case failure: TrackingServiceOperationFailed =>
-            ProbeOperationFailed(command, failure.failure)
-        }.pipeTo(sender())
+    case command: AppendProbeWorknote =>
+      acknowledgementId match {
+        case None =>
+          sender() ! ProbeOperationFailed(command, new ApiException(ResourceNotFound))
+        case Some(acknowledgement) if acknowledgement != command.acknowledgementId =>
+          sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
+        case Some(acknowledgement) =>
+          val timestamp = DateTime.now(DateTimeZone.UTC)
+          trackingService.tell(AppendWorknote(acknowledgement, timestamp, command.comment, command.internal.getOrElse(false)), sender())
       }
 
-    case UserUnacknowledges(command, acknowledgement, timestamp) =>
-      acknowledgementId = None
-      if (!recovering) {
+    /*
+     *
+     */
+    case command: UnacknowledgeProbe =>
+      acknowledgementId match {
+        case None =>
+          sender() ! ProbeOperationFailed(command, new ApiException(ResourceNotFound))
+        case Some(acknowledgement) if acknowledgement != command.acknowledgementId =>
+          sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
+        case Some(acknowledgement) =>
+          val timestamp = DateTime.now(DateTimeZone.UTC)
+        acknowledgementId = None
         // notify state service that we are acknowledged
         stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
         // TODO: send unacknowledgement notification
@@ -338,9 +310,15 @@ class Probe(probeRef: ProbeRef,
         }.pipeTo(sender())
       }
 
-    case UserSetsSquelch(command, timestamp) =>
-      squelch = command.squelch
-      if (!recovering) {
+    /*
+     *
+     */
+    case command: SetProbeSquelch =>
+      if (squelch == command.squelch) {
+        sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
+      } else {
+        val timestamp = DateTime.now(DateTimeZone.UTC)
+        squelch = command.squelch
         if (command.squelch)
           sendNotification(NotifySquelched(probeRef, timestamp))
         else
@@ -349,26 +327,30 @@ class Probe(probeRef: ProbeRef,
         sender() ! SetProbeSquelchResult(command, squelch)
       }
 
+    case notification: Notification =>
+      notifier.foreach(_ ! notification)
+
     /*
      * probe lifecycle is leaving and the leaving timeout has expired.  probe lifecycle is set to
      * retired, state is updated, and lifecycle-changes notification is sent.  finally, all timers
      * are stopped, then the actor itself is stopped.
      */
-    case ProbeRetires(timestamp) =>
+    case RetireProbe =>
+      val timestamp = DateTime.now(DateTimeZone.UTC)
       val oldLifecycle = lifecycle
       lifecycle = ProbeRetired
       summary = None
       lastUpdate = Some(timestamp)
       lastChange = Some(timestamp)
-      if (!recovering) {
-        // notify state service about updated state
-        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-        // send lifecycle notifications
-        sendNotification(NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle))
-      }
+      // notify state service about updated state
+      stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      // send lifecycle notifications
+      sendNotification(NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle))
+      //
       expiryTimer.stop()
       alertTimer.stop()
       context.stop(self)
+
   }
 
   /**
@@ -377,13 +359,10 @@ class Probe(probeRef: ProbeRef,
    * type is in the notification set.
    */
   def sendNotification(notification: Notification): Unit = notifier.foreach { _notifier =>
-    currentPolicy.foreach {
-      case policy if policy.notificationPolicy.notifications.isEmpty =>
+    if (policy.notificationPolicy.notifications.isEmpty)
         _notifier ! notification
-      case policy if policy.notificationPolicy.notifications.get.contains(notification.kind) =>
+    else if (policy.notificationPolicy.notifications.get.contains(notification.kind))
         _notifier ! notification
-      case _ => // do nothing
-    }
   }
 
   /**
@@ -392,18 +371,13 @@ class Probe(probeRef: ProbeRef,
    * the old policy.
    */
   def resetExpiryTimer(): Unit = {
-    currentPolicy match {
-      case Some(policy) =>
-        lifecycle match {
-          case ProbeJoining =>
-            expiryTimer.reset(policy.joiningTimeout)
-          case ProbeKnown =>
-            expiryTimer.reset(policy.probeTimeout)
-          case ProbeRetired =>
-            throw new Exception("resetting expiry timer for retired probe")
-        }
-      case None => None
-        throw new Exception("resetting expiry timer for unconfigured probe")
+    lifecycle match {
+      case ProbeJoining =>
+        expiryTimer.reset(policy.joiningTimeout)
+      case ProbeKnown =>
+        expiryTimer.reset(policy.probeTimeout)
+      case ProbeRetired =>
+        throw new Exception("resetting expiry timer for retired probe")
     }
   }
 
@@ -412,25 +386,22 @@ class Probe(probeRef: ProbeRef,
    * we may get duplicate ProbeExpiryTimeout messages.
    */
   def restartExpiryTimer(): Unit = {
-    currentPolicy match {
-      case Some(policy) =>
-        lifecycle match {
-          case ProbeJoining =>
-            expiryTimer.restart(policy.joiningTimeout)
-          case _ =>
-            expiryTimer.restart(policy.probeTimeout)
-        }
-      case None =>
-        throw new Exception("restarting expiry timer for unconfigured probe")
+    lifecycle match {
+      case ProbeJoining =>
+        expiryTimer.restart(policy.joiningTimeout)
+      case ProbeKnown =>
+        expiryTimer.restart(policy.probeTimeout)
+      case ProbeRetired =>
+        throw new Exception("restarting expiry timer for retired probe")
     }
   }
 
   /**
    * update state based on the new policy.
    */
-  def updatePolicy(policy: ProbePolicy): Unit = {
-    log.debug("probe {} updates configuration: {}", probeRef, policy)
-    policy.notificationPolicy.behavior match {
+  def applyPolicy(newPolicy: ProbePolicy): Unit = {
+    log.debug("probe {} updates configuration: {}", probeRef, newPolicy)
+    newPolicy.notificationPolicy.behavior match {
       case EscalateNotifications =>
         notifier = Some(parent)
       case EmitNotifications =>
@@ -438,38 +409,16 @@ class Probe(probeRef: ProbeRef,
       case SquelchNotifications =>
         notifier = None
     }
-    currentPolicy = Some(policy)
+    policy = newPolicy
   }
 }
 
 object Probe {
-  def props(probeRef: ProbeRef, parent: ActorRef, stateService: ActorRef, notificationService: ActorRef, historyService: ActorRef, trackingService: ActorRef) = {
-    Props(classOf[Probe], probeRef, parent, stateService, notificationService, historyService, trackingService)
+  def props(probeRef: ProbeRef, parent: ActorRef, policy: ProbePolicy, stateService: ActorRef, notificationService: ActorRef, trackingService: ActorRef) = {
+    Props(classOf[Probe], probeRef, parent, policy, stateService, notificationService, trackingService)
   }
-
-  sealed trait Event
-  case class ProbeInitializes(policy: ProbePolicy, timestamp: DateTime) extends Event
-  case class ProbeConfigures(policy: ProbePolicy, timestamp: DateTime) extends Event
-  case class ProbeAlerts(timestamp: DateTime) extends Event
-  case class ProbeUpdates(state: StatusMessage, correlationId: Option[UUID], timestamp: DateTime) extends Event
-  case class ProbeExpires(correlationId: Option[UUID], timestamp: DateTime) extends Event
-  case class UserAcknowledges(op: AcknowledgeProbe, acknowledgementId: UUID, timestamp: DateTime) extends Event
-  case class UserUnacknowledges(op: UnacknowledgeProbe, acknowledgementId: UUID, timestamp: DateTime) extends Event
-  case class UserSetsSquelch(op: SetProbeSquelch, timestamp: DateTime) extends Event
-  case class ProbeRetires(timestamp: DateTime) extends Event
-
   case object ProbeAlertTimeout
   case object ProbeExpiryTimeout
-
-  case class ProbeSnapshot(lifecycle: ProbeLifecycle,
-                           health: ProbeHealth,
-                           summary: Option[String],
-                           detail: Option[String],
-                           lastChange: Option[DateTime],
-                           lastUpdate: Option[DateTime],
-                           correlationId: Option[UUID],
-                           acknowledgementId: Option[UUID],
-                           squelch: Boolean) extends Serializable
 }
 
 /* object lifecycle */

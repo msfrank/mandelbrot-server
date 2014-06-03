@@ -25,6 +25,7 @@ import io.mandelbrot.core.registry._
 import io.mandelbrot.core.{ServiceExtension, ServerConfig}
 import io.mandelbrot.core.history.HistoryService
 import io.mandelbrot.core.registry.ProbeStatus
+import scala.collection.mutable
 
 /**
  *
@@ -39,11 +40,16 @@ class StateManager extends Actor with ActorLogging {
     context.actorOf(props, "searcher")
   }
 
+  // state
+  val probeStatus = new mutable.HashMap[ProbeRef,ProbeStatus]()
+
+  // refs
   val historyService = HistoryService(context.system)
 
   def receive = {
 
     case status: ProbeStatus =>
+      probeStatus.put(status.probeRef, status)
       searcher ! status
       historyService ! status
 
@@ -66,6 +72,12 @@ sealed trait StateServiceOperation
 sealed trait StateServiceCommand extends StateServiceOperation
 sealed trait StateServiceQuery extends StateServiceOperation
 case class StateServiceOperationFailed(op: StateServiceOperation, failure: Throwable)
+
+case class GetCurrentStatus(refspec: Either[ProbeRef,Set[ProbeRef]]) extends StateServiceCommand
+case class GetCurrentStatusResult(op: GetCurrentStatus, status: Vector[ProbeStatus])
+
+case class DeleteProbeState(ref: ProbeRef, status: Option[ProbeStatus]) extends StateServiceCommand
+case class DeleteProbeStateResult(op: DeleteProbeState, status: ProbeStatus)
 
 case class QueryProbes(query: String, limit: Option[Int]) extends StateServiceQuery
 case class QueryprobesResult(op: QueryProbes, refs: Vector[ProbeRef])
