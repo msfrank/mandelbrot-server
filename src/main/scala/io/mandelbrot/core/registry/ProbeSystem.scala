@@ -313,7 +313,9 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
 }
 
 object ProbeSystem {
-  def props(uri: URI) = Props(classOf[ProbeSystem], uri)
+  def props(uri: URI, registration: ProbeRegistration, generation: Long) = {
+    Props(classOf[ProbeSystem], uri, registration, generation)
+  }
 
   case class ProbeActor(spec: ProbeSpec, actor: ActorRef)
 }

@@ -28,14 +28,11 @@ import scala.concurrent.duration._
 import java.util.UUID
 
 import io.mandelbrot.core.{ResourceNotFound, Conflict, BadRequest, ApiException}
+import io.mandelbrot.core.message._
+import io.mandelbrot.core.state._
 import io.mandelbrot.core.notification._
-import io.mandelbrot.core.message.StatusMessage
 import io.mandelbrot.core.tracking._
-import io.mandelbrot.core.state.{StateServiceOperationFailed, GetCurrentStatusResult, GetCurrentStatus}
-import io.mandelbrot.core.notification.NotifyRecovers
-import io.mandelbrot.core.notification.NotifyAcknowledged
-import io.mandelbrot.core.tracking.DeleteTicketResult
-import io.mandelbrot.core.notification.NotifySquelched
+import scala.util.{Failure, Success}
 
 /**
  *
@@ -73,13 +70,14 @@ class Probe(probeRef: ProbeRef,
     // set the initial policy
     applyPolicy(policy)
     // ask state service what our current status is
-    stateService.ask(GetCurrentStatus(Left(probeRef))).map {
-      case result: GetCurrentStatusResult =>
-        result.status.head
-      case StateServiceOperationFailed(_, failure: ApiException) if failure.failure == ResourceNotFound =>
-        ProbeStatus(probeRef, DateTime.now(DateTimeZone.UTC), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
-      case failure: StateServiceOperationFailed =>
-        failure
+    stateService.ask(GetProbeState(probeRef)).map {
+      case Success(state: ProbeState) =>
+        state
+      case Failure(failure: ApiException) if failure.failure == ResourceNotFound =>
+        val status = ProbeStatus(probeRef, DateTime.now(DateTimeZone.UTC), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
+        ProbeState(status, generation)
+      case Failure(failure: Throwable) =>
+        throw failure
     }.pipeTo(self)
   }
 
@@ -90,12 +88,11 @@ class Probe(probeRef: ProbeRef,
 
   def receive = {
 
-    case status: ProbeStatus if status.lifecycle == ProbeRetired =>
-      context.become(retired)
-      log.debug("probe {} becomes retired", probeRef)
-      unstashAll()
-
-    case status: ProbeStatus =>
+    /*
+     *
+     */
+    case state @ ProbeState(status, lsn) =>
+      log.debug("received initial state from state service: {}", state)
       // initialize probe state
       lifecycle = status.lifecycle
       health = status.health
@@ -105,18 +102,22 @@ class Probe(probeRef: ProbeRef,
       correlationId = status.correlation
       acknowledgementId = status.acknowledged
       squelch = status.squelched
-      // switch to running behavior and replay any stashed messages
-      context.become(running)
-      log.debug("probe {} becomes running", probeRef)
-      unstashAll()
-      // notify state service about updated state
-      stateService ! ProbeStatus(probeRef, status.timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-      // start the expiry timer using the joining timeout
-      resetExpiryTimer()
-
-    /* bail and let actor supervision decide what to do */
-    case failure: StateServiceOperationFailed =>
-      throw failure.failure
+      // this generation is not current, so switch to retired behavior
+      if (lsn > generation) {
+        context.become(retired)
+        log.debug("probe {} becomes retired", probeRef)
+        unstashAll()
+      }
+      // otherwise switch to running behavior and replay any stashed messages
+      else {
+        context.become(running)
+        log.debug("probe {} becomes running", probeRef)
+        unstashAll()
+        // notify state service about updated state
+        stateService ! state
+        // start the expiry timer using the joining timeout
+        resetExpiryTimer()
+      }
 
     case other =>
       stash()
@@ -124,7 +125,7 @@ class Probe(probeRef: ProbeRef,
 
   def retired: Receive = {
 
-    case RetireProbe =>
+    case RetireProbe(lsn) =>
       context.stop(self)
 
     case _ =>
@@ -185,7 +186,8 @@ class Probe(probeRef: ProbeRef,
           alertTimer.start(policy.alertTimeout)
       }
       // notify state service about updated state
-      stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      stateService ! ProbeState(status, generation)
       // send lifecycle notifications
       if (lifecycle != oldLifecycle)
         sendNotification(NotifyLifecycleChanges(probeRef, message.timestamp, oldLifecycle, lifecycle))
@@ -226,7 +228,8 @@ class Probe(probeRef: ProbeRef,
       if (!alertTimer.isRunning)
         alertTimer.start(policy.alertTimeout)
       // notify state service if we transition to unknown
-      stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      stateService ! ProbeState(status, generation)
       // send health notifications
       flapQueue match {
         case Some(flapDetector) if flapDetector.isFlapping =>
@@ -279,7 +282,8 @@ class Probe(probeRef: ProbeRef,
           val correlation = correlationId.get
           acknowledgementId = Some(acknowledgement)
           // notify state service that we are acknowledged
-          stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+          val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+          stateService ! ProbeState(status, generation)
           // send acknowledgement notification
           sendNotification(NotifyAcknowledged(probeRef, timestamp, correlation, acknowledgement))
           // track the acknowledgement
@@ -315,7 +319,8 @@ class Probe(probeRef: ProbeRef,
           val timestamp = DateTime.now(DateTimeZone.UTC)
         acknowledgementId = None
         // notify state service that we are acknowledged
-        stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+        val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+        stateService ! ProbeState(status, generation)
         // TODO: send unacknowledgement notification
         // track the acknowledgement
         trackingService.ask(DeleteTicket(acknowledgement)).map {
@@ -359,7 +364,8 @@ class Probe(probeRef: ProbeRef,
       lastUpdate = Some(timestamp)
       lastChange = Some(timestamp)
       // notify state service about updated state
-      stateService ! ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      stateService ! ProbeState(status, generation)
       // send lifecycle notifications
       sendNotification(NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle))
       //

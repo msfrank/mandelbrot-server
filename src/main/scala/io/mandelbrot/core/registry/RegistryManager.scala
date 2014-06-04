@@ -148,8 +148,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
     case SnapshotOffer(metadata, snapshot: RegistryManagerSnapshot) =>
       log.debug("loading snapshot of {} using offer {}", processorId, metadata)
       snapshot.probeSystems.foreach { case (uri,(registration,meta,lsn)) =>
-        val actor = context.actorOf(ProbeSystem.props(uri))
-        actor ! ConfigureProbeSystem(registration, lsn)
+        val actor = context.actorOf(ProbeSystem.props(uri, registration, lsn))
         probeSystems.put(uri, ProbeSystemActor(registration, actor, meta, lsn))
         log.debug("loading probe system {}", uri)
       }
@@ -159,9 +158,8 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
 
     /* register the ProbeSystem */
     case ProbeSystemRegisters(command, timestamp, lsn) =>
-      val actor = context.actorOf(ProbeSystem.props(command.uri))
+      val actor = context.actorOf(ProbeSystem.props(command.uri, command.registration, lsn))
       log.debug("registering probe system {} at {}", command.uri, actor.path)
-      actor ! ConfigureProbeSystem(command.registration, lsn)
       context.watch(actor)
       val meta = ProbeSystemMetadata(timestamp, timestamp, None)
       probeSystems.put(command.uri, ProbeSystemActor(command.registration, actor, meta, lsn))
