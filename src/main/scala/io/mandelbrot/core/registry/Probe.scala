@@ -43,11 +43,11 @@ import io.mandelbrot.core.notification.NotifySquelched
 class Probe(probeRef: ProbeRef,
             parent: ActorRef,
             var policy: ProbePolicy,
+            generation: Long,
             stateService: ActorRef,
             notificationService: ActorRef,
             trackingService: ActorRef) extends Actor with Stash with ActorLogging {
   import Probe._
-  import ProbeSystem.{UpdateProbe,RetireProbe}
   import context.dispatcher
 
   // config
@@ -136,7 +136,7 @@ class Probe(probeRef: ProbeRef,
     /*
      *
      */
-    case UpdateProbe(newPolicy) =>
+    case UpdateProbe(newPolicy, lsn) =>
       applyPolicy(newPolicy)
       resetExpiryTimer()
       // FIXME: reset alert timer as well?
@@ -430,9 +430,16 @@ class Probe(probeRef: ProbeRef,
 }
 
 object Probe {
-  def props(probeRef: ProbeRef, parent: ActorRef, policy: ProbePolicy, stateService: ActorRef, notificationService: ActorRef, trackingService: ActorRef) = {
-    Props(classOf[Probe], probeRef, parent, policy, stateService, notificationService, trackingService)
+  def props(probeRef: ProbeRef,
+            parent: ActorRef,
+            policy: ProbePolicy,
+            generation: Long,
+            stateService: ActorRef,
+            notificationService: ActorRef,
+            trackingService: ActorRef) = {
+    Props(classOf[Probe], probeRef, parent, policy, generation, stateService, notificationService, trackingService)
   }
+
   case object ProbeAlertTimeout
   case object ProbeExpiryTimeout
 }

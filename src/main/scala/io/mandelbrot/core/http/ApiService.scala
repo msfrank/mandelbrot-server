@@ -113,7 +113,7 @@ trait ApiService extends HttpService {
               registryService.ask(updateProbeSystem).map {
                 case result: UpdateProbeSystemResult =>
                   HttpResponse(StatusCodes.Accepted, headers = List(Location("/objects/systems/" + updateProbeSystem.uri.toString)))
-                case failure: ProbeSystemOperationFailed =>
+                case failure: ProbeRegistryOperationFailed =>
                   throw failure.failure
               }
             }

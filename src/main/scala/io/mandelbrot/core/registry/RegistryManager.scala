@@ -36,13 +36,13 @@ import org.joda.time.{DateTimeZone, DateTime}
  */
 class RegistryManager extends EventsourcedProcessor with ActorLogging {
   import RegistryManager._
-  import ProbeSystem.InitializeProbeSystem
 
   // config
   override def processorId = "registry-manager"
   val settings = ServerConfig(context.system).settings.registry
 
   // state
+  var currentLsn: Long = Long.MinValue
   val probeSystems = new java.util.HashMap[URI,ProbeSystemActor](1024)
   val unregisteredRefs = new java.util.HashMap[ActorRef,URI](64)
 
@@ -65,7 +65,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
     case command: RegisterProbeSystem =>
       if (!probeSystems.containsKey(command.uri)) {
         if (registrationValid(command.registration))
-          persist(Event(command, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
+          persist(ProbeSystemRegisters(command, DateTime.now(DateTimeZone.UTC), currentLsn + 1))(updateState)
         else
           sender() ! ProbeRegistryOperationFailed(command, new ApiException(BadRequest))
       } else {
@@ -76,11 +76,11 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
     case command: UpdateProbeSystem =>
       probeSystems.get(command.uri) match {
         case null =>
-          sender() ! ProbeSystemOperationFailed(command, new ApiException(ResourceNotFound))
+          sender() ! ProbeRegistryOperationFailed(command, new ApiException(ResourceNotFound))
         case system: ProbeSystemActor if !registrationValid(command.registration) =>
-          sender() ! ProbeSystemOperationFailed(command, new ApiException(BadRequest))
+          sender() ! ProbeRegistryOperationFailed(command, new ApiException(BadRequest))
         case system: ProbeSystemActor =>
-          persist(Event(command, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
+          persist(ProbeSystemUpdates(command, DateTime.now(DateTimeZone.UTC), currentLsn + 1))(updateState)
       }
 
     /* unregister the ProbeSystem */
@@ -91,7 +91,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
         case system: ProbeSystemActor if unregisteredRefs.contains(system.actor) =>
           sender() ! ProbeRegistryOperationFailed(command, new ApiException(Conflict))
         case system: ProbeSystemActor =>
-          persist(Event(command, DateTime.now(DateTimeZone.UTC)))(updateState(_, recovering = false))
+          persist(ProbeSystemUnregisters(command, DateTime.now(DateTimeZone.UTC), currentLsn + 1))(updateState)
       }
 
     /* return the list of registered ProbeSystems */
@@ -142,48 +142,51 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
   def receiveRecover = {
 
     case event: Event =>
-      updateState(event, recovering = true)
+      updateState(event)
 
     /* recreate probe systems from snapshot */
     case SnapshotOffer(metadata, snapshot: RegistryManagerSnapshot) =>
       log.debug("loading snapshot of {} using offer {}", processorId, metadata)
-      snapshot.probeSystems.foreach { case (uri,(registration,meta)) =>
+      snapshot.probeSystems.foreach { case (uri,(registration,meta,lsn)) =>
         val actor = context.actorOf(ProbeSystem.props(uri))
-        actor ! InitializeProbeSystem(registration)
-        probeSystems.put(uri, ProbeSystemActor(registration, actor, meta))
+        actor ! ConfigureProbeSystem(registration, lsn)
+        probeSystems.put(uri, ProbeSystemActor(registration, actor, meta, lsn))
         log.debug("loading probe system {}", uri)
       }
   }
 
-  def updateState(event: Event, recovering: Boolean) = event.event match {
+  def updateState(event: Event) = event match {
 
     /* register the ProbeSystem */
-    case command @ RegisterProbeSystem(uri, registration) =>
-      val actor = context.actorOf(ProbeSystem.props(uri))
-      log.debug("registering probe system {} at {}", uri, actor.path)
-      actor ! InitializeProbeSystem(registration)
+    case ProbeSystemRegisters(command, timestamp, lsn) =>
+      val actor = context.actorOf(ProbeSystem.props(command.uri))
+      log.debug("registering probe system {} at {}", command.uri, actor.path)
+      actor ! ConfigureProbeSystem(command.registration, lsn)
       context.watch(actor)
-      val meta = ProbeSystemMetadata(event.timestamp, event.timestamp, None)
-      probeSystems.put(uri, ProbeSystemActor(registration, actor, meta))
-      if (!recovering)
+      val meta = ProbeSystemMetadata(timestamp, timestamp, None)
+      probeSystems.put(command.uri, ProbeSystemActor(command.registration, actor, meta, lsn))
+      currentLsn = lsn
+      if (!recoveryRunning)
         sender() ! RegisterProbeSystemResult(command, actor)
 
     /* update the ProbeSystem */
-    case command @ UpdateProbeSystem(uri, registration) =>
-      val system = probeSystems.get(uri)
-      log.debug("updating probe system {} at {}", uri, system.actor.path)
-      system.actor ! command
-      probeSystems.put(uri, system.copy(meta = system.meta.copy(lastUpdate = event.timestamp)))
-      if (!recovering)
+    case ProbeSystemUpdates(command, timestamp, lsn) =>
+      val system = probeSystems.get(command.uri)
+      log.debug("updating probe system {} at {}", command.uri, system.actor.path)
+      system.actor ! ConfigureProbeSystem(command.registration, lsn)
+      probeSystems.put(command.uri, system.copy(meta = system.meta.copy(lastUpdate = timestamp)))
+      currentLsn = lsn
+      if (!recoveryRunning)
         sender() ! UpdateProbeSystemResult(command, system.actor)
 
     /* terminate the ProbeSystem */
-    case command @ UnregisterProbeSystem(uri) =>
-      val system = probeSystems.get(uri)
-      log.debug("unregistering probe system {}", uri)
-      unregisteredRefs.put(system.actor, uri)
-      system.actor ! command
-      if (!recovering)
+    case ProbeSystemUnregisters(command, timestamp, lsn) =>
+      val system = probeSystems.get(command.uri)
+      log.debug("unregistering probe system {}", command.uri)
+      unregisteredRefs.put(system.actor, command.uri)
+      currentLsn = lsn
+      system.actor ! RetireProbeSystem(lsn)
+      if (!recoveryRunning)
         sender() ! UnregisterProbeSystemResult(command)
   }
 
@@ -202,9 +205,12 @@ object RegistryManager {
 
   def settings(config: Config): Option[Any] = None
 
-  case class ProbeSystemActor(registration: ProbeRegistration, actor: ActorRef, meta: ProbeSystemMetadata)
-  case class Event(event: Any, timestamp: DateTime)
-  case class RegistryManagerSnapshot(probeSystems: Map[URI,(ProbeRegistration,ProbeSystemMetadata)]) extends Serializable
+  case class ProbeSystemActor(registration: ProbeRegistration, actor: ActorRef, meta: ProbeSystemMetadata, lsn: Long)
+  sealed trait Event
+  case class ProbeSystemRegisters(command: RegisterProbeSystem, timestamp: DateTime, lsn: Long) extends Event
+  case class ProbeSystemUpdates(command: UpdateProbeSystem, timestamp: DateTime, lsn: Long) extends Event
+  case class ProbeSystemUnregisters(command: UnregisterProbeSystem, timestamp: DateTime, lsn: Long) extends Event
+  case class RegistryManagerSnapshot(probeSystems: Map[URI,(ProbeRegistration,ProbeSystemMetadata,Long)]) extends Serializable
 }
 
 /* contains tunable parameters for the probe */
@@ -238,6 +244,9 @@ case class ProbeRegistryOperationFailed(op: ProbeRegistryOperation, failure: Thr
 
 case class RegisterProbeSystem(uri: URI, registration: ProbeRegistration) extends ProbeRegistryCommand
 case class RegisterProbeSystemResult(op: RegisterProbeSystem, ref: ActorRef)
+
+case class UpdateProbeSystem(uri: URI, registration: ProbeRegistration) extends ProbeRegistryCommand
+case class UpdateProbeSystemResult(op: UpdateProbeSystem, ref: ActorRef)
 
 case class ListProbeSystems() extends ProbeRegistryQuery
 case class ListProbeSystemsResult(op: ListProbeSystems, systems: Map[URI,ProbeSystemMetadata])

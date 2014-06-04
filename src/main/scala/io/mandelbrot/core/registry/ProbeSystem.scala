@@ -40,7 +40,7 @@ import io.mandelbrot.core.tracking.TrackingService
 /**
  *
  */
-class ProbeSystem(uri: URI) extends Actor with ActorLogging {
+class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Long) extends Actor with ActorLogging {
   import ProbeSystem._
   import context.dispatcher
 
@@ -50,9 +50,8 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
 
   // state
   var probes: Map[ProbeRef,ProbeActor] = Map.empty
-  val retiredProbes = new mutable.HashMap[ActorRef,ProbeRef]()
+  val retiredProbes = new mutable.HashMap[ActorRef,(ProbeRef,Long)]()
   val zombieProbes = new mutable.HashSet[ProbeRef]
-  var currentRegistration: Option[ProbeRegistration] = None
 
   val stateService = StateService(context.system)
   val notificationService = NotificationService(context.system)
@@ -61,26 +60,19 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
 
   var notifier: Option[ActorRef] = Some(notificationService)
 
+  override def preStart(): Unit = {
+    applyProbeRegistration(registration, generation)
+  }
+
   def receive = {
 
-    /* initialize the probe system with the specified spec */
-    case InitializeProbeSystem(registration) =>
-      applyProbeRegistration(registration)
-      log.debug("initialized probe system {}", uri)
-
-    /* update the probe system with the specified spec */
-    case command @ UpdateProbeSystem(_, registration) =>
-      applyProbeRegistration(registration)
-      log.debug("updated probe system {}", uri)
+    /* initialize or update the probe system with the specified spec */
+    case ConfigureProbeSystem(newRegistration, lsn) =>
+      applyProbeRegistration(newRegistration, lsn)
 
     /* get the ProbeSystem spec */
     case query: DescribeProbeSystem =>
-      currentRegistration match {
-        case Some(registration) =>
-          sender() ! DescribeProbeSystemResult(query, registration)
-        case None =>
-          sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
-      }
+      sender() ! DescribeProbeSystemResult(query, registration)
 
     /* acknowledge the specified probes in the probe system */
     case command: AcknowledgeProbeSystem =>
@@ -122,44 +114,38 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
 
     /* get the state of probes in the system */
     case query: GetProbeSystemStatus =>
-      currentRegistration match {
-        case Some(spec) =>
-          val futures = findMatching(query.paths).map { case (ref: ProbeRef, actor: ProbeActor) =>
-            actor.actor.ask(GetProbeStatus(ref))(timeout).mapTo[GetProbeStatusResult]
-          }
-          Future.sequence(futures).map {
-            case results: Set[GetProbeStatusResult] =>
-              GetProbeSystemStatusResult(query, results.map(result => result.state.probeRef -> result.state).toMap)
-          }.recover {
-            case ex: Throwable => ProbeSystemOperationFailed(query, ex)
-          }.pipeTo(sender())
-        case None =>
-          sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
+      val futures = findMatching(query.paths).map { case (ref: ProbeRef, actor: ProbeActor) =>
+        actor.actor.ask(GetProbeStatus(ref))(timeout).mapTo[GetProbeStatusResult]
       }
+      if (futures.isEmpty)
+        sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
+      else
+        Future.sequence(futures).map {
+          case results: Set[GetProbeStatusResult] =>
+            GetProbeSystemStatusResult(query, results.map(result => result.state.probeRef -> result.state).toMap)
+        }.recover {
+          case ex: Throwable => ProbeSystemOperationFailed(query, ex)
+        }.pipeTo(sender())
 
     /* get the metadata of probes in the system */
     case query: GetProbeSystemMetadata =>
-      currentRegistration match {
-        case Some(spec) =>
           val metadata = findMatching(query.paths).map { case (ref: ProbeRef, actor: ProbeActor) =>
-            ref -> findProbeSpec(spec, ref.path).metadata
+            ref -> findProbeSpec(registration, ref.path).metadata
           }.toMap
-          sender() ! GetProbeSystemMetadataResult(query, metadata)
-        case None =>
-          sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
-      }
+      if (metadata.isEmpty)
+        sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
+      else
+        sender() ! GetProbeSystemMetadataResult(query, metadata)
 
     /* get the policy of probes in the system */
     case query: GetProbeSystemPolicy =>
-      currentRegistration match {
-        case Some(spec) =>
-          val policy = findMatching(query.paths).map { case (ref: ProbeRef, actor: ProbeActor) =>
-            ref -> findProbeSpec(spec, ref.path).policy
-          }.toMap
-          sender() ! GetProbeSystemPolicyResult(query, policy)
-        case None =>
-          sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
-      }
+      val policy = findMatching(query.paths).map { case (ref: ProbeRef, actor: ProbeActor) =>
+        ref -> findProbeSpec(registration, ref.path).policy
+      }.toMap
+      if (policy.isEmpty)
+        sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
+      else
+        sender() ! GetProbeSystemPolicyResult(query, policy)
 
     /* get the status history for the specified probes */
     case query: GetProbeSystemStatusHistory =>
@@ -216,25 +202,24 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
       notifier.foreach(_ ! notification)
 
     /* retire all running probes */
-    case command: UnregisterProbeSystem =>
+    case command: RetireProbeSystem =>
       probes.foreach {
         case (ref,probeactor) if !retiredProbes.contains(probeactor.actor) =>
           probeactor.actor ! RetireProbe
-          retiredProbes.put(probeactor.actor, ref)
+          retiredProbes.put(probeactor.actor, (ref,command.lsn))
         case _ => // do nothing
       }
 
     /* clean up retired probes, reanimate zombie probes */
     case Terminated(actorref) =>
-      val proberef = retiredProbes(actorref)
+      val (proberef,lsn) = retiredProbes(actorref)
       probes = probes - proberef
       retiredProbes.remove(actorref)
       if (zombieProbes.contains(proberef)) {
         zombieProbes.remove(proberef)
-        applyProbeRegistration(currentRegistration.get)
-      } else {
+        applyProbeRegistration(registration, lsn)
+      } else
         log.debug("probe {} has been terminated", proberef)
-      }
       if (probes.isEmpty)
         context.stop(self)
 
@@ -270,31 +255,32 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
   /**
    * apply the spec to the probe system, adding and removing probes as necessary
    */
-  def applyProbeRegistration(registration: ProbeRegistration): Unit = {
-    val specSet = registration2RefSet(registration)
+  def applyProbeRegistration(newRegistration: ProbeRegistration, lsn: Long): Unit = {
+    log.debug("configuring probe system {}", uri)
+    val specSet = registration2RefSet(newRegistration)
     val probeSet = probes.keySet
     // add new probes
     val probesAdded = specSet -- probeSet
     probesAdded.toVector.sorted.foreach { case ref: ProbeRef =>
-      val probeSpec = findProbeSpec(registration, ref.path)
+      val probeSpec = findProbeSpec(newRegistration, ref.path)
       val actor = ref.parentOption match {
         case Some(parent) if !parent.path.isEmpty =>
-          context.actorOf(Probe.props(ref, probes(parent).actor, probeSpec.policy, stateService, notificationService, trackingService))
+          context.actorOf(Probe.props(ref, probes(parent).actor, probeSpec.policy, lsn, stateService, notificationService, trackingService))
         case _ =>
-          context.actorOf(Probe.props(ref, self, probeSpec.policy, stateService, notificationService, trackingService))
+          context.actorOf(Probe.props(ref, self, probeSpec.policy, lsn, stateService, notificationService, trackingService))
       }
       context.watch(actor)
       log.debug("probe {} joins", ref)
       probes = probes + (ref -> ProbeActor(probeSpec, actor))
-      stateService ! ProbeMetadata(ref, registration.metadata)
+      stateService ! ProbeMetadata(ref, newRegistration.metadata)
     }
     // remove stale probes
     val probesRemoved = probeSet -- specSet
     probesRemoved.toVector.sorted.reverse.foreach { case ref: ProbeRef =>
       log.debug("probe {} retires", ref)
       val probeactor = probes(ref)
-      probeactor.actor ! RetireProbe
-      retiredProbes.put(probeactor.actor, ref)
+      probeactor.actor ! RetireProbe(lsn)
+      retiredProbes.put(probeactor.actor, (ref,lsn))
     }
     // update existing probes and mark zombie probes
     val probesUpdated = probeSet.intersect(specSet)
@@ -302,10 +288,10 @@ class ProbeSystem(uri: URI) extends Actor with ActorLogging {
       case ref: ProbeRef if retiredProbes.contains(probes(ref).actor) =>
         zombieProbes.add(ref)
       case ref: ProbeRef =>
-        val probeSpec = findProbeSpec(registration, ref.path)
-        probes(ref).actor ! UpdateProbe(probeSpec.policy)
+        val probeSpec = findProbeSpec(newRegistration, ref.path)
+        probes(ref).actor ! UpdateProbe(probeSpec.policy, lsn)
     }
-    currentRegistration = Some(registration)
+    registration = newRegistration
   }
 
   /**
@@ -330,10 +316,12 @@ object ProbeSystem {
   def props(uri: URI) = Props(classOf[ProbeSystem], uri)
 
   case class ProbeActor(spec: ProbeSpec, actor: ActorRef)
-  case class InitializeProbeSystem(registration: ProbeRegistration)
-  case class UpdateProbe(policy: ProbePolicy)
-  case object RetireProbe
 }
+
+case class ConfigureProbeSystem(registration: ProbeRegistration, lsn: Long)
+case class UpdateProbe(policy: ProbePolicy, lsn: Long)
+case class RetireProbe(lsn: Long)
+case class RetireProbeSystem(lsn: Long)
 
 /**
  *
@@ -345,11 +333,9 @@ sealed trait ProbeSystemCommand extends ProbeSystemOperation
 sealed trait ProbeSystemQuery extends ProbeSystemOperation
 case class ProbeSystemOperationFailed(op: ProbeSystemOperation, failure: Throwable)
 
+
 case class DescribeProbeSystem(uri: URI) extends ProbeSystemQuery
 case class DescribeProbeSystemResult(op: DescribeProbeSystem, registration: ProbeRegistration)
-
-case class UpdateProbeSystem(uri: URI, registration: ProbeRegistration) extends ProbeSystemCommand
-case class UpdateProbeSystemResult(op: UpdateProbeSystem, ref: ActorRef)
 
 case class AcknowledgeProbeSystem(uri: URI, correlations: Map[ProbeRef,UUID]) extends ProbeSystemCommand
 case class AcknowledgeProbeSystemResult(op: AcknowledgeProbeSystem, acknowledgements: Map[ProbeRef,UUID])

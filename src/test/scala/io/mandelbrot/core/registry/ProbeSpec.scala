@@ -40,7 +40,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
     "have an initial state" in {
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-      val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), blackhole, initialPolicy, blackhole, blackhole, blackhole))
+      val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), blackhole, initialPolicy, 0, blackhole, blackhole, blackhole))
       val probe = actor.underlyingActor
       probe.lifecycle must be(ProbeJoining)
       probe.health must be(ProbeUnknown)
@@ -60,7 +60,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "initialize and transition to running behavior and upon receiving InitProbe" in {
       val ref = ProbeRef("fqdn:local/")
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, blackhole, blackhole, blackhole))
+      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, 0, blackhole, blackhole, blackhole))
       actor ! GetProbeStatus(ref)
       val result = expectMsgClass(classOf[GetProbeStatusResult])
       result.state.lifecycle must be(ProbeJoining)
@@ -74,7 +74,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "transition from ProbeJoining/ProbeUnknown to ProbeKnown/ProbeHealthy when a healthy StatusMessage is received" in {
       val ref = ProbeRef("fqdn:local/")
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, blackhole, blackhole, blackhole))
+      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, 0, blackhole, blackhole, blackhole))
       val timestamp = DateTime.now()
       actor ! StatusMessage(ref, ProbeHealthy, "healthy", None, timestamp)
       actor ! GetProbeStatus(ref)
@@ -90,7 +90,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "transition from ProbeJoining/ProbeUnknown to ProbeKnown/ProbeDegraded when a degraded StatusMessage is received" in {
       val ref = ProbeRef("fqdn:local/")
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, blackhole, blackhole, blackhole))
+      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, 0, blackhole, blackhole, blackhole))
       val timestamp = DateTime.now()
       actor ! StatusMessage(ref, ProbeDegraded, "degraded", None, timestamp)
       actor ! GetProbeStatus(ref)
@@ -106,7 +106,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "transition from ProbeJoining/ProbeUnknown to ProbeKnown/ProbeFailed when a failed StatusMessage is received" in {
       val ref = ProbeRef("fqdn:local/")
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, blackhole, blackhole, blackhole))
+      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, 0, blackhole, blackhole, blackhole))
       val timestamp = DateTime.now()
       actor ! StatusMessage(ref, ProbeFailed, "failed", None, timestamp)
       actor ! GetProbeStatus(ref)
@@ -122,7 +122,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "transition from ProbeJoining/ProbeUnknown to ProbeKnown/ProbeUnknown when a unknown StatusMessage is received" in {
       val ref = ProbeRef("fqdn:local/")
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, blackhole, blackhole, blackhole))
+      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, 0, blackhole, blackhole, blackhole))
       val timestamp = DateTime.now()
       actor ! StatusMessage(ref, ProbeUnknown, "unknown", None, timestamp)
       actor ! GetProbeStatus(ref)
@@ -138,7 +138,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "notify StateService and NotificationService when the joining timeout expires" in {
       val ref = ProbeRef("fqdn:local/")
       val initialPolicy = ProbePolicy(5.seconds, 1.minute, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-      val actor = system.actorOf(Probe.props(ref, self, initialPolicy, self, self, self))
+      val actor = system.actorOf(Probe.props(ref, self, initialPolicy, 0, self, self, self))
       expectMsgClass(classOf[ProbeStatus])
       // expiry timer should fire within 5 seconds
       within(10.seconds) {
@@ -161,7 +161,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "notify StateService and NotificationService when the probe timeout expires" in {
       val ref = ProbeRef("fqdn:local/")
       val initialPolicy = ProbePolicy(1.minute, 5.seconds, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-      val actor = system.actorOf(Probe.props(ref, self, initialPolicy, self, self, self))
+      val actor = system.actorOf(Probe.props(ref, self, initialPolicy, 0, self, self, self))
       expectMsgClass(classOf[ProbeStatus])
       val timestamp = DateTime.now()
       actor ! StatusMessage(ref, ProbeFailed, "failed", None, timestamp)
@@ -185,7 +185,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "notify StateService and NotificationService when the alert timeout expires" in {
       val ref = ProbeRef("fqdn:local/")
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 5.seconds, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-      val actor = system.actorOf(Probe.props(ref, self, initialPolicy, self, self, self))
+      val actor = system.actorOf(Probe.props(ref, self, initialPolicy, 0, self, self, self))
       expectMsgClass(classOf[ProbeStatus])
       val timestamp = DateTime.now()
       actor ! StatusMessage(ref, ProbeFailed, "failed", None, timestamp)
