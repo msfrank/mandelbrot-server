@@ -242,9 +242,9 @@ class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,C
 
   /* shamelessly copied from Parsers.scala */
   def _log[T](p: => Parser[T])(name: String): Parser[T] = Parser { in =>
-    logger.debug("trying " + name + " at "+ in)
+    //logger.debug("trying " + name + " at "+ in)
     val r = p(in)
-    logger.debug(name + " --> " + r)
+    //logger.debug(name + " --> " + r)
     r
   }
 

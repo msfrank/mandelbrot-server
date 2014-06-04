@@ -70,14 +70,13 @@ class Probe(probeRef: ProbeRef,
     // set the initial policy
     applyPolicy(policy)
     // ask state service what our current status is
-    stateService.ask(GetProbeState(probeRef)).map {
-      case Success(state: ProbeState) =>
-        state
-      case Failure(failure: ApiException) if failure.failure == ResourceNotFound =>
-        val status = ProbeStatus(probeRef, DateTime.now(DateTimeZone.UTC), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
-        ProbeState(status, generation)
-      case Failure(failure: Throwable) =>
-        throw failure
+    stateService.ask(InitializeProbeState(probeRef, DateTime.now(DateTimeZone.UTC), generation)).map {
+      case result @ Success(state: ProbeState) =>
+        log.debug("gen {}: received initial status from state service: {} (lsn {})", generation, state.status, state.lsn)
+        result
+      case result @ Failure(failure: Throwable) =>
+        log.debug("gen {}: failure receiving initial state from state service: {}", generation, failure)
+        result
     }.pipeTo(self)
   }
 
@@ -91,8 +90,7 @@ class Probe(probeRef: ProbeRef,
     /*
      *
      */
-    case state @ ProbeState(status, lsn) =>
-      log.debug("received initial state from state service: {}", state)
+    case Success(ProbeState(status, lsn)) =>
       // initialize probe state
       lifecycle = status.lifecycle
       health = status.health
@@ -105,19 +103,25 @@ class Probe(probeRef: ProbeRef,
       // this generation is not current, so switch to retired behavior
       if (lsn > generation) {
         context.become(retired)
-        log.debug("probe {} becomes retired", probeRef)
+        log.debug("probe {} becomes retired (lsn {})", probeRef, lsn)
         unstashAll()
       }
       // otherwise switch to running behavior and replay any stashed messages
       else {
         context.become(running)
-        log.debug("probe {} becomes running", probeRef)
+        log.debug("probe {} becomes running (lsn {})", probeRef, lsn)
         unstashAll()
-        // notify state service about updated state
-        stateService ! state
         // start the expiry timer using the joining timeout
         resetExpiryTimer()
       }
+
+    case Failure(failure: ApiException) if failure.failure == ResourceNotFound =>
+      context.become(retired)
+      log.debug("probe {} becomes retired", probeRef)
+      unstashAll()
+
+    case Failure(failure: Throwable) =>
+      throw failure
 
     case other =>
       stash()
@@ -356,7 +360,7 @@ class Probe(probeRef: ProbeRef,
      * retired, state is updated, and lifecycle-changes notification is sent.  finally, all timers
      * are stopped, then the actor itself is stopped.
      */
-    case RetireProbe =>
+    case RetireProbe(lsn) =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val oldLifecycle = lifecycle
       lifecycle = ProbeRetired
@@ -365,7 +369,7 @@ class Probe(probeRef: ProbeRef,
       lastChange = Some(timestamp)
       // notify state service about updated state
       val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-      stateService ! ProbeState(status, generation)
+      stateService ! DeleteProbeState(probeRef, Some(status), lsn)
       // send lifecycle notifications
       sendNotification(NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle))
       //

@@ -205,7 +205,7 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
     case command: RetireProbeSystem =>
       probes.foreach {
         case (ref,probeactor) if !retiredProbes.contains(probeactor.actor) =>
-          probeactor.actor ! RetireProbe
+          probeactor.actor ! RetireProbe(command.lsn)
           retiredProbes.put(probeactor.actor, (ref,command.lsn))
         case _ => // do nothing
       }
