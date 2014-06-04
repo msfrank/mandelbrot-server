@@ -217,6 +217,15 @@ object JsonProtocol extends DefaultJsonProtocol {
     }
   }
 
+  /* convert NotificationRule class */
+  implicit object NotificationRuleFormat extends RootJsonFormat[NotificationRule] {
+    //val probeMatcherParser = new ProbeMatcherParser()
+    def write(rule: NotificationRule) = JsString(rule.toString)
+    def read(value: JsValue) = value match {
+      case _ => throw new DeserializationException("expected NotificationRule")
+    }
+  }
+
   /* convert MaintenanceWindow class */
   implicit val MaintenanceWindowFormat = jsonFormat4(MaintenanceWindow)
 

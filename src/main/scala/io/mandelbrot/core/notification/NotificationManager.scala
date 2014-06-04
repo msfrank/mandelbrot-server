@@ -20,20 +20,26 @@
 package io.mandelbrot.core.notification
 
 import akka.actor.{ActorRef, Props, ActorLogging, Actor}
+import akka.persistence.EventsourcedProcessor
 import org.joda.time.DateTime
+import scala.collection.mutable
 import java.util.UUID
 
 import io.mandelbrot.core.{ResourceNotFound, ApiException, ServiceExtension, ServerConfig}
 import io.mandelbrot.core.history.HistoryService
 import io.mandelbrot.core.registry.ProbeMatcher
-import scala.collection.mutable
 
 /**
- *
+ * the notification manager holds notification routing configuration as well as
+ * the state for scheduled maintenance windows.  this actor receives notifications
+ * from Probes and routes them to the appropriate Notifier instances, depending on
+ * current maintenance windows and notification rules.
  */
-class NotificationManager extends Actor with ActorLogging {
+class NotificationManager extends EventsourcedProcessor with ActorLogging {
+  import NotificationManager._
 
   // config
+  override def processorId = "notification-manager"
   val settings = ServerConfig(context.system).settings.notification
   val notifiers: Map[String,ActorRef] = settings.notifiers.map { case (name, notifierSettings) =>
     val props = ServiceExtension.makePluginProps(notifierSettings.plugin, notifierSettings.settings)
@@ -44,30 +50,24 @@ class NotificationManager extends Actor with ActorLogging {
   // state
   val windows = new mutable.HashMap[UUID,MaintenanceWindow]()
 
+  // refs
   val historyService = HistoryService(context.system)
 
-  if (settings.rules.rules.isEmpty)
-    log.debug("notification rules set is empty")
-  else
-    log.debug("using notification rules:\n{}", settings.rules.rules.map("    " + _).mkString("\n"))
+  def receiveCommand = {
 
-  def receive = {
+    case query: ListNotificationRules =>
+      sender() ! ListNotificationRulesResult(query, settings.rules.rules)
 
     case command: RegisterMaintenanceWindow =>
       val id = UUID.randomUUID()
       val window = MaintenanceWindow(id, command.affected, command.from, command.to)
-      windows.put(id, window)
-      log.debug("registered window {}", window)
-      sender() ! RegisterMaintenanceWindowResult(command, id)
+      persist(MaintenanceWindowRegisters(command, window))(updateState)
 
     case command: UnregisterMaintenanceWindow =>
-      windows.remove(command.id) match {
-        case Some(window) =>
-          log.debug("unregistered window {}", window)
-          sender() ! UnregisterMaintenanceWindowResult(command, command.id)
-        case None =>
-          sender() ! NotificationManagerOperationFailed(command, new ApiException(ResourceNotFound))
-      }
+      if (windows.contains(command.id))
+        persist(MaintenanceWindowUnregisters(command))(updateState)
+      else
+        sender() ! NotificationManagerOperationFailed(command, new ApiException(ResourceNotFound))
 
     case query: ListMaintenanceWindows =>
       sender() ! ListMaintenanceWindowsResult(query, windows.values.toVector)
@@ -77,6 +77,30 @@ class NotificationManager extends Actor with ActorLogging {
         settings.rules.evaluate(notification, notifiers)
         historyService ! notification
       }
+  }
+
+  def receiveRecover = {
+    case event: Event =>
+      updateState(event)
+  }
+
+  def updateState(event: Event): Unit = event match {
+
+    case MaintenanceWindowRegisters(command, window) =>
+      windows.put(window.id, window)
+      log.debug("registered maintenance window {}", window)
+      if (!recoveryRunning)
+        sender() ! RegisterMaintenanceWindowResult(command, window.id)
+
+    case MaintenanceWindowUnregisters(command) =>
+      windows.remove(command.id)
+      log.debug("unregistered maintenance window {}", command.id)
+      if (!recoveryRunning)
+        sender() ! UnregisterMaintenanceWindowResult(command, command.id)
+
+    case MaintenanceWindowExpires(id) =>
+      windows.remove(id)
+      log.debug("maintenance window {} expires", id)
   }
 
   /**
@@ -96,6 +120,10 @@ class NotificationManager extends Actor with ActorLogging {
 
 object NotificationManager {
   def props() = Props(classOf[NotificationManager])
+  sealed trait Event
+  case class MaintenanceWindowRegisters(command: RegisterMaintenanceWindow, window: MaintenanceWindow) extends Event
+  case class MaintenanceWindowUnregisters(command: UnregisterMaintenanceWindow) extends Event
+  case class MaintenanceWindowExpires(id: UUID) extends Event
 }
 
 /* */
@@ -107,6 +135,9 @@ sealed trait NotificationManagerOperation
 sealed trait NotificationManagerQuery extends NotificationManagerOperation
 sealed trait NotificationManagerCommand extends NotificationManagerOperation
 case class NotificationManagerOperationFailed(op: NotificationManagerOperation, failure: Throwable)
+
+case class ListNotificationRules() extends NotificationManagerQuery
+case class ListNotificationRulesResult(op: ListNotificationRules, rules: Vector[NotificationRule])
 
 case class RegisterMaintenanceWindow(affected: Vector[ProbeMatcher], from: DateTime, to: DateTime) extends NotificationManagerCommand
 case class RegisterMaintenanceWindowResult(op: RegisterMaintenanceWindow, id: UUID)

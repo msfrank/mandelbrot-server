@@ -336,8 +336,24 @@ trait ApiService extends HttpService {
     }
   }
 
+ val objectsRulesRoutes = {
+    path("rules") {
+      /* enumerate all maintenance windows */
+      get {
+        complete {
+          notificationService.ask(ListNotificationRules()).map {
+            case result: ListNotificationRulesResult =>
+              result.rules
+            case failure: NotificationManagerOperationFailed =>
+              throw failure.failure
+          }
+        }
+      }
+    }
+  }
+
   val objectsRoutes = pathPrefix("objects") {
-    objectsSystemsRoutes ~ objectsWindowsRoutes
+    objectsSystemsRoutes ~ objectsWindowsRoutes ~ objectsRulesRoutes
   }
 
   /**
