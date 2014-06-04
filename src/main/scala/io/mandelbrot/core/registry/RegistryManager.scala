@@ -134,8 +134,10 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
     case Terminated(ref) =>
       val uri = unregisteredRefs.get(ref)
       log.debug("probe system {} has been terminated", uri)
-      probeSystems.remove(uri)
       unregisteredRefs.remove(ref)
+      val system = probeSystems(uri)
+      if (system.actor == ref)
+        probeSystems.remove(uri)
 
   }
 
