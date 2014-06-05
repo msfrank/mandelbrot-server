@@ -1,27 +1,31 @@
 immediately
 -----------
-
+* add unit tests for registry lifecycle
 
 0.0.5
 -----
-* add return more information when listing systems (last updated, etc)
-* add maintenance windows to notification manager
-* preserve probe lifecycle across restarts?  or perhaps make it a setting
-* complete test coverage for all rule matchers, rules file parsing
-* add action notifier targeting to notification rules
-* implement notification deduplication logic 
-* add behavior to Probe to drop messages before InitProbe is received
-* re-enable akka-persistence snapshotting for RegistryManager and Probes
+
+
+0.0.6
+-----
+* complete implementation of scheduled downtime
+* implement search interface for state service, history service,
+  notification service
 * implement probe notification escalation logic, including merging behavior
 
 
 backlog
 -------
+* prune snapshots and messages (implement in SnapshotOperations trait)
+* implement notification deduplication logic 
+* add action notifier targeting to notification rules
+* preserve probe lifecycle across restarts?  or perhaps make it a setting
+* complete test coverage for all rule matchers, rules file parsing
 * implement probe flap detection logic
-* implement management of scheduled downtime
 * notification templating (use scalate?)
-* implement search interface for state service, history service,
-  notification service
 * implement metrics storage
 * implement snapshots storage
 * rethink probe squelch logic
+* add 'related' property to probe system, to attach probes not directly
+  under the probe system hierarchy
+* implement registration validation logic

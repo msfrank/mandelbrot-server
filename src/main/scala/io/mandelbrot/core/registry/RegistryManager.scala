@@ -173,6 +173,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
       log.debug("loading snapshot of {} using offer {}", processorId, metadata)
       snapshot.probeSystems.foreach { case (uri,(registration,meta,lsn)) =>
         val actor = context.actorOf(ProbeSystem.props(uri, registration, lsn))
+        context.watch(actor)
         probeSystems.put(uri, ProbeSystemActor(registration, actor, meta, lsn))
         log.debug("recovering probe system {} at {}", uri, actor.path)
       }

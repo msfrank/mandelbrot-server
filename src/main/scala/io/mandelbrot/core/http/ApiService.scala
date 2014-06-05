@@ -125,7 +125,7 @@ trait ApiService extends HttpService {
             registryService.ask(UnregisterProbeSystem(uri)).map {
               case result: UnregisterProbeSystemResult =>
                 HttpResponse(StatusCodes.Accepted)
-              case failure: ProbeSystemOperationFailed =>
+              case failure: ProbeRegistryOperationFailed =>
                 throw failure.failure
             }
           }
