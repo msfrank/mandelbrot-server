@@ -26,6 +26,8 @@ import io.mandelbrot.core.ServiceExtension
 import scala.collection.mutable
 import org.slf4j.LoggerFactory
 import java.io.File
+import scala.concurrent.duration.FiniteDuration
+import java.util.concurrent.TimeUnit
 
 /**
  *
@@ -38,7 +40,9 @@ case class NotifierSettings(plugin: String, settings: Option[Any])
 case class NotificationSettings(contacts: Map[String,Contact],
                                 groups: Map[String,ContactGroup],
                                 notifiers: Map[String,NotifierSettings],
-                                rules: NotificationRules)
+                                rules: NotificationRules,
+                                snapshotInitialDelay: FiniteDuration,
+                                snapshotInterval: FiniteDuration)
 
 /**
  *
@@ -123,7 +127,11 @@ object NotificationSettings {
     val rulesFile = new File(config.getString("notification-rules-file"))
     val rules = NotificationRules.parse(rulesFile, contacts, groups)
 
-    new NotificationSettings(contacts, groups, notifiers, rules)
+    // parse snapshot configuration
+    val snapshotInitialDelay = FiniteDuration(config.getDuration("snapshot-initial-delay", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+    val snapshotInterval = FiniteDuration(config.getDuration("snapshot-interval", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+
+    new NotificationSettings(contacts, groups, notifiers, rules, snapshotInitialDelay, snapshotInterval)
   }
 }
 

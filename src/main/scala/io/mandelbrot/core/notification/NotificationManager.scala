@@ -19,8 +19,8 @@
 
 package io.mandelbrot.core.notification
 
-import akka.actor.{ActorRef, Props, ActorLogging, Actor}
-import akka.persistence.EventsourcedProcessor
+import akka.actor._
+import akka.persistence.{SnapshotOffer, SaveSnapshotSuccess, SaveSnapshotFailure, EventsourcedProcessor}
 import org.joda.time.DateTime
 import scala.collection.mutable
 import java.util.UUID
@@ -37,6 +37,7 @@ import io.mandelbrot.core.registry.ProbeMatcher
  */
 class NotificationManager extends EventsourcedProcessor with ActorLogging {
   import NotificationManager._
+  import context.dispatcher
 
   // config
   override def processorId = "notification-manager"
@@ -49,9 +50,25 @@ class NotificationManager extends EventsourcedProcessor with ActorLogging {
 
   // state
   val windows = new mutable.HashMap[UUID,MaintenanceWindow]()
+  var snapshotCancellable: Option[Cancellable] = None
 
   // refs
   val historyService = HistoryService(context.system)
+
+
+  override def preStart(): Unit = {
+    super.preStart()
+    // schedule regular snapshots
+    snapshotCancellable = Some(context.system.scheduler.schedule(settings.snapshotInitialDelay, settings.snapshotInterval, self, TakeSnapshot))
+    log.debug("scheduling {} snapshots every {} with initial delay of {}",
+      processorId, settings.snapshotInterval.toString(), settings.snapshotInitialDelay.toString())
+  }
+
+  override def postStop(): Unit = {
+    for (cancellable <- snapshotCancellable)
+      cancellable.cancel()
+    super.postStop()
+  }
 
   def receiveCommand = {
 
@@ -77,11 +94,30 @@ class NotificationManager extends EventsourcedProcessor with ActorLogging {
         settings.rules.evaluate(notification, notifiers)
         historyService ! notification
       }
+
+    /* */
+    case TakeSnapshot =>
+      log.debug("snapshotting {}, last sequence number is {}", processorId, lastSequenceNr)
+      saveSnapshot(NotificationManagerSnapshot(windows.toMap))
+
+    case SaveSnapshotSuccess(metadata) =>
+      log.debug("saved snapshot successfully: {}", metadata)
+
+    case SaveSnapshotFailure(metadata, cause) =>
+      log.warning("failed to save snapshot {}: {}", metadata, cause.getMessage)
   }
 
   def receiveRecover = {
+
     case event: Event =>
       updateState(event)
+
+    /* recreate probe state from snapshot */
+    case SnapshotOffer(metadata, snapshot: NotificationManagerSnapshot) =>
+      log.debug("loading snapshot of {} using offer {}", processorId, metadata)
+      snapshot.windows.foreach { case (id,window) =>
+        windows.put(id, window)
+      }
   }
 
   def updateState(event: Event): Unit = event match {
@@ -124,6 +160,9 @@ object NotificationManager {
   case class MaintenanceWindowRegisters(command: RegisterMaintenanceWindow, window: MaintenanceWindow) extends Event
   case class MaintenanceWindowUnregisters(command: UnregisterMaintenanceWindow) extends Event
   case class MaintenanceWindowExpires(id: UUID) extends Event
+  case class NotificationManagerSnapshot(windows: Map[UUID,MaintenanceWindow]) extends Serializable
+
+  case object TakeSnapshot
 }
 
 /* */
