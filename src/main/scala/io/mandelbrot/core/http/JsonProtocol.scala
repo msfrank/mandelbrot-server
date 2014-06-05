@@ -135,7 +135,7 @@ object JsonProtocol extends DefaultJsonProtocol {
   implicit val ProbeRegistrationFormat = jsonFormat3(ProbeRegistration)
 
   /* convert ProbeSystemMetadata class */
-  implicit val ProbeSystemMetadataFormat = jsonFormat3(ProbeSystemMetadata)
+  implicit val ProbeSystemMetadataFormat = jsonFormat2(ProbeSystemMetadata)
 
   /* convert ProbeHealth class */
   implicit object ProbeHealthFormat extends RootJsonFormat[ProbeHealth] {

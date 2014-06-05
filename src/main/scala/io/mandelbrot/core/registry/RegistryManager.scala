@@ -188,7 +188,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
       val actor = context.actorOf(ProbeSystem.props(command.uri, command.registration, lsn))
       log.debug("registering probe system {} at {}", command.uri, actor.path)
       context.watch(actor)
-      val meta = ProbeSystemMetadata(timestamp, timestamp, None)
+      val meta = ProbeSystemMetadata(timestamp, timestamp)
       probeSystems.put(command.uri, ProbeSystemActor(command.registration, actor, meta, lsn))
       currentLsn = lsn
       if (!recoveryRunning)
@@ -261,7 +261,7 @@ case class ProbeRegistration(systemType: String,
                              probes: Map[String,ProbeSpec]) extends Serializable
 
 /* */
-case class ProbeSystemMetadata(joinedOn: DateTime, lastUpdate: DateTime, retiredOn: Option[DateTime])
+case class ProbeSystemMetadata(joinedOn: DateTime, lastUpdate: DateTime)
 
 /* object registry operations */
 sealed trait ProbeRegistryOperation
