@@ -21,21 +21,25 @@ package io.mandelbrot.core.registry
 
 import com.typesafe.config.Config
 import akka.actor._
-import akka.persistence.{Recover, SnapshotOffer, EventsourcedProcessor}
-import scala.concurrent.duration.{FiniteDuration, Duration}
+import akka.persistence.{SaveSnapshotFailure, SaveSnapshotSuccess, SnapshotOffer, EventsourcedProcessor}
+import org.joda.time.{DateTimeZone, DateTime}
+import scala.concurrent.duration._
 import scala.collection.JavaConversions._
 import java.net.URI
 
 import io.mandelbrot.core._
-import io.mandelbrot.core.notification.{NotificationPolicy, NotificationBehavior, NotificationService, Notification}
+import io.mandelbrot.core.notification.{NotificationPolicy, NotificationService, Notification}
 import io.mandelbrot.core.message.{StatusMessage, MessageStream}
-import org.joda.time.{DateTimeZone, DateTime}
 
 /**
- *
+ * the registry manager holds a map of all probe systems in memory, and is the parent actor
+ * of all probe systems (which in turn are the parents of each probe in a system).  The registry
+ * manager is responsible for accepting registration, update, and unregistration requests and
+ * applying them to the appropriate probe system.
  */
 class RegistryManager extends EventsourcedProcessor with ActorLogging {
   import RegistryManager._
+  import context.dispatcher
 
   // config
   override def processorId = "registry-manager"
@@ -49,15 +53,8 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
   /* subscribe to status messages */
   MessageStream(context.system).subscribe(self, classOf[StatusMessage])
 
-  override def preStart(): Unit = {
-    self ! Recover()
-  }
-
-  override def postStop(): Unit = {
-//    log.debug("snapshotting {}", processorId)
-//    val systems = probeSystems.map {case (uri,system) => uri -> (system.registration,system.meta)}.toMap
-//    saveSnapshot(RegistryManagerSnapshot(systems))
-  }
+  // schedule regular snapshots
+  context.system.scheduler.schedule(1.minute, 10.minutes, self, TakeSnapshot)
 
   def receiveCommand = {
 
@@ -139,6 +136,19 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
       if (system.actor == ref)
         probeSystems.remove(uri)
 
+    /* */
+    case TakeSnapshot =>
+      log.debug("snapshotting registry-manager, last sequence number is {}", lastSequenceNr)
+      val systems: Map[URI,(ProbeRegistration,ProbeSystemMetadata,Long)] = probeSystems.map { case (uri,system) =>
+        uri -> (system.registration, system.meta, system.lsn)
+      }.toMap
+      saveSnapshot(RegistryManagerSnapshot(currentLsn, systems))
+
+    case SaveSnapshotSuccess(metadata) =>
+      log.debug("saved snapshot successfully: {}", metadata)
+
+    case SaveSnapshotFailure(metadata, cause) =>
+      log.warning("failed to save snapshot {}: {}", metadata, cause.getMessage)
   }
 
   def receiveRecover = {
@@ -152,8 +162,10 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
       snapshot.probeSystems.foreach { case (uri,(registration,meta,lsn)) =>
         val actor = context.actorOf(ProbeSystem.props(uri, registration, lsn))
         probeSystems.put(uri, ProbeSystemActor(registration, actor, meta, lsn))
-        log.debug("loading probe system {}", uri)
+        log.debug("recovering probe system {} at {}", uri, actor.path)
       }
+      currentLsn = snapshot.currentLsn
+      log.debug("resetting current lsn to {}", currentLsn)
   }
 
   def updateState(event: Event) = event match {
@@ -210,7 +222,9 @@ object RegistryManager {
   case class ProbeSystemRegisters(command: RegisterProbeSystem, timestamp: DateTime, lsn: Long) extends Event
   case class ProbeSystemUpdates(command: UpdateProbeSystem, timestamp: DateTime, lsn: Long) extends Event
   case class ProbeSystemUnregisters(command: UnregisterProbeSystem, timestamp: DateTime, lsn: Long) extends Event
-  case class RegistryManagerSnapshot(probeSystems: Map[URI,(ProbeRegistration,ProbeSystemMetadata,Long)]) extends Serializable
+  case class RegistryManagerSnapshot(currentLsn: Long, probeSystems: Map[URI,(ProbeRegistration,ProbeSystemMetadata,Long)]) extends Serializable
+
+  case object TakeSnapshot
 }
 
 /* contains tunable parameters for the probe */
