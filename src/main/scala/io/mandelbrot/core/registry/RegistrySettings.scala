@@ -28,7 +28,10 @@ case class PolicyDefaults(joiningTimeout: Option[FiniteDuration],
                           alertTimeout: Option[FiniteDuration],
                           leavingTimeout: Option[FiniteDuration])
 
-case class RegistrySettings(policyMin: PolicyDefaults, policyMax: PolicyDefaults)
+case class RegistrySettings(policyMin: PolicyDefaults,
+                            policyMax: PolicyDefaults,
+                            snapshotInitialDelay: FiniteDuration,
+                            snapshotInterval: FiniteDuration)
 
 object RegistrySettings {
   def parse(config: Config): RegistrySettings = {
@@ -62,7 +65,9 @@ object RegistrySettings {
       }
       PolicyDefaults(joiningTimeoutMax, probeTimeoutMax, alertTimeoutMax, leavingTimeoutMax)
     }
-    new RegistrySettings(policyMin, policyMax)
+    val snapshotInitialDelay = FiniteDuration(config.getDuration("snapshot-initial-delay", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+    val snapshotInterval = FiniteDuration(config.getDuration("snapshot-interval", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+    new RegistrySettings(policyMin, policyMax, snapshotInitialDelay, snapshotInterval)
   }
 }
 

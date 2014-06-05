@@ -34,6 +34,8 @@ case class StateSettings(maxSummarySize: Long,
                          maxDetailSize: Long,
                          statusHistoryAge: Duration,
                          defaultSearchLimit: Int,
+                         snapshotInitialDelay: FiniteDuration,
+                         snapshotInterval: FiniteDuration,
                          searcher: SearcherSettings)
 
 object StateSettings {
@@ -42,10 +44,18 @@ object StateSettings {
     val maxDetailSize = config.getBytes("max-detail-size")
     val statusHistoryAge = FiniteDuration(config.getDuration("status-history-age", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     val defaultSearchLimit = config.getInt("default-search-limit")
+    val snapshotInitialDelay = FiniteDuration(config.getDuration("snapshot-initial-delay", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+    val snapshotInterval = FiniteDuration(config.getDuration("snapshot-interval", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     val plugin = config.getString("plugin")
     val service = if (config.hasPath("plugin-settings")) {
       ServiceExtension.makePluginSettings(plugin, config.getConfig("plugin-settings"))
     } else None
-    StateSettings(maxSummarySize, maxDetailSize, statusHistoryAge, defaultSearchLimit, SearcherSettings(plugin, service))
+    StateSettings(maxSummarySize,
+                  maxDetailSize,
+                  statusHistoryAge,
+                  defaultSearchLimit,
+                  snapshotInitialDelay,
+                  snapshotInterval,
+                  SearcherSettings(plugin, service))
   }
 }

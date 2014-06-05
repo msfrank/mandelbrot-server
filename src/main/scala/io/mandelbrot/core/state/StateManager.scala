@@ -19,8 +19,8 @@
 
 package io.mandelbrot.core.state
 
-import akka.actor.{Props, ActorRef, ActorLogging}
-import akka.persistence.EventsourcedProcessor
+import akka.actor.{Cancellable, Props, ActorRef, ActorLogging}
+import akka.persistence.{SnapshotOffer, SaveSnapshotSuccess, SaveSnapshotFailure, EventsourcedProcessor}
 import scala.collection.mutable
 import scala.util.{Success, Failure}
 
@@ -37,6 +37,7 @@ import org.joda.time.DateTime
  */
 class StateManager extends EventsourcedProcessor with ActorLogging {
   import StateManager._
+  import context.dispatcher
 
   // config
   override def processorId = "state-manager"
@@ -50,9 +51,24 @@ class StateManager extends EventsourcedProcessor with ActorLogging {
   // state
   val probeState = new mutable.HashMap[ProbeRef,ProbeState]()
   var currentLsn = Long.MinValue
-  
+  var snapshotCancellable: Option[Cancellable] = None
+
   // refs
   val historyService = HistoryService(context.system)
+
+  override def preStart(): Unit = {
+    super.preStart()
+    // schedule regular snapshots
+    snapshotCancellable = Some(context.system.scheduler.schedule(settings.snapshotInitialDelay, settings.snapshotInterval, self, TakeSnapshot))
+    log.debug("scheduling {} snapshots every {} with initial delay of {}",
+      processorId, settings.snapshotInterval.toString(), settings.snapshotInitialDelay.toString())
+  }
+
+  override def postStop(): Unit = {
+    for (cancellable <- snapshotCancellable)
+      cancellable.cancel()
+    super.postStop()
+  }
 
   def receiveCommand = {
 
@@ -109,11 +125,32 @@ class StateManager extends EventsourcedProcessor with ActorLogging {
      */
     case query: QueryProbes =>
       searcher.forward(query)
+
+    /* */
+    case TakeSnapshot =>
+      log.debug("snapshotting state-manager, last sequence number is {}", lastSequenceNr)
+      saveSnapshot(StateManagerSnapshot(currentLsn, probeState.toMap))
+
+    case SaveSnapshotSuccess(metadata) =>
+      log.debug("saved snapshot successfully: {}", metadata)
+
+    case SaveSnapshotFailure(metadata, cause) =>
+      log.warning("failed to save snapshot {}: {}", metadata, cause.getMessage)
   }
 
   def receiveRecover = {
+
     case event: Event =>
       updateState(event)
+
+    /* recreate probe state from snapshot */
+    case SnapshotOffer(metadata, snapshot: StateManagerSnapshot) =>
+      log.debug("loading snapshot of {} using offer {}", processorId, metadata)
+      snapshot.probeState.foreach { case (ref,state) =>
+        probeState.put(ref, state)
+      }
+      currentLsn = snapshot.currentLsn
+      log.debug("resetting current lsn to {}", currentLsn)
   }
 
   def updateState(event: Event): Unit = event match {
@@ -157,7 +194,9 @@ object StateManager {
   case class ProbeStatusInitializes(ref: ProbeRef, timestamp: DateTime, lsn: Long) extends Event
   case class ProbeStatusUpdates(status: ProbeStatus, lsn: Long) extends Event
   case class ProbeStatusDeleted(ref: ProbeRef, lastStatus: Option[ProbeStatus], lsn: Long) extends Event
-  case class StateManagerSnapshot(probeStatus: Map[ProbeRef,ProbeState]) extends Serializable
+  case class StateManagerSnapshot(currentLsn: Long, probeState: Map[ProbeRef,ProbeState]) extends Serializable
+
+  case object TakeSnapshot
 }
 
 case class ProbeState(status: ProbeStatus, lsn: Long)

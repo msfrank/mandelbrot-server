@@ -49,12 +49,24 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
   var currentLsn: Long = Long.MinValue
   val probeSystems = new java.util.HashMap[URI,ProbeSystemActor](1024)
   val unregisteredRefs = new java.util.HashMap[ActorRef,URI](64)
+  var snapshotCancellable: Option[Cancellable] = None
 
   /* subscribe to status messages */
   MessageStream(context.system).subscribe(self, classOf[StatusMessage])
 
-  // schedule regular snapshots
-  context.system.scheduler.schedule(1.minute, 10.minutes, self, TakeSnapshot)
+  override def preStart(): Unit = {
+    super.preStart()
+    // schedule regular snapshots
+    snapshotCancellable = Some(context.system.scheduler.schedule(settings.snapshotInitialDelay, settings.snapshotInterval, self, TakeSnapshot))
+    log.debug("scheduling {} snapshots every {} with initial delay of {}",
+      processorId, settings.snapshotInterval.toString(), settings.snapshotInitialDelay.toString())
+  }
+
+  override def postStop(): Unit = {
+    for (cancellable <- snapshotCancellable)
+      cancellable.cancel()
+    super.postStop()
+  }
 
   def receiveCommand = {
 
