@@ -4,7 +4,7 @@ import com.github.retronym.SbtOneJar
 
 object MandelbrotServerBuild extends Build {
 
-  val mandelbrotVersion = "0.0.5"
+  val mandelbrotVersion = "0.0.6"
 
   val scalaLangVersion = "2.10.4"
   val akkaVersion = "2.3.3"
