@@ -199,26 +199,26 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       }
     }
 
-//    "notify StateService and NotificationService when the alert timeout expires" in {
-//      val ref = ProbeRef("fqdn:local/")
-//      val initialPolicy = ProbePolicy(1.minute, 1.minute, 5.seconds, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-//      val actor = system.actorOf(Probe.props(ref, self, initialPolicy, 0, self, self, self))
-//      expectMsgClass(classOf[ProbeStatus])
-//      val timestamp = DateTime.now()
-//      actor ! StatusMessage(ref, ProbeFailed, "failed", None, timestamp)
-//      val state = expectMsgClass(classOf[ProbeStatus])
-//      expectMsgClass(classOf[NotifyLifecycleChanges])
-//      expectMsgClass(classOf[NotifyHealthChanges])
-//      // expiry timer should fire within 5 seconds
-//      within(10.seconds) {
-//        // notify notification service
-//        val notification = expectMsgClass(classOf[NotifyHealthAlerts])
-//        notification.probeRef must be(ref)
-//        notification.health must be(ProbeFailed)
-//        notification.correlation must be(state.correlation)
-//        notification.acknowledgementId must be(state.acknowledged)
-//      }
-//    }
+    "notify NotificationService when the alert timeout expires" in {
+      val ref = ProbeRef("fqdn:local/")
+      val initialPolicy = ProbePolicy(1.minute, 1.minute, 5.seconds, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
+      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, 0, self, self, blackhole))
+      expectMsgClass(classOf[InitializeProbeState])
+      val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
+      lastSender ! Success(ProbeState(status, 0))
+      val timestamp = DateTime.now()
+      actor ! StatusMessage(ref, ProbeFailed, "failed", None, timestamp)
+      val state = expectMsgClass(classOf[ProbeState])
+      expectMsgClass(classOf[NotifyLifecycleChanges])
+      expectMsgClass(classOf[NotifyHealthChanges])
+      // expiry timer should fire within 5 seconds
+      within(10.seconds) {
+        val notification = expectMsgClass(classOf[NotifyHealthAlerts])
+        notification.probeRef must be(ref)
+        notification.health must be(ProbeFailed)
+        notification.correlation must be === state.status.correlation
+      }
+    }
 
   }
 }
