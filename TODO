@@ -1,9 +1,5 @@
 immediately
 -----------
-* add unit tests for registry lifecycle
-
-0.0.5
------
 
 
 0.0.6
@@ -16,6 +12,7 @@ immediately
 
 backlog
 -------
+* add unit tests for registry lifecycle
 * prune snapshots and messages (implement in SnapshotOperations trait)
 * implement notification deduplication logic 
 * add action notifier targeting to notification rules
