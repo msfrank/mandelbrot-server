@@ -4,7 +4,7 @@ import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import org.scalatest.matchers.MustMatchers
 import com.typesafe.config.ConfigFactory
 import akka.testkit.{ImplicitSender, TestKit, TestActorRef}
-import akka.actor.{Terminated, ActorSystem}
+import akka.actor.{Actor, Terminated, ActorSystem}
 import org.joda.time.DateTime
 import scala.concurrent.duration._
 import scala.util.Success
@@ -155,54 +155,50 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       result.status.acknowledged must be(None)
       result.status.squelched must be(false)
     }
-//
-//    "notify StateService and NotificationService when the joining timeout expires" in {
-//      val ref = ProbeRef("fqdn:local/")
-//      val initialPolicy = ProbePolicy(5.seconds, 1.minute, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-//      val actor = system.actorOf(Probe.props(ref, self, initialPolicy, 0, self, self, self))
-//      expectMsgClass(classOf[ProbeStatus])
-//      // expiry timer should fire within 5 seconds
-//      within(10.seconds) {
-//        // notify state service
-//        val state = expectMsgClass(classOf[ProbeStatus])
-//        state.probeRef must be(ref)
-//        state.lifecycle must be(ProbeJoining)
-//        state.health must be(ProbeUnknown)
-//        state.summary must be(None)
-//        state.correlation.isDefined must be(true)
-//        state.acknowledged.isEmpty must be(true)
-//        state.squelched must be(false)
-//        // notify notification service
-//        val notification = expectMsgClass(classOf[NotifyHealthExpires])
-//        notification.probeRef must be(ref)
-//        notification.correlation must be(state.correlation)
-//      }
-//    }
-//
-//    "notify StateService and NotificationService when the probe timeout expires" in {
-//      val ref = ProbeRef("fqdn:local/")
-//      val initialPolicy = ProbePolicy(1.minute, 5.seconds, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-//      val actor = system.actorOf(Probe.props(ref, self, initialPolicy, 0, self, self, self))
-//      expectMsgClass(classOf[ProbeStatus])
-//      val timestamp = DateTime.now()
-//      actor ! StatusMessage(ref, ProbeFailed, "failed", None, timestamp)
-//      expectMsgClass(classOf[ProbeStatus])
-//      expectMsgClass(classOf[NotifyLifecycleChanges])
-//      expectMsgClass(classOf[NotifyHealthChanges])
-//      // expiry timer should fire within 5 seconds
-//      within(30.seconds) {
-//        // notify state service
-//        val state = expectMsgClass(classOf[ProbeStatus])
-//        state.probeRef must be(ref)
-//        state.lifecycle must be(ProbeKnown)
-//        state.health must be(ProbeUnknown)
-//        // notify notification service
-//        val notification = expectMsgClass(classOf[NotifyHealthChanges])
-//        notification.probeRef must be(ref)
-//        notification.correlation must be(state.correlation)
-//      }
-//    }
-//
+
+    "notify StateService when the joining timeout expires" in {
+      val ref = ProbeRef("fqdn:local/")
+      val initialPolicy = ProbePolicy(5.seconds, 1.minute, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
+      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, 0, self, blackhole, blackhole))
+      expectMsgClass(classOf[InitializeProbeState])
+      val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
+      lastSender ! Success(ProbeState(status, 0))
+      // expiry timer should fire within 5 seconds
+      within(10.seconds) {
+        val result = expectMsgClass(classOf[ProbeState])
+        result.status.probeRef must be(ref)
+        result.status.lifecycle must be(ProbeJoining)
+        result.status.health must be(ProbeUnknown)
+        result.status.summary must be(None)
+        result.status.correlation must not be(None)
+        result.status.acknowledged must be(None)
+        result.status.squelched must be(false)
+      }
+    }
+
+    "notify StateService when the probe timeout expires" in {
+      val ref = ProbeRef("fqdn:local/")
+      val initialPolicy = ProbePolicy(1.minute, 5.seconds, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
+      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, 0, self, blackhole, blackhole))
+      expectMsgClass(classOf[InitializeProbeState])
+      val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
+      lastSender ! Success(ProbeState(status, 0))
+      val timestamp = DateTime.now()
+      actor ! StatusMessage(ref, ProbeHealthy, "healthy", None, timestamp)
+      expectMsgClass(classOf[ProbeState])
+      // expiry timer should fire within 5 seconds
+      within(10.seconds) {
+        val result = expectMsgClass(classOf[ProbeState])
+        result.status.probeRef must be(ref)
+        result.status.lifecycle must be(ProbeKnown)
+        result.status.health must be(ProbeUnknown)
+        result.status.summary must be(None)
+        result.status.correlation must not be(None)
+        result.status.acknowledged must be(None)
+        result.status.squelched must be(false)
+      }
+    }
+
 //    "notify StateService and NotificationService when the alert timeout expires" in {
 //      val ref = ProbeRef("fqdn:local/")
 //      val initialPolicy = ProbePolicy(1.minute, 1.minute, 5.seconds, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
