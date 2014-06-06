@@ -16,15 +16,15 @@ fi
 # build jars
 cd $TOPDIR
 echo "building from $TOPDIR"
-sbt compile package one-jar
+sbt clean compile package one-jar
 if [ $? -ne 0 ]; then
     echo "Error: failed to build from sources"
     exit 1
 fi
 
 # extract version from the jar name
-JAR=`ls target/scala-2.10/mandelbrot-server_2.10-*.jar |head -n1`
-VERSION=`basename $JAR | sed 's/mandelbrot-server_2\.10-\(.*\)\.jar$/\1/'`
+JAR=`ls target/scala-2.10/mandelbrot-server_2.10-*-one-jar.jar | sort -r | head -n1`
+VERSION=`basename $JAR | sed 's/mandelbrot-server_2\.10-\(.*\)-one-jar\.jar$/\1/'`
 echo "creating archives for version $VERSION"
 
 # create tmpdir
