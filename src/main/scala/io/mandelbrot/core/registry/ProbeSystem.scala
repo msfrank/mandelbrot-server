@@ -26,7 +26,7 @@ import akka.util.Timeout
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.collection.mutable
-import java.net.URI
+import java.net.{URL, URI}
 import java.util.UUID
 
 import io.mandelbrot.core.{ServerConfig, ResourceNotFound, ApiException}
@@ -38,7 +38,10 @@ import io.mandelbrot.core.history._
 import io.mandelbrot.core.tracking.TrackingService
 
 /**
- *
+ * the ProbeSystem manages a collection of Probes underneath a URI.  the ProbeSystem
+ * is responsible for adding and removing probes when the registration changes, as well
+ * as updating probes when policy changes.  lastly, the ProbeSystem acts as an endpoint
+ * for commands and queries operating on sets of probes in the system.
  */
 class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Long) extends Actor with ActorLogging {
   import ProbeSystem._
@@ -50,8 +53,9 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
 
   // state
   var probes: Map[ProbeRef,ProbeActor] = Map.empty
-  val retiredProbes = new mutable.HashMap[ActorRef,(ProbeRef,Long)]()
+  val retiredProbes = new mutable.HashMap[ActorRef,(ProbeRef,Long)]
   val zombieProbes = new mutable.HashSet[ProbeRef]
+  val links = new mutable.HashMap[ProbeRef,ProbeLink]
 
   val stateService = StateService(context.system)
   val notificationService = NotificationService(context.system)
@@ -325,6 +329,9 @@ case class UpdateProbe(policy: ProbePolicy, lsn: Long)
 case class RetireProbe(lsn: Long)
 case class RetireProbeSystem(lsn: Long)
 
+/* describes a link to a probe subtree from a different probe system */
+case class ProbeLink(localRef: ProbeRef, remoteUrl: URI, remoteMatch: String)
+
 /**
  *
  */
@@ -335,12 +342,20 @@ sealed trait ProbeSystemCommand extends ProbeSystemOperation
 sealed trait ProbeSystemQuery extends ProbeSystemOperation
 case class ProbeSystemOperationFailed(op: ProbeSystemOperation, failure: Throwable)
 
-
 case class DescribeProbeSystem(uri: URI) extends ProbeSystemQuery
 case class DescribeProbeSystemResult(op: DescribeProbeSystem, registration: ProbeRegistration)
 
 case class AcknowledgeProbeSystem(uri: URI, correlations: Map[ProbeRef,UUID]) extends ProbeSystemCommand
 case class AcknowledgeProbeSystemResult(op: AcknowledgeProbeSystem, acknowledgements: Map[ProbeRef,UUID])
+
+case class RegisterProbeSystemLink(uri: URI, link: ProbeLink) extends ProbeSystemCommand
+case class RegisterProbeSystemLinkResult(op: RegisterProbeSystemLink)
+
+case class UpdateProbeSystemLink(uri: URI, link: ProbeLink) extends ProbeSystemCommand
+case class UpdateProbeSystemLinkResult(op: UpdateProbeSystemLink)
+
+case class UnregisterProbeSystemLink(uri: URI, linkRef: ProbeRef) extends ProbeSystemCommand
+case class UnregisterProbeSystemLinkResult(op: UnregisterProbeSystemLink)
 
 case class UnacknowledgeProbeSystem(uri: URI, unacknowledgements: Map[ProbeRef,UUID]) extends ProbeSystemCommand
 case class UnacknowledgeProbeSystemResult(op: UnacknowledgeProbeSystem, unacknowledgements: Map[ProbeRef,UUID])
@@ -353,6 +368,9 @@ case class GetProbeSystemMetadataResult(op: GetProbeSystemMetadata, metadata: Ma
 
 case class GetProbeSystemPolicy(uri: URI, paths: Option[Set[String]]) extends ProbeSystemQuery
 case class GetProbeSystemPolicyResult(op: GetProbeSystemPolicy, policy: Map[ProbeRef,ProbePolicy])
+
+case class GetProbeSystemLinks(uri: URI, paths: Option[Set[String]]) extends ProbeSystemQuery
+case class GetProbeSystemLinksResult(op: GetProbeSystemLinks, links: Map[ProbeRef,ProbeLink])
 
 case class GetProbeSystemStatusHistory(uri: URI, paths: Option[Set[String]], params: TimeseriesParams) extends ProbeSystemQuery
 case class GetProbeSystemStatusHistoryResult(op: GetProbeSystemStatusHistory, history: Vector[ProbeStatus])

@@ -173,6 +173,20 @@ trait ApiService extends HttpService {
               }
             }}
           }
+        } ~
+        path("links") {
+          /* return links attached to the ProbeSystem */
+          get {
+            pathParams { paths =>
+            complete {
+              registryService.ask(GetProbeSystemLinks(uri, paths)).map {
+                case result: GetProbeSystemLinksResult =>
+                  result.links
+                case failure: ProbeSystemOperationFailed =>
+                  throw failure.failure
+              }
+            }}
+          }
         }
       } ~
       pathPrefix("collections") {
@@ -284,6 +298,24 @@ trait ApiService extends HttpService {
                 }
               }
             }
+          }
+        } ~
+        path("link") {
+          /* register a probe link */
+          post {
+            complete {}
+          }
+        } ~
+        path("relink") {
+          /* update a probe link */
+          post {
+            complete {}
+          }
+        } ~
+        path("unlink") {
+          /* unregister a probe link */
+          post {
+            complete {}
           }
         } ~
         path("invoke") {
