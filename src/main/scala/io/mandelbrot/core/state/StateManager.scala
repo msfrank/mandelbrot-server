@@ -20,11 +20,15 @@
 package io.mandelbrot.core.state
 
 import akka.actor.{Cancellable, Props, ActorRef, ActorLogging}
+import akka.pattern.ask
+import akka.pattern.pipe
 import akka.persistence.{SnapshotOffer, SaveSnapshotSuccess, SaveSnapshotFailure, EventsourcedProcessor}
+import akka.util.Timeout
+import scala.concurrent.duration._
 import scala.collection.mutable
-import scala.util.{Success, Failure}
+import scala.util.{Try, Success, Failure}
 
-import io.mandelbrot.core.{ResourceNotFound, ApiException, ServiceExtension, ServerConfig}
+import io.mandelbrot.core._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.history.HistoryService
 import org.joda.time.DateTime
@@ -47,6 +51,7 @@ class StateManager extends EventsourcedProcessor with ActorLogging {
     log.info("loading searcher plugin {}", settings.searcher.plugin)
     context.actorOf(props, "searcher")
   }
+  implicit val timeout = Timeout(5.seconds)   // TODO: pull this from settings
 
   // state
   val probeState = new mutable.HashMap[ProbeRef,ProbeState]()
@@ -72,15 +77,7 @@ class StateManager extends EventsourcedProcessor with ActorLogging {
 
   def receiveCommand = {
 
-    /*
-     *
-     */
-    case state: ProbeState =>
-      persist(ProbeStatusUpdates(state.status, state.lsn))(updateState)
-
-    /*
-     *
-     */
+    /* */
     case InitializeProbeState(ref, timestamp, lsn) =>
       probeState.get(ref) match {
         case Some(state) =>
@@ -91,23 +88,21 @@ class StateManager extends EventsourcedProcessor with ActorLogging {
           sender() ! Failure(new ApiException(ResourceNotFound))
       }
 
-    /*
-     *
-     */
+    /* update current status for ref */
+    case state: ProbeState =>
+      persist(ProbeStatusUpdates(state.status, state.lsn))(updateState)
+
+    /* update current metadata for ref */
+    case metadata: ProbeMetadata =>
+      searcher ! metadata
+
+    /* */
     case command: DeleteProbeState =>
       if (probeState.contains(command.ref)) {
         persist(ProbeStatusDeleted(command.ref, command.lastStatus, command.lsn))(updateState)
       }
 
-    /*
-     *
-     */
-    case metadata: ProbeMetadata =>
-      searcher ! metadata
-
-    /*
-     *
-     */
+    /* get the current status for each matching ref */
     case query: GetCurrentStatus =>
       val target = query.refspec match {
         case Left(ref) if !probeState.contains(ref) => Set.empty[ProbeRef]
@@ -119,6 +114,25 @@ class StateManager extends EventsourcedProcessor with ActorLogging {
         sender() ! GetCurrentStatusResult(query, status)
       } else
         sender() ! StateServiceOperationFailed(query, new ApiException(ResourceNotFound))
+
+    /* search for matching refs, then return the current status for each */
+    case query: SearchCurrentStatus =>
+      val caller = sender()
+      searcher.ask(QueryProbes(query.query, query.limit)).map {
+        case Success(results: ProbeResults) => OpCallerResults(query, caller, Success(results))
+        case Failure(ex: ApiException) => OpCallerResults(query, caller, Failure(ex))
+        case Failure(ex: Throwable) => OpCallerResults(query, caller, Failure(new ApiException(InternalError)))
+      }.pipeTo(self)
+
+    case OpCallerResults(op, caller, results) =>
+      results match {
+        case Success(ProbeResults(refs)) =>
+          val state = refs.filter(probeState.contains).map(probeState.apply)
+          val status = state.map { s => s.status.probeRef -> s.status }.toMap
+          caller ! SearchCurrentStatusResult(op, status)
+        case Failure(failure) =>
+          StateServiceOperationFailed(op, failure)
+      }
 
     /*
      *
@@ -196,6 +210,7 @@ object StateManager {
   case class ProbeStatusDeleted(ref: ProbeRef, lastStatus: Option[ProbeStatus], lsn: Long) extends Event
   case class StateManagerSnapshot(currentLsn: Long, probeState: Map[ProbeRef,ProbeState]) extends Serializable
 
+  case class OpCallerResults(op: SearchCurrentStatus, caller: ActorRef, results: Try[ProbeResults])
   case object TakeSnapshot
 }
 
@@ -203,6 +218,8 @@ case class ProbeState(status: ProbeStatus, lsn: Long)
 
 case class InitializeProbeState(ref: ProbeRef, timestamp: DateTime, lsn: Long)
 case class DeleteProbeState(ref: ProbeRef, lastStatus: Option[ProbeStatus], lsn: Long)
+case class QueryProbes(query: String, limit: Option[Int])
+case class ProbeResults(refs: Vector[ProbeRef])
 
 /**
  *
@@ -212,12 +229,11 @@ sealed trait StateServiceCommand extends StateServiceOperation
 sealed trait StateServiceQuery extends StateServiceOperation
 case class StateServiceOperationFailed(op: StateServiceOperation, failure: Throwable)
 
-case class GetCurrentStatus(refspec: Either[ProbeRef,Set[ProbeRef]]) extends StateServiceCommand
+case class GetCurrentStatus(refspec: Either[ProbeRef,Set[ProbeRef]]) extends StateServiceQuery
 case class GetCurrentStatusResult(op: GetCurrentStatus, status: Vector[ProbeStatus])
 
-
-case class QueryProbes(query: String, limit: Option[Int]) extends StateServiceQuery
-case class QueryprobesResult(op: QueryProbes, refs: Vector[ProbeRef])
+case class SearchCurrentStatus(query: String, limit: Option[Int]) extends StateServiceQuery
+case class SearchCurrentStatusResult(op: SearchCurrentStatus, status: Map[ProbeRef,ProbeStatus])
 
 /* marker trait for Searcher implementations */
 trait Searcher

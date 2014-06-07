@@ -75,6 +75,17 @@ object RoutingDirectives {
   /**
    *
    */
+  case class QueryParams(query: String, limit: Option[Int])
+  private val parameters2queryParams: Directive[String :: Option[Int] :: HNil] = {
+    parameters('q.as[String], 'limit.as[Int].?)
+  }
+  val queryParams: Directive1[QueryParams] = parameters2queryParams.hmap {
+    case query :: limit :: HNil => QueryParams(query, limit)
+  }
+
+  /**
+   *
+   */
   private def extractSSLSessionInfo: HttpHeader => Option[SSLSessionInfo] = {
     case header: HttpHeaders.`SSL-Session-Info` => Some(header.info)
     case _ => None

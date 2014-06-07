@@ -65,6 +65,23 @@ trait Forbidden
 case object Forbidden extends ApiFailure("forbidden action") with Forbidden
 
 /**
+ * trait and companion object for API failures which indicate the operation
+ * is not implemented.  this should only be thrown by a service to indicate
+ * that functionality provided by an optional extension is not available because
+ * the extension is not loaded.
+ */
+trait NotImplemented
+case object NotImplemented extends ApiFailure("not implemented") with NotImplemented
+
+/**
+ * trait and companion object for API failures which indicate the operation
+ * generated an unknown internal error.  failures of this kind should log the
+ * true exception at debug level.
+ */
+trait InternalError
+case object InternalError extends ApiFailure("internal error") with InternalError
+
+/**
  * Exception which wraps an API failure.
  */
 class ApiException(val failure: ApiFailure) extends MandelbrotException(failure.description)

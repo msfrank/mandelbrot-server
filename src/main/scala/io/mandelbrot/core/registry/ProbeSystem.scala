@@ -361,7 +361,7 @@ case class UnacknowledgeProbeSystem(uri: URI, unacknowledgements: Map[ProbeRef,U
 case class UnacknowledgeProbeSystemResult(op: UnacknowledgeProbeSystem, unacknowledgements: Map[ProbeRef,UUID])
 
 case class GetProbeSystemStatus(uri: URI, paths: Option[Set[String]]) extends ProbeSystemQuery
-case class GetProbeSystemStatusResult(op: GetProbeSystemStatus, state: Map[ProbeRef,ProbeStatus])
+case class GetProbeSystemStatusResult(op: GetProbeSystemStatus, status: Map[ProbeRef,ProbeStatus])
 
 case class GetProbeSystemMetadata(uri: URI, paths: Option[Set[String]]) extends ProbeSystemQuery
 case class GetProbeSystemMetadataResult(op: GetProbeSystemMetadata, metadata: Map[ProbeRef,Map[String,String]])

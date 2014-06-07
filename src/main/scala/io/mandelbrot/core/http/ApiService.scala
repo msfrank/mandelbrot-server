@@ -139,7 +139,7 @@ trait ApiService extends HttpService {
             complete {
               registryService.ask(GetProbeSystemStatus(uri, paths)).map {
                 case result: GetProbeSystemStatusResult =>
-                  result.state
+                  result.status
                 case failure: ProbeSystemOperationFailed =>
                   throw failure.failure
               }
@@ -303,19 +303,19 @@ trait ApiService extends HttpService {
         path("link") {
           /* register a probe link */
           post {
-            complete {}
+            complete { StatusCodes.BadRequest }
           }
         } ~
         path("relink") {
           /* update a probe link */
           post {
-            complete {}
+            complete { StatusCodes.BadRequest }
           }
         } ~
         path("unlink") {
           /* unregister a probe link */
           post {
-            complete {}
+            complete { StatusCodes.BadRequest }
           }
         } ~
         path("invoke") {
@@ -392,17 +392,16 @@ trait ApiService extends HttpService {
    * Spray routes for invoking services
    */
   val servicesRoutes = pathPrefix("services") {
-    pathPrefix("state") {
+    pathPrefix("status") {
       path("search") {
         get {
-          parameters('q.as[String], 'limit.as[Int].?) { case (q: String, limit: Option[Int]) =>
-            complete {
-              stateService.ask(QueryProbes(q, limit)).map {
-                case result: QueryprobesResult =>
-                  result.refs
-              }
+          queryParams { params =>
+          complete {
+            stateService.ask(SearchCurrentStatus(params.query, params.limit)).map {
+              case result: SearchCurrentStatusResult =>
+                result.status
             }
-          }
+          }}
         }
       }
     }

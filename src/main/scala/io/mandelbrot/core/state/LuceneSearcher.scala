@@ -29,12 +29,11 @@ import org.apache.lucene.document.Field.Store
 import org.apache.lucene.search.{ScoreDoc, IndexSearcher}
 import org.apache.lucene.queryparser.classic.{ParseException, QueryParser}
 import org.apache.lucene.util.Version
+import scala.util.{Failure, Success}
 import java.io.File
 
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.{ServerConfig, BadRequest, ApiException}
-import io.mandelbrot.core.history.HistoryService
-import io.mandelbrot.core.registry.ProbeStatus
 import io.mandelbrot.core.state.LuceneSearcher.ManagerSettings
 
 /**
@@ -58,7 +57,6 @@ class LuceneSearcher(managerSettings: ManagerSettings) extends Actor with ActorL
       val doc = new Document()
       doc.add(new StringField("id", "status:" + status.probeRef.toString, Store.YES))
       doc.add(new StringField("ref", status.probeRef.toString, Store.YES))
-      doc.add(new StringField("objectType", "probe", Store.YES))
       doc.add(new StringField("lifecycle", status.lifecycle.toString, Store.NO))
       doc.add(new StringField("health", status.health.toString, Store.NO))
       for (lastChange <- status.lastChange)
@@ -78,7 +76,6 @@ class LuceneSearcher(managerSettings: ManagerSettings) extends Actor with ActorL
       val doc = new Document()
       doc.add(new StringField("id", "meta:" + metadata.probeRef.toString, Store.YES))
       doc.add(new StringField("ref", metadata.probeRef.toString, Store.YES))
-      doc.add(new StringField("objectType", "probe", Store.YES))
       metadata.metadata.foreach { case (name,value) => doc.add(new TextField("meta_" + name, value, Store.NO))}
       iwriter.updateDocument(new Term("id", "meta:" + metadata.probeRef.toString), doc)
       iwriter.close()
@@ -99,12 +96,12 @@ class LuceneSearcher(managerSettings: ManagerSettings) extends Actor with ActorL
           hit => ProbeRef(isearcher.doc(hit.doc).get("ref"))
         }.toVector
         ireader.close()
-        sender() ! QueryprobesResult(query, refs)
+        sender() ! Success(ProbeResults(refs))
       } catch {
         case ex: ParseException =>
-          sender() ! StateServiceOperationFailed(query, new ApiException(BadRequest))
+          sender() ! Failure(new ApiException(BadRequest))
         case ex: Throwable =>
-          sender() ! StateServiceOperationFailed(query, ex)
+          sender() ! Failure(ex)
       }
   }
 }
