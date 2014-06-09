@@ -54,33 +54,46 @@ object RoutingDirectives {
   /**
    *
    */
-  private val parameters2timeseriesParams: Directive[Option[String] :: Option[String] :: Option[Int] :: Option[String] :: HNil] = {
-    parameters('from.as[String].?, 'to.as[String].?, 'limit.as[Int].?, 'last.as[String].?)
+  case class TimeseriesParams(from: Option[DateTime], to: Option[DateTime])
+  private val parameters2timeseriesParams: Directive[Option[String] :: Option[String] :: HNil] = {
+    parameters('from.as[String].?, 'to.as[String].?)
+  }
+  private def parseDateTime(string: String): DateTime = try {
+   datetimeParser.parseDateTime(string)
+  } catch {
+    case ex: IllegalArgumentException =>
+      try {
+        new DateTime(string.toLong)
+      } catch {
+        case ex: Throwable => throw new ApiException(BadRequest)
+      }
+    case ex: Throwable => throw new ApiException(BadRequest)
   }
   val timeseriesParams: Directive1[TimeseriesParams] = parameters2timeseriesParams.hmap {
-    case from :: to :: limit :: last :: HNil =>
-      val start = try {
-        if (from.isDefined) Some(datetimeParser.parseDateTime(from.get)) else None
-      } catch {
-        case ex: Throwable => throw new ApiException(BadRequest)
-      }
-      val end = try {
-        if (to.isDefined) Some(datetimeParser.parseDateTime(to.get)) else None
-      } catch {
-        case ex: Throwable => throw new ApiException(BadRequest)
-      }
-      TimeseriesParams(start, end, limit, last)
+    case from :: to :: HNil =>
+      TimeseriesParams(from.map(parseDateTime), to.map(parseDateTime))
   }
 
   /**
    *
    */
-  case class QueryParams(query: String, limit: Option[Int])
-  private val parameters2queryParams: Directive[String :: Option[Int] :: HNil] = {
-    parameters('q.as[String], 'limit.as[Int].?)
+  case class QueryParams(qs: String)
+  private val parameters2queryParams: Directive[String :: HNil] = {
+    parameters('q.as[String])
   }
   val queryParams: Directive1[QueryParams] = parameters2queryParams.hmap {
-    case query :: limit :: HNil => QueryParams(query, limit)
+    case qs :: HNil => QueryParams(qs)
+  }
+
+  /**
+   *
+   */
+  case class PagingParams(last: Option[String], limit: Option[Int])
+  private val parameters2pagingParams: Directive[Option[String] :: Option[Int] :: HNil] = {
+    parameters('last.as[String].?, 'limit.as[Int].?)
+  }
+  val pagingParams: Directive1[PagingParams] = parameters2pagingParams.hmap {
+    case last :: limit :: HNil => PagingParams(last, limit)
   }
 
   /**
@@ -96,14 +109,11 @@ object RoutingDirectives {
 /**
  *
  */
-case class TimeseriesParams(from: Option[DateTime], to: Option[DateTime], limit: Option[Int], last: Option[String])
-
-/**
- *
- */
 object Uri extends PathMatcher1[URI] {
   def apply(path: Path) = path match {
-    case Path.Segment(segment, tail) ⇒ Matched(tail, new URI(segment) :: HNil)
-    case _                           ⇒ Unmatched
+    case Path.Segment(segment, tail) =>
+      Matched(tail, new URI(segment) :: HNil)
+    case _ =>
+      Unmatched
   }
 }

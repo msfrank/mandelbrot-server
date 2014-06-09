@@ -28,6 +28,7 @@ import spray.http._
 import spray.http.HttpHeaders.Location
 import spray.util.LoggingContext
 import org.joda.time.format.ISODateTimeFormat
+import scala.util.{Failure, Success}
 import java.net.URI
 import java.util.UUID
 
@@ -192,32 +193,34 @@ trait ApiService extends HttpService {
       pathPrefix("collections") {
         path("history") {
           get {
-            timeseriesParams { params =>
             pathParams { paths =>
+            timeseriesParams { timeseries =>
+            pagingParams { paging =>
               complete {
-                registryService.ask(GetProbeSystemStatusHistory(uri, paths, params)).map {
+                registryService.ask(GetProbeSystemStatusHistory(uri, paths, timeseries.from, timeseries.to, paging.limit)).map {
                   case result: GetProbeSystemStatusHistoryResult =>
                     result.history
                   case failure: ProbeSystemOperationFailed =>
                     throw failure.failure
                 }
               }
-            }}
+            }}}
           }
         } ~
         path("notifications") {
           get {
-            timeseriesParams { params =>
             pathParams { paths =>
+            timeseriesParams { timeseries =>
+            pagingParams { paging =>
               complete {
-                registryService.ask(GetProbeSystemNotificationHistory(uri, paths, params)).map {
+                registryService.ask(GetProbeSystemNotificationHistory(uri, paths, timeseries.from, timeseries.to, paging.limit)).map {
                   case result: GetProbeSystemNotificationHistoryResult =>
                     result.history
                   case failure: ProbeSystemOperationFailed =>
                     throw failure.failure
                 }
               }
-            }}
+            }}}
           }
         } ~
         path("metrics") { get { complete { StatusCodes.BadRequest }}
@@ -395,13 +398,59 @@ trait ApiService extends HttpService {
     pathPrefix("status") {
       path("search") {
         get {
-          queryParams { params =>
+          queryParams { query =>
+          pagingParams { paging =>
           complete {
-            stateService.ask(SearchCurrentStatus(params.query, params.limit)).map {
+            stateService.ask(SearchCurrentStatus(query.qs, paging.limit)).map {
               case result: SearchCurrentStatusResult =>
                 result.status
             }
-          }}
+          }}}
+        }
+      }
+    } ~
+    pathPrefix("history") {
+      path("search") {
+        get {
+          queryParams { query =>
+          timeseriesParams { timeseries =>
+          pagingParams { paging =>
+          complete {
+            stateService.ask(QueryProbes(query.qs, None)).flatMap {
+              case Failure(failure: Throwable) =>
+                throw failure
+              case Success(result: ProbeResults) =>
+                log.debug("retrieving history for {}", result.refs)
+                historyService.ask(GetStatusHistory(Right(result.refs.toSet), timeseries.from, timeseries.to, paging.limit)).map {
+                  case result: GetStatusHistoryResult =>
+                    result.history
+                  case failure: HistoryServiceOperationFailed =>
+                    throw failure.failure
+                }
+            }
+          }}}}
+        }
+      }
+    } ~
+    pathPrefix("notifications") {
+      path("search") {
+        get {
+          queryParams { query =>
+          timeseriesParams { timeseries =>
+          pagingParams { paging =>
+          complete {
+            stateService.ask(QueryProbes(query.qs, None)).flatMap {
+              case Failure(failure: Throwable) =>
+                throw failure
+              case Success(result: ProbeResults) =>
+                historyService.ask(GetNotificationHistory(Right(result.refs.toSet), timeseries.from, timeseries.to, paging.limit)).map {
+                  case result: GetNotificationHistoryResult =>
+                    result.history
+                  case failure: HistoryServiceOperationFailed =>
+                    throw failure.failure
+                }
+            }
+          }}}}
         }
       }
     }

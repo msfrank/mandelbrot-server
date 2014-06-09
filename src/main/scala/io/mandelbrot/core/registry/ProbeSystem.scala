@@ -23,6 +23,7 @@ import akka.actor._
 import akka.pattern.ask
 import akka.pattern.pipe
 import akka.util.Timeout
+import org.joda.time.DateTime
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.collection.mutable
@@ -31,7 +32,6 @@ import java.util.UUID
 
 import io.mandelbrot.core.{ServerConfig, ResourceNotFound, ApiException}
 import io.mandelbrot.core.notification.{ProbeNotification, NotificationService, Notification}
-import io.mandelbrot.core.http.TimeseriesParams
 import io.mandelbrot.core.message.MandelbrotMessage
 import io.mandelbrot.core.state.StateService
 import io.mandelbrot.core.history._
@@ -153,12 +153,9 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
 
     /* get the status history for the specified probes */
     case query: GetProbeSystemStatusHistory =>
-      val from = query.params.from
-      val to = query.params.to
-      val limit = query.params.limit
-      val q = if (query.paths.isEmpty) GetStatusHistory(Left(ProbeRef(uri)), from, to, limit) else {
+      val q = if (query.paths.isEmpty) GetStatusHistory(Left(ProbeRef(uri)), query.from, query.to, query.limit) else {
         val refs = findMatching(query.paths).map(_._1)
-        GetStatusHistory(Right(refs), from, to, limit)
+        GetStatusHistory(Right(refs), query.from, query.to, query.limit)
       }
       historyService.ask(q).map {
         case GetStatusHistoryResult(_, history) =>
@@ -169,12 +166,9 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
 
     /* get the notification history for the specified probes */
     case query: GetProbeSystemNotificationHistory =>
-      val from = query.params.from
-      val to = query.params.to
-      val limit = query.params.limit
-      val q = if (query.paths.isEmpty) GetNotificationHistory(Left(ProbeRef(uri)), from, to, limit) else {
+      val q = if (query.paths.isEmpty) GetNotificationHistory(Left(ProbeRef(uri)), query.from, query.to, query.limit) else {
         val refs = findMatching(query.paths).map(_._1)
-        GetNotificationHistory(Right(refs), from, to, limit)
+        GetNotificationHistory(Right(refs), query.from, query.to, query.limit)
       }
       historyService.ask(q).map {
         case GetNotificationHistoryResult(_, history) =>
@@ -372,8 +366,8 @@ case class GetProbeSystemPolicyResult(op: GetProbeSystemPolicy, policy: Map[Prob
 case class GetProbeSystemLinks(uri: URI, paths: Option[Set[String]]) extends ProbeSystemQuery
 case class GetProbeSystemLinksResult(op: GetProbeSystemLinks, links: Map[ProbeRef,ProbeLink])
 
-case class GetProbeSystemStatusHistory(uri: URI, paths: Option[Set[String]], params: TimeseriesParams) extends ProbeSystemQuery
+case class GetProbeSystemStatusHistory(uri: URI, paths: Option[Set[String]], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends ProbeSystemQuery
 case class GetProbeSystemStatusHistoryResult(op: GetProbeSystemStatusHistory, history: Vector[ProbeStatus])
 
-case class GetProbeSystemNotificationHistory(uri: URI, paths: Option[Set[String]], params: TimeseriesParams) extends ProbeSystemQuery
+case class GetProbeSystemNotificationHistory(uri: URI, paths: Option[Set[String]], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends ProbeSystemQuery
 case class GetProbeSystemNotificationHistoryResult(op: GetProbeSystemNotificationHistory, history: Vector[ProbeNotification])

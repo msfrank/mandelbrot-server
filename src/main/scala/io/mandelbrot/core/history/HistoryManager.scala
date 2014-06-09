@@ -107,7 +107,7 @@ class HistoryManager(managerSettings: ManagerSettings) extends Actor with ActorL
         notificationEntries += ((probeRef, timestamp, kind, description, correlation))
       }
 
-    /* retrieve history for the ProbeRef and all its children */
+    /* retrieve status history for the ProbeRef and all its children */
     case query @ GetStatusHistory(refs, from, to, limit) =>
       log.debug("retrieving status history: {}", query)
       var q = refs match {
@@ -119,7 +119,7 @@ class HistoryManager(managerSettings: ManagerSettings) extends Actor with ActorL
       val results = q.list.toVector.map(statusEntry2ProbeStatus)
       sender() ! GetStatusHistoryResult(query, results)
 
-    /* retrieve history for the ProbeRef and all its children */
+    /* retrieve notification history for the ProbeRef and all its children */
     case query @ GetNotificationHistory(refs, from, to, limit) =>
       log.debug("retrieving notification history: {}", query)
       var q = refs match {
