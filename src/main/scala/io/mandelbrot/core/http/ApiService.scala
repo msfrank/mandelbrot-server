@@ -420,7 +420,6 @@ trait ApiService extends HttpService {
               case Failure(failure: Throwable) =>
                 throw failure
               case Success(result: ProbeResults) =>
-                log.debug("retrieving history for {}", result.refs)
                 historyService.ask(GetStatusHistory(Right(result.refs.toSet), timeseries.from, timeseries.to, paging.limit)).map {
                   case result: GetStatusHistoryResult =>
                     result.history

@@ -56,7 +56,9 @@ class LuceneSearcher(managerSettings: ManagerSettings) extends Actor with ActorL
       val iwriter = new IndexWriter(store, config)
       val doc = new Document()
       doc.add(new StringField("id", "status:" + status.probeRef.toString, Store.YES))
-      doc.add(new StringField("ref", status.probeRef.toString, Store.YES))
+      doc.add(new TextField("ref", status.probeRef.toString, Store.YES))
+      doc.add(new TextField("uri", status.probeRef.uri.toString, Store.NO))
+      doc.add(new TextField("path", status.probeRef.path.mkString("/"), Store.NO))
       doc.add(new StringField("lifecycle", status.lifecycle.toString, Store.NO))
       doc.add(new StringField("health", status.health.toString, Store.NO))
       for (lastChange <- status.lastChange)
@@ -75,12 +77,14 @@ class LuceneSearcher(managerSettings: ManagerSettings) extends Actor with ActorL
       val iwriter = new IndexWriter(store, config)
       val doc = new Document()
       doc.add(new StringField("id", "meta:" + metadata.probeRef.toString, Store.YES))
-      doc.add(new StringField("ref", metadata.probeRef.toString, Store.YES))
+      doc.add(new TextField("ref", metadata.probeRef.toString, Store.YES))
+      doc.add(new TextField("uri", metadata.probeRef.uri.toString, Store.NO))
+      doc.add(new TextField("path", metadata.probeRef.path.mkString("/"), Store.NO))
       metadata.metadata.foreach { case (name,value) => doc.add(new TextField("meta_" + name, value, Store.NO))}
       iwriter.updateDocument(new Term("id", "meta:" + metadata.probeRef.toString), doc)
       iwriter.close()
 
-    case query @ QueryProbes(qs, limit) =>
+    case QueryProbes(qs, limit) =>
       try {
         val ireader = DirectoryReader.open(store)
         val isearcher = new IndexSearcher(ireader)
@@ -96,11 +100,14 @@ class LuceneSearcher(managerSettings: ManagerSettings) extends Actor with ActorL
           hit => ProbeRef(isearcher.doc(hit.doc).get("ref"))
         }.toVector
         ireader.close()
+        log.debug("search {} results: {}", qs, refs)
         sender() ! Success(ProbeResults(refs))
       } catch {
         case ex: ParseException =>
+          log.debug("search {} raises exception: {}", ex.getMessage)
           sender() ! Failure(new ApiException(BadRequest))
         case ex: Throwable =>
+          log.debug("search {} raises exception: {}", ex.getMessage)
           sender() ! Failure(ex)
       }
   }

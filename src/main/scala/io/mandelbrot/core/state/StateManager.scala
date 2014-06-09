@@ -134,9 +134,7 @@ class StateManager extends EventsourcedProcessor with ActorLogging {
           StateServiceOperationFailed(op, failure)
       }
 
-    /*
-     *
-     */
+    /* forward probe queries to the searcher */
     case query: QueryProbes =>
       searcher.forward(query)
 

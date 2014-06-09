@@ -109,25 +109,33 @@ class HistoryManager(managerSettings: ManagerSettings) extends Actor with ActorL
 
     /* retrieve status history for the ProbeRef and all its children */
     case query @ GetStatusHistory(refs, from, to, limit) =>
-      log.debug("retrieving status history: {}", query)
       var q = refs match {
         case Left(base) => statusEntries.filter(_.probeRef.startsWith(base.toString))
         case Right(refset) => statusEntries.filter(_.probeRef.inSet(refset.map(_.toString)))
       }
+      for (millis <- from.map(_.getMillis))
+        q = q.filter(_.timestamp > millis)
+      for (millis <- to.map(_.getMillis))
+        q = q.filter(_.timestamp < millis)
       if (limit.isDefined)
         q = q.take(limit.get)
+      log.debug("{} expands to SQL query '{}'", query, q.selectStatement)
       val results = q.list.toVector.map(statusEntry2ProbeStatus)
       sender() ! GetStatusHistoryResult(query, results)
 
     /* retrieve notification history for the ProbeRef and all its children */
     case query @ GetNotificationHistory(refs, from, to, limit) =>
-      log.debug("retrieving notification history: {}", query)
       var q = refs match {
         case Left(base) => notificationEntries.filter(_.probeRef.startsWith(base.toString))
         case Right(refset) => notificationEntries.filter(_.probeRef.inSet(refset.map(_.toString)))
       }
+      for (millis <- from.map(_.getMillis))
+        q = q.filter(_.timestamp > millis)
+      for (millis <- to.map(_.getMillis))
+        q = q.filter(_.timestamp < millis)
       if (limit.isDefined)
         q = q.take(limit.get)
+      log.debug("{} expands to SQL query '{}'", query, q.selectStatement)
       val results = q.list.toVector.map(notificationEntry2ProbeNotification)
       sender() ! GetNotificationHistoryResult(query, results)
 
