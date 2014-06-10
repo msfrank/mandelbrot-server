@@ -23,7 +23,7 @@ import com.typesafe.config.Config
 import scala.concurrent.duration.{FiniteDuration, Duration}
 import java.util.concurrent.TimeUnit
 
-import io.mandelbrot.core.ServiceExtension
+import io.mandelbrot.core.{ServerConfigException, ServiceExtension}
 
 case class ArchiverSettings(plugin: String, settings: Option[Any])
 case class HistorySettings(historyRetention: Duration,
@@ -38,6 +38,8 @@ object HistorySettings {
     val cleanerInitialDelay = FiniteDuration(config.getDuration("cleaner-initial-delay", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     val cleanerInterval = FiniteDuration(config.getDuration("cleaner-interval", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     val plugin = config.getString("plugin")
+    if (!ServiceExtension.pluginImplements(plugin, classOf[Archiver]))
+      throw new ServerConfigException("%s is not recognized as an Archiver plugin".format(plugin))
     val service = if (config.hasPath("plugin-settings")) {
       ServiceExtension.makePluginSettings(plugin, config.getConfig("plugin-settings"))
     } else None

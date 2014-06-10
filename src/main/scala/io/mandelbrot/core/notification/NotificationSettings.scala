@@ -22,7 +22,7 @@ package io.mandelbrot.core.notification
 import com.typesafe.config.{ConfigObject, ConfigValueType, Config}
 import scala.collection.JavaConversions._
 
-import io.mandelbrot.core.ServiceExtension
+import io.mandelbrot.core.{ServerConfigException, ServiceExtension}
 import scala.collection.mutable
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -105,20 +105,17 @@ object NotificationSettings {
       case (name,configValue) if configValue.valueType() == ConfigValueType.OBJECT =>
         val notifierConfig = configValue.asInstanceOf[ConfigObject].toConfig
         val plugin = notifierConfig.getString("plugin")
-        if (ServiceExtension.pluginImplements(plugin, classOf[Notifier])) {
-          val settings = if (notifierConfig.hasPath("plugin-settings")) {
-            notifierContacts.get(name) match {
-              case Some(params) =>
-                ServiceExtension.makePluginSettings(plugin, notifierConfig.getConfig("plugin-settings"), Some(params.toMap))
-              case None =>
-                ServiceExtension.makePluginSettings(plugin, notifierConfig.getConfig("plugin-settings"), Some(Map.empty[Contact, Config]))
-            }
-          } else None
-          Some(name -> NotifierSettings(plugin, settings))
-        } else {
-          logger.warn("failed to configure notifier plugin '%s': plugin does not implement Notifier trait", plugin)
-          None
-        }
+        if (!ServiceExtension.pluginImplements(plugin, classOf[Notifier]))
+          throw new ServerConfigException("%s is not recognized as a Notifier plugin".format(plugin))
+        val settings = if (notifierConfig.hasPath("plugin-settings")) {
+          notifierContacts.get(name) match {
+            case Some(params) =>
+              ServiceExtension.makePluginSettings(plugin, notifierConfig.getConfig("plugin-settings"), Some(params.toMap))
+            case None =>
+              ServiceExtension.makePluginSettings(plugin, notifierConfig.getConfig("plugin-settings"), Some(Map.empty[Contact, Config]))
+          }
+        } else None
+        Some(name -> NotifierSettings(plugin, settings))
       case unknown =>
         None
     }.toMap

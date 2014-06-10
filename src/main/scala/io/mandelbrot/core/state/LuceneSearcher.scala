@@ -39,7 +39,7 @@ import io.mandelbrot.core.state.LuceneSearcher.ManagerSettings
 /**
  *
  */
-class LuceneSearcher(managerSettings: ManagerSettings) extends Actor with ActorLogging {
+class LuceneSearcher(managerSettings: ManagerSettings) extends Actor with ActorLogging with Searcher {
   import LuceneSearcher._
 
   // config

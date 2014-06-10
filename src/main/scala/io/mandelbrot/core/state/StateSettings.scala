@@ -23,7 +23,7 @@ import com.typesafe.config.Config
 import scala.concurrent.duration.{FiniteDuration, Duration}
 import java.util.concurrent.TimeUnit
 
-import io.mandelbrot.core.ServiceExtension
+import io.mandelbrot.core.{ServerConfigException, ServiceExtension}
 
 /**
  *
@@ -47,6 +47,8 @@ object StateSettings {
     val snapshotInitialDelay = FiniteDuration(config.getDuration("snapshot-initial-delay", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     val snapshotInterval = FiniteDuration(config.getDuration("snapshot-interval", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     val plugin = config.getString("plugin")
+    if (!ServiceExtension.pluginImplements(plugin, classOf[Searcher]))
+      throw new ServerConfigException("%s is not recognized as a Searcher plugin".format(plugin))
     val service = if (config.hasPath("plugin-settings")) {
       ServiceExtension.makePluginSettings(plugin, config.getConfig("plugin-settings"))
     } else None
