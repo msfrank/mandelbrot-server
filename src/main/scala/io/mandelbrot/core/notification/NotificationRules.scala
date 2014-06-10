@@ -387,7 +387,7 @@ class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,C
   }
   def notifyOnlyAction: Parser[RuleAction] = _log(literal("notify-only") ~ literal("(") ~ contactParams ~ literal(")"))("notifyOnlyAction") ^^ {
     case "notify-only" ~ "(" ~ targets ~ ")" =>
-      NotifyContacts(targets)
+      NotifyOnlyContacts(targets)
   }
   def dropAction: Parser[RuleAction] = _log(literal("drop") ~ literal("(") ~ literal(")"))("dropAction") ^^ {
     case "drop" ~ "(" ~ ")" =>
@@ -397,10 +397,19 @@ class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,C
   def ruleAction: Parser[RuleAction] = _log(notifyAction | notifyOnlyAction | dropAction)("ruleAction")
 
   /* */
-  def notificationRule: Parser[NotificationRule] = _log(literal("when") ~ ruleExpression ~ ":" ~ ruleAction)("notificationRule") ^^ {
+  def whenClause: Parser[NotificationRule] = _log(literal("when") ~ ruleExpression ~ ":" ~ ruleAction)("whenClause") ^^ {
     case "when" ~ matcher ~ ":" ~ action =>
       NotificationRule(matcher, action)
   }
+
+  /* */
+  def unlessClause: Parser[NotificationRule] = _log(literal("unless") ~ ruleExpression ~ ":" ~ ruleAction)("unlessClause") ^^ {
+    case "unless" ~ matcher ~ ":" ~ action =>
+      NotificationRule(NotOperator(matcher), action)
+  }
+
+  /* */
+  def notificationRule: Parser[NotificationRule] = whenClause | unlessClause
 
   def parseRule(input: String): NotificationRule = parseAll(notificationRule, input) match {
     case Success(rule: NotificationRule, _) => rule
