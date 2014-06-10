@@ -37,40 +37,49 @@ import io.mandelbrot.core.tracking.TrackingService
  * application entry point
  */
 object MandelbrotApp extends App {
-
-  /* start the actor system */
-  val system = ActorSystem("mandelbrot")
-  val settings = ServerConfig(system).settings
   val log = LoggerFactory.getLogger("io.mandelbrot.core.MandelbrotApp")
 
-  /* pre-warm top level services */
-  val trackingService = TrackingService(system)
-  val historyService = HistoryService(system)
-  val notificationService = NotificationService(system)
-  val stateService = StateService(system)
-  val registryService = RegistryService(system)
+  try {
+    /* start the actor system */
+    val system = ActorSystem("mandelbrot")
 
-  /* if http server is configured, then start the HttpServer actor */
-  val httpServer = settings.http match {
-    case Some(httpSettings) =>
-      Some(system.actorOf(HttpServer.props(httpSettings), "http-service"))
-    case None => None
-  }
+    /* load application settings */
+    val settings = ServerConfig(system).settings
 
-  /* */
-  val watched = Vector(trackingService, historyService, notificationService, stateService, registryService) ++ httpServer.toVector
-  val terminator = system.actorOf(Terminator.props(watched))
+    /* pre-warm top level services */
+    val trackingService = TrackingService(system)
+    val historyService = HistoryService(system)
+    val notificationService = NotificationService(system)
+    val stateService = StateService(system)
+    val registryService = RegistryService(system)
 
-  /* shut down cleanly */
-  sys.addShutdownHook({
-    try {
-      Await.result(terminator.ask(TerminateApplication)(Timeout(settings.shutdownTimeout)), settings.shutdownTimeout)
-    } catch {
-      case ex: Throwable => log.error("application shutdown failed: " + ex.getMessage)
+    /* if http server is configured, then start the HttpServer actor */
+    val httpServer = settings.http match {
+      case Some(httpSettings) =>
+        Some(system.actorOf(HttpServer.props(httpSettings), "http-service"))
+      case None => None
     }
-    system.shutdown()
-    system.awaitTermination()
-  })
+
+    /* "Hasta la vista, baby..." */
+    val watched = Vector(trackingService, historyService, notificationService, stateService, registryService) ++ httpServer.toVector
+    val terminator = system.actorOf(Terminator.props(watched))
+
+    /* shut down cleanly */
+    sys.addShutdownHook({
+      try {
+        Await.result(terminator.ask(TerminateApplication)(Timeout(settings.shutdownTimeout)), settings.shutdownTimeout)
+      } catch {
+        case ex: Throwable => log.error("application shutdown failed: " + ex.getMessage)
+      }
+      system.shutdown()
+      system.awaitTermination()
+    })
+
+  } catch {
+    case ex: Throwable =>
+      println("Caught runtime error: %s".format(ex.getMessage))
+      sys.exit(1)
+  }
 }
 
 /**
