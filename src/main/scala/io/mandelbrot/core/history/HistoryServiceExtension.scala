@@ -28,13 +28,7 @@ import io.mandelbrot.core.{ServiceExtension, ServerConfig}
  *
  */
 class HistoryServiceExtensionImpl(system: ActorSystem) extends Extension {
-  val stateService = {
-    val settings = ServerConfig(system).settings.history
-    val plugin = settings.plugin
-    val service = settings.service
-    LoggerFactory.getLogger("io.mandelbrot.core.history.HistoryServiceExtension").info("loading history service plugin " + plugin)
-    system.actorOf(ServiceExtension.makePluginProps(plugin, service), "history-service")
-  }
+  val historyService = system.actorOf(HistoryManager.props(), "history-service")
 }
 
 /**
@@ -47,5 +41,5 @@ object HistoryServiceExtension extends ExtensionId[HistoryServiceExtensionImpl] 
 }
 
 object HistoryService {
-  def apply(system: ActorSystem): ActorRef = HistoryServiceExtension(system).stateService
+  def apply(system: ActorSystem): ActorRef = HistoryServiceExtension(system).historyService
 }

@@ -5,9 +5,10 @@ immediately
 0.0.6
 -----
 * complete implementation of scheduled downtime
-* implement search interface for state service, history service,
-  notification service
 * implement probe notification escalation logic, including merging behavior
+* add 'related' property to probe system, to attach probes not directly
+  under the probe system hierarchy
+* delete LuceneSearcher state when probe is deleted
 
 
 backlog
@@ -16,13 +17,10 @@ backlog
 * prune snapshots and messages (implement in SnapshotOperations trait)
 * implement notification deduplication logic 
 * add action notifier targeting to notification rules
-* preserve probe lifecycle across restarts?  or perhaps make it a setting
 * complete test coverage for all rule matchers, rules file parsing
 * implement probe flap detection logic
 * notification templating (use scalate?)
 * implement metrics storage
 * implement snapshots storage
 * rethink probe squelch logic
-* add 'related' property to probe system, to attach probes not directly
-  under the probe system hierarchy
 * implement registration validation logic

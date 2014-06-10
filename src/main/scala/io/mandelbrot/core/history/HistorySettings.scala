@@ -25,18 +25,22 @@ import java.util.concurrent.TimeUnit
 
 import io.mandelbrot.core.ServiceExtension
 
-case class HistorySettings(plugin: String,
-                           service: Option[Any],
-                           historyRetention: Duration
+case class ArchiverSettings(plugin: String, settings: Option[Any])
+case class HistorySettings(historyRetention: Duration,
+                           cleanerInitialDelay: FiniteDuration,
+                           cleanerInterval: FiniteDuration,
+                           archiver: ArchiverSettings
                            )
 
 object HistorySettings {
   def parse(config: Config): HistorySettings = {
     val historyRetention = FiniteDuration(config.getDuration("history-retention", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+    val cleanerInitialDelay = FiniteDuration(config.getDuration("cleaner-initial-delay", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+    val cleanerInterval = FiniteDuration(config.getDuration("cleaner-interval", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     val plugin = config.getString("plugin")
     val service = if (config.hasPath("plugin-settings")) {
       ServiceExtension.makePluginSettings(plugin, config.getConfig("plugin-settings"))
     } else None
-    new HistorySettings(plugin, service, historyRetention)
+    new HistorySettings(historyRetention, cleanerInitialDelay, cleanerInterval, ArchiverSettings(plugin, service))
   }
 }

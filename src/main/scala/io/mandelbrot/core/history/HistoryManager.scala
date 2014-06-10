@@ -19,181 +19,72 @@
 
 package io.mandelbrot.core.history
 
-import com.typesafe.config.Config
-import akka.actor.{Cancellable, Props, ActorLogging, Actor}
-import scala.slick.driver.H2Driver.simple._
-import scala.concurrent.duration._
+import akka.actor._
 import org.joda.time.{DateTimeZone, DateTime}
-import java.io.File
 
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.ServerConfig
+import io.mandelbrot.core.{ServiceExtension, ServerConfig}
 import io.mandelbrot.core.notification.ProbeNotification
 import io.mandelbrot.core.registry.ProbeStatus
-
-import io.mandelbrot.core.history.HistoryManager.ManagerSettings
 
 /**
  *
  */
-class HistoryManager(managerSettings: ManagerSettings) extends Actor with ActorLogging {
+class HistoryManager extends Actor with ActorLogging {
   import HistoryManager._
-  import StatusEntries._
-  import NotificationEntries._
   import context.dispatcher
 
   // config
   val settings = ServerConfig(context.system).settings.history
-  val driver = "org.h2.Driver"
-  val url = "jdbc:h2:" + {
-    if (managerSettings.inMemory) "mem:history" else "file:" + managerSettings.databasePath.getAbsolutePath
-  } + ";" + {
-    if (managerSettings.inMemory) "DB_CLOSE_DELAY=-1;" else ""
-  } + {
-    if (!managerSettings.h2databaseToUpper) "DATABASE_TO_UPPER=false" else "DATABASE_TO_UPPER=true"
+  val archiver: ActorRef = {
+    val props = ServiceExtension.makePluginProps(settings.archiver.plugin, settings.archiver.settings)
+    log.info("loading archiver plugin {}", settings.archiver.plugin)
+    context.actorOf(props, "archiver")
   }
 
-  // initialize db
-  val db = Database.forURL(url = url, driver = driver)
-  val statusEntries = TableQuery[StatusEntries]
-  val notificationEntries = TableQuery[NotificationEntries]
-  implicit val session = db.createSession()
+  // state
+  var historyCleaner: Option[Cancellable] = None
 
-  // define (and possibly create) tables
-  db.withSession { implicit session =>
-    try {
-      statusEntries.ddl.create
-    } catch {
-      case ex: Throwable => log.debug("skipping table creation: {}", ex.getMessage)
-    }
-    try {
-      notificationEntries.ddl.create
-    } catch {
-      case ex: Throwable => log.debug("skipping table creation: {}", ex.getMessage)
-    }
+  override def preStart(): Unit = {
+    historyCleaner = Some(context.system.scheduler.schedule(settings.cleanerInitialDelay, settings.cleanerInterval, self, RunCleaner))
   }
 
-  //
-  val initialDelay = 30.seconds
-  val interval = 5.minutes
-  val historyCleaner: Option[Cancellable] = Some(context.system.scheduler.schedule(initialDelay, interval, self, CleanStaleHistory))
+  override def postStop(): Unit = {
+    for (cancellable <- historyCleaner)
+      cancellable.cancel()
+    historyCleaner = None
+  }
 
   def receive = {
 
     /* append probe status to history */
     case status: ProbeStatus =>
-      db.withSession { implicit session =>
-        val probeRef = status.probeRef.toString
-        val timestamp = status.timestamp.getMillis
-        val lifecycle = status.lifecycle.toString
-        val health = status.health.toString
-        val summary = status.summary
-        val lastUpdate = status.lastUpdate.map(_.getMillis)
-        val lastChange = status.lastChange.map(_.getMillis)
-        val correlation = status.correlation
-        val acknowledged = status.acknowledged
-        val squelched = status.squelched
-        statusEntries += ((probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlation, acknowledged, squelched))
-      }
+      archiver ! status
 
     /* append notification to history */
     case notification: ProbeNotification =>
-      db.withSession { implicit session =>
-        val probeRef = notification.probeRef.toString
-        val timestamp = notification.timestamp.getMillis
-        val kind = notification.kind
-        val description = notification.description
-        val correlation = notification.correlation
-        notificationEntries += ((probeRef, timestamp, kind, description, correlation))
-      }
+      archiver ! notification
 
-    /* retrieve status history for the ProbeRef and all its children */
-    case query @ GetStatusHistory(refs, from, to, limit) =>
-      var q = refs match {
-        case Left(base) => statusEntries.filter(_.probeRef.startsWith(base.toString))
-        case Right(refset) => statusEntries.filter(_.probeRef.inSet(refset.map(_.toString)))
-      }
-      for (millis <- from.map(_.getMillis))
-        q = q.filter(_.timestamp > millis)
-      for (millis <- to.map(_.getMillis))
-        q = q.filter(_.timestamp < millis)
-      if (limit.isDefined)
-        q = q.take(limit.get)
-      log.debug("{} expands to SQL query '{}'", query, q.selectStatement)
-      val results = q.list.toVector.map(statusEntry2ProbeStatus)
-      sender() ! GetStatusHistoryResult(query, results)
+    /* retrieve status history */
+    case query: GetStatusHistory =>
+      archiver.forward(query)
 
-    /* retrieve notification history for the ProbeRef and all its children */
-    case query @ GetNotificationHistory(refs, from, to, limit) =>
-      var q = refs match {
-        case Left(base) => notificationEntries.filter(_.probeRef.startsWith(base.toString))
-        case Right(refset) => notificationEntries.filter(_.probeRef.inSet(refset.map(_.toString)))
-      }
-      for (millis <- from.map(_.getMillis))
-        q = q.filter(_.timestamp > millis)
-      for (millis <- to.map(_.getMillis))
-        q = q.filter(_.timestamp < millis)
-      if (limit.isDefined)
-        q = q.take(limit.get)
-      log.debug("{} expands to SQL query '{}'", query, q.selectStatement)
-      val results = q.list.toVector.map(notificationEntry2ProbeNotification)
-      sender() ! GetNotificationHistoryResult(query, results)
+    /* retrieve notification history */
+    case query: GetNotificationHistory =>
+      archiver.forward(query)
 
-    /* delete history older than statusHistoryAge */
-    case CleanStaleHistory =>
-      val maxAge = DateTime.now(DateTimeZone.UTC).getMillis - settings.historyRetention.toMillis
-      val staleStatus = statusEntries.filter(_.timestamp < maxAge).delete
-      log.debug("cleaned {} records from statusEntries", staleStatus)
-      val staleNotifications = notificationEntries.filter(_.timestamp < maxAge).delete
-      log.debug("cleaned {} records from notificationEntries", staleNotifications)
-  }
-
-  def statusEntry2ProbeStatus(entry: StatusEntry): ProbeStatus = {
-    val probeRef = ProbeRef(entry._1)
-    val timestamp = new DateTime(entry._2)
-    val lifecycle = entry._3 match {
-      case "joining" => ProbeJoining
-      case "known" => ProbeKnown
-      case "retired" => ProbeRetired
-    }
-    val health = entry._4 match {
-      case "healthy" => ProbeHealthy
-      case "degraded" => ProbeDegraded
-      case "failed" => ProbeFailed
-      case "unknown" => ProbeUnknown
-    }
-    val summary = entry._5
-    val lastUpdate = entry._6.map(new DateTime(_))
-    val lastChange = entry._7.map(new DateTime(_))
-    val correlation = entry._8
-    val acknowledged = entry._9
-    val squelched = entry._10
-    ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlation, acknowledged, squelched)
-  }
-
-  def notificationEntry2ProbeNotification(entry: NotificationEntry): ProbeNotification = {
-    val probeRef = ProbeRef(entry._1)
-    val timestamp = new DateTime(entry._2)
-    val kind = entry._3
-    val description = entry._4
-    val correlation = entry._5
-    ProbeNotification(probeRef, timestamp, kind, description, correlation)
+    case RunCleaner =>
+      val mark = new DateTime(DateTime.now(DateTimeZone.UTC).getMillis - settings.historyRetention.toMillis)
+      archiver ! CleanHistory(mark)
   }
 }
 
 object HistoryManager {
-  def props(managerSettings: ManagerSettings) = Props(classOf[HistoryManager], managerSettings)
-
-  case class ManagerSettings(databasePath: File, inMemory: Boolean, h2databaseToUpper: Boolean)
-  def settings(config: Config): Option[ManagerSettings] = {
-    val databasePath = new File(config.getString("database-path"))
-    val inMemory = config.getBoolean("in-memory")
-    val h2databaseToUpper = config.getBoolean("h2-database-to-upper")
-    Some(ManagerSettings(databasePath, inMemory, h2databaseToUpper))
-  }
-
-  case object CleanStaleHistory
+  def props() = Props(classOf[HistoryManager])
+  case object RunCleaner
 }
+
+case class CleanHistory(mark: DateTime)
 
 /* */
 sealed trait HistoryServiceOperation
@@ -209,3 +100,6 @@ case class GetNotificationHistoryResult(op: GetNotificationHistory, history: Vec
 
 case class DeleteAllHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime]) extends HistoryServiceCommand
 case class DeleteHistoryFor(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime]) extends HistoryServiceCommand
+
+/* marker trait for Archiver implementations */
+trait Archiver
