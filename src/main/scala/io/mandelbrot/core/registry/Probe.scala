@@ -39,6 +39,7 @@ import scala.util.{Failure, Success}
  */
 class Probe(probeRef: ProbeRef,
             parent: ActorRef,
+            var children: Set[ProbeRef],
             var policy: ProbePolicy,
             generation: Long,
             stateService: ActorRef,
@@ -139,10 +140,13 @@ class Probe(probeRef: ProbeRef,
   def running: Receive = {
 
     /*
-     *
+     * if the set of direct children has changed, and we are rolling up alerts, then
+     * update our escalation state.  if the probe policy has changed, then update any
+     * running timers.
      */
-    case UpdateProbe(newPolicy, lsn) =>
+    case UpdateProbe(directChildren, newPolicy, lsn) =>
       applyPolicy(newPolicy)
+      children = directChildren
       resetExpiryTimer()
       // FIXME: reset alert timer as well?
 
@@ -442,12 +446,13 @@ class Probe(probeRef: ProbeRef,
 object Probe {
   def props(probeRef: ProbeRef,
             parent: ActorRef,
+            children: Set[ProbeRef],
             policy: ProbePolicy,
             generation: Long,
             stateService: ActorRef,
             notificationService: ActorRef,
             trackingService: ActorRef) = {
-    Props(classOf[Probe], probeRef, parent, policy, generation, stateService, notificationService, trackingService)
+    Props(classOf[Probe], probeRef, parent, children, policy, generation, stateService, notificationService, trackingService)
   }
 
   case object ProbeAlertTimeout

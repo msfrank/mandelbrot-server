@@ -261,11 +261,15 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
     val probesAdded = specSet -- probeSet
     probesAdded.toVector.sorted.foreach { case ref: ProbeRef =>
       val probeSpec = findProbeSpec(newRegistration, ref.path)
+      val directChildren = specSet.filter { _.parentOption match {
+        case Some(parent) => parent == ref
+        case None => false
+      }}
       val actor = ref.parentOption match {
-        case Some(parent) if !parent.path.isEmpty =>
-          context.actorOf(Probe.props(ref, probes(parent).actor, probeSpec.policy, lsn, stateService, notificationService, trackingService))
+        case Some(parent) if parent.path.nonEmpty =>
+          context.actorOf(Probe.props(ref, probes(parent).actor, directChildren, probeSpec.policy, lsn, stateService, notificationService, trackingService))
         case _ =>
-          context.actorOf(Probe.props(ref, self, probeSpec.policy, lsn, stateService, notificationService, trackingService))
+          context.actorOf(Probe.props(ref, self, directChildren, probeSpec.policy, lsn, stateService, notificationService, trackingService))
       }
       context.watch(actor)
       log.debug("probe {} joins", ref)
@@ -287,7 +291,11 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
         zombieProbes.add(ref)
       case ref: ProbeRef =>
         val probeSpec = findProbeSpec(newRegistration, ref.path)
-        probes(ref).actor ! UpdateProbe(probeSpec.policy, lsn)
+        val directChildren = specSet.filter { _.parentOption match {
+          case Some(parent) => parent == ref
+          case None => false
+        }}
+        probes(ref).actor ! UpdateProbe(directChildren, probeSpec.policy, lsn)
     }
     registration = newRegistration
   }
@@ -319,7 +327,7 @@ object ProbeSystem {
 }
 
 case class ConfigureProbeSystem(registration: ProbeRegistration, lsn: Long)
-case class UpdateProbe(policy: ProbePolicy, lsn: Long)
+case class UpdateProbe(children: Set[ProbeRef], policy: ProbePolicy, lsn: Long)
 case class RetireProbe(lsn: Long)
 case class RetireProbeSystem(lsn: Long)
 

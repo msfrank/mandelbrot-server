@@ -4,6 +4,9 @@ immediately
 
 0.0.6
 -----
+* use ask() when Probe submits ProbeStatus to StateService, and perform any
+  side-effecting (such as sending notifications) in the Future, so that no
+  side effects will occur until status update has been persisted
 * complete implementation of scheduled downtime
 * implement probe notification escalation logic, including merging behavior
 * add 'related' property to probe system, to attach probes not directly

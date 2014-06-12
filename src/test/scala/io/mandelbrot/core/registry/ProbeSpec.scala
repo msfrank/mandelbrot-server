@@ -42,7 +42,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
     "have an initial state" in {
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-      val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), blackhole, initialPolicy, 0, blackhole, blackhole, blackhole))
+      val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), blackhole, Set.empty, initialPolicy, 0, blackhole, blackhole, blackhole))
       val probe = actor.underlyingActor
       probe.lifecycle must be(ProbeJoining)
       probe.health must be(ProbeUnknown)
@@ -57,7 +57,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "initialize and transition to running behavior" in {
       val ref = ProbeRef("fqdn:local/")
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, 0, self, self, self))
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, self, self, self))
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
       lastSender ! Success(ProbeState(status, 0))
@@ -74,7 +74,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "initialize and transition to retired behavior if lsn is newer than generation" in {
       val ref = ProbeRef("fqdn:local/")
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, 0, self, blackhole, blackhole))
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, self, blackhole, blackhole))
       watch(actor)
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
@@ -87,7 +87,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "transition to ProbeKnown/ProbeHealthy when a healthy StatusMessage is received" in {
       val ref = ProbeRef("fqdn:local/")
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, 0, self, blackhole, blackhole))
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, self, blackhole, blackhole))
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
       lastSender ! Success(ProbeState(status, 0))
@@ -105,7 +105,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "transition to ProbeKnown/ProbeDegraded when a degraded StatusMessage is received" in {
       val ref = ProbeRef("fqdn:local/")
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, 0, self, blackhole, blackhole))
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, self, blackhole, blackhole))
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
       lastSender ! Success(ProbeState(status, 0))
@@ -123,7 +123,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "transition to ProbeKnown/ProbeFailed when a failed StatusMessage is received" in {
       val ref = ProbeRef("fqdn:local/")
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, 0, self, blackhole, blackhole))
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, self, blackhole, blackhole))
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
       lastSender ! Success(ProbeState(status, 0))
@@ -141,7 +141,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "transition to ProbeKnown/ProbeUnknown when a unknown StatusMessage is received" in {
       val ref = ProbeRef("fqdn:local/")
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, 0, self, blackhole, blackhole))
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, self, blackhole, blackhole))
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
       lastSender ! Success(ProbeState(status, 0))
@@ -159,7 +159,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "notify StateService when the joining timeout expires" in {
       val ref = ProbeRef("fqdn:local/")
       val initialPolicy = ProbePolicy(5.seconds, 1.minute, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, 0, self, blackhole, blackhole))
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, self, blackhole, blackhole))
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
       lastSender ! Success(ProbeState(status, 0))
@@ -179,7 +179,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "notify StateService when the probe timeout expires" in {
       val ref = ProbeRef("fqdn:local/")
       val initialPolicy = ProbePolicy(1.minute, 5.seconds, 1.minute, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, 0, self, blackhole, blackhole))
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, self, blackhole, blackhole))
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
       lastSender ! Success(ProbeState(status, 0))
@@ -202,7 +202,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "notify NotificationService when the alert timeout expires" in {
       val ref = ProbeRef("fqdn:local/")
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 5.seconds, 1.minute, 1.hour, 17, NotificationPolicy(EmitNotifications, None))
-      val actor = system.actorOf(Probe.props(ref, blackhole, initialPolicy, 0, self, self, blackhole))
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, self, self, blackhole))
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
       lastSender ! Success(ProbeState(status, 0))
