@@ -28,7 +28,17 @@ class ProbeRef(val uri: URI, val path: Vector[String]) extends Ordered[ProbeRef]
 
   def parentOption: Option[ProbeRef] = if (path.isEmpty) None else Some(new ProbeRef(uri, path.init))
 
-  def hasParent: Boolean = !path.isEmpty
+  def hasParent: Boolean = path.nonEmpty
+
+  def isRoot: Boolean = path.isEmpty
+
+  def isParentOf(that: ProbeRef): Boolean = uri.equals(that.uri) && path.equals(that.path.take(path.length))
+
+  def isDirectParentOf(that: ProbeRef): Boolean = uri.equals(that.uri) && path.equals(that.path.init)
+
+  def isChildOf(that: ProbeRef): Boolean = uri.equals(that.uri) && path.take(that.path.length).equals(that.path)
+
+  def isDirectChildOf(that: ProbeRef): Boolean = uri.equals(that.uri) && path.init.equals(that.path)
 
   def compare(that: ProbeRef): Int = toString.compareTo(that.toString)
 

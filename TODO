@@ -8,14 +8,20 @@ immediately
   side-effecting (such as sending notifications) in the Future, so that no
   side effects will occur until status update has been persisted
 * complete implementation of scheduled downtime
+
+
+0.0.7
+-----
 * implement probe notification escalation logic, including merging behavior
+  * add AggregateProbe for handling escalated probes
+  * should have separate ProbePolicy
 * add 'related' property to probe system, to attach probes not directly
   under the probe system hierarchy
-* delete LuceneSearcher state when probe is deleted
 
 
 backlog
 -------
+* delete LuceneSearcher state when probe is deleted
 * add unit tests for registry lifecycle
 * prune snapshots and messages (implement in SnapshotOperations trait)
 * implement notification deduplication logic 

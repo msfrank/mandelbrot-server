@@ -20,7 +20,7 @@
 package io.mandelbrot.core.notification
 
 /**
- * Describes how notifications are handled by the probe.
+ * Describes how notifications from the probe itself are handled.
  */
 case class NotificationPolicy(behavior: NotificationBehavior, notifications: Option[Set[String]])
 

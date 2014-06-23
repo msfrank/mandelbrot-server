@@ -25,6 +25,7 @@ import akka.pattern.pipe
 import akka.util.Timeout
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
+import scala.collection.mutable
 import java.util.UUID
 
 import io.mandelbrot.core.{ResourceNotFound, Conflict, BadRequest, ApiException}
@@ -35,7 +36,8 @@ import io.mandelbrot.core.tracking._
 import scala.util.{Failure, Success}
 
 /**
- *
+ * the Probe actor encapsulates all of the monitoring business logic.  For every probe
+ * declared by an agent or proxy, there is a corresponding Probe actor.
  */
 class Probe(probeRef: ProbeRef,
             parent: ActorRef,
@@ -63,13 +65,15 @@ class Probe(probeRef: ProbeRef,
 
   var notifier: Option[ActorRef] = None
   var flapQueue: Option[FlapQueue] = None
+  var escalationMap = new mutable.HashMap[ProbeRef,Option[ProbeStatus]]
   var expiryTimer = new Timer(context, self, ProbeExpiryTimeout)
   var alertTimer = new Timer(context, self, ProbeAlertTimeout)
-
 
   override def preStart(): Unit = {
     // set the initial policy
     applyPolicy(policy)
+    // initialize the escalation map
+    children.foreach { ref => escalationMap.put(ref, None) }
     // ask state service what our current status is
     stateService.ask(InitializeProbeState(probeRef, DateTime.now(DateTimeZone.UTC), generation)).map {
       case result @ Success(state: ProbeState) =>
@@ -146,6 +150,8 @@ class Probe(probeRef: ProbeRef,
      */
     case UpdateProbe(directChildren, newPolicy, lsn) =>
       applyPolicy(newPolicy)
+      (children -- directChildren).foreach { ref => escalationMap.remove(ref) }
+      (directChildren -- children).foreach { ref => escalationMap.put(ref, None) }
       children = directChildren
       resetExpiryTimer()
       // FIXME: reset alert timer as well?
@@ -266,15 +272,14 @@ class Probe(probeRef: ProbeRef,
       }
 
     /*
-     *
-     *
+     * retrieve the status of the probe.
      */
     case query: GetProbeStatus =>
       val status = ProbeStatus(probeRef, DateTime.now(DateTimeZone.UTC), lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
       sender() ! GetProbeStatusResult(query, status)
 
     /*
-     *
+     * acknowledge an unhealthy probe.
      */
     case command: AcknowledgeProbe =>
       correlationId match {
@@ -303,6 +308,9 @@ class Probe(probeRef: ProbeRef,
           }.pipeTo(sender())
       }
 
+    /*
+     * add a worknote to a ticket tracking an unhealthy probe.
+     */
     case command: AppendProbeWorknote =>
       acknowledgementId match {
         case None =>

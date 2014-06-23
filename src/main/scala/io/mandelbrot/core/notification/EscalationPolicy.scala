@@ -20,7 +20,7 @@
 package io.mandelbrot.core.notification
 
 /**
- *
+ * Describes how notifications from probe children are handled.
  */
 case class EscalationPolicy(behavior: RollupBehavior)
 
