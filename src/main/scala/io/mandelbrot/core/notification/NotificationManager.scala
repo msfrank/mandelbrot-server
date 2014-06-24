@@ -50,14 +50,16 @@ class NotificationManager extends EventsourcedProcessor with ActorLogging {
 
   // state
   val windows = new mutable.HashMap[UUID,MaintenanceWindow]()
+  var windowCleaner: Option[Cancellable] = None
   var snapshotCancellable: Option[Cancellable] = None
 
   // refs
   val historyService = HistoryService(context.system)
 
-
   override def preStart(): Unit = {
     super.preStart()
+    // schedule cleaning of expired windows
+    windowCleaner = Some(context.system.scheduler.schedule(settings.cleanerInitialDelay, settings.cleanerInterval, self, RunCleaner))
     // schedule regular snapshots
     snapshotCancellable = Some(context.system.scheduler.schedule(settings.snapshotInitialDelay, settings.snapshotInterval, self, TakeSnapshot))
     log.debug("scheduling {} snapshots every {} with initial delay of {}",
@@ -65,6 +67,8 @@ class NotificationManager extends EventsourcedProcessor with ActorLogging {
   }
 
   override def postStop(): Unit = {
+    for (cancellable <- windowCleaner)
+      cancellable.cancel()
     for (cancellable <- snapshotCancellable)
       cancellable.cancel()
     super.postStop()
@@ -77,7 +81,7 @@ class NotificationManager extends EventsourcedProcessor with ActorLogging {
 
     case command: RegisterMaintenanceWindow =>
       val id = UUID.randomUUID()
-      val window = MaintenanceWindow(id, command.affected, command.from, command.to)
+      val window = MaintenanceWindow(id, command.affected, command.from, command.to, command.description)
       persist(MaintenanceWindowRegisters(command, window))(updateState)
 
     case command: UnregisterMaintenanceWindow =>
@@ -93,6 +97,14 @@ class NotificationManager extends EventsourcedProcessor with ActorLogging {
       if (!isSuppressed(notification)) {
         settings.rules.evaluate(notification, notifiers)
         historyService ! notification
+      }
+
+    /* remove all expired windows */
+    case RunCleaner =>
+      val horizon = DateTime.now().getMillis
+      windows.valuesIterator.foreach {
+        case window if (window.to.getMillis + settings.staleWindowOverlap.toMillis) < horizon =>
+          persist(MaintenanceWindowExpires(window.id))(updateState)
       }
 
     /* */
@@ -146,7 +158,7 @@ class NotificationManager extends EventsourcedProcessor with ActorLogging {
     case probeNotification: ProbeNotification =>
       windows.values.foreach {
         case window if notification.timestamp.isAfter(window.from) && notification.timestamp.isBefore(window.to) =>
-          window.affected.foreach{ matcher => if (matcher.matches(probeNotification.probeRef)) return true }
+          window.affected.foreach { matcher => if (matcher.matches(probeNotification.probeRef)) return true }
         case _ => // do nothing
       }
       false
@@ -162,11 +174,13 @@ object NotificationManager {
   case class MaintenanceWindowExpires(id: UUID) extends Event
   case class NotificationManagerSnapshot(windows: Map[UUID,MaintenanceWindow]) extends Serializable
 
+  case object RunCleaner
   case object TakeSnapshot
 }
 
+
 /* */
-case class MaintenanceWindow(id: UUID, affected: Vector[ProbeMatcher], from: DateTime, to: DateTime)
+case class MaintenanceWindow(id: UUID, affected: Vector[ProbeMatcher], from: DateTime, to: DateTime, description: Option[String])
 case class MaintenanceStats(id: UUID, numSuppressed: Long)
 
 /* notification manager operations */
@@ -178,7 +192,7 @@ case class NotificationManagerOperationFailed(op: NotificationManagerOperation, 
 case class ListNotificationRules() extends NotificationManagerQuery
 case class ListNotificationRulesResult(op: ListNotificationRules, rules: Vector[NotificationRule])
 
-case class RegisterMaintenanceWindow(affected: Vector[ProbeMatcher], from: DateTime, to: DateTime) extends NotificationManagerCommand
+case class RegisterMaintenanceWindow(affected: Vector[ProbeMatcher], from: DateTime, to: DateTime, description: Option[String]) extends NotificationManagerCommand
 case class RegisterMaintenanceWindowResult(op: RegisterMaintenanceWindow, id: UUID)
 
 case class ListMaintenanceWindows() extends NotificationManagerQuery

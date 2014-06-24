@@ -41,6 +41,9 @@ case class NotificationSettings(contacts: Map[String,Contact],
                                 groups: Map[String,ContactGroup],
                                 notifiers: Map[String,NotifierSettings],
                                 rules: NotificationRules,
+                                cleanerInitialDelay: FiniteDuration,
+                                cleanerInterval: FiniteDuration,
+                                staleWindowOverlap: FiniteDuration,
                                 snapshotInitialDelay: FiniteDuration,
                                 snapshotInterval: FiniteDuration)
 
@@ -124,11 +127,24 @@ object NotificationSettings {
     val rulesFile = new File(config.getString("notification-rules-file"))
     val rules = NotificationRules.parse(rulesFile, contacts, groups)
 
+    // parse window cleaner configuration
+    val cleanerInitialDelay = FiniteDuration(config.getDuration("cleaner-initial-delay", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+    val cleanerInterval = FiniteDuration(config.getDuration("cleaner-interval", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+    val staleWindowOverlap = FiniteDuration(config.getDuration("stale-window-overlap", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+
     // parse snapshot configuration
     val snapshotInitialDelay = FiniteDuration(config.getDuration("snapshot-initial-delay", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     val snapshotInterval = FiniteDuration(config.getDuration("snapshot-interval", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
 
-    new NotificationSettings(contacts, groups, notifiers, rules, snapshotInitialDelay, snapshotInterval)
+    new NotificationSettings(contacts,
+                             groups,
+                             notifiers,
+                             rules,
+                             cleanerInitialDelay,
+                             cleanerInterval,
+                             staleWindowOverlap,
+                             snapshotInitialDelay,
+                             snapshotInterval)
   }
 }
 
