@@ -375,7 +375,7 @@ trait ApiService extends HttpService {
             }
           }
         }
-      }
+      } ~
       /* unregister an existing maintenance window */
       delete {
         complete {
