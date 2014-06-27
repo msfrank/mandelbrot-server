@@ -75,7 +75,9 @@ trait ApiService extends HttpService {
           complete {
             registryService.ask(registerProbeSystem).map {
               case result: RegisterProbeSystemResult =>
-                HttpResponse(StatusCodes.Accepted, headers = List(Location("/objects/systems/" + registerProbeSystem.uri.toString)))
+                HttpResponse(StatusCodes.Accepted,
+                             headers = List(Location("/objects/systems/" + registerProbeSystem.uri.toString)),
+                             entity = JsonBody(result.op.uri.toJson))
               case failure: ProbeRegistryOperationFailed =>
                 throw failure.failure
             }
@@ -113,7 +115,9 @@ trait ApiService extends HttpService {
             complete {
               registryService.ask(updateProbeSystem).map {
                 case result: UpdateProbeSystemResult =>
-                  HttpResponse(StatusCodes.Accepted, headers = List(Location("/objects/systems/" + updateProbeSystem.uri.toString)))
+                  HttpResponse(StatusCodes.Accepted,
+                               headers = List(Location("/objects/systems/" + updateProbeSystem.uri.toString)),
+                               entity = JsonBody(result.op.uri.toJson))
                 case failure: ProbeRegistryOperationFailed =>
                   throw failure.failure
               }
@@ -337,7 +341,9 @@ trait ApiService extends HttpService {
           complete {
             notificationService.ask(registerMaintenanceWindow).map {
               case result: RegisterMaintenanceWindowResult =>
-                HttpResponse(StatusCodes.Accepted, headers = List(Location("/objects/windows/" + result.id.toString)))
+                HttpResponse(StatusCodes.Accepted,
+                             headers = List(Location("/objects/windows/" + result.id.toString)),
+                             entity = JsonBody(result.id.toJson))
               case failure: NotificationManagerOperationFailed =>
                 throw failure.failure
             }
@@ -357,7 +363,20 @@ trait ApiService extends HttpService {
       }
     } ~
     pathPrefix("windows" / JavaUUID) { case uuid: UUID =>
-      /* unregister new maintenance window */
+      /* modify an existing maintenance window */
+      put {
+        entity(as[MaintenanceWindowModification]) { case modifications: MaintenanceWindowModification =>
+          complete {
+            notificationService.ask(ModifyMaintenanceWindow(uuid, modifications)).map {
+              case result: ModifyMaintenanceWindowResult =>
+                result.id
+              case failure: NotificationManagerOperationFailed =>
+                throw failure.failure
+            }
+          }
+        }
+      }
+      /* unregister an existing maintenance window */
       delete {
         complete {
           notificationService.ask(UnregisterMaintenanceWindow(uuid)).map {

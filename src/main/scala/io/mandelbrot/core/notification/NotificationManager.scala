@@ -84,6 +84,12 @@ class NotificationManager extends EventsourcedProcessor with ActorLogging {
       val window = MaintenanceWindow(id, command.affected, command.from, command.to, command.description)
       persist(MaintenanceWindowRegisters(command, window))(updateState)
 
+    case command: ModifyMaintenanceWindow =>
+      if (windows.contains(command.id))
+        persist(MaintenanceWindowUpdates(command))(updateState)
+      else
+        sender() ! NotificationManagerOperationFailed(command, new ApiException(ResourceNotFound))
+
     case command: UnregisterMaintenanceWindow =>
       if (windows.contains(command.id))
         persist(MaintenanceWindowUnregisters(command))(updateState)
@@ -105,6 +111,7 @@ class NotificationManager extends EventsourcedProcessor with ActorLogging {
       windows.valuesIterator.foreach {
         case window if (window.to.getMillis + settings.staleWindowOverlap.toMillis) < horizon =>
           persist(MaintenanceWindowExpires(window.id))(updateState)
+        case _ =>   // do nothing
       }
 
     /* */
@@ -140,6 +147,23 @@ class NotificationManager extends EventsourcedProcessor with ActorLogging {
       if (!recoveryRunning)
         sender() ! RegisterMaintenanceWindowResult(command, window.id)
 
+    case MaintenanceWindowUpdates(command) =>
+      var window = windows(command.id)
+      for (added <- command.modifications.added)
+        window = window.copy(affected = window.affected ++ added)
+      for (removed <- command.modifications.removed)
+        window = window.copy(affected = window.affected -- removed)
+      for (from <- command.modifications.from)
+        window = window.copy(from = from)
+      for (to <- command.modifications.to)
+        window = window.copy(to = to)
+      for (description <- command.modifications.description)
+        window = window.copy(description = Some(description))
+      windows.put(command.id, window)
+      log.debug("modified maintenance window {}", command.id)
+      if (!recoveryRunning)
+        sender() ! ModifyMaintenanceWindowResult(command, command.id)
+
     case MaintenanceWindowUnregisters(command) =>
       windows.remove(command.id)
       log.debug("unregistered maintenance window {}", command.id)
@@ -170,6 +194,7 @@ object NotificationManager {
   def props() = Props(classOf[NotificationManager])
   sealed trait Event
   case class MaintenanceWindowRegisters(command: RegisterMaintenanceWindow, window: MaintenanceWindow) extends Event
+  case class MaintenanceWindowUpdates(command: ModifyMaintenanceWindow) extends Event
   case class MaintenanceWindowUnregisters(command: UnregisterMaintenanceWindow) extends Event
   case class MaintenanceWindowExpires(id: UUID) extends Event
   case class NotificationManagerSnapshot(windows: Map[UUID,MaintenanceWindow]) extends Serializable
@@ -180,8 +205,13 @@ object NotificationManager {
 
 
 /* */
-case class MaintenanceWindow(id: UUID, affected: Vector[ProbeMatcher], from: DateTime, to: DateTime, description: Option[String])
+case class MaintenanceWindow(id: UUID, affected: Set[ProbeMatcher], from: DateTime, to: DateTime, description: Option[String])
 case class MaintenanceStats(id: UUID, numSuppressed: Long)
+case class MaintenanceWindowModification(added: Option[Set[ProbeMatcher]],
+                                         removed: Option[Set[ProbeMatcher]],
+                                         from: Option[DateTime],
+                                         to: Option[DateTime],
+                                         description: Option[String])
 
 /* notification manager operations */
 sealed trait NotificationManagerOperation
@@ -192,7 +222,10 @@ case class NotificationManagerOperationFailed(op: NotificationManagerOperation, 
 case class ListNotificationRules() extends NotificationManagerQuery
 case class ListNotificationRulesResult(op: ListNotificationRules, rules: Vector[NotificationRule])
 
-case class RegisterMaintenanceWindow(affected: Vector[ProbeMatcher], from: DateTime, to: DateTime, description: Option[String]) extends NotificationManagerCommand
+case class ModifyMaintenanceWindow(id: UUID, modifications: MaintenanceWindowModification) extends NotificationManagerCommand
+case class ModifyMaintenanceWindowResult(op: ModifyMaintenanceWindow, id: UUID)
+
+case class RegisterMaintenanceWindow(affected: Set[ProbeMatcher], from: DateTime, to: DateTime, description: Option[String]) extends NotificationManagerCommand
 case class RegisterMaintenanceWindowResult(op: RegisterMaintenanceWindow, id: UUID)
 
 case class ListMaintenanceWindows() extends NotificationManagerQuery

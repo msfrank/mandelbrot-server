@@ -229,6 +229,9 @@ object JsonProtocol extends DefaultJsonProtocol {
   /* convert MaintenanceWindow class */
   implicit val MaintenanceWindowFormat = jsonFormat5(MaintenanceWindow)
 
+  /* convert MaintenanceWindowModification class */
+  implicit val MaintenanceWindowModificationFormat = jsonFormat5(MaintenanceWindowModification)
+
   /* convert ProbeStatus class */
   implicit val ProbeStatusFormat = jsonFormat10(ProbeStatus)
 
@@ -268,6 +271,8 @@ object JsonProtocol extends DefaultJsonProtocol {
   /* notification service operations */
   implicit val RegisterMaintenanceWindowFormat = jsonFormat4(RegisterMaintenanceWindow)
   implicit val RegisterMaintenanceWindowResultFormat = jsonFormat2(RegisterMaintenanceWindowResult)
+  implicit val ModifyMaintenanceWindowFormat = jsonFormat2(ModifyMaintenanceWindow)
+  implicit val ModifyMaintenanceWindowResultFormat = jsonFormat2(ModifyMaintenanceWindowResult)
   implicit val UnregisterMaintenanceWindowFormat = jsonFormat1(UnregisterMaintenanceWindow)
   implicit val UnregisterMaintenanceWindowResultFormat = jsonFormat2(UnregisterMaintenanceWindowResult)
 
