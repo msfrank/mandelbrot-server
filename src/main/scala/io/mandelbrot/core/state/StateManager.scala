@@ -195,8 +195,10 @@ class StateManager extends EventsourcedProcessor with ActorLogging {
       if (!recoveryRunning) {
         // FIXME: delete state from searcher
         //searcher ! DeleteProbeState(ref, lastStatus)
-        for (status <- lastStatus)
+        for (status <- lastStatus) {
+          sender() ! ProbeStatusCommitted(status, lsn)
           historyService ! status
+        }
       }
   }
 }

@@ -28,7 +28,7 @@ import scala.concurrent.duration._
 import scala.collection.mutable
 import java.util.UUID
 
-import io.mandelbrot.core.{ResourceNotFound, Conflict, BadRequest, ApiException}
+import io.mandelbrot.core.{ResourceNotFound, Conflict, BadRequest, InternalError, ApiException}
 import io.mandelbrot.core.message._
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.notification._
@@ -253,7 +253,7 @@ class Probe(probeRef: ProbeRef,
         case _ =>
           notifications :+ NotifyHealthExpires(probeRef, timestamp, correlationId)
       }
-      // notify state service if we transition to unknown
+      // update state and send notifications
       val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
       commitStatusAndNotify(status, notifications)
 
@@ -294,18 +294,26 @@ class Probe(probeRef: ProbeRef,
           val timestamp = DateTime.now(DateTimeZone.UTC)
           val correlation = correlationId.get
           acknowledgementId = Some(acknowledgement)
-          // notify state service that we are acknowledged
           val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-          stateService ! ProbeState(status, generation)
-          // send acknowledgement notification
-          sendNotification(NotifyAcknowledged(probeRef, timestamp, correlation, acknowledgement))
-          // track the acknowledgement
-          trackingService.ask(CreateTicket(acknowledgement, timestamp, probeRef, correlation)).map {
-            case result: CreateTicketResult =>
-              AcknowledgeProbeResult(command, acknowledgement)
-            case failure: TrackingServiceOperationFailed =>
-              ProbeOperationFailed(command, failure.failure)
+          val notifications = Vector(NotifyAcknowledged(probeRef, timestamp, correlation, acknowledgement))
+          // update state
+          stateService.ask(ProbeState(status, generation)).flatMap { committed =>
+            // send notifications once status has been committed
+            self ! SendNotifications(notifications)
+            // create a ticket to track the acknowledgement
+            trackingService.ask(CreateTicket(acknowledgement, timestamp, probeRef, correlation)).map {
+              case result: CreateTicketResult =>
+                AcknowledgeProbeResult(command, acknowledgement)
+              case failure: TrackingServiceOperationFailed =>
+                ProbeOperationFailed(command, failure.failure)
+            }.recover { case ex => ProbeOperationFailed(command, new ApiException(InternalError)) }
+          }.recover {
+            case ex =>
+              // FIXME: what is the impact on consistency if commit fails?
+              log.debug("failed to commit probe state: {}", ex.getMessage)
+              ProbeOperationFailed(command, ex)
           }.pipeTo(sender())
+
       }
 
     /*
@@ -334,16 +342,22 @@ class Probe(probeRef: ProbeRef,
         case Some(acknowledgement) =>
           val timestamp = DateTime.now(DateTimeZone.UTC)
         acknowledgementId = None
-        // notify state service that we are acknowledged
         val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-        stateService ! ProbeState(status, generation)
-        // TODO: send unacknowledgement notification
-        // track the acknowledgement
-        trackingService.ask(CloseTicket(acknowledgement)).map {
-          case result: CloseTicketResult =>
-            UnacknowledgeProbeResult(command, acknowledgement)
-          case failure: TrackingServiceOperationFailed =>
-            ProbeOperationFailed(command, failure.failure)
+        // update state
+        stateService.ask(ProbeState(status, generation)).flatMap { committed =>
+          // TODO: send unacknowledgement notification once status has been committed
+          // close the ticket
+          trackingService.ask(CloseTicket(acknowledgement)).map {
+            case result: CloseTicketResult =>
+              UnacknowledgeProbeResult(command, acknowledgement)
+            case failure: TrackingServiceOperationFailed =>
+              ProbeOperationFailed(command, failure.failure)
+          }.recover { case ex => ProbeOperationFailed(command, new ApiException(InternalError)) }
+        }.recover {
+          case ex =>
+            // FIXME: what is the impact on consistency if commit fails?
+            log.debug("failed to commit probe state: {}", ex.getMessage)
+            ProbeOperationFailed(command, ex)
         }.pipeTo(sender())
       }
 
@@ -389,15 +403,19 @@ class Probe(probeRef: ProbeRef,
       summary = None
       lastUpdate = Some(timestamp)
       lastChange = Some(timestamp)
-      // notify state service about updated state
       val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-      stateService ! DeleteProbeState(probeRef, Some(status), lsn)
-      // send lifecycle notifications
-      sendNotification(NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle))
-      //
+      val notifications = Vector(NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle))
+      // stop timers
       expiryTimer.stop()
       alertTimer.stop()
-      context.stop(self)
+      // update state
+      stateService.ask(DeleteProbeState(probeRef, Some(status), lsn)).onComplete {
+        case Success(committed) =>
+          self ! SendNotifications(notifications)
+          self ! PoisonPill
+        // FIXME: what is the impact on consistency if commit fails?
+        case Failure(ex) => log.debug("failed to commit probe state: {}", ex.getMessage)
+      }
   }
 
   /**
@@ -420,7 +438,7 @@ class Probe(probeRef: ProbeRef,
     stateService.ask(ProbeState(status, generation)).onComplete {
       case Success(committed) => self ! SendNotifications(notifications)
       // FIXME: what is the impact on consistency if commit fails?
-      case Failure(ex) => log.debug("failed to commit probe state")
+      case Failure(ex) => log.debug("failed to commit probe state: {}", ex.getMessage)
     }
   }
 
