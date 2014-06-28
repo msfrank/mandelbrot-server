@@ -199,25 +199,25 @@ class Probe(probeRef: ProbeRef,
         if (!alertTimer.isRunning)
           alertTimer.start(policy.alertTimeout)
       }
-      // notify state service about updated state
-      val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-      stateService ! ProbeState(status, generation)
-      // send lifecycle notifications
+      var notifications = Vector.empty[Notification]
+      // append lifecycle notification
       if (lifecycle != oldLifecycle)
-        sendNotification(NotifyLifecycleChanges(probeRef, message.timestamp, oldLifecycle, lifecycle))
-      // send health notifications
+        notifications :+ NotifyLifecycleChanges(probeRef, message.timestamp, oldLifecycle, lifecycle)
+      // append health notification
       flapQueue match {
         case Some(flapDetector) if flapDetector.isFlapping =>
-          sendNotification(NotifyHealthFlaps(probeRef, message.timestamp, correlationId, flapDetector.flapStart))
+          notifications :+ NotifyHealthFlaps(probeRef, message.timestamp, correlationId, flapDetector.flapStart)
         case _ if oldHealth != health =>
-          sendNotification(NotifyHealthChanges(probeRef, message.timestamp, correlationId, oldHealth, health))
+          notifications :+ NotifyHealthChanges(probeRef, message.timestamp, correlationId, oldHealth, health)
         case _ =>
-          sendNotification(NotifyHealthUpdates(probeRef, message.timestamp, correlationId, health))
+          notifications :+ NotifyHealthUpdates(probeRef, message.timestamp, correlationId, health)
       }
-      // send recovery notification
+      // append recovery notification
       if (health == ProbeHealthy && oldAcknowledgement.isDefined)
-        sendNotification(NotifyRecovers(probeRef, timestamp, oldCorrelation.get, oldAcknowledgement.get))
-
+        notifications :+ NotifyRecovers(probeRef, timestamp, oldCorrelation.get, oldAcknowledgement.get)
+      // update state and send notifications
+      val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      commitStatusAndNotify(status, notifications)
 
     /*
      * if we haven't received a status message within the current expiry window, then update probe
@@ -241,21 +241,21 @@ class Probe(probeRef: ProbeRef,
         correlationId = correlation
       if (!alertTimer.isRunning)
         alertTimer.start(policy.alertTimeout)
-      // notify state service if we transition to unknown
-      val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-      stateService ! ProbeState(status, generation)
-      // send health notifications
-      flapQueue match {
-        case Some(flapDetector) if flapDetector.isFlapping =>
-          sendNotification(NotifyHealthFlaps(probeRef, timestamp, correlationId, flapDetector.flapStart))
-        case _ if oldHealth != health =>
-          sendNotification(NotifyHealthChanges(probeRef, timestamp, correlationId, oldHealth, health))
-        case _ =>
-          sendNotification(NotifyHealthExpires(probeRef, timestamp, correlationId))
-      }
       // reset the expiry timer
       restartExpiryTimer()
-
+      var notifications = Vector.empty[Notification]
+      // append health notification
+      flapQueue match {
+        case Some(flapDetector) if flapDetector.isFlapping =>
+          notifications :+ NotifyHealthFlaps(probeRef, timestamp, correlationId, flapDetector.flapStart)
+        case _ if oldHealth != health =>
+          notifications :+ NotifyHealthChanges(probeRef, timestamp, correlationId, oldHealth, health)
+        case _ =>
+          notifications :+ NotifyHealthExpires(probeRef, timestamp, correlationId)
+      }
+      // notify state service if we transition to unknown
+      val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      commitStatusAndNotify(status, notifications)
 
     /*
      * if the alert timer expires, then send a health-alerts notification and restart the alert timer.
@@ -339,8 +339,8 @@ class Probe(probeRef: ProbeRef,
         stateService ! ProbeState(status, generation)
         // TODO: send unacknowledgement notification
         // track the acknowledgement
-        trackingService.ask(DeleteTicket(acknowledgement)).map {
-          case result: DeleteTicketResult =>
+        trackingService.ask(CloseTicket(acknowledgement)).map {
+          case result: CloseTicketResult =>
             UnacknowledgeProbeResult(command, acknowledgement)
           case failure: TrackingServiceOperationFailed =>
             ProbeOperationFailed(command, failure.failure)
@@ -364,7 +364,17 @@ class Probe(probeRef: ProbeRef,
         sender() ! SetProbeSquelchResult(command, squelch)
       }
 
+    /*
+     * send a batch of notifications, adhering to the current notification policy.
+     */
+    case SendNotifications(notifications) =>
+      notifications.foreach(sendNotification)
+
+    /*
+     * forward all received notifications upstream.
+     */
     case notification: Notification =>
+      // FIXME: this should probably be removed once escalation policy is implemented.
       notifier.foreach(_ ! notification)
 
     /*
@@ -388,7 +398,6 @@ class Probe(probeRef: ProbeRef,
       expiryTimer.stop()
       alertTimer.stop()
       context.stop(self)
-
   }
 
   /**
@@ -401,6 +410,18 @@ class Probe(probeRef: ProbeRef,
         _notifier ! notification
     else if (policy.notificationPolicy.notifications.get.contains(notification.kind))
         _notifier ! notification
+  }
+
+  /**
+   * send probe status to the state service, and wait for acknowledgement.  if update is
+   * acknowledged then send notifications, otherwise log an error.
+   */
+  def commitStatusAndNotify(status: ProbeStatus, notifications: Vector[Notification]): Unit = {
+    stateService.ask(ProbeState(status, generation)).onComplete {
+      case Success(committed) => self ! SendNotifications(notifications)
+      // FIXME: what is the impact on consistency if commit fails?
+      case Failure(ex) => log.debug("failed to commit probe state")
+    }
   }
 
   /**
@@ -463,6 +484,7 @@ object Probe {
     Props(classOf[Probe], probeRef, parent, children, policy, generation, stateService, notificationService, trackingService)
   }
 
+  case class SendNotifications(notifications: Vector[Notification])
   case object ProbeAlertTimeout
   case object ProbeExpiryTimeout
 }

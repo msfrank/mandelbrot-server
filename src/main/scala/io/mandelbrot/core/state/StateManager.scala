@@ -182,6 +182,7 @@ class StateManager extends EventsourcedProcessor with ActorLogging {
       if (lsn > currentLsn)
         currentLsn = lsn
       if (!recoveryRunning) {
+        sender() ! ProbeStatusCommitted(status, lsn)
         searcher ! status
         historyService ! status
       }
@@ -218,6 +219,7 @@ case class InitializeProbeState(ref: ProbeRef, timestamp: DateTime, lsn: Long)
 case class DeleteProbeState(ref: ProbeRef, lastStatus: Option[ProbeStatus], lsn: Long)
 case class QueryProbes(query: String, limit: Option[Int])
 case class ProbeResults(refs: Vector[ProbeRef])
+case class ProbeStatusCommitted(status: ProbeStatus, lsn: Long)
 
 /**
  *

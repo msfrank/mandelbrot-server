@@ -53,9 +53,9 @@ class TrackingManager extends Actor with ActorLogging {
       log.debug("resolve ticket for {}", command.acknowledgement)
       sender() ! ResolveTicketResult(command, command.acknowledgement)
 
-    case command: DeleteTicket =>
+    case command: CloseTicket =>
       log.debug("delete ticket for {}", command.acknowledgement)
-      sender() ! DeleteTicketResult(command, command.acknowledgement)
+      sender() ! CloseTicketResult(command, command.acknowledgement)
   }
 }
 
@@ -80,8 +80,8 @@ case class AppendWorknoteResult(op: AppendWorknote, acknowledgement: UUID)
 case class ResolveTicket(acknowledgement: UUID) extends TrackingServiceCommand
 case class ResolveTicketResult(op: ResolveTicket, acknowledgement: UUID)
 
-case class DeleteTicket(acknowledgement: UUID) extends TrackingServiceCommand
-case class DeleteTicketResult(op: DeleteTicket, acknowledgement: UUID)
+case class CloseTicket(acknowledgement: UUID) extends TrackingServiceCommand
+case class CloseTicketResult(op: CloseTicket, acknowledgement: UUID)
 
 /* marker trait for Tracker implementations */
 trait Tracker
