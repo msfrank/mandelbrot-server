@@ -310,7 +310,7 @@ class Probe(probeRef: ProbeRef,
           }.recover {
             case ex =>
               // FIXME: what is the impact on consistency if commit fails?
-              log.debug("failed to commit probe state: {}", ex.getMessage)
+              log.error(ex, "failed to commit probe state")
               ProbeOperationFailed(command, ex)
           }.pipeTo(sender())
 
@@ -356,7 +356,7 @@ class Probe(probeRef: ProbeRef,
         }.recover {
           case ex =>
             // FIXME: what is the impact on consistency if commit fails?
-            log.debug("failed to commit probe state: {}", ex.getMessage)
+            log.error(ex, "failed to commit probe state")
             ProbeOperationFailed(command, ex)
         }.pipeTo(sender())
       }
@@ -414,7 +414,7 @@ class Probe(probeRef: ProbeRef,
           self ! SendNotifications(notifications)
           self ! PoisonPill
         // FIXME: what is the impact on consistency if commit fails?
-        case Failure(ex) => log.debug("failed to commit probe state: {}", ex.getMessage)
+        case Failure(ex) => log.error(ex, "failed to commit probe state")
       }
   }
 
@@ -438,7 +438,7 @@ class Probe(probeRef: ProbeRef,
     stateService.ask(ProbeState(status, generation)).onComplete {
       case Success(committed) => self ! SendNotifications(notifications)
       // FIXME: what is the impact on consistency if commit fails?
-      case Failure(ex) => log.debug("failed to commit probe state: {}", ex.getMessage)
+      case Failure(ex) => log.error(ex, "failed to commit probe state")
     }
   }
 
