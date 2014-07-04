@@ -1,6 +1,6 @@
 package io.mandelbrot.core.registry
 
-import akka.actor.PoisonPill
+import akka.actor.{Actor, PoisonPill}
 import akka.pattern.ask
 import akka.pattern.pipe
 import io.mandelbrot.core.tracking._
@@ -18,9 +18,13 @@ import scala.util.{Success, Failure}
 /**
  *
  */
-trait ScalarProbeOperations extends ProbeFSM {
+trait ScalarProbeOperations extends ProbeFSM with Actor {
 
-  when(ScalarProbeState) {
+  // for ask pattern
+  import context.dispatcher
+  implicit val timeout: akka.util.Timeout
+
+  when(ScalarProbeFSMState) {
 
     /*
      * if the set of direct children has changed, and we are rolling up alerts, then
@@ -182,7 +186,7 @@ trait ScalarProbeOperations extends ProbeFSM {
           val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
           val notifications = Vector(NotifyAcknowledged(probeRef, timestamp, correlation, acknowledgement))
           // update state
-          stateService.ask(ProbeState(status, generation)).flatMap { committed =>
+          stateService.ask(ProbeState(status, probeGeneration)).flatMap { committed =>
             // send notifications once status has been committed
             self ! SendNotifications(notifications)
             // create a ticket to track the acknowledgement
@@ -230,7 +234,7 @@ trait ScalarProbeOperations extends ProbeFSM {
           acknowledgementId = None
           val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
           // update state
-          stateService.ask(ProbeState(status, generation)).flatMap { committed =>
+          stateService.ask(ProbeState(status, probeGeneration)).flatMap { committed =>
             // TODO: send unacknowledgement notification once status has been committed
             // close the ticket
             trackingService.ask(CloseTicket(acknowledgement)).map {
@@ -310,5 +314,5 @@ trait ScalarProbeOperations extends ProbeFSM {
   }
 }
 
-case object ScalarProbeState extends ProbeFSMState
-case class ScalarProbeData() extends ProbeFSMData
+case object ScalarProbeFSMState extends ProbeFSMState
+case class ScalarProbeFSMData() extends ProbeFSMData

@@ -2,9 +2,9 @@ package io.mandelbrot.core.registry
 
 import java.util.UUID
 
-import akka.actor.{LoggingFSM, ActorRef}
+import akka.actor.{Actor, Stash, LoggingFSM, ActorRef}
 import akka.pattern.ask
-import akka.pattern.pipe
+import io.mandelbrot.core.{ResourceNotFound, ApiException}
 import io.mandelbrot.core.registry.Probe.SendNotifications
 import org.joda.time.DateTime
 import scala.collection.mutable
@@ -16,16 +16,16 @@ import io.mandelbrot.core.state.ProbeState
 /**
  *
  */
-trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] {
+trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with Stash {
 
   // for ask pattern
   import context.dispatcher
-  implicit val timeout: Timeout
+  implicit val timeout: akka.util.Timeout
 
   // config
   val probeRef: ProbeRef
   val parent: ActorRef
-  val generation: Long
+  val probeGeneration: Long
   val stateService: ActorRef
   val notificationService: ActorRef
   val trackingService: ActorRef
@@ -50,6 +50,63 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] {
   var alertTimer: Timer
 
   /**
+   *
+   */
+  when(InitializingProbeFSMState) {
+
+    case Event(Success(ProbeState(status, lsn)), _) =>
+      // initialize probe state
+      lifecycle = status.lifecycle
+      health = status.health
+      summary = status.summary
+      lastChange = status.lastChange
+      lastUpdate = status.lastUpdate
+      correlationId = status.correlation
+      acknowledgementId = status.acknowledged
+      squelch = status.squelched
+      // this generation is not current, so switch to retired behavior
+      if (lsn > probeGeneration) {
+        log.debug("probe {} becomes retired (lsn {})", probeRef, lsn)
+        unstashAll()
+        goto(RetiredProbeFSMState)
+      }
+      // otherwise replay any stashed messages and transition to scalar
+      else {
+        log.debug("probe {} becomes running (lsn {})", probeRef, lsn)
+        unstashAll()
+        // start the expiry timer using the joining timeout
+        resetExpiryTimer()
+        goto(ScalarProbeFSMState)
+      }
+
+    case Event(Failure(failure: ApiException), _) if failure.failure == ResourceNotFound =>
+      log.debug("probe {} becomes retired", probeRef)
+      unstashAll()
+      goto(RetiredProbeFSMState)
+
+    case Event(Failure(failure: Throwable), _) =>
+      throw failure
+
+    case other =>
+      stash()
+      stay()
+  }
+
+  /**
+   *
+   */
+  when (RetiredProbeFSMState) {
+
+    case Event(RetireProbe(lsn), _) =>
+      context.stop(self)
+      stay()
+
+    // ignore any other message
+    case _ =>
+      stay()
+  }
+
+  /**
    * send the notification if the notification set policy is not specified (meaning
    * send all notifications) or if the policy is specified and this specific notification
    * type is in the notification set.
@@ -66,7 +123,7 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] {
    * acknowledged then send notifications, otherwise log an error.
    */
   def commitStatusAndNotify(status: ProbeStatus, notifications: Vector[Notification]): Unit = {
-    stateService.ask(ProbeState(status, generation)).onComplete {
+    stateService.ask(ProbeState(status, probeGeneration)).onComplete {
       case Success(committed) => self ! SendNotifications(notifications)
       // FIXME: what is the impact on consistency if commit fails?
       case Failure(ex) => log.error(ex, "failed to commit probe state")
@@ -122,5 +179,9 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] {
 }
 
 trait ProbeFSMState
+case object InitializingProbeFSMState extends ProbeFSMState
+case object RetiredProbeFSMState extends ProbeFSMState
+
 trait ProbeFSMData
+case class InitializingProbeFSMState() extends ProbeFSMData
 
