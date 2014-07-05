@@ -45,12 +45,13 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
 
   var notifier: Option[ActorRef]
   var flapQueue: Option[FlapQueue]
-  var escalationMap: mutable.HashMap[ProbeRef,Option[ProbeStatus]]
   var expiryTimer: Timer
   var alertTimer: Timer
 
   /**
-   *
+   * wait for ProbeState from state service.  transition to Scalar or Aggregate state
+   * (depending on the policy) if the lsn returned equals the probe generation, otherwise
+   * transition directly to Retired.
    */
   when(InitializingProbeFSMState) {
 
@@ -68,7 +69,7 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
       if (lsn > probeGeneration) {
         log.debug("probe {} becomes retired (lsn {})", probeRef, lsn)
         unstashAll()
-        goto(RetiredProbeFSMState)
+        goto(RetiredProbeFSMState) using RetiredProbeFSMState()
       }
       // otherwise replay any stashed messages and transition to scalar
       else {
@@ -76,13 +77,13 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
         unstashAll()
         // start the expiry timer using the joining timeout
         resetExpiryTimer()
-        goto(ScalarProbeFSMState)
+        goto(ScalarProbeFSMState) using ScalarProbeFSMState()
       }
 
     case Event(Failure(failure: ApiException), _) if failure.failure == ResourceNotFound =>
       log.debug("probe {} becomes retired", probeRef)
       unstashAll()
-      goto(RetiredProbeFSMState)
+      goto(RetiredProbeFSMState) using RetiredProbeFSMState()
 
     case Event(Failure(failure: Throwable), _) =>
       throw failure
@@ -184,4 +185,5 @@ case object RetiredProbeFSMState extends ProbeFSMState
 
 trait ProbeFSMData
 case class InitializingProbeFSMState() extends ProbeFSMData
+case class RetiredProbeFSMState() extends ProbeFSMData
 

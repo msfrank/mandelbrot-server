@@ -61,7 +61,6 @@ class Probe(val probeRef: ProbeRef,
 
   var notifier: Option[ActorRef] = None
   var flapQueue: Option[FlapQueue] = None
-  var escalationMap = new mutable.HashMap[ProbeRef,Option[ProbeStatus]]
   var expiryTimer = new Timer(context, self, ProbeExpiryTimeout)
   var alertTimer = new Timer(context, self, ProbeAlertTimeout)
 
@@ -72,8 +71,6 @@ class Probe(val probeRef: ProbeRef,
   override def preStart(): Unit = {
     // set the initial policy
     applyPolicy(policy)
-    // initialize the escalation map
-    children.foreach { ref => escalationMap.put(ref, None) }
     // ask state service what our current status is
     stateService.ask(InitializeProbeState(probeRef, DateTime.now(DateTimeZone.UTC), probeGeneration)).map {
       case result @ Success(state: ProbeState) =>

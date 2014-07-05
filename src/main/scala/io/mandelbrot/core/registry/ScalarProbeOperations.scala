@@ -33,12 +33,10 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
      */
     case Event(UpdateProbe(directChildren, newPolicy, lsn), _) =>
       applyPolicy(newPolicy)
-      (children -- directChildren).foreach { ref => escalationMap.remove(ref)}
-      (directChildren -- children).foreach { ref => escalationMap.put(ref, None)}
       children = directChildren
       resetExpiryTimer()
       // FIXME: reset alert timer as well?
-      stay()
+      stay() using ScalarProbeFSMState()
 
     /*
      * if we receive a status message while joining or known, then update probe state
@@ -315,4 +313,4 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
 }
 
 case object ScalarProbeFSMState extends ProbeFSMState
-case class ScalarProbeFSMData() extends ProbeFSMData
+case class ScalarProbeFSMState() extends ProbeFSMData
