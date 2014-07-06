@@ -21,13 +21,13 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
      * running timers.
      */
     case Event(UpdateProbe(directChildren, newPolicy, lsn), state: AggregateProbeFSMState) =>
-      applyPolicy(newPolicy)
       (children -- directChildren).foreach { ref => state.children.remove(ref)}
       (directChildren -- children).foreach { ref => state.children.put(ref, None)}
       children = directChildren
+      policy = newPolicy
       resetExpiryTimer()
       // FIXME: reset alert timer as well?
-      stay() using ScalarProbeFSMState()
+      stay()
   }
 }
 

@@ -8,10 +8,11 @@ import io.mandelbrot.core.{ResourceNotFound, ApiException}
 import io.mandelbrot.core.registry.Probe.SendNotifications
 import org.joda.time.DateTime
 import scala.collection.mutable
+import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
-import io.mandelbrot.core.notification.{SquelchNotifications, EmitNotifications, EscalateNotifications, Notification}
-import io.mandelbrot.core.state.ProbeState
+import io.mandelbrot.core.notification._
+import io.mandelbrot.core.state.{ProbeStatusCommitted, ProbeState}
 
 /**
  *
@@ -43,7 +44,6 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
   var acknowledgementId: Option[UUID]
   var squelch: Boolean
 
-  var notifier: Option[ActorRef]
   var flapQueue: Option[FlapQueue]
   var expiryTimer: Timer
   var alertTimer: Timer
@@ -94,7 +94,9 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
   }
 
   /**
-   *
+   * probe becomes Retired when it is determined to be stale; that is, the lsn from the
+   * state service is newer than the probe generation.  when Retired, the probe ignores
+   * all messages except for RetireProbe, which causes the Probe actor to stop.
    */
   when (RetiredProbeFSMState) {
 
@@ -112,23 +114,28 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
    * send all notifications) or if the policy is specified and this specific notification
    * type is in the notification set.
    */
-  def sendNotification(notification: Notification): Unit = notifier.foreach { _notifier =>
-    if (policy.notificationPolicy.notifications.isEmpty)
-        _notifier ! notification
-    else if (policy.notificationPolicy.notifications.get.contains(notification.kind))
-        _notifier ! notification
+  def sendNotification(notification: Notification): Unit = notification match {
+    case alert: Alert =>
+      parent ! alert
+    case other =>
+      if (policy.notificationPolicy.notifications.isEmpty)
+        notificationService ! notification
+      else if (policy.notificationPolicy.notifications.get.contains(notification.kind))
+        notificationService ! notification
   }
 
   /**
    * send probe status to the state service, and wait for acknowledgement.  if update is
    * acknowledged then send notifications, otherwise log an error.
    */
-  def commitStatusAndNotify(status: ProbeStatus, notifications: Vector[Notification]): Unit = {
-    stateService.ask(ProbeState(status, probeGeneration)).onComplete {
-      case Success(committed) => self ! SendNotifications(notifications)
+  def commitStatusAndNotify(status: ProbeStatus, notifications: Vector[Notification]): Future[ProbeStatusCommitted] = {
+    stateService.ask(ProbeState(status, probeGeneration)).andThen {
+      case Success(committed) =>
+        self ! SendNotifications(notifications)
       // FIXME: what is the impact on consistency if commit fails?
-      case Failure(ex) => log.error(ex, "failed to commit probe state")
-    }
+      case Failure(ex) =>
+        log.error(ex, "failed to commit probe state")
+    }.mapTo[ProbeStatusCommitted]
   }
 
   /**
@@ -162,21 +169,6 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
     }
   }
 
-  /**
-   * update state based on the new policy.
-   */
-  def applyPolicy(newPolicy: ProbePolicy): Unit = {
-    log.debug("probe {} updates configuration: {}", probeRef, newPolicy)
-    newPolicy.notificationPolicy.behavior match {
-      case EscalateNotifications =>
-        notifier = Some(parent)
-      case EmitNotifications =>
-        notifier = Some(notificationService)
-      case SquelchNotifications =>
-        notifier = None
-    }
-    policy = newPolicy
-  }
 }
 
 trait ProbeFSMState

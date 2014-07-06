@@ -32,11 +32,12 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
      * running timers.
      */
     case Event(UpdateProbe(directChildren, newPolicy, lsn), _) =>
-      applyPolicy(newPolicy)
       children = directChildren
+      policy = newPolicy
+      log.debug("probe {} updates configuration: {}", probeRef, newPolicy)
       resetExpiryTimer()
       // FIXME: reset alert timer as well?
-      stay() using ScalarProbeFSMState()
+      stay()
 
     /*
      * if we receive a status message while joining or known, then update probe state
@@ -183,10 +184,8 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
           acknowledgementId = Some(acknowledgement)
           val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
           val notifications = Vector(NotifyAcknowledged(probeRef, timestamp, correlation, acknowledgement))
-          // update state
-          stateService.ask(ProbeState(status, probeGeneration)).flatMap { committed =>
-            // send notifications once status has been committed
-            self ! SendNotifications(notifications)
+          // update state and send notifications
+          commitStatusAndNotify(status, notifications).flatMap { committed =>
             // create a ticket to track the acknowledgement
             trackingService.ask(CreateTicket(acknowledgement, timestamp, probeRef, correlation)).map {
               case result: CreateTicketResult =>
@@ -229,11 +228,12 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
           sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
         case Some(acknowledgement) =>
           val timestamp = DateTime.now(DateTimeZone.UTC)
+          val correlation = correlationId.get
           acknowledgementId = None
           val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-          // update state
-          stateService.ask(ProbeState(status, probeGeneration)).flatMap { committed =>
-            // TODO: send unacknowledgement notification once status has been committed
+          val notifications = Vector(NotifyUnacknowledged(probeRef, timestamp, correlation, acknowledgement))
+          // update state and send notifications
+          commitStatusAndNotify(status, notifications).flatMap { committed =>
             // close the ticket
             trackingService.ask(CloseTicket(acknowledgement)).map {
               case result: CloseTicketResult =>
@@ -276,11 +276,10 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
       stay()
 
     /*
-     * forward all received notifications upstream.
+     * forward all alerts up to the parent.
      */
-    case Event(notification: Notification, _) =>
-      // FIXME: this should probably be removed once escalation policy is implemented.
-      notifier.foreach(_ ! notification)
+    case Event(alert: Alert, _) =>
+      sendNotification(alert)
       stay()
 
     /*

@@ -24,7 +24,6 @@ import akka.pattern.ask
 import akka.pattern.pipe
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
-import scala.collection.mutable
 import scala.util.{Failure, Success}
 import java.util.UUID
 
@@ -59,7 +58,6 @@ class Probe(val probeRef: ProbeRef,
   var acknowledgementId: Option[UUID] = None
   var squelch: Boolean = false
 
-  var notifier: Option[ActorRef] = None
   var flapQueue: Option[FlapQueue] = None
   var expiryTimer = new Timer(context, self, ProbeExpiryTimeout)
   var alertTimer = new Timer(context, self, ProbeAlertTimeout)
@@ -69,8 +67,6 @@ class Probe(val probeRef: ProbeRef,
    * of this query determines which FSM state we transition to from Initializing.
    */
   override def preStart(): Unit = {
-    // set the initial policy
-    applyPolicy(policy)
     // ask state service what our current status is
     stateService.ask(InitializeProbeState(probeRef, DateTime.now(DateTimeZone.UTC), probeGeneration)).map {
       case result @ Success(state: ProbeState) =>
