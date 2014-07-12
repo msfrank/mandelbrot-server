@@ -1,3 +1,22 @@
+/**
+ * Copyright 2014 Michael Frank <msfrank@syntaxjockey.com>
+ *
+ * This file is part of Mandelbrot.
+ *
+ * Mandelbrot is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Mandelbrot is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package io.mandelbrot.core.registry
 
 import java.util.UUID
@@ -44,7 +63,6 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
   var acknowledgementId: Option[UUID]
   var squelch: Boolean
 
-  var flapQueue: Option[FlapQueue]
   var expiryTimer: Timer
   var alertTimer: Timer
 
@@ -69,21 +87,21 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
       if (lsn > probeGeneration) {
         log.debug("probe {} becomes retired (lsn {})", probeRef, lsn)
         unstashAll()
-        goto(RetiredProbeFSMState) using RetiredProbeFSMState()
+        goto(RetiredProbeFSMState) using NoData
       }
-      // otherwise replay any stashed messages and transition to scalar
+      // otherwise replay any stashed messages and transition to running
       else {
-        log.debug("probe {} becomes running (lsn {})", probeRef, lsn)
         unstashAll()
         // start the expiry timer using the joining timeout
         resetExpiryTimer()
-        goto(ScalarProbeFSMState) using ScalarProbeFSMState()
+        // transition to next state depending on policy
+        applyBehaviorPolicy(policy.behavior)
       }
 
     case Event(Failure(failure: ApiException), _) if failure.failure == ResourceNotFound =>
       log.debug("probe {} becomes retired", probeRef)
       unstashAll()
-      goto(RetiredProbeFSMState) using RetiredProbeFSMState()
+      goto(RetiredProbeFSMState) using NoData
 
     case Event(Failure(failure: Throwable), _) =>
       throw failure
@@ -110,6 +128,18 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
   }
 
   /**
+   *
+   */
+  def applyBehaviorPolicy(behavior: BehaviorPolicy) = policy.behavior match {
+    case behavior: AggregateBehaviorPolicy =>
+      log.debug("probe {} becomes aggregate", probeRef)
+      goto(AggregateProbeFSMState) using AggregateProbeFSMState(behavior)
+    case behavior: ScalarBehaviorPolicy =>
+      log.debug("probe {} becomes scalar", probeRef)
+      goto(ScalarProbeFSMState) using ScalarProbeFSMState(behavior)
+  }
+
+  /**
    * send the notification if the notification set policy is not specified (meaning
    * send all notifications) or if the policy is specified and this specific notification
    * type is in the notification set.
@@ -117,10 +147,10 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
   def sendNotification(notification: Notification): Unit = notification match {
     case alert: Alert =>
       parent ! alert
-    case other =>
-      if (policy.notificationPolicy.notifications.isEmpty)
+    case _ =>
+      if (policy.notifications.isEmpty)
         notificationService ! notification
-      else if (policy.notificationPolicy.notifications.get.contains(notification.kind))
+      else if (policy.notifications.get.contains(notification.kind))
         notificationService ! notification
   }
 
@@ -176,6 +206,5 @@ case object InitializingProbeFSMState extends ProbeFSMState
 case object RetiredProbeFSMState extends ProbeFSMState
 
 trait ProbeFSMData
-case class InitializingProbeFSMState() extends ProbeFSMData
-case class RetiredProbeFSMState() extends ProbeFSMData
+case object NoData extends ProbeFSMData
 

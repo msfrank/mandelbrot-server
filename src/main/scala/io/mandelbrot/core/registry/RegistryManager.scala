@@ -28,7 +28,7 @@ import scala.collection.JavaConversions._
 import java.net.URI
 
 import io.mandelbrot.core._
-import io.mandelbrot.core.notification.{NotificationPolicy, NotificationService, Notification}
+import io.mandelbrot.core.notification.{NotificationService, Notification}
 import io.mandelbrot.core.message.{StatusMessage, MessageStream}
 
 /**
@@ -245,9 +245,8 @@ case class ProbePolicy(joiningTimeout: FiniteDuration,
                        probeTimeout: FiniteDuration,
                        alertTimeout: FiniteDuration,
                        leavingTimeout: FiniteDuration,
-                       flapWindow: FiniteDuration,
-                       flapDeviations: Int,
-                       notificationPolicy: NotificationPolicy) extends Serializable
+                       behavior: BehaviorPolicy,
+                       notifications: Option[Set[String]]) extends Serializable
 
 /* the probe specification */
 case class ProbeSpec(probeType: String,

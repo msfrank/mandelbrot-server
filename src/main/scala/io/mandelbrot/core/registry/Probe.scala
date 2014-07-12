@@ -58,9 +58,11 @@ class Probe(val probeRef: ProbeRef,
   var acknowledgementId: Option[UUID] = None
   var squelch: Boolean = false
 
-  var flapQueue: Option[FlapQueue] = None
   var expiryTimer = new Timer(context, self, ProbeExpiryTimeout)
   var alertTimer = new Timer(context, self, ProbeAlertTimeout)
+
+  /* we start in Initializing state */
+  startWith(InitializingProbeFSMState, NoData)
 
   /**
    * before starting the FSM, request the ProbeState from the state service.  the result
@@ -87,8 +89,7 @@ class Probe(val probeRef: ProbeRef,
     alertTimer.stop()
   }
 
-  /* we start in Initializing state */
-  startWith(InitializingProbeFSMState, InitializingProbeFSMState())
+  initialize()
 }
 
 object Probe {

@@ -104,28 +104,42 @@ object JsonProtocol extends DefaultJsonProtocol {
     }
   }
 
-  /* convert NotificationBehavior class */
-  implicit object NotificationBehaviorFormat extends RootJsonFormat[NotificationBehavior] {
-    def write(policyType: NotificationBehavior) = policyType match {
-      case EmitNotifications => JsString("emit")
-      case EscalateNotifications => JsString("escalate")
-      case SquelchNotifications => JsString("squelch")
-      case unknown => throw new SerializationException("unknown NotificationBehavior " + unknown.getClass)
+  /* convert BehaviorPolicy implementations */
+  implicit val ScalarBehaviorPolicyFormat = jsonFormat2(ScalarBehaviorPolicy)
+  implicit val AggregateBehaviorPolicyFormat = jsonFormat3(AggregateBehaviorPolicy)
+
+  /* convert BehaviorPolicy class */
+  implicit object BehaviorPolicyFormat extends RootJsonFormat[BehaviorPolicy] {
+    def write(behaviorPolicy: BehaviorPolicy) = behaviorPolicy match {
+      case behavior: AggregateBehaviorPolicy =>
+        JsObject(Map("behaviorType" -> JsString("aggregate"), "behaviorPolicy" -> behavior.toJson))
+      case behavior: ScalarBehaviorPolicy =>
+        JsObject(Map("behaviorType" -> JsString("scalar"), "behaviorPolicy" -> behavior.toJson))
+      case unknown => throw new SerializationException("unknown BehaviorPolicy " + unknown.getClass)
     }
 
     def read(value: JsValue) = value match {
-      case JsString("emit") => EmitNotifications
-      case JsString("escalate") => EscalateNotifications
-      case JsString("squelch") => SquelchNotifications
-      case unknown => throw new DeserializationException("unknown NotificationBehavior " + unknown)
+      case JsObject(fields) =>
+        if (!fields.contains("behaviorPolicy"))
+          throw new DeserializationException("missing behaviorPolicy")
+        fields.get("behaviorType") match {
+          case Some(JsString("aggregate")) =>
+            AggregateBehaviorPolicyFormat.read(fields("behaviorPolicy"))
+          case Some(JsString("scalar")) =>
+            ScalarBehaviorPolicyFormat.read(fields("behaviorPolicy"))
+          case Some(JsString(unknown)) =>
+            throw new DeserializationException("unknown behaviorType " + unknown)
+          case None =>
+            throw new DeserializationException("missing behaviorType")
+          case unknownValue =>
+            throw new DeserializationException("behaviorType is not a string")
+        }
+      case unknown => throw new DeserializationException("unknown BehaviorPolicy " + unknown)
     }
   }
 
-  /* convert NotificationPolicy class */
-  implicit val NotificationPolicyFormat = jsonFormat2(NotificationPolicy)
-
   /* convert ProbePolicy class */
-  implicit val ProbePolicyFormat = jsonFormat7(ProbePolicy)
+  implicit val ProbePolicyFormat = jsonFormat6(ProbePolicy)
 
   /* a little extra magic here- we use lazyFormat because ProbeSpec has a recursive definition */
   implicit val _ProbeSpecFormat: JsonFormat[ProbeSpec] = lazyFormat(jsonFormat(ProbeSpec, "probeType", "metadata", "policy", "children"))

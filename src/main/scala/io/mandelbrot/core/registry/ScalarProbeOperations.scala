@@ -1,3 +1,22 @@
+/**
+ * Copyright 2014 Michael Frank <msfrank@syntaxjockey.com>
+ *
+ * This file is part of Mandelbrot.
+ *
+ * Mandelbrot is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Mandelbrot is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package io.mandelbrot.core.registry
 
 import akka.actor.{Actor, PoisonPill}
@@ -5,15 +24,14 @@ import akka.pattern.ask
 import akka.pattern.pipe
 import io.mandelbrot.core.tracking._
 import org.joda.time.{DateTimeZone, DateTime}
+import scala.util.{Success, Failure}
 import java.util.UUID
 
 import io.mandelbrot.core.message.StatusMessage
+import io.mandelbrot.core.state.DeleteProbeState
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.registry.Probe.{SendNotifications, ProbeAlertTimeout, ProbeExpiryTimeout}
-import io.mandelbrot.core.state.{ProbeState, DeleteProbeState}
 import io.mandelbrot.core.{Conflict, BadRequest, InternalError, ResourceNotFound, ApiException}
-
-import scala.util.{Success, Failure}
 
 /**
  *
@@ -47,10 +65,9 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
      * we set the correlation if it is different from the current correlation, and we start
      * the alert timer.
      */
-    case Event(message: StatusMessage, _) =>
+    case Event(message: StatusMessage, ScalarProbeFSMState(_, flapQueue)) =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      val correlation = if (message.health == ProbeHealthy) None
-      else {
+      val correlation = if (message.health == ProbeHealthy) None else {
         if (correlationId.isDefined) correlationId else Some(UUID.randomUUID())
       }
       summary = Some(message.summary)
@@ -110,7 +127,7 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
      * different from the current correlation.  we restart the expiry timer, and we start the alert
      * timer if it is not already running.
      */
-    case Event(ProbeExpiryTimeout, _) =>
+    case Event(ProbeExpiryTimeout, ScalarProbeFSMState(_, flapQueue)) =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val correlation = if (correlationId.isDefined) correlationId else Some(UUID.randomUUID())
       val oldHealth = health
@@ -311,5 +328,11 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
   }
 }
 
-case object ScalarProbeFSMState extends ProbeFSMState
-case class ScalarProbeFSMState() extends ProbeFSMData
+case class ScalarProbeFSMState(behavior: ScalarBehaviorPolicy,
+                               flapQueue: Option[FlapQueue]) extends ProbeFSMData
+
+case object ScalarProbeFSMState extends ProbeFSMState {
+  def apply(behavior: ScalarBehaviorPolicy): ScalarProbeFSMState = {
+    ScalarProbeFSMState(behavior, None)
+  }
+}
