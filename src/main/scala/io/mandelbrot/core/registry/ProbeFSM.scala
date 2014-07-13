@@ -23,15 +23,16 @@ import java.util.UUID
 
 import akka.actor.{Actor, Stash, LoggingFSM, ActorRef}
 import akka.pattern.ask
-import io.mandelbrot.core.{ResourceNotFound, ApiException}
-import io.mandelbrot.core.registry.Probe.SendNotifications
-import org.joda.time.DateTime
-import scala.collection.mutable
+import akka.pattern.pipe
+import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.state.{ProbeStatusCommitted, ProbeState}
+import io.mandelbrot.core.tracking._
+import io.mandelbrot.core.{BadRequest, Conflict, ResourceNotFound, InternalError, ApiException}
+import io.mandelbrot.core.registry.Probe.SendNotifications
 
 /**
  *
@@ -199,6 +200,106 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
     }
   }
 
+  /**
+   *
+   */
+  def acknowledgeProbe(command: AcknowledgeProbe, caller: ActorRef): Unit = correlationId match {
+    case None =>
+      sender() ! ProbeOperationFailed(command, new ApiException(ResourceNotFound))
+    case Some(correlation) if acknowledgementId.isDefined =>
+      sender() ! ProbeOperationFailed(command, new ApiException(Conflict))
+    case Some(correlation) if correlation != command.correlationId =>
+      sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
+    case Some(correlation) =>
+      val acknowledgement = UUID.randomUUID()
+      val timestamp = DateTime.now(DateTimeZone.UTC)
+      val correlation = correlationId.get
+      acknowledgementId = Some(acknowledgement)
+      val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      val notifications = Vector(NotifyAcknowledged(probeRef, timestamp, correlation, acknowledgement))
+      // update state and send notifications
+      commitStatusAndNotify(status, notifications).flatMap { committed =>
+        // create a ticket to track the acknowledgement
+        trackingService.ask(CreateTicket(acknowledgement, timestamp, probeRef, correlation)).map {
+          case result: CreateTicketResult =>
+            AcknowledgeProbeResult(command, acknowledgement)
+          case failure: TrackingServiceOperationFailed =>
+            ProbeOperationFailed(command, failure.failure)
+        }.recover { case ex => ProbeOperationFailed(command, new ApiException(InternalError))}
+      }.recover {
+        case ex =>
+          // FIXME: what is the impact on consistency if commit fails?
+          log.error(ex, "failed to commit probe state")
+          ProbeOperationFailed(command, ex)
+      }.pipeTo(caller)
+  }
+
+  /**
+   *
+   */
+  def unacknowledgeProbe(command: UnacknowledgeProbe, caller: ActorRef): Unit = acknowledgementId match {
+    case None =>
+      sender() ! ProbeOperationFailed(command, new ApiException(ResourceNotFound))
+    case Some(acknowledgement) if acknowledgement != command.acknowledgementId =>
+      sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
+    case Some(acknowledgement) =>
+      val timestamp = DateTime.now(DateTimeZone.UTC)
+      val correlation = correlationId.get
+      acknowledgementId = None
+      val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      val notifications = Vector(NotifyUnacknowledged(probeRef, timestamp, correlation, acknowledgement))
+      // update state and send notifications
+      commitStatusAndNotify(status, notifications).flatMap { committed =>
+        // close the ticket
+        trackingService.ask(CloseTicket(acknowledgement)).map {
+          case result: CloseTicketResult =>
+            UnacknowledgeProbeResult(command, acknowledgement)
+          case failure: TrackingServiceOperationFailed =>
+            ProbeOperationFailed(command, failure.failure)
+        }.recover { case ex => ProbeOperationFailed(command, new ApiException(InternalError))}
+      }.recover {
+        case ex =>
+          // FIXME: what is the impact on consistency if commit fails?
+          log.error(ex, "failed to commit probe state")
+          ProbeOperationFailed(command, ex)
+      }.pipeTo(sender())
+  }
+
+  /**
+   *
+   */
+  def appendComment(command: AppendProbeWorknote, caller: ActorRef): Unit = acknowledgementId match {
+    case None =>
+      sender() ! ProbeOperationFailed(command, new ApiException(ResourceNotFound))
+    case Some(acknowledgement) if acknowledgement != command.acknowledgementId =>
+      sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
+    case Some(acknowledgement) =>
+      val timestamp = DateTime.now(DateTimeZone.UTC)
+      trackingService.tell(AppendWorknote(acknowledgement, timestamp, command.comment, command.internal.getOrElse(false)), sender())
+  }
+
+  /**
+   *
+   */
+  def squelchProbe(command: SetProbeSquelch, caller: ActorRef): Unit = {
+    if (squelch == command.squelch) {
+      sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
+    } else {
+      val timestamp = DateTime.now(DateTimeZone.UTC)
+      squelch = command.squelch
+      val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+      val notifications = if (command.squelch) Vector(NotifySquelched(probeRef, timestamp)) else Vector(NotifyUnsquelched(probeRef, timestamp))
+      // update state and send notifications
+      commitStatusAndNotify(status, notifications).map { _ =>
+        SetProbeSquelchResult(command, command.squelch)
+      }.recover {
+        case ex =>
+          // FIXME: what is the impact on consistency if commit fails?
+          log.error(ex, "failed to commit probe state")
+          ProbeOperationFailed(command, ex)
+      }.pipeTo(caller)
+    }
+  }
 }
 
 trait ProbeFSMState
