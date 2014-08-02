@@ -42,20 +42,18 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
   import context.dispatcher
   implicit val timeout: akka.util.Timeout
 
+  onTransition {
+    case _ -> ScalarProbeFSMState =>
+  }
+
   when(ScalarProbeFSMState) {
 
     /*
-     * if the set of direct children has changed, and we are rolling up alerts, then
-     * update our escalation state.  if the probe policy has changed, then update any
-     * running timers.
+     * if the set of direct children has changed, or the probe policy has changed, then
+     * update our state.  note that this may cause a FSM state change.
      */
-    case Event(UpdateProbe(directChildren, newPolicy, lsn), _) =>
-      children = directChildren
-      policy = newPolicy
-      log.debug("probe {} updates configuration: {}", probeRef, newPolicy)
-      resetExpiryTimer()
-      // FIXME: reset alert timer as well?
-      stay()
+    case Event(update: UpdateProbe, _) =>
+      updateProbe(update)
 
     /*
      * if we receive a status message while joining or known, then update probe state
@@ -333,6 +331,9 @@ case class ScalarProbeFSMState(behavior: ScalarBehaviorPolicy,
 
 case object ScalarProbeFSMState extends ProbeFSMState {
   def apply(behavior: ScalarBehaviorPolicy): ScalarProbeFSMState = {
+    ScalarProbeFSMState(behavior, None)
+  }
+  def apply(behavior: ScalarBehaviorPolicy, oldState: ScalarProbeFSMState): ScalarProbeFSMState = {
     ScalarProbeFSMState(behavior, None)
   }
 }

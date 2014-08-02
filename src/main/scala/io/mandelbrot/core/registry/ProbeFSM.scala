@@ -35,7 +35,8 @@ import io.mandelbrot.core.{BadRequest, Conflict, ResourceNotFound, InternalError
 import io.mandelbrot.core.registry.Probe.SendNotifications
 
 /**
- *
+ * Base trait for the Probe FSM, containing the initializing and retiring logic,
+ * as well as methods common to all Probe behaviors.
  */
 trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with Stash {
 
@@ -90,7 +91,7 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
         unstashAll()
         goto(RetiredProbeFSMState) using NoData
       }
-      // otherwise replay any stashed messages and transition to running
+      // otherwise replay any stashed messages and transition to initialized
       else {
         unstashAll()
         // start the expiry timer using the joining timeout
@@ -131,13 +132,29 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
   /**
    *
    */
-  def applyBehaviorPolicy(behavior: BehaviorPolicy) = policy.behavior match {
-    case behavior: AggregateBehaviorPolicy =>
+  def applyBehaviorPolicy(behavior: BehaviorPolicy) = (policy.behavior,stateData) match {
+    case (behavior: AggregateBehaviorPolicy, oldState: AggregateProbeFSMState) =>
+      stay() using AggregateProbeFSMState(behavior, children, oldState)
+    case (behavior: AggregateBehaviorPolicy, _) =>
       log.debug("probe {} becomes aggregate", probeRef)
-      goto(AggregateProbeFSMState) using AggregateProbeFSMState(behavior)
-    case behavior: ScalarBehaviorPolicy =>
+      goto(AggregateProbeFSMState) using AggregateProbeFSMState(behavior, children)
+    case (behavior: ScalarBehaviorPolicy, oldState: ScalarProbeFSMState) =>
+      stay() using ScalarProbeFSMState(behavior, oldState)
+    case (behavior: ScalarBehaviorPolicy, _) =>
       log.debug("probe {} becomes scalar", probeRef)
       goto(ScalarProbeFSMState) using ScalarProbeFSMState(behavior)
+  }
+
+  /**
+   *
+   */
+  def updateProbe(update: UpdateProbe) = {
+    children = update.children
+    policy = update.policy
+    log.debug("probe {} updates configuration: {}", probeRef, policy)
+    resetExpiryTimer()
+    // FIXME: reset alert timer as well?
+    applyBehaviorPolicy(policy.behavior)
   }
 
   /**
@@ -147,7 +164,7 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
    */
   def sendNotification(notification: Notification): Unit = notification match {
     case alert: Alert =>
-      parent ! alert
+      notificationService ! alert
     case _ =>
       if (policy.notifications.isEmpty)
         notificationService ! notification
@@ -162,6 +179,8 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
   def commitStatusAndNotify(status: ProbeStatus, notifications: Vector[Notification]): Future[ProbeStatusCommitted] = {
     stateService.ask(ProbeState(status, probeGeneration)).andThen {
       case Success(committed) =>
+        // FIXME: what is the impact if status messages to parent are reordered?
+        parent ! status
         self ! SendNotifications(notifications)
       // FIXME: what is the impact on consistency if commit fails?
       case Failure(ex) =>
@@ -304,6 +323,7 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
 
 trait ProbeFSMState
 case object InitializingProbeFSMState extends ProbeFSMState
+case object RetiringProbeFSMState extends ProbeFSMState
 case object RetiredProbeFSMState extends ProbeFSMState
 
 trait ProbeFSMData

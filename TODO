@@ -10,6 +10,10 @@ immediately
 * implement probe notification escalation logic, including merging behavior
   * add AggregateProbe for handling escalated probes
   * should have separate ProbePolicy
+
+
+0.0.8
+-----
 * add 'related' property to probe system, to attach probes not directly
   under the probe system hierarchy
 
