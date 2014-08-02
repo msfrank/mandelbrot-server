@@ -21,8 +21,6 @@ package io.mandelbrot.core.registry
 
 import akka.actor.{Actor, PoisonPill}
 import akka.pattern.ask
-import akka.pattern.pipe
-import io.mandelbrot.core.tracking._
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.util.{Success, Failure}
 import java.util.UUID
@@ -31,7 +29,6 @@ import io.mandelbrot.core.message.StatusMessage
 import io.mandelbrot.core.state.DeleteProbeState
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.registry.Probe.{SendNotifications, ProbeAlertTimeout, ProbeExpiryTimeout}
-import io.mandelbrot.core.{Conflict, BadRequest, InternalError, ResourceNotFound, ApiException}
 
 /**
  *
@@ -210,7 +207,7 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
      * send a batch of notifications, adhering to the current notification policy.
      */
     case Event(SendNotifications(notifications), _) =>
-      notifications.foreach(sendNotification)
+      sendNotifications(notifications)
       stay()
 
     /*

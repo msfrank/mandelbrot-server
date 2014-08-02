@@ -130,7 +130,7 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
   }
 
   /**
-   *
+   * FIXME: this is a leaky abstraction
    */
   def applyBehaviorPolicy(behavior: BehaviorPolicy) = (policy.behavior,stateData) match {
     case (behavior: AggregateBehaviorPolicy, oldState: AggregateProbeFSMState) =>
@@ -177,6 +177,10 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
         notificationService ! notification
       else if (policy.notifications.get.contains(notification.kind))
         notificationService ! notification
+  }
+
+  def sendNotifications(notifications: Iterable[Notification]): Unit = {
+    notifications.foreach(sendNotification)
   }
 
   /**

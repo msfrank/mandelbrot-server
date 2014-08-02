@@ -41,7 +41,7 @@ class Probe(val probeRef: ProbeRef,
             val probeGeneration: Long,
             val stateService: ActorRef,
             val notificationService: ActorRef,
-            val trackingService: ActorRef) extends ProbeFSM with ScalarProbeOperations {
+            val trackingService: ActorRef) extends ProbeFSM with ScalarProbeOperations with AggregateProbeOperations {
   import Probe._
   import context.dispatcher
 

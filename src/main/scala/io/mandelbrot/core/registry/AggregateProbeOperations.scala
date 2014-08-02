@@ -31,7 +31,6 @@ import io.mandelbrot.core.registry.Probe.{SendNotifications, ProbeAlertTimeout, 
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.message.StatusMessage
 import io.mandelbrot.core.state.DeleteProbeState
-import io.mandelbrot.core.{BadRequest, ResourceNotFound, ApiException}
 
 /**
  *
@@ -42,6 +41,10 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
   import context.dispatcher
   implicit val timeout: akka.util.Timeout
 
+  onTransition {
+    case _ -> AggregateProbeFSMState =>
+  }
+
   when(AggregateProbeFSMState) {
 
     /*
@@ -51,72 +54,76 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
     case Event(command: UpdateProbe, _) =>
       updateProbe(command)
 
+    /* ignore status from any probe which is not a direct child */
+    case Event(childStatus: ProbeStatus, data: AggregateProbeFSMState) if !data.children.contains(childStatus.probeRef) =>
+      stay()
+
     /* */
     case Event(childStatus: ProbeStatus, AggregateProbeFSMState(_, statusMap, flapQueue)) =>
-      if (statusMap.contains(childStatus.probeRef)) {
-        statusMap.put(childStatus.probeRef, Some(childStatus))
-        val newHealth = findWorstStatus(statusMap)
-        val timestamp = DateTime.now(DateTimeZone.UTC)
-        val correlation = if (newHealth == ProbeHealthy) None else {
-          if (correlationId.isDefined) correlationId else Some(UUID.randomUUID())
-        }
-        lastUpdate = Some(timestamp)
-        val oldLifecycle = lifecycle
-        val oldHealth = health
-        val oldCorrelation = correlationId
-        val oldAcknowledgement = acknowledgementId
-        // update lifecycle
-        if (oldLifecycle == ProbeJoining)
-          lifecycle = ProbeKnown
-        // reset the expiry timer
-        resetExpiryTimer()
-        // update health
-        health = newHealth
-        if (health != oldHealth) {
-          lastChange = Some(timestamp)
-          flapQueue.foreach(_.push(timestamp))
-        }
-        // we are healthy
-        if (health == ProbeHealthy) {
-          correlationId = None
-          acknowledgementId = None
-          alertTimer.stop()
-        }
-        // we are non-healthy
-        else {
-          if (correlationId != correlation)
-            correlationId = correlation
-          if (!alertTimer.isRunning)
-            alertTimer.start(policy.alertTimeout)
-        }
-        var notifications = Vector.empty[Notification]
-        // append lifecycle notification
-        if (lifecycle != oldLifecycle)
-          notifications :+ NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle)
-        // append health notification
-        flapQueue match {
-          case Some(flapDetector) if flapDetector.isFlapping =>
-            notifications :+ NotifyHealthFlaps(probeRef, timestamp, correlationId, flapDetector.flapStart)
-          case _ if oldHealth != health =>
-            notifications :+ NotifyHealthChanges(probeRef, timestamp, correlationId, oldHealth, health)
-          case _ =>
-            notifications :+ NotifyHealthUpdates(probeRef, timestamp, correlationId, health)
-        }
-        // append recovery notification
-        if (health == ProbeHealthy && oldAcknowledgement.isDefined)
-          notifications :+ NotifyRecovers(probeRef, timestamp, oldCorrelation.get, oldAcknowledgement.get)
-        // update state and send notifications
-        commitStatusAndNotify(getProbeStatus(timestamp), notifications)
+      val timestamp = DateTime.now(DateTimeZone.UTC)
+      statusMap.put(childStatus.probeRef, Some(childStatus))
+      // update lifecycle
+      val oldLifecycle = lifecycle
+      if (oldLifecycle != ProbeKnown)
+        lifecycle = statusMap.values.foldLeft[ProbeLifecycle](ProbeKnown) { case (s, o) => if (o.isEmpty) ProbeJoining else s }
+      val newHealth = if (lifecycle == ProbeKnown) findWorstStatus(statusMap) else ProbeUnknown
+      val correlation = if (newHealth == ProbeHealthy) None else {
+        if (correlationId.isDefined) correlationId else Some(UUID.randomUUID())
       }
+      lastUpdate = Some(timestamp)
+      val oldHealth = health
+      val oldCorrelation = correlationId
+      val oldAcknowledgement = acknowledgementId
+      // reset the expiry timer
+      resetExpiryTimer()
+      // update health
+      health = newHealth
+      if (health != oldHealth) {
+        lastChange = Some(timestamp)
+        flapQueue.foreach(_.push(timestamp))
+      }
+      // we are healthy
+      if (health == ProbeHealthy) {
+        correlationId = None
+        acknowledgementId = None
+        alertTimer.stop()
+      }
+      // we are non-healthy
+      else {
+        if (correlationId != correlation)
+          correlationId = correlation
+        if (!alertTimer.isRunning)
+          alertTimer.start(policy.alertTimeout)
+      }
+      var notifications = Vector.empty[Notification]
+      // append lifecycle notification
+      if (lifecycle != oldLifecycle)
+        notifications = notifications :+ NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle)
+      // append health notification
+      flapQueue match {
+        case Some(flapDetector) if flapDetector.isFlapping =>
+          notifications = notifications :+ NotifyHealthFlaps(probeRef, timestamp, correlationId, flapDetector.flapStart)
+        case _ if oldHealth != health =>
+          notifications = notifications :+ NotifyHealthChanges(probeRef, timestamp, correlationId, oldHealth, health)
+        case _ => // do nothing
+      }
+      // append recovery notification
+      if (health == ProbeHealthy && oldAcknowledgement.isDefined)
+        notifications = notifications :+ NotifyRecovers(probeRef, timestamp, oldCorrelation.get, oldAcknowledgement.get)
+      // if state has changed, update state and send notifications, otherwise just send notifications
+      if (lifecycle != oldLifecycle || health != oldHealth)
+        commitStatusAndNotify(getProbeStatus(timestamp), notifications)
+      else
+        sendNotifications(notifications)
       stay()
 
 
     /* ignore spurious StatusMessage messages */
-    case Event(message: StatusMessage, ScalarProbeFSMState(_, flapQueue)) =>
+    case Event(message: StatusMessage, _) =>
       stay()
 
     /* ignore spurious ProbeExpiryTimeout messages */
-    case Event(ProbeExpiryTimeout, ScalarProbeFSMState(_, flapQueue)) =>
+    case Event(ProbeExpiryTimeout, _) =>
       stay()
 
     /*
