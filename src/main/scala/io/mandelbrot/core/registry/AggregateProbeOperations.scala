@@ -106,8 +106,7 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
         if (health == ProbeHealthy && oldAcknowledgement.isDefined)
           notifications :+ NotifyRecovers(probeRef, timestamp, oldCorrelation.get, oldAcknowledgement.get)
         // update state and send notifications
-        val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-        commitStatusAndNotify(status, notifications)
+        commitStatusAndNotify(getProbeStatus(timestamp), notifications)
       }
       stay()
 
@@ -139,8 +138,7 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
      * retrieve the status of the probe.
      */
     case Event(query: GetProbeStatus, _) =>
-      val status = ProbeStatus(probeRef, DateTime.now(DateTimeZone.UTC), lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-      sender() ! GetProbeStatusResult(query, status)
+      sender() ! GetProbeStatusResult(query, getProbeStatus)
       stay()
 
     /*

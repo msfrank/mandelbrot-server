@@ -101,22 +101,21 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
       var notifications = Vector.empty[Notification]
       // append lifecycle notification
       if (lifecycle != oldLifecycle)
-        notifications :+ NotifyLifecycleChanges(probeRef, message.timestamp, oldLifecycle, lifecycle)
+        notifications = notifications :+ NotifyLifecycleChanges(probeRef, message.timestamp, oldLifecycle, lifecycle)
       // append health notification
       flapQueue match {
         case Some(flapDetector) if flapDetector.isFlapping =>
-          notifications :+ NotifyHealthFlaps(probeRef, message.timestamp, correlationId, flapDetector.flapStart)
+          notifications = notifications :+ NotifyHealthFlaps(probeRef, message.timestamp, correlationId, flapDetector.flapStart)
         case _ if oldHealth != health =>
-          notifications :+ NotifyHealthChanges(probeRef, message.timestamp, correlationId, oldHealth, health)
+          notifications = notifications :+ NotifyHealthChanges(probeRef, message.timestamp, correlationId, oldHealth, health)
         case _ =>
-          notifications :+ NotifyHealthUpdates(probeRef, message.timestamp, correlationId, health)
+          notifications = notifications :+ NotifyHealthUpdates(probeRef, message.timestamp, correlationId, health)
       }
       // append recovery notification
       if (health == ProbeHealthy && oldAcknowledgement.isDefined)
-        notifications :+ NotifyRecovers(probeRef, timestamp, oldCorrelation.get, oldAcknowledgement.get)
+        notifications = notifications :+ NotifyRecovers(probeRef, timestamp, oldCorrelation.get, oldAcknowledgement.get)
       // update state and send notifications
-      val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-      commitStatusAndNotify(status, notifications)
+      commitStatusAndNotify(getProbeStatus(timestamp), notifications)
       stay()
 
     /*
@@ -147,15 +146,14 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
       // append health notification
       flapQueue match {
         case Some(flapDetector) if flapDetector.isFlapping =>
-          notifications :+ NotifyHealthFlaps(probeRef, timestamp, correlationId, flapDetector.flapStart)
+          notifications = notifications :+ NotifyHealthFlaps(probeRef, timestamp, correlationId, flapDetector.flapStart)
         case _ if oldHealth != health =>
-          notifications :+ NotifyHealthChanges(probeRef, timestamp, correlationId, oldHealth, health)
+          notifications = notifications :+ NotifyHealthChanges(probeRef, timestamp, correlationId, oldHealth, health)
         case _ =>
-          notifications :+ NotifyHealthExpires(probeRef, timestamp, correlationId)
+          notifications = notifications :+ NotifyHealthExpires(probeRef, timestamp, correlationId)
       }
       // update state and send notifications
-      val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-      commitStatusAndNotify(status, notifications)
+      commitStatusAndNotify(getProbeStatus(timestamp), notifications)
       stay()
 
     /*
@@ -177,110 +175,35 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
      * retrieve the status of the probe.
      */
     case Event(query: GetProbeStatus, _) =>
-      val status = ProbeStatus(probeRef, DateTime.now(DateTimeZone.UTC), lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-      sender() ! GetProbeStatusResult(query, status)
+      sender() ! GetProbeStatusResult(query, getProbeStatus)
       stay()
 
     /*
      * acknowledge an unhealthy probe.
      */
     case Event(command: AcknowledgeProbe, _) =>
-      correlationId match {
-        case None =>
-          sender() ! ProbeOperationFailed(command, new ApiException(ResourceNotFound))
-        case Some(correlation) if acknowledgementId.isDefined =>
-          sender() ! ProbeOperationFailed(command, new ApiException(Conflict))
-        case Some(correlation) if correlation != command.correlationId =>
-          sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
-        case Some(correlation) =>
-          val acknowledgement = UUID.randomUUID()
-          val timestamp = DateTime.now(DateTimeZone.UTC)
-          val correlation = correlationId.get
-          acknowledgementId = Some(acknowledgement)
-          val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-          val notifications = Vector(NotifyAcknowledged(probeRef, timestamp, correlation, acknowledgement))
-          // update state and send notifications
-          commitStatusAndNotify(status, notifications).flatMap { committed =>
-            // create a ticket to track the acknowledgement
-            trackingService.ask(CreateTicket(acknowledgement, timestamp, probeRef, correlation)).map {
-              case result: CreateTicketResult =>
-                AcknowledgeProbeResult(command, acknowledgement)
-              case failure: TrackingServiceOperationFailed =>
-                ProbeOperationFailed(command, failure.failure)
-            }.recover { case ex => ProbeOperationFailed(command, new ApiException(InternalError))}
-          }.recover {
-            case ex =>
-              // FIXME: what is the impact on consistency if commit fails?
-              log.error(ex, "failed to commit probe state")
-              ProbeOperationFailed(command, ex)
-          }.pipeTo(sender())
-      }
+      acknowledgeProbe(command, sender())
       stay()
 
     /*
      * add a worknote to a ticket tracking an unhealthy probe.
      */
     case Event(command: AppendProbeWorknote, _) =>
-      acknowledgementId match {
-        case None =>
-          sender() ! ProbeOperationFailed(command, new ApiException(ResourceNotFound))
-        case Some(acknowledgement) if acknowledgement != command.acknowledgementId =>
-          sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
-        case Some(acknowledgement) =>
-          val timestamp = DateTime.now(DateTimeZone.UTC)
-          trackingService.tell(AppendWorknote(acknowledgement, timestamp, command.comment, command.internal.getOrElse(false)), sender())
-      }
+      appendComment(command, sender())
       stay()
 
     /*
-     *
+     * remove the acknowledgement from a probe.
      */
     case Event(command: UnacknowledgeProbe, _) =>
-      acknowledgementId match {
-        case None =>
-          sender() ! ProbeOperationFailed(command, new ApiException(ResourceNotFound))
-        case Some(acknowledgement) if acknowledgement != command.acknowledgementId =>
-          sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
-        case Some(acknowledgement) =>
-          val timestamp = DateTime.now(DateTimeZone.UTC)
-          val correlation = correlationId.get
-          acknowledgementId = None
-          val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-          val notifications = Vector(NotifyUnacknowledged(probeRef, timestamp, correlation, acknowledgement))
-          // update state and send notifications
-          commitStatusAndNotify(status, notifications).flatMap { committed =>
-            // close the ticket
-            trackingService.ask(CloseTicket(acknowledgement)).map {
-              case result: CloseTicketResult =>
-                UnacknowledgeProbeResult(command, acknowledgement)
-              case failure: TrackingServiceOperationFailed =>
-                ProbeOperationFailed(command, failure.failure)
-            }.recover { case ex => ProbeOperationFailed(command, new ApiException(InternalError))}
-          }.recover {
-            case ex =>
-              // FIXME: what is the impact on consistency if commit fails?
-              log.error(ex, "failed to commit probe state")
-              ProbeOperationFailed(command, ex)
-          }.pipeTo(sender())
-      }
+      unacknowledgeProbe(command, sender())
       stay()
 
     /*
-     *
+     * squelch or unsquelch all probe notifications.
      */
     case Event(command: SetProbeSquelch, _) =>
-      if (squelch == command.squelch) {
-        sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
-      } else {
-        val timestamp = DateTime.now(DateTimeZone.UTC)
-        squelch = command.squelch
-        if (command.squelch)
-          sendNotification(NotifySquelched(probeRef, timestamp))
-        else
-          sendNotification(NotifyUnsquelched(probeRef, timestamp))
-        // reply to sender
-        sender() ! SetProbeSquelchResult(command, squelch)
-      }
+      squelchProbe(command, sender())
       stay()
 
     /*

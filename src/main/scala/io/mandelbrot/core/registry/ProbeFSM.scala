@@ -157,6 +157,13 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
     applyBehaviorPolicy(policy.behavior)
   }
 
+
+  def getProbeStatus(timestamp: DateTime): ProbeStatus = {
+    ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+  }
+
+  def getProbeStatus: ProbeStatus = getProbeStatus(DateTime.now(DateTimeZone.UTC))
+
   /**
    * send the notification if the notification set policy is not specified (meaning
    * send all notifications) or if the policy is specified and this specific notification
