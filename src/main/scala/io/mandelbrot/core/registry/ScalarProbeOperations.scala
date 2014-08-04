@@ -41,16 +41,25 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
 
   onTransition {
     case _ -> ScalarProbeFSMState =>
+      log.debug("probe {} changes configuration: {}", probeRef, policy)
+      expiryTimer.restart(policy.joiningTimeout)
+      // TODO: change status to Joining/Unknown when transitioning from state other than Initializing
   }
 
   when(ScalarProbeFSMState) {
 
+    /* if the probe behavior has changed, then transition to a new state */
+    case Event(change: ChangeProbe, _) =>
+      changeBehavior(change.children, change.policy)
+
     /*
-     * if the set of direct children has changed, or the probe policy has changed, then
-     * update our state.  note that this may cause a FSM state change.
+     * if the set of direct children has changed, or the probe policy has updated,
+     * then update our state.
      */
-    case Event(update: UpdateProbe, _) =>
-      updateProbe(update)
+    case Event(update: UpdateProbe, data: ScalarProbeFSMState) =>
+      children = update.children
+      policy = update.policy
+      stay() using data.update(update)
 
     /*
      * if we receive a status message while joining or known, then update probe state
@@ -60,7 +69,7 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
      * we set the correlation if it is different from the current correlation, and we start
      * the alert timer.
      */
-    case Event(message: StatusMessage, ScalarProbeFSMState(_, flapQueue)) =>
+    case Event(message: StatusMessage, ScalarProbeFSMState(flapQueue)) =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val correlation = if (message.health == ProbeHealthy) None else {
         if (correlationId.isDefined) correlationId else Some(UUID.randomUUID())
@@ -121,7 +130,7 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
      * different from the current correlation.  we restart the expiry timer, and we start the alert
      * timer if it is not already running.
      */
-    case Event(ProbeExpiryTimeout, ScalarProbeFSMState(_, flapQueue)) =>
+    case Event(ProbeExpiryTimeout, ScalarProbeFSMState(flapQueue)) =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val correlation = if (correlationId.isDefined) correlationId else Some(UUID.randomUUID())
       val oldHealth = health
@@ -246,14 +255,14 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
   }
 }
 
-case class ScalarProbeFSMState(behavior: ScalarBehaviorPolicy,
-                               flapQueue: Option[FlapQueue]) extends ProbeFSMData
+case class ScalarProbeFSMState(flapQueue: Option[FlapQueue]) extends ProbeFSMData {
+  def update(update: UpdateProbe): ScalarProbeFSMState = {
+    this
+  }
+}
 
 case object ScalarProbeFSMState extends ProbeFSMState {
   def apply(behavior: ScalarBehaviorPolicy): ScalarProbeFSMState = {
-    ScalarProbeFSMState(behavior, None)
-  }
-  def apply(behavior: ScalarBehaviorPolicy, oldState: ScalarProbeFSMState): ScalarProbeFSMState = {
-    ScalarProbeFSMState(behavior, None)
+    ScalarProbeFSMState(None)
   }
 }

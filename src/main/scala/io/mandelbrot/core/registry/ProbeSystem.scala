@@ -295,7 +295,12 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
           case Some(parent) => parent == ref
           case None => false
         }}
-        probes(ref).actor ! UpdateProbe(directChildren, probeSpec.policy, lsn)
+        val ProbeActor(prevSpec, actor) = probes(ref)
+        probes = probes + (ref -> ProbeActor(probeSpec, actor))
+        if (probeSpec.policy.behavior.getClass == prevSpec.policy.behavior.getClass)
+          actor ! UpdateProbe(directChildren, probeSpec.policy, lsn)
+        else
+          actor ! ChangeProbe(directChildren, probeSpec.policy, lsn)
     }
     registration = newRegistration
   }
@@ -328,6 +333,7 @@ object ProbeSystem {
 
 case class ConfigureProbeSystem(registration: ProbeRegistration, lsn: Long)
 case class UpdateProbe(children: Set[ProbeRef], policy: ProbePolicy, lsn: Long)
+case class ChangeProbe(children: Set[ProbeRef], policy: ProbePolicy, lsn: Long)
 case class RetireProbe(lsn: Long)
 case class RetireProbeSystem(lsn: Long)
 

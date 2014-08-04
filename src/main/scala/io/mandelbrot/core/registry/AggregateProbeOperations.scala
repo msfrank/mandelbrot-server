@@ -43,30 +43,40 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
 
   onTransition {
     case _ -> AggregateProbeFSMState =>
+      val data = nextStateData.asInstanceOf[AggregateProbeFSMState]
+      data.children ++= children.map(_ -> None)
+      log.debug("probe {} changes configuration: {}", probeRef, policy)
+      expiryTimer.stop()
   }
 
   when(AggregateProbeFSMState) {
 
+    /* if the probe behavior has changed, then transition to a new state */
+    case Event(change: ChangeProbe, _) =>
+      changeBehavior(change.children, change.policy)
+
     /*
-     * if the set of direct children has changed, or the probe policy has changed, then
-     * update our state.  note that this may cause a FSM state change.
+     * if the set of direct children has changed, or the probe policy has updated,
+     * then update our state.
      */
-    case Event(command: UpdateProbe, _) =>
-      updateProbe(command)
+    case Event(update: UpdateProbe, data: AggregateProbeFSMState) =>
+      children = update.children
+      policy = update.policy
+      stay() using data.update(update)
 
     /* ignore status from any probe which is not a direct child */
     case Event(childStatus: ProbeStatus, data: AggregateProbeFSMState) if !data.children.contains(childStatus.probeRef) =>
       stay()
 
     /* */
-    case Event(childStatus: ProbeStatus, AggregateProbeFSMState(_, statusMap, flapQueue)) =>
+    case Event(childStatus: ProbeStatus, AggregateProbeFSMState(aggregate, statusMap, flapQueue)) =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       statusMap.put(childStatus.probeRef, Some(childStatus))
       // update lifecycle
       val oldLifecycle = lifecycle
       if (oldLifecycle != ProbeKnown)
         lifecycle = statusMap.values.foldLeft[ProbeLifecycle](ProbeKnown) { case (s, o) => if (o.isEmpty) ProbeJoining else s }
-      val newHealth = if (lifecycle == ProbeKnown) findWorstStatus(statusMap) else ProbeUnknown
+      val newHealth = if (lifecycle == ProbeKnown) aggregate.evaluate(statusMap) else ProbeUnknown
       val correlation = if (newHealth == ProbeHealthy) None else {
         if (correlationId.isDefined) correlationId else Some(UUID.randomUUID())
       }
@@ -74,8 +84,6 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
       val oldHealth = health
       val oldCorrelation = correlationId
       val oldAcknowledgement = acknowledgementId
-      // reset the expiry timer
-      resetExpiryTimer()
       // update health
       health = newHealth
       if (health != oldHealth) {
@@ -180,7 +188,7 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
      * send a batch of notifications, adhering to the current notification policy.
      */
     case Event(SendNotifications(notifications), _) =>
-      notifications.foreach(sendNotification)
+      sendNotifications(notifications)
       stay()
 
     /*
@@ -198,7 +206,6 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
       val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
       val notifications = Vector(NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle))
       // stop timers
-      expiryTimer.stop()
       alertTimer.stop()
       // update state
       stateService.ask(DeleteProbeState(probeRef, Some(status), lsn)).onComplete {
@@ -210,36 +217,21 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
       }
       stay()
   }
-
-  /**
-   * evaluate the status of each child probe, and return the worst one (where the order
-   * of severity is defined as Unknown, Failed, Degraded, Healthy).
-   */
-  def findWorstStatus(childStatus: mutable.HashMap[ProbeRef,Option[ProbeStatus]]) = childStatus.values.foldLeft[ProbeHealth](ProbeHealthy) {
-    case (ProbeUnknown, _) => ProbeUnknown
-    case (curr, None) => ProbeUnknown
-    case (curr, Some(next)) =>
-      next.health match {
-        case ProbeFailed if curr != ProbeUnknown => next.health
-        case ProbeDegraded if curr != ProbeUnknown && curr != ProbeFailed => next.health
-        case ProbeHealthy if curr != ProbeUnknown && curr != ProbeFailed && curr != ProbeDegraded => next.health
-        case _ => curr
-      }
-  }
-
 }
 
-case class AggregateProbeFSMState(behavior: AggregateBehaviorPolicy,
+
+case class AggregateProbeFSMState(aggregate: AggregateEvaluation,
                                   children: mutable.HashMap[ProbeRef,Option[ProbeStatus]],
-                                  flapQueue: Option[FlapQueue]) extends ProbeFSMData
+                                  flapQueue: Option[FlapQueue]) extends ProbeFSMData {
+  def update(update: UpdateProbe): AggregateProbeFSMState = {
+    (children.keySet -- update.children).foreach { ref => children.remove(ref)}
+    (update.children -- children.keySet).foreach { ref => children.put(ref, None)}
+    this
+  }
+}
 
 case object AggregateProbeFSMState extends ProbeFSMState {
-  def apply(behavior: AggregateBehaviorPolicy, children: Set[ProbeRef]): AggregateProbeFSMState = {
-    AggregateProbeFSMState(behavior, new mutable.HashMap[ProbeRef,Option[ProbeStatus]] ++= children.map(_ -> None), None)
-  }
-  def apply(behavior: AggregateBehaviorPolicy, children: Set[ProbeRef], oldState: AggregateProbeFSMState): AggregateProbeFSMState = {
-    (children -- oldState.children.keySet).foreach { ref => oldState.children.remove(ref)}
-    (oldState.children.keySet -- children).foreach { ref => oldState.children.put(ref, None)}
-    AggregateProbeFSMState(behavior, oldState.children, None)
+  def apply(behavior: AggregateBehaviorPolicy): AggregateProbeFSMState = {
+    AggregateProbeFSMState(EvaluateWorst, mutable.HashMap.empty[ProbeRef,Option[ProbeStatus]], None)
   }
 }

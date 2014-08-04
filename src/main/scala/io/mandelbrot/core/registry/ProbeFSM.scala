@@ -97,7 +97,7 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
         // start the expiry timer using the joining timeout
         resetExpiryTimer()
         // transition to next state depending on policy
-        applyBehaviorPolicy(policy.behavior)
+        changeBehavior(children, policy)
       }
 
     case Event(Failure(failure: ApiException), _) if failure.failure == ResourceNotFound =>
@@ -130,34 +130,22 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
   }
 
   /**
-   * FIXME: this is a leaky abstraction
+   *
    */
-  def applyBehaviorPolicy(behavior: BehaviorPolicy) = (policy.behavior,stateData) match {
-    case (behavior: AggregateBehaviorPolicy, oldState: AggregateProbeFSMState) =>
-      stay() using AggregateProbeFSMState(behavior, children, oldState)
-    case (behavior: AggregateBehaviorPolicy, _) =>
-      log.debug("probe {} becomes aggregate", probeRef)
-      goto(AggregateProbeFSMState) using AggregateProbeFSMState(behavior, children)
-    case (behavior: ScalarBehaviorPolicy, oldState: ScalarProbeFSMState) =>
-      stay() using ScalarProbeFSMState(behavior, oldState)
-    case (behavior: ScalarBehaviorPolicy, _) =>
-      log.debug("probe {} becomes scalar", probeRef)
-      goto(ScalarProbeFSMState) using ScalarProbeFSMState(behavior)
+  def changeBehavior(newChildren: Set[ProbeRef], newPolicy: ProbePolicy) = {
+    children = newChildren
+    policy = newPolicy
+    newPolicy.behavior match {
+      case behavior: AggregateBehaviorPolicy =>
+        goto(AggregateProbeFSMState) using AggregateProbeFSMState(behavior)
+      case behavior: ScalarBehaviorPolicy =>
+        goto(ScalarProbeFSMState) using ScalarProbeFSMState(behavior)
+    }
   }
 
   /**
    *
    */
-  def updateProbe(update: UpdateProbe) = {
-    children = update.children
-    policy = update.policy
-    log.debug("probe {} updates configuration: {}", probeRef, policy)
-    resetExpiryTimer()
-    // FIXME: reset alert timer as well?
-    applyBehaviorPolicy(policy.behavior)
-  }
-
-
   def getProbeStatus(timestamp: DateTime): ProbeStatus = {
     ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
   }
