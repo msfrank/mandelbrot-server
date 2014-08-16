@@ -47,6 +47,7 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
       data.children ++= children.map(_ -> None)
       log.debug("probe {} changes configuration: {}", probeRef, policy)
       expiryTimer.stop()
+      alertTimer.stop()
   }
 
   when(AggregateProbeFSMState) {

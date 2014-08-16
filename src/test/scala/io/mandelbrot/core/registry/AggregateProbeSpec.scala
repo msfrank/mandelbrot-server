@@ -62,7 +62,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
   "A Probe with aggregate behavior" must {
 
-    "transition to ProbeKnown/ProbeHealthy when all children have notified" in {
+    "transition to ProbeKnown/ProbeHealthy when all children have notified of healthy status" in {
       val ref = ProbeRef("fqdn:local/")
       val behavior = AggregateBehaviorPolicy(alertOnAnyChild = false, 1.hour, 17)
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, behavior, None)
@@ -77,12 +77,79 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       probe ! ProbeStatus(child2, timestamp, ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
       probe ! ProbeStatus(child3, timestamp, ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
       val result = stateService.expectMsgClass(classOf[ProbeState])
-      println(result)
+      stateService.reply(Success(ProbeState(result.status, 0)))
       result.status.lifecycle must be(ProbeKnown)
       result.status.health must be(ProbeHealthy)
       result.status.correlation must be(None)
       result.status.acknowledged must be(None)
     }
+
+    "transition to ProbeKnown/ProbeDegraded when one child has notified of degraded status" in {
+      val ref = ProbeRef("fqdn:local/")
+      val behavior = AggregateBehaviorPolicy(alertOnAnyChild = false, 1.hour, 17)
+      val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, behavior, None)
+      val children = Set(child1, child2, child3)
+      val stateService = new TestProbe(_system)
+      val probe = system.actorOf(Probe.props(ref, blackhole, children, initialPolicy, 0, stateService.ref, blackhole, blackhole))
+      stateService.expectMsgClass(classOf[InitializeProbeState])
+      val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
+      stateService.reply(Success(ProbeState(status, 0)))
+      val timestamp = DateTime.now()
+      probe ! ProbeStatus(child1, timestamp, ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
+      probe ! ProbeStatus(child2, timestamp, ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
+      probe ! ProbeStatus(child3, timestamp, ProbeKnown, ProbeDegraded, None, None, None, None, None, false)
+      val result = stateService.expectMsgClass(classOf[ProbeState])
+      stateService.reply(Success(ProbeState(result.status, 0)))
+      result.status.lifecycle must be(ProbeKnown)
+      result.status.health must be(ProbeDegraded)
+      result.status.correlation must not be(None)
+      result.status.acknowledged must be(None)
+    }
+
+    "transition to ProbeKnown/ProbeFailed when one child has notified of failed status" in {
+      val ref = ProbeRef("fqdn:local/")
+      val behavior = AggregateBehaviorPolicy(alertOnAnyChild = false, 1.hour, 17)
+      val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, behavior, None)
+      val children = Set(child1, child2, child3)
+      val stateService = new TestProbe(_system)
+      val probe = system.actorOf(Probe.props(ref, blackhole, children, initialPolicy, 0, stateService.ref, blackhole, blackhole))
+      stateService.expectMsgClass(classOf[InitializeProbeState])
+      val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
+      stateService.reply(Success(ProbeState(status, 0)))
+      val timestamp = DateTime.now()
+      probe ! ProbeStatus(child1, timestamp, ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
+      probe ! ProbeStatus(child2, timestamp, ProbeKnown, ProbeDegraded, None, None, None, None, None, false)
+      probe ! ProbeStatus(child3, timestamp, ProbeKnown, ProbeFailed, None, None, None, None, None, false)
+      val result = stateService.expectMsgClass(classOf[ProbeState])
+      stateService.reply(Success(ProbeState(result.status, 0)))
+      result.status.lifecycle must be(ProbeKnown)
+      result.status.health must be(ProbeFailed)
+      result.status.correlation must not be(None)
+      result.status.acknowledged must be(None)
+    }
+
+//    "notify NotificationService when the alert timeout expires" in {
+//      val ref = ProbeRef("fqdn:local/")
+//      val behavior = AggregateBehaviorPolicy(alertOnAnyChild = false, 1.hour, 17)
+//      val initialPolicy = ProbePolicy(1.minute, 1.minute, 2.seconds, 1.minute, behavior, None)
+//      val stateService = new TestProbe(_system)
+//      val notificationService = new TestProbe(_system)
+//      val probe = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, stateService.ref, notificationService.ref, blackhole))
+//      stateService.expectMsgClass(classOf[InitializeProbeState])
+//      val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
+//      stateService.reply(Success(ProbeState(status, 0)))
+//      val timestamp = DateTime.now()
+//      probe ! StatusMessage(ref, ProbeFailed, "failed", None, timestamp)
+//      val state = stateService.expectMsgClass(classOf[ProbeState])
+//      stateService.reply(ProbeStatusCommitted(state.status, state.lsn))
+//      notificationService.expectMsgClass(classOf[NotifyLifecycleChanges])
+//      notificationService.expectMsgClass(classOf[NotifyHealthChanges])
+//      // expiry timer should fire within 5 seconds
+//      val notification = notificationService.expectMsgClass(5.seconds, classOf[NotifyHealthAlerts])
+//      notification.probeRef must be(ref)
+//      notification.health must be(ProbeFailed)
+//      notification.correlation must be === state.status.correlation
+//    }
 
   }
 }
