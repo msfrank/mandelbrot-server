@@ -2,16 +2,6 @@ immediately
 -----------
 
 
-0.0.7
------
-* use ask() when Probe submits ProbeStatus to StateService, and perform any
-  side-effecting (such as sending notifications) in the Future, so that no
-  side effects will occur until status update has been persisted
-* implement probe notification escalation logic, including merging behavior
-  * add AggregateProbe for handling escalated probes
-  * should have separate ProbePolicy
-
-
 0.0.8
 -----
 * add 'related' property to probe system, to attach probes not directly
