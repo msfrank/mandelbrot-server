@@ -169,7 +169,7 @@ class StateManager extends EventsourcedProcessor with ActorLogging {
 
     case ProbeStatusInitializes(ref, timestamp, lsn) =>
       log.debug("status initializes for {} (lsn {})", ref, lsn)
-      val status = ProbeStatus(ref, timestamp, ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
+      val status = ProbeStatus(ref, timestamp, ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
       val state = ProbeState(status, lsn)
       probeState.put(ref, state)
       currentLsn = lsn

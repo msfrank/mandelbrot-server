@@ -41,16 +41,21 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
 
   onTransition {
     case _ -> ScalarProbeFSMState =>
-      log.debug("probe {} changes configuration: {}", probeRef, policy)
       expiryTimer.restart(policy.joiningTimeout)
-      // TODO: change status to Joining/Unknown when transitioning from state other than Initializing
+      if (lifecycle == ProbeInitializing) {
+        lifecycle = ProbeJoining
+        health = ProbeUnknown
+        val timestamp = DateTime.now(DateTimeZone.UTC)
+        lastChange = Some(timestamp)
+        lastUpdate = Some(timestamp)
+      }
   }
 
   when(ScalarProbeFSMState) {
 
     /* if the probe behavior has changed, then transition to a new state */
     case Event(change: ChangeProbe, _) =>
-      changeBehavior(change.children, change.policy)
+      goto(ChangingProbeFSMState) using ChangingProbeFSMState(change)
 
     /*
      * if the set of direct children has changed, or the probe policy has updated,

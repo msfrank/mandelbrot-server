@@ -45,16 +45,22 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
     case _ -> AggregateProbeFSMState =>
       val data = nextStateData.asInstanceOf[AggregateProbeFSMState]
       data.children ++= children.map(_ -> None)
-      log.debug("probe {} changes configuration: {}", probeRef, policy)
       expiryTimer.stop()
       alertTimer.stop()
+      if (lifecycle == ProbeInitializing) {
+        lifecycle = ProbeSynthetic
+        health = ProbeUnknown
+        val timestamp = DateTime.now(DateTimeZone.UTC)
+        lastChange = Some(timestamp)
+        lastUpdate = Some(timestamp)
+      }
   }
 
   when(AggregateProbeFSMState) {
 
     /* if the probe behavior has changed, then transition to a new state */
     case Event(change: ChangeProbe, _) =>
-      changeBehavior(change.children, change.policy)
+      goto(ChangingProbeFSMState) using ChangingProbeFSMState(change)
 
     /*
      * if the set of direct children has changed, or the probe policy has updated,
@@ -73,11 +79,7 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
     case Event(childStatus: ProbeStatus, AggregateProbeFSMState(aggregate, statusMap, flapQueue)) =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       statusMap.put(childStatus.probeRef, Some(childStatus))
-      // update lifecycle
-      val oldLifecycle = lifecycle
-      if (oldLifecycle != ProbeKnown)
-        lifecycle = statusMap.values.foldLeft[ProbeLifecycle](ProbeKnown) { case (s, o) => if (o.isEmpty) ProbeJoining else s }
-      val newHealth = if (lifecycle == ProbeKnown) aggregate.evaluate(statusMap) else ProbeUnknown
+      val newHealth = aggregate.evaluate(statusMap)
       val correlation = if (newHealth == ProbeHealthy) None else {
         if (correlationId.isDefined) correlationId else Some(UUID.randomUUID())
       }
@@ -105,9 +107,6 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
           alertTimer.start(policy.alertTimeout)
       }
       var notifications = Vector.empty[Notification]
-      // append lifecycle notification
-      if (lifecycle != oldLifecycle)
-        notifications = notifications :+ NotifyLifecycleChanges(probeRef, timestamp, oldLifecycle, lifecycle)
       // append health notification
       flapQueue match {
         case Some(flapDetector) if flapDetector.isFlapping =>
@@ -120,7 +119,7 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
       if (health == ProbeHealthy && oldAcknowledgement.isDefined)
         notifications = notifications :+ NotifyRecovers(probeRef, timestamp, oldCorrelation.get, oldAcknowledgement.get)
       // if state has changed, update state and send notifications, otherwise just send notifications
-      if (lifecycle != oldLifecycle || health != oldHealth)
+      if (health != oldHealth)
         commitStatusAndNotify(getProbeStatus(timestamp), notifications)
       else
         sendNotifications(notifications)

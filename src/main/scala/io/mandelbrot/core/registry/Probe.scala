@@ -49,7 +49,7 @@ class Probe(val probeRef: ProbeRef,
   implicit val timeout: akka.util.Timeout = 5.seconds
 
   // state
-  var lifecycle: ProbeLifecycle = ProbeJoining
+  var lifecycle: ProbeLifecycle = ProbeInitializing
   var health: ProbeHealth = ProbeUnknown
   var summary: Option[String] = None
   var lastChange: Option[DateTime] = None
@@ -63,22 +63,7 @@ class Probe(val probeRef: ProbeRef,
 
   /* we start in Initializing state */
   startWith(InitializingProbeFSMState, NoData)
-
-  /**
-   * before starting the FSM, request the ProbeState from the state service.  the result
-   * of this query determines which FSM state we transition to from Initializing.
-   */
-  override def preStart(): Unit = {
-    // ask state service what our current status is
-    stateService.ask(InitializeProbeState(probeRef, DateTime.now(DateTimeZone.UTC), probeGeneration)).map {
-      case result @ Success(state: ProbeState) =>
-        log.debug("gen {}: received initial status from state service: {} (lsn {})", probeGeneration, state.status, state.lsn)
-        result
-      case result @ Failure(failure: Throwable) =>
-        log.debug("gen {}: failure receiving initial state from state service: {}", probeGeneration, failure)
-        result
-    }.pipeTo(self)
-  }
+  initialize()
 
   /**
    * ensure all timers are stopped, so we don't get spurious messages (and the corresponding
@@ -88,8 +73,6 @@ class Probe(val probeRef: ProbeRef,
     expiryTimer.stop()
     alertTimer.stop()
   }
-
-  initialize()
 }
 
 object Probe {
@@ -111,8 +94,10 @@ object Probe {
 
 /* object lifecycle */
 sealed trait ProbeLifecycle
+case object ProbeInitializing extends ProbeLifecycle { override def toString = "initializing" }
 case object ProbeJoining extends ProbeLifecycle { override def toString = "joining" }
 case object ProbeKnown extends ProbeLifecycle   { override def toString = "known" }
+case object ProbeSynthetic extends ProbeLifecycle { override def toString = "synthetic" }
 case object ProbeRetired extends ProbeLifecycle { override def toString = "retired" }
 
 /* object state */

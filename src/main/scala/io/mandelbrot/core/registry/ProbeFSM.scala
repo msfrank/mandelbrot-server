@@ -29,7 +29,7 @@ import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
 import io.mandelbrot.core.notification._
-import io.mandelbrot.core.state.{ProbeStatusCommitted, ProbeState}
+import io.mandelbrot.core.state.{InitializeProbeState, ProbeStatusCommitted, ProbeState}
 import io.mandelbrot.core.tracking._
 import io.mandelbrot.core.{BadRequest, Conflict, ResourceNotFound, InternalError, ApiException}
 import io.mandelbrot.core.registry.Probe.SendNotifications
@@ -69,6 +69,22 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
   var alertTimer: Timer
 
   /**
+   * before starting the FSM, request the ProbeState from the state service.  the result
+   * of this query determines which FSM state we transition to from Initializing.
+   */
+  override def preStart(): Unit = {
+    // ask state service what our current status is
+    stateService.ask(InitializeProbeState(probeRef, DateTime.now(DateTimeZone.UTC), probeGeneration)).map {
+      case result @ Success(state: ProbeState) =>
+        log.debug("gen {}: received initial status from state service: {} (lsn {})", probeGeneration, state.status, state.lsn)
+        result
+      case result @ Failure(failure: Throwable) =>
+        log.debug("gen {}: failure receiving initial state from state service: {}", probeGeneration, failure)
+        result
+    }.pipeTo(self)
+  }
+
+  /*
    * wait for ProbeState from state service.  transition to Scalar or Aggregate state
    * (depending on the policy) if the lsn returned equals the probe generation, otherwise
    * transition directly to Retired.
@@ -94,9 +110,6 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
       // otherwise replay any stashed messages and transition to initialized
       else {
         unstashAll()
-        // start the expiry timer using the joining timeout
-        resetExpiryTimer()
-        // transition to next state depending on policy
         changeBehavior(children, policy)
       }
 
@@ -108,12 +121,56 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
     case Event(Failure(failure: Throwable), _) =>
       throw failure
 
-    case other =>
+    case Event(other, _) =>
+      // TODO: drop any messages of type Message?
       stash()
       stay()
   }
 
-  /**
+  onTransition {
+    case _ -> ChangingProbeFSMState =>
+      // ensure that timers are not running
+      expiryTimer.stop()
+      alertTimer.stop()
+      // persist initializing state
+      val timestamp = DateTime.now(DateTimeZone.UTC)
+      lifecycle = ProbeInitializing
+      health = ProbeUnknown
+      summary = None
+      lastChange = Some(timestamp)
+      lastUpdate = Some(timestamp)
+      stateService.ask(ProbeState(getProbeStatus(timestamp), probeGeneration)).pipeTo(self)
+  }
+
+  /*
+   * probe is transitioning between behaviors.  we change probe state to Initializing and
+   * commit it to the state service.  once the change has been committed, we transition to
+   * the new behavior.
+   */
+  when(ChangingProbeFSMState) {
+
+    case Event(Success(ProbeStatusCommitted(status, lsn)), ChangingProbeFSMState(change)) =>
+      // FIXME: what do we do if correlationId or acknowledgementId are set?
+      correlationId = None
+      acknowledgementId = None
+      unstashAll()
+      changeBehavior(change.children, change.policy)
+
+    case Event(Failure(failure: Throwable), _) =>
+      throw failure
+
+    case Event(other, _) =>
+      // TODO: drop any messages of type Message?
+      stash()
+      stay()
+  }
+
+  onTransition {
+    case _ -> RetiredProbeFSMState =>
+      expiryTimer.stop()
+      alertTimer.stop()
+  }
+  /*
    * probe becomes Retired when it is determined to be stale; that is, the lsn from the
    * state service is newer than the probe generation.  when Retired, the probe ignores
    * all messages except for RetireProbe, which causes the Probe actor to stop.
@@ -132,10 +189,11 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
   /**
    *
    */
-  def changeBehavior(newChildren: Set[ProbeRef], newPolicy: ProbePolicy) = {
+  private def changeBehavior(newChildren: Set[ProbeRef], newPolicy: ProbePolicy) = {
     children = newChildren
     policy = newPolicy
-    newPolicy.behavior match {
+    log.debug("probe {} changes configuration: {}", probeRef, policy)
+    policy.behavior match {
       case behavior: AggregateBehaviorPolicy =>
         goto(AggregateProbeFSMState) using AggregateProbeFSMState(behavior)
       case behavior: ScalarBehaviorPolicy =>
@@ -198,8 +256,8 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
         expiryTimer.reset(policy.joiningTimeout)
       case ProbeKnown =>
         expiryTimer.reset(policy.probeTimeout)
-      case ProbeRetired =>
-        throw new Exception("resetting expiry timer for retired probe")
+      case other =>
+        throw new Exception("resetting expiry timer for %s probe".format(other))
     }
   }
 
@@ -213,8 +271,8 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
         expiryTimer.restart(policy.joiningTimeout)
       case ProbeKnown =>
         expiryTimer.restart(policy.probeTimeout)
-      case ProbeRetired =>
-        throw new Exception("restarting expiry timer for retired probe")
+      case other =>
+        throw new Exception("restarting expiry timer for %s probe".format(other))
     }
   }
 
@@ -322,9 +380,10 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
 
 trait ProbeFSMState
 case object InitializingProbeFSMState extends ProbeFSMState
+case object ChangingProbeFSMState extends ProbeFSMState
 case object RetiringProbeFSMState extends ProbeFSMState
 case object RetiredProbeFSMState extends ProbeFSMState
 
 trait ProbeFSMData
 case object NoData extends ProbeFSMData
-
+case class ChangingProbeFSMState(command: ChangeProbe) extends ProbeFSMData

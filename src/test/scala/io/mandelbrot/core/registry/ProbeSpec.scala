@@ -44,7 +44,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, ScalarBehaviorPolicy(1.hour, 17), None)
       val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), blackhole, Set.empty, initialPolicy, 0, blackhole, blackhole, blackhole))
       val probe = actor.underlyingActor
-      probe.lifecycle must be(ProbeJoining)
+      probe.lifecycle must be(ProbeInitializing)
       probe.health must be(ProbeUnknown)
       probe.summary must be(None)
       probe.lastChange must be(None)
