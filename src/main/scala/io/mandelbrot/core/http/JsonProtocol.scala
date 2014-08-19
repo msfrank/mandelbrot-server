@@ -106,7 +106,7 @@ object JsonProtocol extends DefaultJsonProtocol {
 
   /* convert BehaviorPolicy implementations */
   implicit val ScalarBehaviorPolicyFormat = jsonFormat2(ScalarBehaviorPolicy)
-  implicit val AggregateBehaviorPolicyFormat = jsonFormat3(AggregateBehaviorPolicy)
+  implicit val AggregateBehaviorPolicyFormat = jsonFormat2(AggregateBehaviorPolicy)
 
   /* convert BehaviorPolicy class */
   implicit object BehaviorPolicyFormat extends RootJsonFormat[BehaviorPolicy] {
@@ -172,14 +172,18 @@ object JsonProtocol extends DefaultJsonProtocol {
   /* convert ProbeLifecycle class */
   implicit object ProbeLifecycleFormat extends RootJsonFormat[ProbeLifecycle] {
     def write(lifecycle: ProbeLifecycle) = lifecycle match {
+      case ProbeInitializing => JsString("initializing")
       case ProbeJoining => JsString("joining")
       case ProbeKnown => JsString("known")
+      case ProbeSynthetic => JsString("synthetic")
       case ProbeRetired => JsString("retired")
       case unknown => throw new SerializationException("unknown ProbeLifecycle state " + unknown.getClass)
     }
     def read(value: JsValue) = value match {
+      case JsString("initializing") => ProbeInitializing
       case JsString("joining") => ProbeJoining
       case JsString("known") => ProbeKnown
+      case JsString("synthetic") => ProbeSynthetic
       case JsString("retired") => ProbeRetired
       case unknown => throw new DeserializationException("unknown ProbeLifecycle state " + unknown)
     }

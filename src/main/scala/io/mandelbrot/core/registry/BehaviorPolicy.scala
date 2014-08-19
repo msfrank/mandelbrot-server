@@ -32,6 +32,5 @@ case class ScalarBehaviorPolicy(flapWindow: FiniteDuration,
 /**
  *
  */
-case class AggregateBehaviorPolicy(alertOnAnyChild: Boolean,
-                                   flapWindow: FiniteDuration,
+case class AggregateBehaviorPolicy(flapWindow: FiniteDuration,
                                    flapDeviations: Int) extends BehaviorPolicy

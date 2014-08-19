@@ -102,8 +102,10 @@ trait StatusEntriesComponent { this: Profile =>
       val probeRef = ProbeRef(entry._1)
       val timestamp = new DateTime(entry._2)
       val lifecycle = entry._3 match {
+        case "initializing" => ProbeInitializing
         case "joining" => ProbeJoining
         case "known" => ProbeKnown
+        case "synthetic" => ProbeSynthetic
         case "retired" => ProbeRetired
       }
       val health = entry._4 match {
