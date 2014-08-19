@@ -59,6 +59,8 @@ class ProbeFSMSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitS
       val stateService = new TestProbe(_system)
 
       val scalarPolicy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, ScalarBehaviorPolicy(1.hour, 17), None)
+      val aggregatePolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, AggregateBehaviorPolicy(alertOnAnyChild = false, 1.hour, 17), None)
+
       val probe = system.actorOf(Probe.props(ref, blackhole, children, scalarPolicy, 0, stateService.ref, blackhole, blackhole))
       stateService.expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
@@ -70,12 +72,11 @@ class ProbeFSMSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitS
       result1.status.health must be(ProbeHealthy)
       stateService.reply(Success(ProbeState(result1.status, 0)))
 
-      val aggregatePolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, AggregateBehaviorPolicy(alertOnAnyChild = false, 1.hour, 17), None)
       probe ! ChangeProbe(children, aggregatePolicy, 1)
       val result2 = stateService.expectMsgClass(classOf[ProbeState])
       result2.status.lifecycle must be(ProbeInitializing)
       result2.status.health must be(ProbeUnknown)
-      stateService.reply(Success(ProbeStatusCommitted(result1.status, 1)))
+      stateService.reply(Success(ProbeStatusCommitted(result2.status, 1)))
 
       val timestamp = DateTime.now()
       probe ! ProbeStatus(child1, timestamp, ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
@@ -87,5 +88,40 @@ class ProbeFSMSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitS
       result3.status.health must be(ProbeHealthy)
     }
 
+    "transition behavior from aggregate to scalar" in {
+      val ref = ProbeRef("fqdn:local/")
+      val children = Set(child1, child2, child3)
+      val stateService = new TestProbe(_system)
+
+      val scalarPolicy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, ScalarBehaviorPolicy(1.hour, 17), None)
+      val aggregatePolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, AggregateBehaviorPolicy(alertOnAnyChild = false, 1.hour, 17), None)
+
+      val probe = system.actorOf(Probe.props(ref, blackhole, children, aggregatePolicy, 0, stateService.ref, blackhole, blackhole))
+      stateService.expectMsgClass(classOf[InitializeProbeState])
+      val status = ProbeStatus(ref, DateTime.now(), ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
+      stateService.reply(Success(ProbeState(status, 0)))
+
+      val timestamp = DateTime.now()
+      probe ! ProbeStatus(child1, timestamp, ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
+      probe ! ProbeStatus(child2, timestamp, ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
+      probe ! ProbeStatus(child3, timestamp, ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
+      val result1 = stateService.expectMsgClass(classOf[ProbeState])
+      stateService.reply(Success(ProbeState(result1.status, 1)))
+      result1.status.lifecycle must be(ProbeSynthetic)
+      result1.status.health must be(ProbeHealthy)
+
+      probe ! ChangeProbe(children, scalarPolicy, 1)
+      val result2 = stateService.expectMsgClass(classOf[ProbeState])
+      result2.status.lifecycle must be(ProbeInitializing)
+      result2.status.health must be(ProbeUnknown)
+      stateService.reply(Success(ProbeStatusCommitted(result2.status, 1)))
+
+      probe ! StatusMessage(ref, ProbeHealthy, "healthy", None, DateTime.now())
+      val result3 = stateService.expectMsgClass(classOf[ProbeState])
+      result3.status.lifecycle must be(ProbeKnown)
+      result3.status.health must be(ProbeHealthy)
+      stateService.reply(Success(ProbeState(result3.status, 0)))
+
+    }
   }
 }
