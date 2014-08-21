@@ -10,7 +10,7 @@ import scala.concurrent.duration._
 import scala.util.Success
 
 import io.mandelbrot.core.notification._
-import io.mandelbrot.core.Blackhole
+import io.mandelbrot.core.{ServiceMap, Blackhole}
 import io.mandelbrot.core.message.StatusMessage
 import io.mandelbrot.core.state.{ProbeState, InitializeProbeState}
 
@@ -42,7 +42,8 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
     "have an initial state" in {
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, ScalarBehaviorPolicy(1.hour, 17), None)
-      val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), blackhole, Set.empty, initialPolicy, 0, blackhole, blackhole, blackhole))
+      val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, blackhole, blackhole)
+      val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), blackhole, Set.empty, initialPolicy, 0, services))
       val probe = actor.underlyingActor
       probe.lifecycle must be(ProbeInitializing)
       probe.health must be(ProbeUnknown)
@@ -57,7 +58,8 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "initialize and transition to running behavior" in {
       val ref = ProbeRef("fqdn:local/")
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, ScalarBehaviorPolicy(1.hour, 17), None)
-      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, self, self, self))
+      val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, self, blackhole)
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, services))
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
       lastSender ! Success(ProbeState(status, 0))
@@ -74,7 +76,8 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "initialize and transition to retired behavior if lsn is newer than generation" in {
       val ref = ProbeRef("fqdn:local/")
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, ScalarBehaviorPolicy(1.hour, 17), None)
-      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, self, blackhole, blackhole))
+      val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, self, blackhole)
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, services))
       watch(actor)
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeKnown, ProbeHealthy, None, None, None, None, None, false)

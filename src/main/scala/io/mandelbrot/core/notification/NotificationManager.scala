@@ -20,13 +20,12 @@
 package io.mandelbrot.core.notification
 
 import akka.actor._
-import akka.persistence.{SnapshotOffer, SaveSnapshotSuccess, SaveSnapshotFailure, EventsourcedProcessor}
+import akka.persistence._
 import org.joda.time.DateTime
 import scala.collection.mutable
 import java.util.UUID
 
-import io.mandelbrot.core.{ResourceNotFound, ApiException, ServiceExtension, ServerConfig}
-import io.mandelbrot.core.history.HistoryService
+import io.mandelbrot.core._
 import io.mandelbrot.core.registry.ProbeMatcher
 
 /**
@@ -35,12 +34,12 @@ import io.mandelbrot.core.registry.ProbeMatcher
  * from Probes and routes them to the appropriate Notifier instances, depending on
  * current maintenance windows and notification rules.
  */
-class NotificationManager extends EventsourcedProcessor with ActorLogging {
+class NotificationManager extends PersistentActor with ActorLogging {
   import NotificationManager._
   import context.dispatcher
 
   // config
-  override def processorId = "notification-manager"
+  override def persistenceId = "notification-manager"
   val settings = ServerConfig(context.system).settings.notification
   val notifiers: Map[String,ActorRef] = settings.notifiers.map { case (name, notifierSettings) =>
     val props = ServiceExtension.makePluginProps(notifierSettings.plugin, notifierSettings.settings)
@@ -49,12 +48,10 @@ class NotificationManager extends EventsourcedProcessor with ActorLogging {
   }
 
   // state
+  var historyService = ActorRef.noSender
   val windows = new mutable.HashMap[UUID,MaintenanceWindow]()
   var windowCleaner: Option[Cancellable] = None
   var snapshotCancellable: Option[Cancellable] = None
-
-  // refs
-  val historyService = HistoryService(context.system)
 
   override def preStart(): Unit = {
     super.preStart()
@@ -63,7 +60,7 @@ class NotificationManager extends EventsourcedProcessor with ActorLogging {
     // schedule regular snapshots
     snapshotCancellable = Some(context.system.scheduler.schedule(settings.snapshotInitialDelay, settings.snapshotInterval, self, TakeSnapshot))
     log.debug("scheduling {} snapshots every {} with initial delay of {}",
-      processorId, settings.snapshotInterval.toString(), settings.snapshotInitialDelay.toString())
+      persistenceId, settings.snapshotInterval.toString(), settings.snapshotInitialDelay.toString())
   }
 
   override def postStop(): Unit = {
@@ -75,6 +72,9 @@ class NotificationManager extends EventsourcedProcessor with ActorLogging {
   }
 
   def receiveCommand = {
+
+    case services: ServiceMap =>
+      historyService = services.historyService
 
     case query: ListNotificationRules =>
       sender() ! ListNotificationRulesResult(query, settings.rules.rules)
@@ -192,6 +192,7 @@ class NotificationManager extends EventsourcedProcessor with ActorLogging {
 
 object NotificationManager {
   def props() = Props(classOf[NotificationManager])
+
   sealed trait Event
   case class MaintenanceWindowRegisters(command: RegisterMaintenanceWindow, window: MaintenanceWindow) extends Event
   case class MaintenanceWindowUpdates(command: ModifyMaintenanceWindow) extends Event

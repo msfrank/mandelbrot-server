@@ -56,10 +56,10 @@ trait ApiService extends HttpService {
   implicit def executionContext = actorRefFactory.dispatcher
   implicit val timeout: Timeout
 
-  val registryService: ActorRef
-  val stateService: ActorRef
-  val historyService: ActorRef
-  val notificationService: ActorRef
+  var registryService: ActorRef
+  var stateService: ActorRef
+  var historyService: ActorRef
+  var notificationService: ActorRef
   val messageStream: MessageStreamBus
 
   val datetimeParser = ISODateTimeFormat.dateTimeParser().withZoneUTC()

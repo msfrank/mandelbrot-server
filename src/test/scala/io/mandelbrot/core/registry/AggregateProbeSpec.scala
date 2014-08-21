@@ -29,7 +29,7 @@ import scala.concurrent.duration._
 import scala.util.Success
 
 import io.mandelbrot.core.notification._
-import io.mandelbrot.core.Blackhole
+import io.mandelbrot.core.{ServiceMap, Blackhole}
 import io.mandelbrot.core.message.StatusMessage
 import io.mandelbrot.core.state.{ProbeStatusCommitted, ProbeState, InitializeProbeState}
 
@@ -68,7 +68,8 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, behavior, None)
       val children = Set(child1, child2, child3)
       val stateService = new TestProbe(_system)
-      val probe = system.actorOf(Probe.props(ref, blackhole, children, initialPolicy, 0, stateService.ref, blackhole, blackhole))
+      val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
+      val probe = system.actorOf(Probe.props(ref, blackhole, children, initialPolicy, 0, services))
       stateService.expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
       stateService.reply(Success(ProbeState(status, 0)))
@@ -90,7 +91,8 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, behavior, None)
       val children = Set(child1, child2, child3)
       val stateService = new TestProbe(_system)
-      val probe = system.actorOf(Probe.props(ref, blackhole, children, initialPolicy, 0, stateService.ref, blackhole, blackhole))
+      val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
+      val probe = system.actorOf(Probe.props(ref, blackhole, children, initialPolicy, 0, services))
       stateService.expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
       stateService.reply(Success(ProbeState(status, 0)))
@@ -112,7 +114,8 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, behavior, None)
       val children = Set(child1, child2, child3)
       val stateService = new TestProbe(_system)
-      val probe = system.actorOf(Probe.props(ref, blackhole, children, initialPolicy, 0, stateService.ref, blackhole, blackhole))
+      val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
+      val probe = system.actorOf(Probe.props(ref, blackhole, children, initialPolicy, 0, services))
       stateService.expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
       stateService.reply(Success(ProbeState(status, 0)))
@@ -133,9 +136,10 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val behavior = AggregateBehaviorPolicy(1.hour, 17)
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 2.seconds, 1.minute, behavior, None)
       val children = Set(child1, child2, child3)
-      val stateService = new TestProbe(_system)
       val notificationService = new TestProbe(_system)
-      val probe = system.actorOf(Probe.props(ref, blackhole, children, initialPolicy, 0, stateService.ref, notificationService.ref, blackhole))
+      val stateService = new TestProbe(_system)
+      val services = ServiceMap(blackhole, blackhole, blackhole, notificationService.ref, stateService.ref, blackhole)
+      val probe = system.actorOf(Probe.props(ref, blackhole, children, initialPolicy, 0, services))
       stateService.expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
       stateService.reply(Success(ProbeState(status, 0)))

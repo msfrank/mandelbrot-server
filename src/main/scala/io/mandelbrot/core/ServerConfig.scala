@@ -43,7 +43,7 @@ case class ServerConfigSettings(registry: RegistrySettings,
                                 notification: NotificationSettings,
                                 history: HistorySettings,
                                 tracking: TrackingSettings,
-                                http: Option[HttpSettings],
+                                http: HttpSettings,
                                 shutdownTimeout: FiniteDuration)
 
 /**
@@ -108,9 +108,7 @@ class ServerConfigExtension(system: ActorSystem) extends Extension {
     val trackingSettings = TrackingSettings.parse(mandelbrotConfig.getConfig("tracking"))
 
     /* parse http settings */
-    val httpSettings = if (!mandelbrotConfig.hasPath("http")) None else {
-      Some(HttpSettings.parse(mandelbrotConfig.getConfig("http")))
-    }
+    val httpSettings = HttpSettings.parse(mandelbrotConfig.getConfig("http"))
 
     /* */
     val shutdownTimeout = FiniteDuration(mandelbrotConfig.getDuration("shutdown-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)

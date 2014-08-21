@@ -10,7 +10,7 @@ import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import org.scalatest.matchers.MustMatchers
 import scala.concurrent.duration._
 
-import io.mandelbrot.core.Blackhole
+import io.mandelbrot.core.{ServiceMap, Blackhole}
 
 import scala.util.Success
 
@@ -57,11 +57,12 @@ class ProbeFSMSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitS
       val ref = ProbeRef("fqdn:local/")
       val children = Set(child1, child2, child3)
       val stateService = new TestProbe(_system)
+      val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
 
       val scalarPolicy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, ScalarBehaviorPolicy(1.hour, 17), None)
       val aggregatePolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, AggregateBehaviorPolicy(1.hour, 17), None)
 
-      val probe = system.actorOf(Probe.props(ref, blackhole, children, scalarPolicy, 0, stateService.ref, blackhole, blackhole))
+      val probe = system.actorOf(Probe.props(ref, blackhole, children, scalarPolicy, 0, services))
       stateService.expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
       stateService.reply(Success(ProbeState(status, 0)))
@@ -92,11 +93,12 @@ class ProbeFSMSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitS
       val ref = ProbeRef("fqdn:local/")
       val children = Set(child1, child2, child3)
       val stateService = new TestProbe(_system)
+      val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
 
       val scalarPolicy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, ScalarBehaviorPolicy(1.hour, 17), None)
       val aggregatePolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, AggregateBehaviorPolicy(1.hour, 17), None)
 
-      val probe = system.actorOf(Probe.props(ref, blackhole, children, aggregatePolicy, 0, stateService.ref, blackhole, blackhole))
+      val probe = system.actorOf(Probe.props(ref, blackhole, children, aggregatePolicy, 0, services))
       stateService.expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
       stateService.reply(Success(ProbeState(status, 0)))

@@ -19,7 +19,7 @@
 
 package io.mandelbrot.core.http
 
-import akka.actor.{Props, Actor, ActorLogging}
+import akka.actor.{ActorRef, Props, Actor, ActorLogging}
 import akka.io.IO
 import akka.util.Timeout
 import spray.io.{ServerSSLEngineProvider, PipelineContext}
@@ -27,31 +27,30 @@ import javax.net.ssl.{SSLEngine, TrustManagerFactory, KeyManagerFactory, SSLCont
 import java.security.KeyStore
 import java.io.FileInputStream
 
-import io.mandelbrot.core.notification.NotificationService
-import io.mandelbrot.core.registry.RegistryService
-import io.mandelbrot.core.state.StateService
 import io.mandelbrot.core.message.MessageStream
-import io.mandelbrot.core.history.HistoryService
-import io.mandelbrot.core.ServerConfig
+import io.mandelbrot.core.{ServiceMap, ServerConfig}
 
 /**
  * HttpServer is responsible for listening on the HTTP port, accepting connections,
  * and handing them over to the ApiService for processing.
  */
-class HttpServer(val settings: HttpSettings) extends Actor with ApiService with ActorLogging {
+class HttpServer extends Actor with ApiService with ActorLogging {
   import spray.can.Http
 
   implicit val system = context.system
   implicit val dispatcher = context.dispatcher
   val actorRefFactory = context
-  val registryService = RegistryService(system)
-  val stateService = StateService(system)
-  val historyService = HistoryService(system)
-  val notificationService = NotificationService(system)
   val messageStream = MessageStream(system)
 
   // config
-  val timeout: Timeout = settings.requestTimeout
+  val settings = ServerConfig(context.system).settings.http
+  implicit val timeout: Timeout = settings.requestTimeout
+
+  // state
+  var registryService = ActorRef.noSender
+  var stateService = ActorRef.noSender
+  var historyService = ActorRef.noSender
+  var notificationService = ActorRef.noSender
 
   // if tls is enabled, then create an SSLContext
   val sslContext: Option[SSLContext] = settings.tls match {
@@ -88,7 +87,6 @@ class HttpServer(val settings: HttpSettings) extends Actor with ApiService with 
       case None => None
   }
 
-
   override def preStart() {
     IO(Http) ! Http.Bind(self, settings.interface, port = settings.port, backlog = settings.backlog)
     log.debug("binding to %s:%d with backlog %d%s".format(settings.interface, settings.port, settings.backlog,
@@ -97,11 +95,19 @@ class HttpServer(val settings: HttpSettings) extends Actor with ApiService with 
   }
 
   def receive = runRoute(routes) orElse {
-    case bound: Http.Bound => log.debug("bound HTTP listener to {}", bound.localAddress)
+
+    case services: ServiceMap =>
+      registryService = services.registryService
+      stateService = services.stateService
+      historyService = services.historyService
+      notificationService = services.notificationService
+
+    case bound: Http.Bound =>
+      log.debug("bound HTTP listener to {}", bound.localAddress)
   }
 }
 
 object HttpServer {
-  def props(settings: HttpSettings) = Props(classOf[HttpServer], settings)
+  def props() = Props(classOf[HttpServer])
 }
 

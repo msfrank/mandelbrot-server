@@ -21,14 +21,13 @@ package io.mandelbrot.core.registry
 
 import com.typesafe.config.Config
 import akka.actor._
-import akka.persistence.{SaveSnapshotFailure, SaveSnapshotSuccess, SnapshotOffer, EventsourcedProcessor}
+import akka.persistence._
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 import scala.collection.JavaConversions._
 import java.net.URI
 
 import io.mandelbrot.core._
-import io.mandelbrot.core.notification.{NotificationService, Notification}
 import io.mandelbrot.core.message.{StatusMessage, MessageStream}
 
 /**
@@ -37,15 +36,16 @@ import io.mandelbrot.core.message.{StatusMessage, MessageStream}
  * manager is responsible for accepting registration, update, and unregistration requests and
  * applying them to the appropriate probe system.
  */
-class RegistryManager extends EventsourcedProcessor with ActorLogging {
+class RegistryManager extends PersistentActor with ActorLogging {
   import RegistryManager._
   import context.dispatcher
 
   // config
-  override def processorId = "registry-manager"
+  override def persistenceId = "registry-manager"
   val settings = ServerConfig(context.system).settings.registry
 
   // state
+  var services: ServiceMap = null
   var currentLsn: Long = Long.MinValue
   val probeSystems = new java.util.HashMap[URI,ProbeSystemActor](1024)
   val unregisteredRefs = new java.util.HashMap[ActorRef,URI](64)
@@ -54,13 +54,8 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
   /* subscribe to status messages */
   MessageStream(context.system).subscribe(self, classOf[StatusMessage])
 
-  override def preStart(): Unit = {
-    super.preStart()
-    // schedule regular snapshots
-    snapshotCancellable = Some(context.system.scheduler.schedule(settings.snapshotInitialDelay, settings.snapshotInterval, self, TakeSnapshot))
-    log.debug("scheduling {} snapshots every {} with initial delay of {}",
-      processorId, settings.snapshotInterval.toString(), settings.snapshotInitialDelay.toString())
-  }
+  /* defer recovery until after we have received the ServiceMap */
+  override def preStart(): Unit = { }
 
   override def postStop(): Unit = {
     for (cancellable <- snapshotCancellable)
@@ -69,6 +64,15 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
   }
 
   def receiveCommand = {
+
+    /* we must receive this message before we can recover */
+    case _services: ServiceMap =>
+      services = _services
+      self ! Recover()
+      // schedule regular snapshots
+      snapshotCancellable = Some(context.system.scheduler.schedule(settings.snapshotInitialDelay, settings.snapshotInterval, self, TakeSnapshot))
+      log.debug("scheduling {} snapshots every {} with initial delay of {}",
+        persistenceId, settings.snapshotInterval.toString(), settings.snapshotInitialDelay.toString())
 
     /* register the ProbeSystem */
     case command: RegisterProbeSystem =>
@@ -135,10 +139,6 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
           system.actor ! message
       }
 
-    /* handle notifications which have been passed up from ProbeSystems */
-    case notification: Notification =>
-      NotificationService(context.system) ! notification
-
     /* probe system actor has terminated */
     case Terminated(ref) =>
       val uri = unregisteredRefs.get(ref)
@@ -172,7 +172,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
     case SnapshotOffer(metadata, snapshot: RegistryManagerSnapshot) =>
       log.debug("loading snapshot of {} using offer {}", processorId, metadata)
       snapshot.probeSystems.foreach { case (uri,(registration,meta,lsn)) =>
-        val actor = context.actorOf(ProbeSystem.props(uri, registration, lsn))
+        val actor = context.actorOf(ProbeSystem.props(uri, registration, lsn, services))
         context.watch(actor)
         probeSystems.put(uri, ProbeSystemActor(registration, actor, meta, lsn))
         log.debug("recovering probe system {} at {}", uri, actor.path)
@@ -185,7 +185,7 @@ class RegistryManager extends EventsourcedProcessor with ActorLogging {
 
     /* register the ProbeSystem */
     case ProbeSystemRegisters(command, timestamp, lsn) =>
-      val actor = context.actorOf(ProbeSystem.props(command.uri, command.registration, lsn))
+      val actor = context.actorOf(ProbeSystem.props(command.uri, command.registration, lsn, services))
       log.debug("registering probe system {} at {}", command.uri, actor.path)
       context.watch(actor)
       val meta = ProbeSystemMetadata(timestamp, timestamp)

@@ -22,16 +22,15 @@ package io.mandelbrot.core.state
 import akka.actor.{Cancellable, Props, ActorRef, ActorLogging}
 import akka.pattern.ask
 import akka.pattern.pipe
-import akka.persistence.{SnapshotOffer, SaveSnapshotSuccess, SaveSnapshotFailure, EventsourcedProcessor}
+import akka.persistence._
 import akka.util.Timeout
+import org.joda.time.DateTime
 import scala.concurrent.duration._
 import scala.collection.mutable
 import scala.util.{Try, Success, Failure}
 
 import io.mandelbrot.core._
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.history.HistoryService
-import org.joda.time.DateTime
 
 /**
  * the state manager holds the current status of all probes in memory.  if a Searcher
@@ -39,12 +38,12 @@ import org.joda.time.DateTime
  * a format which may be searched.  the exact syntax of a state service query string is
  * dependent on the Searcher implementation.
  */
-class StateManager extends EventsourcedProcessor with ActorLogging {
+class StateManager extends PersistentActor with ActorLogging {
   import StateManager._
   import context.dispatcher
 
   // config
-  override def processorId = "state-manager"
+  override def persistenceId = "state-manager"
   val settings = ServerConfig(context.system).settings.state
   val searcher: ActorRef = {
     val props = ServiceExtension.makePluginProps(settings.searcher.plugin, settings.searcher.settings)
@@ -54,19 +53,17 @@ class StateManager extends EventsourcedProcessor with ActorLogging {
   implicit val timeout = Timeout(5.seconds)   // TODO: pull this from settings
 
   // state
+  var historyService = ActorRef.noSender
   val probeState = new mutable.HashMap[ProbeRef,ProbeState]()
   var currentLsn = Long.MinValue
   var snapshotCancellable: Option[Cancellable] = None
-
-  // refs
-  val historyService = HistoryService(context.system)
 
   override def preStart(): Unit = {
     super.preStart()
     // schedule regular snapshots
     snapshotCancellable = Some(context.system.scheduler.schedule(settings.snapshotInitialDelay, settings.snapshotInterval, self, TakeSnapshot))
     log.debug("scheduling {} snapshots every {} with initial delay of {}",
-      processorId, settings.snapshotInterval.toString(), settings.snapshotInitialDelay.toString())
+      persistenceId, settings.snapshotInterval.toString(), settings.snapshotInitialDelay.toString())
   }
 
   override def postStop(): Unit = {
@@ -76,6 +73,9 @@ class StateManager extends EventsourcedProcessor with ActorLogging {
   }
 
   def receiveCommand = {
+
+    case services: ServiceMap =>
+      historyService = services.historyService
 
     /* */
     case InitializeProbeState(ref, timestamp, lsn) =>
@@ -205,6 +205,7 @@ class StateManager extends EventsourcedProcessor with ActorLogging {
 
 object StateManager {
   def props() = Props(classOf[StateManager])
+
   sealed trait Event
   case class ProbeStatusInitializes(ref: ProbeRef, timestamp: DateTime, lsn: Long) extends Event
   case class ProbeStatusUpdates(status: ProbeStatus, lsn: Long) extends Event

@@ -23,7 +23,7 @@ import akka.actor.{Props, ActorRef, ActorLogging, Actor}
 import org.joda.time.DateTime
 import java.util.UUID
 
-import io.mandelbrot.core.{ServiceExtension, ServerConfig}
+import io.mandelbrot.core.{ServiceMap, ServiceExtension, ServerConfig}
 import io.mandelbrot.core.registry.ProbeRef
 
 /**
@@ -40,6 +40,9 @@ class TrackingManager extends Actor with ActorLogging {
 //  }
 
   def receive = {
+
+    case services: ServiceMap =>
+      // do nothing
 
     case command: CreateTicket =>
       log.debug("create ticket acknowledging {} for {}", command.correlation, command.probeRef)

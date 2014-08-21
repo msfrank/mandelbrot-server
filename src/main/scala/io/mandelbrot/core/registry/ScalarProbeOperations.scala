@@ -249,7 +249,7 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
       expiryTimer.stop()
       alertTimer.stop()
       // update state
-      stateService.ask(DeleteProbeState(probeRef, Some(status), lsn)).onComplete {
+      services.stateService.ask(DeleteProbeState(probeRef, Some(status), lsn)).onComplete {
         case Success(committed) =>
           self ! SendNotifications(notifications)
           self ! PoisonPill

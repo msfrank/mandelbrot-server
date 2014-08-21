@@ -31,7 +31,7 @@ import scala.util.{Failure, Success}
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.state.{InitializeProbeState, ProbeStatusCommitted, ProbeState}
 import io.mandelbrot.core.tracking._
-import io.mandelbrot.core.{BadRequest, Conflict, ResourceNotFound, InternalError, ApiException}
+import io.mandelbrot.core._
 import io.mandelbrot.core.registry.Probe.SendNotifications
 
 /**
@@ -48,9 +48,7 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
   val probeRef: ProbeRef
   val parent: ActorRef
   val probeGeneration: Long
-  val stateService: ActorRef
-  val notificationService: ActorRef
-  val trackingService: ActorRef
+  val services: ServiceMap
 
   // state
   var children: Set[ProbeRef]
@@ -74,7 +72,7 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
    */
   override def preStart(): Unit = {
     // ask state service what our current status is
-    stateService.ask(InitializeProbeState(probeRef, DateTime.now(DateTimeZone.UTC), probeGeneration)).map {
+    services.stateService.ask(InitializeProbeState(probeRef, DateTime.now(DateTimeZone.UTC), probeGeneration)).map {
       case result @ Success(state: ProbeState) =>
         log.debug("gen {}: received initial status from state service: {} (lsn {})", probeGeneration, state.status, state.lsn)
         result
@@ -139,7 +137,7 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
       summary = None
       lastChange = Some(timestamp)
       lastUpdate = Some(timestamp)
-      stateService.ask(ProbeState(getProbeStatus(timestamp), probeGeneration)).pipeTo(self)
+      services.stateService.ask(ProbeState(getProbeStatus(timestamp), probeGeneration)).pipeTo(self)
   }
 
   /*
@@ -217,12 +215,12 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
    */
   def sendNotification(notification: Notification): Unit = notification match {
     case alert: Alert =>
-      notificationService ! alert
+      services.notificationService ! alert
     case _ =>
       if (policy.notifications.isEmpty)
-        notificationService ! notification
+        services.notificationService ! notification
       else if (policy.notifications.get.contains(notification.kind))
-        notificationService ! notification
+        services.notificationService ! notification
   }
 
   def sendNotifications(notifications: Iterable[Notification]): Unit = {
@@ -234,7 +232,7 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
    * acknowledged then send notifications, otherwise log an error.
    */
   def commitStatusAndNotify(status: ProbeStatus, notifications: Vector[Notification]): Future[ProbeStatusCommitted] = {
-    stateService.ask(ProbeState(status, probeGeneration)).andThen {
+    services.stateService.ask(ProbeState(status, probeGeneration)).andThen {
       case Success(committed) =>
         // FIXME: what is the impact if status messages to parent are reordered?
         parent ! status
@@ -296,7 +294,7 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
       // update state and send notifications
       commitStatusAndNotify(status, notifications).flatMap { committed =>
         // create a ticket to track the acknowledgement
-        trackingService.ask(CreateTicket(acknowledgement, timestamp, probeRef, correlation)).map {
+        services.trackingService.ask(CreateTicket(acknowledgement, timestamp, probeRef, correlation)).map {
           case result: CreateTicketResult =>
             AcknowledgeProbeResult(command, acknowledgement)
           case failure: TrackingServiceOperationFailed =>
@@ -327,7 +325,7 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
       // update state and send notifications
       commitStatusAndNotify(status, notifications).flatMap { committed =>
         // close the ticket
-        trackingService.ask(CloseTicket(acknowledgement)).map {
+        services.trackingService.ask(CloseTicket(acknowledgement)).map {
           case result: CloseTicketResult =>
             UnacknowledgeProbeResult(command, acknowledgement)
           case failure: TrackingServiceOperationFailed =>
@@ -351,7 +349,7 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
       sender() ! ProbeOperationFailed(command, new ApiException(BadRequest))
     case Some(acknowledgement) =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      trackingService.tell(AppendWorknote(acknowledgement, timestamp, command.comment, command.internal.getOrElse(false)), sender())
+      services.trackingService.tell(AppendWorknote(acknowledgement, timestamp, command.comment, command.internal.getOrElse(false)), sender())
   }
 
   /**

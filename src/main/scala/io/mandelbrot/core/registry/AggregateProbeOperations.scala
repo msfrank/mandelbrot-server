@@ -208,7 +208,7 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
       // stop timers
       alertTimer.stop()
       // update state
-      stateService.ask(DeleteProbeState(probeRef, Some(status), lsn)).onComplete {
+      services.stateService.ask(DeleteProbeState(probeRef, Some(status), lsn)).onComplete {
         case Success(committed) =>
           self ! SendNotifications(notifications)
           self ! PoisonPill

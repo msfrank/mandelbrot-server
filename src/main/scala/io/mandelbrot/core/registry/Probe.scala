@@ -22,6 +22,7 @@ package io.mandelbrot.core.registry
 import akka.actor._
 import akka.pattern.ask
 import akka.pattern.pipe
+import io.mandelbrot.core.ServiceMap
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
@@ -39,9 +40,7 @@ class Probe(val probeRef: ProbeRef,
             var children: Set[ProbeRef],
             var policy: ProbePolicy,
             val probeGeneration: Long,
-            val stateService: ActorRef,
-            val notificationService: ActorRef,
-            val trackingService: ActorRef) extends ProbeFSM with ScalarProbeOperations with AggregateProbeOperations {
+            val services: ServiceMap) extends ProbeFSM with ScalarProbeOperations with AggregateProbeOperations {
   import Probe._
   import context.dispatcher
 
@@ -81,10 +80,8 @@ object Probe {
             children: Set[ProbeRef],
             policy: ProbePolicy,
             probeGeneration: Long,
-            stateService: ActorRef,
-            notificationService: ActorRef,
-            trackingService: ActorRef) = {
-    Props(classOf[Probe], probeRef, parent, children, policy, probeGeneration, stateService, notificationService, trackingService)
+            services: ServiceMap) = {
+    Props(classOf[Probe], probeRef, parent, children, policy, probeGeneration, services)
   }
 
   case class SendNotifications(notifications: Vector[Notification])

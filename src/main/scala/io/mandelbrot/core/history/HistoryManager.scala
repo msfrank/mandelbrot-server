@@ -23,7 +23,7 @@ import akka.actor._
 import org.joda.time.{DateTimeZone, DateTime}
 
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.{ServiceExtension, ServerConfig}
+import io.mandelbrot.core.{ServiceMap, ServiceExtension, ServerConfig}
 import io.mandelbrot.core.notification.ProbeNotification
 import io.mandelbrot.core.registry.ProbeStatus
 
@@ -56,6 +56,9 @@ class HistoryManager extends Actor with ActorLogging {
   }
 
   def receive = {
+
+    case services: ServiceMap =>
+      // do nothing
 
     /* append probe status to history */
     case status: ProbeStatus =>
