@@ -31,7 +31,7 @@ import scala.collection.mutable
 import scala.util.{Try, Success, Failure}
 
 import io.mandelbrot.core._
-import io.mandelbrot.core.registry._
+import io.mandelbrot.core.system._
 
 /**
  * the state manager holds the current status of all probes in memory.  if a Searcher

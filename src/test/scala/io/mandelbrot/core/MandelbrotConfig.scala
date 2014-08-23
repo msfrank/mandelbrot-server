@@ -65,6 +65,7 @@ object SprayConfig extends ComposableConfig {
 }
 
 object ConfigConversions {
+  import scala.language.implicitConversions
   implicit def composableConfig2Config(composable: ComposableConfig): Config = composable.config
   implicit def mergedConfig2Config(merged: MergedConfig): Config = merged.config
 }

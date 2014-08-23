@@ -17,29 +17,29 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.registry
+package io.mandelbrot.core.system
 
 import java.util.UUID
 
 import akka.actor.{Actor, Stash, LoggingFSM, ActorRef}
 import akka.pattern.ask
 import akka.pattern.pipe
-import io.mandelbrot.core.system.{Timer, ProbeRef}
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
+import io.mandelbrot.core._
+import io.mandelbrot.core.registry._
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.state.{InitializeProbeState, ProbeStatusCommitted, ProbeState}
 import io.mandelbrot.core.tracking._
-import io.mandelbrot.core._
-import io.mandelbrot.core.registry.Probe.SendNotifications
 
 /**
  * Base trait for the Probe FSM, containing the initializing and retiring logic,
  * as well as methods common to all Probe behaviors.
  */
 trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with Stash {
+  import Probe.SendNotifications
 
   // for ask pattern
   import context.dispatcher

@@ -3,16 +3,16 @@ package io.mandelbrot.core.registry
 import akka.actor.ActorSystem
 import akka.testkit.{TestProbe, ImplicitSender, TestKit}
 import com.typesafe.config.ConfigFactory
-import io.mandelbrot.core.system.{StatusMessage, ProbeRef}
-import io.mandelbrot.core.state.{ProbeStatusCommitted, ProbeState, InitializeProbeState}
 import org.joda.time.DateTime
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import org.scalatest.matchers.MustMatchers
 import scala.concurrent.duration._
+import scala.util.Success
 
 import io.mandelbrot.core.{ServiceMap, Blackhole}
+import io.mandelbrot.core.system._
+import io.mandelbrot.core.state.{ProbeStatusCommitted, ProbeState, InitializeProbeState}
 
-import scala.util.Success
 
 class ProbeFSMSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpec with MustMatchers with BeforeAndAfterAll {
 

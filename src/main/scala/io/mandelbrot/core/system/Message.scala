@@ -19,7 +19,6 @@
 
 package io.mandelbrot.core.system
 
-import io.mandelbrot.core.registry.ProbeHealth
 import org.joda.time.DateTime
 import spray.json._
 

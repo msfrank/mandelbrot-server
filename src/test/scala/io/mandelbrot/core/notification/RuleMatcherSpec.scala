@@ -1,10 +1,10 @@
 package io.mandelbrot.core.notification
 
-import io.mandelbrot.core.system.{ProbeRef, ProbeMatcherParser}
 import org.scalatest.WordSpec
 import org.scalatest.matchers.MustMatchers
 import org.joda.time.DateTime
-import io.mandelbrot.core.registry._
+
+import io.mandelbrot.core.system._
 
 class RuleMatcherSpec extends WordSpec with MustMatchers {
 

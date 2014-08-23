@@ -25,7 +25,7 @@ import scala.util.parsing.combinator.JavaTokenParsers
 import org.slf4j.LoggerFactory
 import java.io._
 
-import io.mandelbrot.core.registry._
+import io.mandelbrot.core.system._
 
 /**
  * interface for implementing a rule matcher.

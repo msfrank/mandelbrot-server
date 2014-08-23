@@ -26,7 +26,7 @@ import org.joda.time.{DateTimeZone, DateTime}
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.{ServiceMap, ServiceExtension, ServerConfig}
 import io.mandelbrot.core.notification.ProbeNotification
-import io.mandelbrot.core.registry.ProbeStatus
+import io.mandelbrot.core.system.ProbeStatus
 
 /**
  *

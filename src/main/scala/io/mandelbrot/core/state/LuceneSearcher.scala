@@ -33,7 +33,7 @@ import org.apache.lucene.util.Version
 import scala.util.{Failure, Success}
 import java.io.File
 
-import io.mandelbrot.core.registry._
+import io.mandelbrot.core.system._
 import io.mandelbrot.core.{ServerConfig, BadRequest, ApiException}
 import io.mandelbrot.core.state.LuceneSearcher.ManagerSettings
 

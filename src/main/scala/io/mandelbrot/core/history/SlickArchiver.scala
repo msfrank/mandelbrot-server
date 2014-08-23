@@ -29,9 +29,9 @@ import java.io.File
 import java.util.UUID
 
 import io.mandelbrot.core.ServerConfig
-import io.mandelbrot.core.registry._
+import io.mandelbrot.core.system._
 import io.mandelbrot.core.notification.ProbeNotification
-import io.mandelbrot.core.registry.ProbeStatus
+import io.mandelbrot.core.system.ProbeStatus
 
 import io.mandelbrot.core.history.H2Archiver.H2ArchiverSettings
 

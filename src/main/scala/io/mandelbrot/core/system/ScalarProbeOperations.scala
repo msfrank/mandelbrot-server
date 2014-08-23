@@ -17,22 +17,22 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.registry
+package io.mandelbrot.core.system
 
 import akka.actor.{Actor, PoisonPill}
 import akka.pattern.ask
-import io.mandelbrot.core.system.{StatusMessage, FlapQueue}
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.util.{Success, Failure}
 import java.util.UUID
+
 import io.mandelbrot.core.state.DeleteProbeState
 import io.mandelbrot.core.notification._
-import io.mandelbrot.core.registry.Probe.{SendNotifications, ProbeAlertTimeout, ProbeExpiryTimeout}
 
 /**
  *
  */
 trait ScalarProbeOperations extends ProbeFSM with Actor {
+  import io.mandelbrot.core.system.Probe.{SendNotifications, ProbeExpiryTimeout, ProbeAlertTimeout}
 
   // for ask pattern
   import context.dispatcher

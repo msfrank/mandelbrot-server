@@ -5,8 +5,7 @@ import org.scalatest.WordSpec
 import org.scalatest.matchers.MustMatchers
 import java.io.StringReader
 
-import io.mandelbrot.core.registry._
-import scala.Some
+import io.mandelbrot.core.system._
 
 class NotificationRulesParserSpec extends WordSpec with MustMatchers {
 
