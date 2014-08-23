@@ -17,13 +17,11 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.message
-
-import io.mandelbrot.core.system.ProbeRef
-import spray.json._
-import org.joda.time.DateTime
+package io.mandelbrot.core.system
 
 import io.mandelbrot.core.registry.ProbeHealth
+import org.joda.time.DateTime
+import spray.json._
 
 /**
  *

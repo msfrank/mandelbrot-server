@@ -23,6 +23,7 @@ import akka.actor.{ActorSystem, ActorRef}
 import akka.pattern.ask
 import akka.util.Timeout
 import akka.event.LoggingAdapter
+import io.mandelbrot.core.system.{MessageStreamBus, Message}
 import spray.routing.{HttpService, ExceptionHandler}
 import spray.http._
 import spray.http.HttpHeaders.Location
@@ -33,7 +34,7 @@ import java.net.URI
 import java.util.UUID
 
 import io.mandelbrot.core._
-import io.mandelbrot.core.message._
+import io.mandelbrot.core.system._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.history._

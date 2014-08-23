@@ -19,7 +19,6 @@
 
 package io.mandelbrot.core.http
 
-import io.mandelbrot.core.system.{ProbeRef, ProbeMatcherParser, ProbeMatcher}
 import spray.json._
 import spray.http.{ContentTypes, HttpEntity}
 import org.joda.time.DateTime
@@ -32,7 +31,7 @@ import java.nio.charset.Charset
 
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.history._
-import io.mandelbrot.core.message._
+import io.mandelbrot.core.system._
 import io.mandelbrot.core.notification._
 
 object JsonProtocol extends DefaultJsonProtocol {

@@ -23,14 +23,13 @@ import java.util.UUID
 
 import akka.actor.{PoisonPill, Actor}
 import akka.pattern.ask
-import io.mandelbrot.core.system.{EvaluateWorst, AggregateEvaluation, FlapQueue, ProbeRef}
+import io.mandelbrot.core.system._
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.collection.mutable
 import scala.util.{Failure, Success}
 
 import io.mandelbrot.core.registry.Probe.{SendNotifications, ProbeAlertTimeout, ProbeExpiryTimeout}
 import io.mandelbrot.core.notification._
-import io.mandelbrot.core.message.StatusMessage
 import io.mandelbrot.core.state.DeleteProbeState
 
 /**

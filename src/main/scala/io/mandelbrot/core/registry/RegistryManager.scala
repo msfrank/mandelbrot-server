@@ -21,13 +21,14 @@ package io.mandelbrot.core.registry
 
 import com.typesafe.config.Config
 import akka.actor._
+import io.mandelbrot.core.system.StatusMessage
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 import scala.collection.JavaConversions._
 import java.net.URI
 
 import io.mandelbrot.core._
-import io.mandelbrot.core.message.{StatusMessage, MessageStream}
+import io.mandelbrot.core.system.MessageStream
 
 /**
  * the registry manager holds a map of all probe systems in memory, and is the parent actor

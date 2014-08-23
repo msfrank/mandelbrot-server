@@ -21,12 +21,10 @@ package io.mandelbrot.core.registry
 
 import akka.actor.{Actor, PoisonPill}
 import akka.pattern.ask
-import io.mandelbrot.core.system.FlapQueue
+import io.mandelbrot.core.system.{StatusMessage, FlapQueue}
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.util.{Success, Failure}
 import java.util.UUID
-
-import io.mandelbrot.core.message.StatusMessage
 import io.mandelbrot.core.state.DeleteProbeState
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.registry.Probe.{SendNotifications, ProbeAlertTimeout, ProbeExpiryTimeout}

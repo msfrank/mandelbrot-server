@@ -22,12 +22,11 @@ package io.mandelbrot.core.http
 import akka.actor.{ActorRef, Props, Actor, ActorLogging}
 import akka.io.IO
 import akka.util.Timeout
+import io.mandelbrot.core.system.MessageStream
 import spray.io.{ServerSSLEngineProvider, PipelineContext}
 import javax.net.ssl.{SSLEngine, TrustManagerFactory, KeyManagerFactory, SSLContext}
 import java.security.KeyStore
 import java.io.FileInputStream
-
-import io.mandelbrot.core.message.MessageStream
 import io.mandelbrot.core.{ServiceMap, ServerConfig}
 
 /**

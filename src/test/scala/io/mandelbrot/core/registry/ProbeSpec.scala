@@ -1,6 +1,6 @@
 package io.mandelbrot.core.registry
 
-import io.mandelbrot.core.system.ProbeRef
+import io.mandelbrot.core.system.{StatusMessage, ProbeRef}
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import org.scalatest.matchers.MustMatchers
 import com.typesafe.config.ConfigFactory
@@ -12,7 +12,6 @@ import scala.util.Success
 
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.{ServiceMap, Blackhole}
-import io.mandelbrot.core.message.StatusMessage
 import io.mandelbrot.core.state.{ProbeState, InitializeProbeState}
 
 class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpec with MustMatchers with BeforeAndAfterAll {
