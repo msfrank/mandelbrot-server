@@ -4,6 +4,7 @@ immediately
 
 0.0.8
 -----
+* abstract probe system registry persistence (Registrar plugins)
 * add 'related' property to probe system, to attach probes not directly
   under the probe system hierarchy
 

@@ -21,7 +21,6 @@ package io.mandelbrot.core.registry
 
 import com.typesafe.config.Config
 import akka.actor._
-import akka.persistence._
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 import scala.collection.JavaConversions._
@@ -36,89 +35,70 @@ import io.mandelbrot.core.message.{StatusMessage, MessageStream}
  * manager is responsible for accepting registration, update, and unregistration requests and
  * applying them to the appropriate probe system.
  */
-class RegistryManager extends PersistentActor with ActorLogging {
+class RegistryManager extends Actor with ActorLogging {
   import RegistryManager._
   import context.dispatcher
 
   // config
-  override def persistenceId = "registry-manager"
   val settings = ServerConfig(context.system).settings.registry
+  val timeout = 5.seconds
+  val maxInFlight: Int = 1024 // FIXME: make this a config parameter
 
   // state
   var services: ServiceMap = null
+  val inFlight = new java.util.HashMap[ProbeRegistryOperation,OperationContext](maxInFlight)
   var currentLsn: Long = Long.MinValue
-  val probeSystems = new java.util.HashMap[URI,ProbeSystemActor](1024)
+  val probeSystems = new java.util.HashMap[URI,ActorRef](1024)
   val unregisteredRefs = new java.util.HashMap[ActorRef,URI](64)
   var snapshotCancellable: Option[Cancellable] = None
 
-  /* subscribe to status messages */
-  MessageStream(context.system).subscribe(self, classOf[StatusMessage])
-
-  /* defer recovery until after we have received the ServiceMap */
-  override def preStart(): Unit = { }
-
-  override def postStop(): Unit = {
-    for (cancellable <- snapshotCancellable)
-      cancellable.cancel()
-    super.postStop()
+  val registrar: ActorRef = {
+    val props = ServiceExtension.makePluginProps(settings.registrar.plugin, settings.registrar.settings)
+    log.info("loading registrar plugin {}", settings.registrar.plugin)
+    context.actorOf(props, "registrar")
   }
 
-  def receiveCommand = {
+  def receive = {
 
     /* we must receive this message before we can recover */
     case _services: ServiceMap =>
       services = _services
-      self ! Recover()
-      // schedule regular snapshots
-      snapshotCancellable = Some(context.system.scheduler.schedule(settings.snapshotInitialDelay, settings.snapshotInterval, self, TakeSnapshot))
-      log.debug("scheduling {} snapshots every {} with initial delay of {}",
-        persistenceId, settings.snapshotInterval.toString(), settings.snapshotInitialDelay.toString())
+      registrar ! RecoverProbeSystems
+
+    case op: ProbeRegistryOperation if inFlight.size() == maxInFlight =>
+      sender() ! ProbeRegistryOperationFailed(op, new ApiException(RetryLater))
 
     /* register the ProbeSystem */
     case command: RegisterProbeSystem =>
-      if (!probeSystems.containsKey(command.uri)) {
-        if (registrationValid(command.registration))
-          persist(ProbeSystemRegisters(command, DateTime.now(DateTimeZone.UTC), currentLsn + 1))(updateState)
-        else
-          sender() ! ProbeRegistryOperationFailed(command, new ApiException(BadRequest))
-      } else {
-        sender() ! ProbeRegistryOperationFailed(command, new ApiException(Conflict))
-      }
+      log.debug("op {}", command)
+      registrar ! command
+      val opContext = OperationContext(command, sender(), context.system.scheduler.scheduleOnce(timeout, self, OperationTimeout(command)))
+      inFlight.put(command, opContext)
 
     /* update the ProbeSystem */
     case command: UpdateProbeSystem =>
-      probeSystems.get(command.uri) match {
-        case null =>
-          sender() ! ProbeRegistryOperationFailed(command, new ApiException(ResourceNotFound))
-        case system: ProbeSystemActor if !registrationValid(command.registration) =>
-          sender() ! ProbeRegistryOperationFailed(command, new ApiException(BadRequest))
-        case system: ProbeSystemActor =>
-          persist(ProbeSystemUpdates(command, DateTime.now(DateTimeZone.UTC), currentLsn + 1))(updateState)
-      }
+      registrar ! command
+      val opContext = OperationContext(command, sender(), context.system.scheduler.scheduleOnce(timeout, self, OperationTimeout(command)))
+      inFlight.put(command, opContext)
 
     /* unregister the ProbeSystem */
     case command: UnregisterProbeSystem =>
-      probeSystems.get(command.uri) match {
-        case null =>
-          sender() ! ProbeRegistryOperationFailed(command, new ApiException(ResourceNotFound))
-        case system: ProbeSystemActor if unregisteredRefs.contains(system.actor) =>
-          sender() ! ProbeRegistryOperationFailed(command, new ApiException(Conflict))
-        case system: ProbeSystemActor =>
-          persist(ProbeSystemUnregisters(command, DateTime.now(DateTimeZone.UTC), currentLsn + 1))(updateState)
-      }
+      registrar ! command
+      val opContext = OperationContext(command, sender(), context.system.scheduler.scheduleOnce(timeout, self, OperationTimeout(command)))
+      inFlight.put(command, opContext)
 
-    /* return the list of registered ProbeSystems */
-    case query: ListProbeSystems =>
-      val systems = probeSystems.map { case (uri,system) => uri -> system.meta }.toMap
-      sender() ! ListProbeSystemsResult(query, systems)
+//    /* return the list of registered ProbeSystems */
+//    case query: ListProbeSystems =>
+//      val systems = probeSystems.map { case (uri,system) => uri -> system.meta }.toMap
+//      sender() ! ListProbeSystemsResult(query, systems)
 
     /* forward ProbeSystem operations or return failure if system doesn't exist */
     case op: ProbeSystemOperation =>
       probeSystems.get(op.uri) match {
         case null =>
           sender() ! ProbeSystemOperationFailed(op, new ApiException(ResourceNotFound))
-        case system: ProbeSystemActor =>
-          system.actor.forward(op)
+        case actor: ActorRef =>
+          actor.forward(op)
       }
 
     /* forward Probe operations or return failure if system doesn't exist */
@@ -126,8 +106,8 @@ class RegistryManager extends PersistentActor with ActorLogging {
       probeSystems.get(op.probeRef.uri) match {
         case null =>
           sender() ! ProbeOperationFailed(op, new ApiException(ResourceNotFound))
-        case system: ProbeSystemActor =>
-          system.actor.forward(op)
+        case actor: ActorRef =>
+          actor.forward(op)
       }
 
     /* forward state messages to the appropriate ProbeSystem */
@@ -135,8 +115,8 @@ class RegistryManager extends PersistentActor with ActorLogging {
       probeSystems.get(message.source.uri) match {
         case null =>
           // do nothing
-        case system: ProbeSystemActor =>
-          system.actor ! message
+        case actor: ActorRef =>
+          actor ! message
       }
 
     /* probe system actor has terminated */
@@ -144,75 +124,73 @@ class RegistryManager extends PersistentActor with ActorLogging {
       val uri = unregisteredRefs.get(ref)
       log.debug("probe system {} has been terminated", uri)
       unregisteredRefs.remove(ref)
-      val system = probeSystems(uri)
-      if (system.actor == ref)
+      val actor = probeSystems(uri)
+      if (actor == ref)
         probeSystems.remove(uri)
 
     /* */
-    case TakeSnapshot =>
-      log.debug("snapshotting registry-manager, last sequence number is {}", lastSequenceNr)
-      val systems: Map[URI,(ProbeRegistration,ProbeSystemMetadata,Long)] = probeSystems.map { case (uri,system) =>
-        uri -> (system.registration, system.meta, system.lsn)
-      }.toMap
-      saveSnapshot(RegistryManagerSnapshot(currentLsn, systems))
-
-    case SaveSnapshotSuccess(metadata) =>
-      log.debug("saved snapshot successfully: {}", metadata)
-
-    case SaveSnapshotFailure(metadata, cause) =>
-      log.warning("failed to save snapshot {}: {}", metadata, cause.getMessage)
-  }
-
-  def receiveRecover = {
-
-    case event: Event =>
-      updateState(event)
-
-    /* recreate probe systems from snapshot */
-    case SnapshotOffer(metadata, snapshot: RegistryManagerSnapshot) =>
-      log.debug("loading snapshot of {} using offer {}", processorId, metadata)
-      snapshot.probeSystems.foreach { case (uri,(registration,meta,lsn)) =>
-        val actor = context.actorOf(ProbeSystem.props(uri, registration, lsn, services))
-        context.watch(actor)
-        probeSystems.put(uri, ProbeSystemActor(registration, actor, meta, lsn))
-        log.debug("recovering probe system {} at {}", uri, actor.path)
-      }
-      currentLsn = snapshot.currentLsn
-      log.debug("resetting current lsn to {}", currentLsn)
-  }
-
-  def updateState(event: Event) = event match {
+    case ProbeSystemRecovers(uri, registration, lsn) =>
+      val actor = context.actorOf(ProbeSystem.props(uri, registration, lsn, services))
+      log.debug("recovering probe system {} at {}", uri, actor.path)
+      context.watch(actor)
+      probeSystems.put(uri, actor)
 
     /* register the ProbeSystem */
     case ProbeSystemRegisters(command, timestamp, lsn) =>
       val actor = context.actorOf(ProbeSystem.props(command.uri, command.registration, lsn, services))
       log.debug("registering probe system {} at {}", command.uri, actor.path)
       context.watch(actor)
-      val meta = ProbeSystemMetadata(timestamp, timestamp)
-      probeSystems.put(command.uri, ProbeSystemActor(command.registration, actor, meta, lsn))
-      currentLsn = lsn
-      if (!recoveryRunning)
-        sender() ! RegisterProbeSystemResult(command, actor)
+      probeSystems.put(command.uri, actor)
+      inFlight.remove(command) match {
+        case null =>
+        case OperationContext(_, caller, cancellable) =>
+          caller ! RegisterProbeSystemResult(command, actor)
+          cancellable.cancel()
+      }
 
     /* update the ProbeSystem */
     case ProbeSystemUpdates(command, timestamp, lsn) =>
-      val system = probeSystems.get(command.uri)
-      log.debug("updating probe system {} at {}", command.uri, system.actor.path)
-      system.actor ! ConfigureProbeSystem(command.registration, lsn)
-      probeSystems.put(command.uri, system.copy(meta = system.meta.copy(lastUpdate = timestamp)))
-      currentLsn = lsn
-      if (!recoveryRunning)
-        sender() ! UpdateProbeSystemResult(command, system.actor)
+      val actor = probeSystems.get(command.uri)
+      log.debug("updating probe system {} at {}", command.uri, actor.path)
+      actor ! ConfigureProbeSystem(command.registration, lsn)
+      probeSystems.put(command.uri, actor)
+      inFlight.remove(command) match {
+        case null =>
+        case OperationContext(_, caller, cancellable) =>
+          caller ! UpdateProbeSystemResult(command, actor)
+          cancellable.cancel()
+      }
 
     /* terminate the ProbeSystem */
     case ProbeSystemUnregisters(command, timestamp, lsn) =>
-      val system = probeSystems.get(command.uri)
+      val actor = probeSystems.get(command.uri)
       log.debug("unregistering probe system {}", command.uri)
-      unregisteredRefs.put(system.actor, command.uri)
-      currentLsn = lsn
-      system.actor ! RetireProbeSystem(lsn)
-      if (!recoveryRunning)
-        sender() ! UnregisterProbeSystemResult(command)
+      unregisteredRefs.put(actor, command.uri)
+      actor ! RetireProbeSystem(lsn)
+      inFlight.remove(command) match {
+        case null =>
+        case OperationContext(_, caller, cancellable) =>
+          caller ! UnregisterProbeSystemResult(command)
+          cancellable.cancel()
+      }
+
+    /* async operation failed */
+    case failure: ProbeRegistryOperationFailed =>
+      inFlight.remove(failure.op) match {
+        case null =>
+        case OperationContext(_, caller, cancellable) =>
+          log.debug("op fails: {} (cause: {})", failure, failure.failure.getCause)
+          caller ! failure
+          cancellable.cancel()
+      }
+
+    /* async operation timed out, notify caller */
+    case OperationTimeout(op) =>
+      inFlight.remove(op) match {
+        case null =>
+        case OperationContext(_, caller, cancellable) =>
+          caller ! ProbeRegistryOperationFailed(op, new ApiException(RetryLater))
+      }
   }
 
   /**
@@ -230,14 +208,13 @@ object RegistryManager {
 
   def settings(config: Config): Option[Any] = None
 
-  case class ProbeSystemActor(registration: ProbeRegistration, actor: ActorRef, meta: ProbeSystemMetadata, lsn: Long)
-  sealed trait Event
-  case class ProbeSystemRegisters(command: RegisterProbeSystem, timestamp: DateTime, lsn: Long) extends Event
-  case class ProbeSystemUpdates(command: UpdateProbeSystem, timestamp: DateTime, lsn: Long) extends Event
-  case class ProbeSystemUnregisters(command: UnregisterProbeSystem, timestamp: DateTime, lsn: Long) extends Event
-  case class RegistryManagerSnapshot(currentLsn: Long, probeSystems: Map[URI,(ProbeRegistration,ProbeSystemMetadata,Long)]) extends Serializable
-
-  case object TakeSnapshot
+  case object RecoverProbeSystems
+  case class ProbeSystemRecovers(uri: URI, registration: ProbeRegistration, lsn: Long)
+  case class OperationContext(op: ProbeRegistryOperation, caller: ActorRef, cancellable: Cancellable)
+  case class OperationTimeout(op: ProbeRegistryOperation)
+  case class ProbeSystemRegisters(command: RegisterProbeSystem, timestamp: DateTime, lsn: Long)
+  case class ProbeSystemUpdates(command: UpdateProbeSystem, timestamp: DateTime, lsn: Long)
+  case class ProbeSystemUnregisters(command: UnregisterProbeSystem, timestamp: DateTime, lsn: Long)
 }
 
 /* contains tunable parameters for the probe */
@@ -279,3 +256,7 @@ case class ListProbeSystemsResult(op: ListProbeSystems, systems: Map[URI,ProbeSy
 
 case class UnregisterProbeSystem(uri: URI) extends ProbeRegistryCommand
 case class UnregisterProbeSystemResult(op: UnregisterProbeSystem)
+
+/* marker trait for Registrar implementations */
+trait Registrar
+trait ClusteredRegistrar extends Registrar

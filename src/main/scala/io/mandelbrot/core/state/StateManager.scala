@@ -157,7 +157,7 @@ class StateManager extends PersistentActor with ActorLogging {
 
     /* recreate probe state from snapshot */
     case SnapshotOffer(metadata, snapshot: StateManagerSnapshot) =>
-      log.debug("loading snapshot of {} using offer {}", processorId, metadata)
+      log.debug("loading snapshot of {} using offer {}", persistenceId, metadata)
       snapshot.probeState.foreach { case (ref,state) =>
         probeState.put(ref, state)
       }

@@ -23,15 +23,18 @@ import com.typesafe.config.Config
 import scala.concurrent.duration._
 import java.util.concurrent.TimeUnit
 
+import io.mandelbrot.core.{ServerConfigException, ServiceExtension}
+
 case class PolicyDefaults(joiningTimeout: Option[FiniteDuration],
                           probeTimeout: Option[FiniteDuration],
                           alertTimeout: Option[FiniteDuration],
                           leavingTimeout: Option[FiniteDuration])
 
+case class RegistrarSettings(plugin: String, settings: Option[Any])
+
 case class RegistrySettings(policyMin: PolicyDefaults,
                             policyMax: PolicyDefaults,
-                            snapshotInitialDelay: FiniteDuration,
-                            snapshotInterval: FiniteDuration)
+                            registrar: RegistrarSettings)
 
 object RegistrySettings {
   def parse(config: Config): RegistrySettings = {
@@ -65,9 +68,13 @@ object RegistrySettings {
       }
       PolicyDefaults(joiningTimeoutMax, probeTimeoutMax, alertTimeoutMax, leavingTimeoutMax)
     }
-    val snapshotInitialDelay = FiniteDuration(config.getDuration("snapshot-initial-delay", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
-    val snapshotInterval = FiniteDuration(config.getDuration("snapshot-interval", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
-    new RegistrySettings(policyMin, policyMax, snapshotInitialDelay, snapshotInterval)
+    val plugin = config.getString("plugin")
+    if (!ServiceExtension.pluginImplements(plugin, classOf[Registrar]))
+      throw new ServerConfigException("%s is not recognized as an Registrar plugin".format(plugin))
+    val service = if (config.hasPath("plugin-settings")) {
+      ServiceExtension.makePluginSettings(plugin, config.getConfig("plugin-settings"))
+    } else None
+    new RegistrySettings(policyMin, policyMax, RegistrarSettings(plugin, service))
   }
 }
 

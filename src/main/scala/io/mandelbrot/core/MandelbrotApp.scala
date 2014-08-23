@@ -25,7 +25,6 @@ import akka.util.Timeout
 import org.slf4j.LoggerFactory
 import scala.concurrent.Await
 
-
 /**
  * application entry point
  */
@@ -55,7 +54,7 @@ object MandelbrotApp extends App {
 
   } catch {
     case ex: Throwable =>
-      println("Caught runtime error: %s".format(ex.getMessage))
+      println("caught runtime error: %s".format(ex.getMessage))
       sys.exit(1)
   }
 }

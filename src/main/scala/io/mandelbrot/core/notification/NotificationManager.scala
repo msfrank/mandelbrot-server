@@ -116,7 +116,7 @@ class NotificationManager extends PersistentActor with ActorLogging {
 
     /* */
     case TakeSnapshot =>
-      log.debug("snapshotting {}, last sequence number is {}", processorId, lastSequenceNr)
+      log.debug("snapshotting {}, last sequence number is {}", persistenceId, lastSequenceNr)
       saveSnapshot(NotificationManagerSnapshot(windows.toMap))
 
     case SaveSnapshotSuccess(metadata) =>
@@ -133,7 +133,7 @@ class NotificationManager extends PersistentActor with ActorLogging {
 
     /* recreate probe state from snapshot */
     case SnapshotOffer(metadata, snapshot: NotificationManagerSnapshot) =>
-      log.debug("loading snapshot of {} using offer {}", processorId, metadata)
+      log.debug("loading snapshot of {} using offer {}", persistenceId, metadata)
       snapshot.windows.foreach { case (id,window) =>
         windows.put(id, window)
       }
