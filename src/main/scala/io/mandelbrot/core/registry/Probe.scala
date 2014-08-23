@@ -23,6 +23,7 @@ import akka.actor._
 import akka.pattern.ask
 import akka.pattern.pipe
 import io.mandelbrot.core.ServiceMap
+import io.mandelbrot.core.system.{Timer, ProbeRef}
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}

@@ -19,6 +19,7 @@
 
 package io.mandelbrot.core.http
 
+import io.mandelbrot.core.system.{ProbeRef, ProbeMatcherParser, ProbeMatcher}
 import spray.json._
 import spray.http.{ContentTypes, HttpEntity}
 import org.joda.time.DateTime

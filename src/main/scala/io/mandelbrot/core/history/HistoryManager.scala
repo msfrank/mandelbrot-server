@@ -20,6 +20,7 @@
 package io.mandelbrot.core.history
 
 import akka.actor._
+import io.mandelbrot.core.system.ProbeRef
 import org.joda.time.{DateTimeZone, DateTime}
 
 import io.mandelbrot.core.registry._

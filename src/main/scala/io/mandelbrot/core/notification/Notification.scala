@@ -19,7 +19,8 @@
 
 package io.mandelbrot.core.notification
 
-import io.mandelbrot.core.registry.{ProbeLifecycle, ProbeHealth, ProbeRef}
+import io.mandelbrot.core.system.ProbeRef
+import io.mandelbrot.core.registry.{ProbeLifecycle, ProbeHealth}
 import org.joda.time.DateTime
 import java.util.UUID
 

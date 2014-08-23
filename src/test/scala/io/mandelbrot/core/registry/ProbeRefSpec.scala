@@ -2,6 +2,7 @@ package io.mandelbrot.core.registry
 
 import java.net.URI
 
+import io.mandelbrot.core.system.ProbeRef
 import org.scalatest.WordSpec
 import org.scalatest.matchers.MustMatchers
 

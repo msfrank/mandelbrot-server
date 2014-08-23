@@ -19,6 +19,7 @@
 
 package io.mandelbrot.core.registry
 
+import io.mandelbrot.core.system.ProbeRef
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import org.scalatest.matchers.MustMatchers
 import com.typesafe.config.ConfigFactory

@@ -23,6 +23,7 @@ import java.util.UUID
 
 import akka.actor.{PoisonPill, Actor}
 import akka.pattern.ask
+import io.mandelbrot.core.system.{EvaluateWorst, AggregateEvaluation, FlapQueue, ProbeRef}
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.collection.mutable
 import scala.util.{Failure, Success}

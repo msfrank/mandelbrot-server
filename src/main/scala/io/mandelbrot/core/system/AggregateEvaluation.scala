@@ -17,7 +17,9 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.registry
+package io.mandelbrot.core.system
+
+import io.mandelbrot.core.registry._
 
 import scala.collection.mutable
 

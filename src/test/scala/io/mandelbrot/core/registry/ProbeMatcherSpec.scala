@@ -1,5 +1,6 @@
 package io.mandelbrot.core.registry
 
+import io.mandelbrot.core.system.{ProbeRef, ProbeMatcherParser}
 import org.scalatest.WordSpec
 import org.scalatest.matchers.MustMatchers
 

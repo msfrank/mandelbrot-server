@@ -20,11 +20,11 @@
 package io.mandelbrot.core.tracking
 
 import akka.actor.{Props, ActorRef, ActorLogging, Actor}
+import io.mandelbrot.core.system.ProbeRef
 import org.joda.time.DateTime
 import java.util.UUID
 
 import io.mandelbrot.core.{ServiceMap, ServiceExtension, ServerConfig}
-import io.mandelbrot.core.registry.ProbeRef
 
 /**
  *

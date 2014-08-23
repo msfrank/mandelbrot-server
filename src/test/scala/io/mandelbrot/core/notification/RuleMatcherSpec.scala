@@ -1,5 +1,6 @@
 package io.mandelbrot.core.notification
 
+import io.mandelbrot.core.system.{ProbeRef, ProbeMatcherParser}
 import org.scalatest.WordSpec
 import org.scalatest.matchers.MustMatchers
 import org.joda.time.DateTime

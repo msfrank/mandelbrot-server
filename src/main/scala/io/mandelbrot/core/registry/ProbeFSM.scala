@@ -24,6 +24,7 @@ import java.util.UUID
 import akka.actor.{Actor, Stash, LoggingFSM, ActorRef}
 import akka.pattern.ask
 import akka.pattern.pipe
+import io.mandelbrot.core.system.{Timer, ProbeRef}
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.Future
 import scala.util.{Failure, Success}

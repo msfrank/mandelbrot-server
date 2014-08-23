@@ -19,10 +19,11 @@
 
 package io.mandelbrot.core.message
 
+import io.mandelbrot.core.system.ProbeRef
 import spray.json._
 import org.joda.time.DateTime
 
-import io.mandelbrot.core.registry.{ProbeRef, ProbeHealth}
+import io.mandelbrot.core.registry.ProbeHealth
 
 /**
  *

@@ -1,13 +1,11 @@
 package io.mandelbrot.core.notification
 
+import io.mandelbrot.core.system.{MatchAny, PathMatcher, MatchExact, ProbeMatcher}
 import org.scalatest.WordSpec
 import org.scalatest.matchers.MustMatchers
 import java.io.StringReader
 
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.registry.ProbeMatcher
-import io.mandelbrot.core.registry.PathMatcher
-import io.mandelbrot.core.registry.MatchExact
 import scala.Some
 
 class NotificationRulesParserSpec extends WordSpec with MustMatchers {

@@ -20,6 +20,7 @@
 package io.mandelbrot.core.notification
 
 import akka.actor.ActorRef
+import io.mandelbrot.core.system.ProbeMatcher
 import scala.util.parsing.combinator.JavaTokenParsers
 import org.slf4j.LoggerFactory
 import java.io._
@@ -236,7 +237,8 @@ object NotificationRules {
  *
  */
 class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,ContactGroup]) extends JavaTokenParsers {
-  import io.mandelbrot.core.registry.ProbeMatcherParser
+
+  import io.mandelbrot.core.system.ProbeMatcherParser
 
   val logger = LoggerFactory.getLogger(classOf[NotificationRuleParser])
 

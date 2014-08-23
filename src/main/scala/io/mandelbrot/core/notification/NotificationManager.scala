@@ -21,12 +21,12 @@ package io.mandelbrot.core.notification
 
 import akka.actor._
 import akka.persistence._
+import io.mandelbrot.core.system.ProbeMatcher
 import org.joda.time.DateTime
 import scala.collection.mutable
 import java.util.UUID
 
 import io.mandelbrot.core._
-import io.mandelbrot.core.registry.ProbeMatcher
 
 /**
  * the notification manager holds notification routing configuration as well as

@@ -21,6 +21,7 @@ package io.mandelbrot.core.registry
 
 import akka.actor.{Actor, PoisonPill}
 import akka.pattern.ask
+import io.mandelbrot.core.system.FlapQueue
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.util.{Success, Failure}
 import java.util.UUID

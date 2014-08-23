@@ -21,6 +21,7 @@ package io.mandelbrot.core.history
 
 import com.typesafe.config.Config
 import akka.actor.{Props, ActorLogging, Actor}
+import io.mandelbrot.core.system.ProbeRef
 import scala.slick.driver.JdbcProfile
 import scala.slick.jdbc.JdbcBackend.Database
 import org.joda.time.DateTime

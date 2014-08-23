@@ -4,6 +4,7 @@ import akka.actor.ActorSystem
 import akka.testkit.{TestProbe, ImplicitSender, TestKit}
 import com.typesafe.config.ConfigFactory
 import io.mandelbrot.core.message.StatusMessage
+import io.mandelbrot.core.system.ProbeRef
 import io.mandelbrot.core.state.{ProbeStatusCommitted, ProbeState, InitializeProbeState}
 import org.joda.time.DateTime
 import org.scalatest.{BeforeAndAfterAll, WordSpec}

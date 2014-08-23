@@ -24,6 +24,7 @@ import akka.pattern.ask
 import akka.pattern.pipe
 import akka.persistence._
 import akka.util.Timeout
+import io.mandelbrot.core.system.ProbeRef
 import org.joda.time.DateTime
 import scala.concurrent.duration._
 import scala.collection.mutable

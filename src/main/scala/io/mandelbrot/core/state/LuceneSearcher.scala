@@ -21,6 +21,7 @@ package io.mandelbrot.core.state
 
 import com.typesafe.config.Config
 import akka.actor.{Props, ActorLogging, Actor}
+import io.mandelbrot.core.system.ProbeRef
 import org.apache.lucene.store.FSDirectory
 import org.apache.lucene.index.{DirectoryReader, Term, IndexWriter, IndexWriterConfig}
 import org.apache.lucene.analysis.standard.StandardAnalyzer

@@ -1,8 +1,10 @@
-package io.mandelbrot.core.registry
+package io.mandelbrot.core.system
 
 import java.util.regex.Pattern
-import scala.util.parsing.combinator.RegexParsers
+
 import org.slf4j.LoggerFactory
+
+import scala.util.parsing.combinator.RegexParsers
 
 /**
  * Matches a ProbeRef by individually comparing the uri scheme,  uri location,

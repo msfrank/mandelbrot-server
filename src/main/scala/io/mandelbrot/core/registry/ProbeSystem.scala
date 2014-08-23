@@ -23,6 +23,7 @@ import akka.actor._
 import akka.pattern.ask
 import akka.pattern.pipe
 import akka.util.Timeout
+import io.mandelbrot.core.system.{ProbeRef, ProbeMatcherParser}
 import org.joda.time.DateTime
 import scala.concurrent.Future
 import scala.concurrent.duration._
