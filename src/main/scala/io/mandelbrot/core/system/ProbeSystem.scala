@@ -171,7 +171,7 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
       }.pipeTo(sender())
 
     /* send message to specified probe */
-    case message: MandelbrotMessage =>
+    case message: ProbeMessage =>
       probes.get(message.source) match {
         case Some(probeActor: ProbeActor) =>
           probeActor.actor ! message

@@ -28,5 +28,5 @@ import spray.json._
 sealed trait Message
 case class GenericMessage(messageType: String, value: JsValue) extends Message
 
-sealed trait MandelbrotMessage extends Message { val source: ProbeRef }
-case class StatusMessage(source: ProbeRef, health: ProbeHealth, summary: String, detail: Option[String], timestamp: DateTime) extends MandelbrotMessage
+sealed trait ProbeMessage extends Message { val source: ProbeRef }
+case class StatusMessage(source: ProbeRef, health: ProbeHealth, summary: String, detail: Option[String], timestamp: DateTime) extends ProbeMessage

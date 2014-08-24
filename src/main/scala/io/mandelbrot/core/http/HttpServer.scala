@@ -22,7 +22,6 @@ package io.mandelbrot.core.http
 import akka.actor.{ActorRef, Props, Actor, ActorLogging}
 import akka.io.IO
 import akka.util.Timeout
-import io.mandelbrot.core.system.MessageStream
 import spray.io.{ServerSSLEngineProvider, PipelineContext}
 import javax.net.ssl.{SSLEngine, TrustManagerFactory, KeyManagerFactory, SSLContext}
 import java.security.KeyStore
@@ -39,7 +38,6 @@ class HttpServer extends Actor with ApiService with ActorLogging {
   implicit val system = context.system
   implicit val dispatcher = context.dispatcher
   val actorRefFactory = context
-  val messageStream = MessageStream(system)
 
   // config
   val settings = ServerConfig(context.system).settings.http

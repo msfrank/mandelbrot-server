@@ -19,11 +19,11 @@
 
 package io.mandelbrot.core.http
 
-import akka.actor.{ActorSystem, ActorRef}
+import akka.actor.ActorSystem
 import akka.pattern.ask
 import akka.util.Timeout
 import akka.event.LoggingAdapter
-import io.mandelbrot.core.system.{MessageStreamBus, Message}
+import io.mandelbrot.core.system.Message
 import spray.routing.{HttpService, ExceptionHandler}
 import spray.http._
 import spray.http.HttpHeaders.Location
@@ -58,7 +58,6 @@ trait ApiService extends HttpService {
   implicit val timeout: Timeout
 
   var services: ServiceMap
-  val messageStream: MessageStreamBus
 
   val datetimeParser = ISODateTimeFormat.dateTimeParser().withZoneUTC()
 
@@ -84,12 +83,14 @@ trait ApiService extends HttpService {
       } ~
       /* enumerate all registered probe systems */
       get {
-        complete {
-          services.registryService.ask(ListProbeSystems()).map {
-            case result: ListProbeSystemsResult =>
-              result.systems
-            case failure: ProbeRegistryOperationFailed =>
-              throw failure.failure
+        pagingParams { paging =>
+          complete {
+            services.registryService.ask(ListProbeSystems(paging.last, paging.limit)).map {
+              case result: ListProbeSystemsResult =>
+                result.systems
+              case failure: ProbeRegistryOperationFailed =>
+                throw failure.failure
+            }
           }
         }
       }
@@ -237,11 +238,14 @@ trait ApiService extends HttpService {
           /* publish message to the message stream */
           post {
             // FIXME: reject message if proberef doesn't match
-            entity(as[Message]) { case message: Message =>
-              complete {
-                messageStream.publish(message)
-                HttpResponse(StatusCodes.OK)
-              }
+            entity(as[Message]) {
+              case message: ProbeMessage =>
+                complete {
+                  services.registryService ! message
+                  HttpResponse(StatusCodes.OK)
+                }
+              case other =>
+                throw new ApiException(BadRequest)
             }
           }
         } ~

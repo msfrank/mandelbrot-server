@@ -48,17 +48,21 @@ trait RegistryEntriesComponent { this: Profile =>
   import spray.json._
   import JsonProtocol._
 
-  class RegistryEntries(tag: Tag) extends Table[(String,String,Long,Option[Long])](tag, "registry_entries") {
+  class RegistryEntries(tag: Tag) extends Table[(Long,String,String,Long,Long,Long)](tag, "registry_entries") {
+    def id = column[Long]("id", O.AutoInc)
     def probeSystem = column[String]("probeSystem", O.PrimaryKey)
     def registration = column[String]("registration")
     def lsn = column[Long]("lsn")
-    def lastUpdate = column[Option[Long]]("lastUpdate")
-    def * = (probeSystem, registration, lsn, lastUpdate)
+    def joinedOn = column[Long]("joinedOn")
+    def lastUpdate = column[Long]("lastUpdate")
+    def * = (id, probeSystem, registration, lsn, joinedOn, lastUpdate)
   }
 
   val registryEntries = TableQuery[RegistryEntries]
 
-  def list()(implicit session: Session): Iterable[RegistryEntry] = registryEntries.list()
+  def list(last: Long, limit: Int)(implicit session: Session): Iterable[RegistryEntry] = {
+    registryEntries.filter(_.id > last).take(limit).list()
+  }
 
   def insert(systemUri: URI, registration: ProbeRegistration, timestamp: DateTime)(implicit session: Session): Long = {
     registryEntries.filter(_.probeSystem === systemUri.toString).firstOption match {
@@ -66,8 +70,8 @@ trait RegistryEntriesComponent { this: Profile =>
         val probeSystem: String = systemUri.toString
         val registrationString: String = registration.toJson.prettyPrint
         val lsn = 1
-        val lastUpdate: Option[Long] = Some (timestamp.getMillis)
-        registryEntries += ((probeSystem, registrationString, lsn, lastUpdate) )
+        val joinedOn: Long = timestamp.getMillis
+        registryEntries += ((0, probeSystem, registrationString, lsn, joinedOn, joinedOn))
         lsn
       case _ =>
         throw new ApiException(Conflict)
@@ -75,13 +79,15 @@ trait RegistryEntriesComponent { this: Profile =>
   }
 
   def update(systemUri: URI, registration: ProbeRegistration, timestamp: DateTime)(implicit session: Session): Long = {
-    registryEntries.filter(_.probeSystem === systemUri.toString).firstOption match {
-      case Some((_, _, lsn: Long, _)) =>
-        val probeSystem: String = systemUri.toString
+    val probeSystem: String = systemUri.toString
+    registryEntries.filter(_.probeSystem === probeSystem).map(e => e.lsn).firstOption match {
+      case Some(lsn: Long) =>
         val registrationString: String = registration.toJson.prettyPrint
         val updatedLsn = lsn + 1
-        val lastUpdate: Option[Long] = Some(timestamp.getMillis)
-        registryEntries += ((probeSystem, registrationString, updatedLsn, lastUpdate))
+        val lastUpdate: Long = timestamp.getMillis
+        registryEntries.filter(_.probeSystem === probeSystem)
+          .map(e => (e.registration,e.lsn,e.lastUpdate))
+          .update((registrationString, updatedLsn, lastUpdate))
         updatedLsn
       case None =>
         throw new ApiException(ResourceNotFound)
@@ -89,9 +95,10 @@ trait RegistryEntriesComponent { this: Profile =>
   }
 
   def delete(systemUri: URI, timestamp: DateTime)(implicit session: Session): Long = {
-    registryEntries.filter(_.probeSystem === systemUri.toString).firstOption match {
-      case Some((_, _, lsn: Long, _)) =>
-        registryEntries.filter(_.probeSystem === systemUri.toString).delete
+    val probeSystem = systemUri.toString
+    registryEntries.filter(_.probeSystem === probeSystem).firstOption match {
+      case Some((_, _, _, lsn: Long, _, _)) =>
+        registryEntries.filter(_.probeSystem === probeSystem).delete
         lsn
       case None =>
         throw new ApiException(ResourceNotFound)
@@ -99,7 +106,7 @@ trait RegistryEntriesComponent { this: Profile =>
   }
 
   object RegistryEntries {
-    type RegistryEntry = (String,String,Long,Option[Long])
+    type RegistryEntry = (Long,String,String,Long,Long,Long)
   }
 }
 
@@ -136,19 +143,25 @@ trait SlickRegistrar extends Actor with ActorLogging {
   def receive = {
 
     case RecoverProbeSystems =>
-      db.withSession(implicit session => dal.list().foreach { case (probeSystem, registration, lsn, _) =>
-        val uri = new URI(probeSystem)
-        sender() ! ProbeSystemRecovers(uri, JsonParser(registration).convertTo[ProbeRegistration], lsn)
-        log.debug("recovered probe system {} has lsn {}", uri, lsn)
-      })
+      db.withSession { implicit session =>
+        var last = 0L
+        var systems: Vector[(Long,String,String,Long,Long,Long)] = dal.list(last, 100).toVector
+        while (systems.nonEmpty) {
+          systems.foreach { case (id, probeSystem, registration, lsn, _, _) =>
+            val uri = new URI(probeSystem)
+            sender() ! ProbeSystemRecovers(uri, JsonParser(registration).convertTo[ProbeRegistration], lsn)
+            last = id
+            log.debug("recovered probe system {} has lsn {}", uri, lsn)
+          }
+          systems = dal.list(last, 100).toVector
+        }
+      }
 
     case command: RegisterProbeSystem =>
-      log.debug("op {}", command)
       val timestamp = DateTime.now(DateTimeZone.UTC)
       try {
         db.withSession { implicit session =>
           val lsn = dal.insert(command.uri, command.registration, timestamp)
-          log.debug("op {} succeeds, lsn {}", command, lsn)
           sender() ! ProbeSystemRegisters(command, timestamp, lsn)
         }
       } catch {
@@ -178,7 +191,31 @@ trait SlickRegistrar extends Actor with ActorLogging {
       }
 
     case query: ListProbeSystems =>
-      sender() ! ProbeRegistryOperationFailed(query, new NotImplementedError())
+      try {
+        val last = query.last match {
+          case Some(s) => s.toLong
+          case None => 0L
+        }
+        val limit = query.limit match {
+          case Some(i) if i > 100 => 100
+          case Some(i) => i
+          case None => 100
+        }
+        db.withSession { implicit session =>
+          val entries = dal.list(last, limit).toVector
+          val systems = entries.map { case (id,probeSystem,_,lsn,joinedOn,lastUpdate) =>
+            new URI(probeSystem) -> ProbeSystemMetadata(new DateTime(joinedOn), new DateTime(lastUpdate))
+          }.toMap
+          entries.lastOption match {
+            case Some((id, _, _, _, _, _)) =>
+              sender() ! ListProbeSystemsResult(query, systems, Some(id.toString))
+            case None =>
+              sender() ! ListProbeSystemsResult(query, Map.empty, None)
+          }
+        }
+      } catch {
+        case ex: Throwable => sender() ! ProbeRegistryOperationFailed(query, ex)
+      }
   }
 }
 
@@ -199,8 +236,8 @@ class H2Registrar(managerSettings: H2RegistrarSettings) extends SlickRegistrar w
 
   val db = Database.forURL(url = url, driver = "org.h2.Driver")
   val dal = new DAL(H2Driver)
-
   db.withSession { implicit session => dal.create }
+  log.debug("initialized registry DAL")
 }
 
 object H2Registrar {

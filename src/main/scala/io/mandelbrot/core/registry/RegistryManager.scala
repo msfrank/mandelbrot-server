@@ -108,7 +108,7 @@ class RegistryManager extends Actor with ActorLogging {
       }
 
     /* forward state messages to the appropriate ProbeSystem */
-    case message: StatusMessage =>
+    case message: ProbeMessage =>
       probeSystems.get(message.source.uri) match {
         case null =>
           // do nothing
@@ -248,8 +248,8 @@ case class RegisterProbeSystemResult(op: RegisterProbeSystem, ref: ActorRef)
 case class UpdateProbeSystem(uri: URI, registration: ProbeRegistration) extends ProbeRegistryCommand
 case class UpdateProbeSystemResult(op: UpdateProbeSystem, ref: ActorRef)
 
-case class ListProbeSystems() extends ProbeRegistryQuery
-case class ListProbeSystemsResult(op: ListProbeSystems, systems: Map[URI,ProbeSystemMetadata])
+case class ListProbeSystems(last: Option[String], limit: Option[Int]) extends ProbeRegistryQuery
+case class ListProbeSystemsResult(op: ListProbeSystems, systems: Map[URI,ProbeSystemMetadata], last: Option[String])
 
 case class UnregisterProbeSystem(uri: URI) extends ProbeRegistryCommand
 case class UnregisterProbeSystemResult(op: UnregisterProbeSystem)
