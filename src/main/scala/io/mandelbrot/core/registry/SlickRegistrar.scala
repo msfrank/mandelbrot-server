@@ -155,7 +155,7 @@ trait SlickRegistrar extends Actor with ActorLogging {
         case ex: Throwable => sender() ! ProbeRegistryOperationFailed(command, ex)
       }
 
-    case event @ ProbeSystemUpdates(command, timestamp, _) =>
+    case command: UpdateProbeSystem =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       try {
         db.withSession { implicit session =>
@@ -166,7 +166,7 @@ trait SlickRegistrar extends Actor with ActorLogging {
         case ex: Throwable => sender() ! ProbeRegistryOperationFailed(command, ex)
       }
 
-    case event @ ProbeSystemUnregisters(command, timestamp, _) =>
+    case command: UnregisterProbeSystem =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       try {
         db.withSession { implicit session =>
@@ -178,6 +178,7 @@ trait SlickRegistrar extends Actor with ActorLogging {
       }
 
     case query: ListProbeSystems =>
+      sender() ! ProbeRegistryOperationFailed(query, new NotImplementedError())
   }
 }
 

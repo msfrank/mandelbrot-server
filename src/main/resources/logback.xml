@@ -8,8 +8,8 @@
         </encoder>
     </appender>
 
-    <logger name="akka" level="INFO"/>
-    <logger name="spray" level="INFO"/>
+    <logger name="akka" level="DEBUG"/>
+    <logger name="spray" level="DEBUG"/>
     <logger name="scala.slick" level="INFO"/>
 
     <root level="DEBUG">

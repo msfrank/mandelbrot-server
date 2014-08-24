@@ -46,10 +46,7 @@ class HttpServer extends Actor with ApiService with ActorLogging {
   implicit val timeout: Timeout = settings.requestTimeout
 
   // state
-  var registryService = ActorRef.noSender
-  var stateService = ActorRef.noSender
-  var historyService = ActorRef.noSender
-  var notificationService = ActorRef.noSender
+  var services: ServiceMap = null
 
   // if tls is enabled, then create an SSLContext
   val sslContext: Option[SSLContext] = settings.tls match {
@@ -86,21 +83,17 @@ class HttpServer extends Actor with ApiService with ActorLogging {
       case None => None
   }
 
-  override def preStart() {
-    IO(Http) ! Http.Bind(self, settings.interface, port = settings.port, backlog = settings.backlog)
-    log.debug("binding to %s:%d with backlog %d%s".format(settings.interface, settings.port, settings.backlog,
-      if (settings.tls.isDefined) "and TLS enabled" else ""
-    ))
+  def receive = {
+    case _services: ServiceMap =>
+      services = _services
+      IO(Http) ! Http.Bind(self, settings.interface, port = settings.port, backlog = settings.backlog)
+      log.debug("binding to {}:{} with backlog {}", settings.interface, settings.port, settings.backlog)
+      if (settings.tls.isDefined)
+        log.debug("enabled TLS")
+      context.become(running)
   }
 
-  def receive = runRoute(routes) orElse {
-
-    case services: ServiceMap =>
-      registryService = services.registryService
-      stateService = services.stateService
-      historyService = services.historyService
-      notificationService = services.notificationService
-
+  def running: Receive = runRoute(routes) orElse {
     case bound: Http.Bound =>
       log.debug("bound HTTP listener to {}", bound.localAddress)
   }

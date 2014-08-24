@@ -47,10 +47,8 @@ class RegistryManager extends Actor with ActorLogging {
   // state
   var services: ServiceMap = null
   val inFlight = new java.util.HashMap[ProbeRegistryOperation,OperationContext](maxInFlight)
-  var currentLsn: Long = Long.MinValue
   val probeSystems = new java.util.HashMap[URI,ActorRef](1024)
   val unregisteredRefs = new java.util.HashMap[ActorRef,URI](64)
-  var snapshotCancellable: Option[Cancellable] = None
 
   val registrar: ActorRef = {
     val props = ServiceExtension.makePluginProps(settings.registrar.plugin, settings.registrar.settings)
@@ -70,7 +68,6 @@ class RegistryManager extends Actor with ActorLogging {
 
     /* register the ProbeSystem */
     case command: RegisterProbeSystem =>
-      log.debug("op {}", command)
       registrar ! command
       val opContext = OperationContext(command, sender(), context.system.scheduler.scheduleOnce(timeout, self, OperationTimeout(command)))
       inFlight.put(command, opContext)
