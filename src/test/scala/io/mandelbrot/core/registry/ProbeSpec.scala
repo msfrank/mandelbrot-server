@@ -41,7 +41,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
   "A Probe" must {
 
     "have an initial state" in {
-      val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, ScalarBehaviorPolicy(1.hour, 17), None)
+      val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, ScalarProbeBehavior(1.hour, 17), None)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, blackhole, blackhole)
       val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), blackhole, Set.empty, initialPolicy, 0, services))
       val probe = actor.underlyingActor
@@ -57,7 +57,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
     "initialize and transition to running behavior" in {
       val ref = ProbeRef("fqdn:local/")
-      val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, ScalarBehaviorPolicy(1.hour, 17), None)
+      val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, ScalarProbeBehavior(1.hour, 17), None)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, self, blackhole)
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, services))
       expectMsgClass(classOf[InitializeProbeState])
@@ -75,7 +75,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
     "initialize and transition to retired behavior if lsn is newer than generation" in {
       val ref = ProbeRef("fqdn:local/")
-      val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, ScalarBehaviorPolicy(1.hour, 17), None)
+      val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, ScalarProbeBehavior(1.hour, 17), None)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, self, blackhole)
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, services))
       watch(actor)

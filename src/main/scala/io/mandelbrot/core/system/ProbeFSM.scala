@@ -193,10 +193,12 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
     policy = newPolicy
     log.debug("probe {} changes configuration: {}", probeRef, policy)
     policy.behavior match {
-      case behavior: AggregateBehaviorPolicy =>
+      case behavior: AggregateProbeBehavior =>
         goto(AggregateProbeFSMState) using AggregateProbeFSMState(behavior)
-      case behavior: ScalarBehaviorPolicy =>
+      case behavior: ScalarProbeBehavior =>
         goto(ScalarProbeFSMState) using ScalarProbeFSMState(behavior)
+      case behavior: MetricsProbeBehavior =>
+        goto(MetricsProbeFSMState) using MetricsProbeFSMState(behavior)
     }
   }
 

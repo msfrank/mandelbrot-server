@@ -105,15 +105,15 @@ object JsonProtocol extends DefaultJsonProtocol {
   }
 
   /* convert BehaviorPolicy implementations */
-  implicit val ScalarBehaviorPolicyFormat = jsonFormat2(ScalarBehaviorPolicy)
-  implicit val AggregateBehaviorPolicyFormat = jsonFormat2(AggregateBehaviorPolicy)
+  implicit val ScalarBehaviorPolicyFormat = jsonFormat2(ScalarProbeBehavior)
+  implicit val AggregateBehaviorPolicyFormat = jsonFormat2(AggregateProbeBehavior)
 
   /* convert BehaviorPolicy class */
-  implicit object BehaviorPolicyFormat extends RootJsonFormat[BehaviorPolicy] {
-    def write(behaviorPolicy: BehaviorPolicy) = behaviorPolicy match {
-      case behavior: AggregateBehaviorPolicy =>
+  implicit object BehaviorPolicyFormat extends RootJsonFormat[ProbeBehavior] {
+    def write(behaviorPolicy: ProbeBehavior) = behaviorPolicy match {
+      case behavior: AggregateProbeBehavior =>
         JsObject(Map("behaviorType" -> JsString("aggregate"), "behaviorPolicy" -> behavior.toJson))
-      case behavior: ScalarBehaviorPolicy =>
+      case behavior: ScalarProbeBehavior =>
         JsObject(Map("behaviorType" -> JsString("scalar"), "behaviorPolicy" -> behavior.toJson))
       case unknown => throw new SerializationException("unknown BehaviorPolicy " + unknown.getClass)
     }
@@ -294,13 +294,31 @@ object JsonProtocol extends DefaultJsonProtocol {
   implicit val UnregisterMaintenanceWindowFormat = jsonFormat1(UnregisterMaintenanceWindow)
   implicit val UnregisterMaintenanceWindowResultFormat = jsonFormat2(UnregisterMaintenanceWindowResult)
 
+  /* metrics types */
+  implicit val MetricValueFormat = jsonFormat1(MetricValue)
+  implicit object MetricSourceFormat extends RootJsonFormat[MetricSource] {
+    def write(source: MetricSource) = source match {
+      case CounterSource(name) => JsString("counter:" + name)
+      case GaugeSource(name) => JsString("gauge:" + name)
+      case unknownValue => throw new DeserializationException("unknown MetricSource format")
+    }
+    def read(value: JsValue) = value match {
+      case JsString(name) if name.startsWith("counter:") => CounterSource(name.drop(8))
+      case JsString(name) if name.startsWith("gauge:") => GaugeSource(name.drop(6))
+      case unknownValue => throw new DeserializationException("unknown MetricSource format")
+    }
+  }
+
   /* message types */
   implicit val StatusMessageFormat = jsonFormat5(StatusMessage)
+  implicit val MetricsMessageFormat = jsonFormat3(MetricsMessage)
 
   /* */
   implicit object MessageFormat extends RootJsonFormat[Message] {
     def write(message: Message) = {
       val (messageType, payload) = message match {
+        case m: MetricsMessage =>
+          "io.mandelbrot.message.MetricsMessage" -> MetricsMessageFormat.write(m)
         case m: StatusMessage =>
           "io.mandelbrot.message.StatusMessage" -> StatusMessageFormat.write(m)
         case m: GenericMessage =>
@@ -316,6 +334,8 @@ object JsonProtocol extends DefaultJsonProtocol {
           fields.get("messageType") match {
             case Some(JsString("io.mandelbrot.message.StatusMessage")) =>
               StatusMessageFormat.read(fields("payload"))
+            case Some(JsString("io.mandelbrot.message.MetricsMessage")) =>
+              MetricsMessageFormat.read(fields("payload"))
             case Some(JsString(unknownType)) =>
               GenericMessage(unknownType, fields("payload"))
             case None =>

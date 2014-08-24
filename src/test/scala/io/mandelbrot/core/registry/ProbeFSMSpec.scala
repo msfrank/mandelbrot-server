@@ -59,8 +59,8 @@ class ProbeFSMSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitS
       val stateService = new TestProbe(_system)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
 
-      val scalarPolicy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, ScalarBehaviorPolicy(1.hour, 17), None)
-      val aggregatePolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, AggregateBehaviorPolicy(1.hour, 17), None)
+      val scalarPolicy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, ScalarProbeBehavior(1.hour, 17), None)
+      val aggregatePolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, AggregateProbeBehavior(1.hour, 17), None)
 
       val probe = system.actorOf(Probe.props(ref, blackhole, children, scalarPolicy, 0, services))
       stateService.expectMsgClass(classOf[InitializeProbeState])
@@ -95,8 +95,8 @@ class ProbeFSMSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitS
       val stateService = new TestProbe(_system)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
 
-      val scalarPolicy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, ScalarBehaviorPolicy(1.hour, 17), None)
-      val aggregatePolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, AggregateBehaviorPolicy(1.hour, 17), None)
+      val scalarPolicy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, ScalarProbeBehavior(1.hour, 17), None)
+      val aggregatePolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, AggregateProbeBehavior(1.hour, 17), None)
 
       val probe = system.actorOf(Probe.props(ref, blackhole, children, aggregatePolicy, 0, services))
       stateService.expectMsgClass(classOf[InitializeProbeState])

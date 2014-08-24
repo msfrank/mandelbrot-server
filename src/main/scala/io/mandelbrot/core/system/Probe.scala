@@ -37,7 +37,10 @@ class Probe(val probeRef: ProbeRef,
             var children: Set[ProbeRef],
             var policy: ProbePolicy,
             val probeGeneration: Long,
-            val services: ServiceMap) extends ProbeFSM with ScalarProbeOperations with AggregateProbeOperations {
+            val services: ServiceMap) extends ProbeFSM
+                                      with ScalarProbeOperations
+                                      with AggregateProbeOperations
+                                      with MetricsProbeOperations {
   import Probe._
   import context.dispatcher
 

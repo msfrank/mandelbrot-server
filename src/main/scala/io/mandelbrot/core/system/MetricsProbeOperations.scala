@@ -33,7 +33,7 @@ import io.mandelbrot.core.state.DeleteProbeState
 /**
  *
  */
-trait AggregateProbeOperations extends ProbeFSM with Actor {
+trait MetricsProbeOperations extends ProbeFSM with Actor {
   import Probe.{ProbeExpiryTimeout, SendNotifications, ProbeAlertTimeout}
 
   // for ask pattern
@@ -41,13 +41,11 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
   implicit val timeout: akka.util.Timeout
 
   onTransition {
-    case _ -> AggregateProbeFSMState =>
-      val data = nextStateData.asInstanceOf[AggregateProbeFSMState]
-      data.children ++= children.map(_ -> None)
-      expiryTimer.stop()
+    case _ -> MetricsProbeFSMState =>
       alertTimer.stop()
+      expiryTimer.restart(policy.joiningTimeout)
       if (lifecycle == ProbeInitializing) {
-        lifecycle = ProbeSynthetic
+        lifecycle = ProbeJoining
         health = ProbeUnknown
         val timestamp = DateTime.now(DateTimeZone.UTC)
         lastChange = Some(timestamp)
@@ -55,7 +53,7 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
       }
   }
 
-  when(AggregateProbeFSMState) {
+  when(MetricsProbeFSMState) {
 
     /* if the probe behavior has changed, then transition to a new state */
     case Event(change: ChangeProbe, _) =>
@@ -65,32 +63,43 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
      * if the set of direct children has changed, or the probe policy has updated,
      * then update our state.
      */
-    case Event(update: UpdateProbe, data: AggregateProbeFSMState) =>
+    case Event(update: UpdateProbe, data: MetricsProbeFSMState) =>
       children = update.children
       policy = update.policy
       stay() using data.update(update)
 
-    /* ignore status from any probe which is not a direct child */
-    case Event(childStatus: ProbeStatus, data: AggregateProbeFSMState) if !data.children.contains(childStatus.probeRef) =>
-      stay()
-
-    /* */
-    case Event(childStatus: ProbeStatus, AggregateProbeFSMState(aggregate, statusMap, flapQueue)) =>
+    /*
+     * if we receive a metrics message while joining or known, then update probe state
+     * and send notifications.  if the previous lifecycle was joining, then we move to
+     * known.  if we transition from non-healthy to healthy, then we clear the correlation
+     * and acknowledgement (if set).  if we transition from healthy to non-healthy, then
+     * we set the correlation if it is different from the current correlation, and we start
+     * the alert timer.
+     */
+    case Event(message: MetricsMessage, MetricsProbeFSMState(evaluation, metrics, flapQueue)) =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      statusMap.put(childStatus.probeRef, Some(childStatus))
-      val newHealth = aggregate.evaluate(statusMap)
+      metrics ++= message.metrics
+      // FIXME: this is a lame calculation
+      val newHealth = if (evaluation.evaluate(metrics)) ProbeFailed else ProbeHealthy
       val correlation = if (newHealth == ProbeHealthy) None else {
         if (correlationId.isDefined) correlationId else Some(UUID.randomUUID())
       }
+      summary = None
       lastUpdate = Some(timestamp)
+      val oldLifecycle = lifecycle
       val oldHealth = health
       val oldCorrelation = correlationId
       val oldAcknowledgement = acknowledgementId
+      // update lifecycle
+      if (oldLifecycle == ProbeJoining)
+        lifecycle = ProbeKnown
+      // reset the expiry timer
+      resetExpiryTimer()
       // update health
       health = newHealth
       if (health != oldHealth) {
         lastChange = Some(timestamp)
-        flapQueue.foreach(_.push(timestamp))
+        flapQueue.foreach(_.push(message.timestamp))
       }
       // we are healthy
       if (health == ProbeHealthy) {
@@ -106,31 +115,61 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
           alertTimer.start(policy.alertTimeout)
       }
       var notifications = Vector.empty[Notification]
+      // append lifecycle notification
+      if (lifecycle != oldLifecycle)
+        notifications = notifications :+ NotifyLifecycleChanges(probeRef, message.timestamp, oldLifecycle, lifecycle)
+      // append health notification
+      flapQueue match {
+        case Some(flapDetector) if flapDetector.isFlapping =>
+          notifications = notifications :+ NotifyHealthFlaps(probeRef, message.timestamp, correlationId, flapDetector.flapStart)
+        case _ if oldHealth != health =>
+          notifications = notifications :+ NotifyHealthChanges(probeRef, message.timestamp, correlationId, oldHealth, health)
+        case _ =>
+          notifications = notifications :+ NotifyHealthUpdates(probeRef, message.timestamp, correlationId, health)
+      }
+      // append recovery notification
+      if (health == ProbeHealthy && oldAcknowledgement.isDefined)
+        notifications = notifications :+ NotifyRecovers(probeRef, timestamp, oldCorrelation.get, oldAcknowledgement.get)
+      // update state and send notifications
+      commitStatusAndNotify(getProbeStatus(timestamp), notifications)
+      stay()
+
+    /*
+     * if we haven't received a status message within the current expiry window, then update probe
+     * state and send notifications.  probe health becomes unknown, and correlation is set if it is
+     * different from the current correlation.  we restart the expiry timer, and we start the alert
+     * timer if it is not already running.
+     */
+    case Event(ProbeExpiryTimeout, MetricsProbeFSMState(evaluation, metrics, flapQueue)) =>
+      val timestamp = DateTime.now(DateTimeZone.UTC)
+      val correlation = if (correlationId.isDefined) correlationId else Some(UUID.randomUUID())
+      val oldHealth = health
+      // update health
+      health = ProbeUnknown
+      summary = None
+      if (health != oldHealth) {
+        lastChange = Some(timestamp)
+        flapQueue.foreach(_.push(timestamp))
+      }
+      // we transition from healthy to non-healthy
+      if (correlationId != correlation)
+        correlationId = correlation
+      if (!alertTimer.isRunning)
+        alertTimer.start(policy.alertTimeout)
+      // reset the expiry timer
+      restartExpiryTimer()
+      var notifications = Vector.empty[Notification]
       // append health notification
       flapQueue match {
         case Some(flapDetector) if flapDetector.isFlapping =>
           notifications = notifications :+ NotifyHealthFlaps(probeRef, timestamp, correlationId, flapDetector.flapStart)
         case _ if oldHealth != health =>
           notifications = notifications :+ NotifyHealthChanges(probeRef, timestamp, correlationId, oldHealth, health)
-        case _ => // do nothing
+        case _ =>
+          notifications = notifications :+ NotifyHealthExpires(probeRef, timestamp, correlationId)
       }
-      // append recovery notification
-      if (health == ProbeHealthy && oldAcknowledgement.isDefined)
-        notifications = notifications :+ NotifyRecovers(probeRef, timestamp, oldCorrelation.get, oldAcknowledgement.get)
-      // if state has changed, update state and send notifications, otherwise just send notifications
-      if (health != oldHealth)
-        commitStatusAndNotify(getProbeStatus(timestamp), notifications)
-      else
-        sendNotifications(notifications)
-      stay()
-
-
-    /* ignore spurious StatusMessage messages */
-    case Event(message: StatusMessage, _) =>
-      stay()
-
-    /* ignore spurious ProbeExpiryTimeout messages */
-    case Event(ProbeExpiryTimeout, _) =>
+      // update state and send notifications
+      commitStatusAndNotify(getProbeStatus(timestamp), notifications)
       stay()
 
     /*
@@ -219,18 +258,14 @@ trait AggregateProbeOperations extends ProbeFSM with Actor {
 }
 
 
-case class AggregateProbeFSMState(aggregate: AggregateEvaluation,
-                                  children: mutable.HashMap[ProbeRef,Option[ProbeStatus]],
-                                  flapQueue: Option[FlapQueue]) extends ProbeFSMData {
-  def update(update: UpdateProbe): AggregateProbeFSMState = {
-    (children.keySet -- update.children).foreach { ref => children.remove(ref)}
-    (update.children -- children.keySet).foreach { ref => children.put(ref, None)}
-    this
-  }
+case class MetricsProbeFSMState(evaluation: MetricsEvaluation,
+                                metrics: mutable.HashMap[MetricSource,MetricValue],
+                                flapQueue: Option[FlapQueue]) extends ProbeFSMData {
+  def update(update: UpdateProbe): MetricsProbeFSMState = this
 }
 
-case object AggregateProbeFSMState extends ProbeFSMState {
-  def apply(behavior: AggregateProbeBehavior): AggregateProbeFSMState = {
-    AggregateProbeFSMState(EvaluateWorst, mutable.HashMap.empty[ProbeRef,Option[ProbeStatus]], None)
+case object MetricsProbeFSMState extends ProbeFSMState {
+  def apply(behavior: MetricsProbeBehavior): MetricsProbeFSMState = {
+    MetricsProbeFSMState(behavior.evaluation, mutable.HashMap.empty, None)
   }
 }

@@ -229,7 +229,7 @@ case class ProbePolicy(joiningTimeout: FiniteDuration,
                        probeTimeout: FiniteDuration,
                        alertTimeout: FiniteDuration,
                        leavingTimeout: FiniteDuration,
-                       behavior: BehaviorPolicy,
+                       behavior: ProbeBehavior,
                        notifications: Option[Set[String]]) extends Serializable
 
 /* the probe specification */

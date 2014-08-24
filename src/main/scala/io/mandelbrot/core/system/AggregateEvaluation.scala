@@ -19,8 +19,6 @@
 
 package io.mandelbrot.core.system
 
-import io.mandelbrot.core.registry._
-
 import scala.collection.mutable
 
 /**

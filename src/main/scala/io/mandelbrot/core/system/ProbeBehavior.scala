@@ -21,16 +21,23 @@ package io.mandelbrot.core.system
 
 import scala.concurrent.duration.FiniteDuration
 
-sealed trait BehaviorPolicy
+sealed trait ProbeBehavior
 
 /**
  *
  */
-case class ScalarBehaviorPolicy(flapWindow: FiniteDuration,
-                                flapDeviations: Int) extends BehaviorPolicy
+case class ScalarProbeBehavior(flapWindow: FiniteDuration,
+                               flapDeviations: Int) extends ProbeBehavior
 
 /**
  *
  */
-case class AggregateBehaviorPolicy(flapWindow: FiniteDuration,
-                                   flapDeviations: Int) extends BehaviorPolicy
+case class AggregateProbeBehavior(flapWindow: FiniteDuration,
+                                  flapDeviations: Int) extends ProbeBehavior
+
+/**
+ *
+ */
+case class MetricsProbeBehavior(evaluation: MetricsEvaluation,
+                                flapWindow: FiniteDuration,
+                                flapDeviations: Int) extends ProbeBehavior

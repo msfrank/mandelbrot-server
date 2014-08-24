@@ -40,6 +40,7 @@ trait ScalarProbeOperations extends ProbeFSM with Actor {
 
   onTransition {
     case _ -> ScalarProbeFSMState =>
+      alertTimer.stop()
       expiryTimer.restart(policy.joiningTimeout)
       if (lifecycle == ProbeInitializing) {
         lifecycle = ProbeJoining
@@ -266,7 +267,7 @@ case class ScalarProbeFSMState(flapQueue: Option[FlapQueue]) extends ProbeFSMDat
 }
 
 case object ScalarProbeFSMState extends ProbeFSMState {
-  def apply(behavior: ScalarBehaviorPolicy): ScalarProbeFSMState = {
+  def apply(behavior: ScalarProbeBehavior): ScalarProbeFSMState = {
     ScalarProbeFSMState(None)
   }
 }
