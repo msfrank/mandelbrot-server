@@ -19,7 +19,10 @@
 
 package io.mandelbrot.core.system
 
+import org.slf4j.LoggerFactory
+
 import scala.collection.mutable
+import scala.util.parsing.combinator.RegexParsers
 
 sealed trait MetricSource
 case class CounterSource(name: String) extends MetricSource
@@ -98,4 +101,36 @@ case class LogicalOr(children: Vector[MetricsEvaluation]) extends MetricsEvaluat
  */
 case class LogicalNot(child: MetricsEvaluation) extends MetricsEvaluation {
   def evaluate(metrics: mutable.HashMap[MetricSource, MetricValue]): Boolean = !child.evaluate(metrics)
+}
+
+case object AlwaysTrue extends MetricsEvaluation {
+  def evaluate(metrics: mutable.HashMap[MetricSource, MetricValue]): Boolean = true
+}
+
+case object AlwaysFalse extends MetricsEvaluation {
+  def evaluate(metrics: mutable.HashMap[MetricSource, MetricValue]): Boolean = false
+}
+
+/**
+ *
+ */
+class MetricsEvaluationParser extends RegexParsers {
+
+  val logger = LoggerFactory.getLogger(classOf[ProbeMatcherParser])
+
+  /* shamelessly copied from Parsers.scala */
+  def _log[T](p: => Parser[T])(name: String): Parser[T] = Parser { in =>
+    logger.debug("trying " + name + " at "+ in)
+    val r = p(in)
+    logger.debug(name + " --> " + r)
+    r
+  }
+
+  def metricsEvaluation: Parser[MetricsEvaluation] = regex(".*".r) ^^ { case any => AlwaysTrue }
+
+  def parseMetricsEvaluation(input: String): MetricsEvaluation = parseAll(metricsEvaluation, input) match {
+    case Success(evaluation: MetricsEvaluation, _) => evaluation
+    case Success(other, _) => throw new Exception("unexpected parse result")
+    case failure : NoSuccess => throw new Exception(failure.msg)
+  }
 }

@@ -104,9 +104,20 @@ object JsonProtocol extends DefaultJsonProtocol {
     }
   }
 
+  /* convert MetricsEvaluation class */
+  implicit object MetricsEvaluationFormat extends RootJsonFormat[MetricsEvaluation] {
+    val metricsEvaluationParser = new MetricsEvaluationParser()
+    def write(evaluation: MetricsEvaluation) = JsString(evaluation.toString)
+    def read(value: JsValue) = value match {
+      case JsString(string) => metricsEvaluationParser.parseMetricsEvaluation(string)
+      case _ => throw new DeserializationException("expected ProbeMatcher")
+    }
+  }
+
   /* convert BehaviorPolicy implementations */
   implicit val ScalarBehaviorPolicyFormat = jsonFormat2(ScalarProbeBehavior)
   implicit val AggregateBehaviorPolicyFormat = jsonFormat2(AggregateProbeBehavior)
+  implicit val MetricsBehaviorPolicyFormat = jsonFormat3(MetricsProbeBehavior)
 
   /* convert BehaviorPolicy class */
   implicit object BehaviorPolicyFormat extends RootJsonFormat[ProbeBehavior] {
@@ -127,6 +138,8 @@ object JsonProtocol extends DefaultJsonProtocol {
             AggregateBehaviorPolicyFormat.read(fields("behaviorPolicy"))
           case Some(JsString("scalar")) =>
             ScalarBehaviorPolicyFormat.read(fields("behaviorPolicy"))
+          case Some(JsString("metrics")) =>
+            MetricsBehaviorPolicyFormat.read(fields("behaviorPolicy"))
           case Some(JsString(unknown)) =>
             throw new DeserializationException("unknown behaviorType " + unknown)
           case None =>
