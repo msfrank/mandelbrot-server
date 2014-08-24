@@ -49,8 +49,9 @@ trait RegistryEntriesComponent { this: Profile =>
   import JsonProtocol._
 
   class RegistryEntries(tag: Tag) extends Table[(Long,String,String,Long,Long,Long)](tag, "registry_entries") {
-    def id = column[Long]("id", O.AutoInc)
-    def probeSystem = column[String]("probeSystem", O.PrimaryKey)
+    def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
+    def probeSystem = column[String]("probeSystem")
+    def probeSystemIdx = index("idx_probeSystem", probeSystem, unique = true)
     def registration = column[String]("registration")
     def lsn = column[Long]("lsn")
     def joinedOn = column[Long]("joinedOn")
@@ -65,9 +66,9 @@ trait RegistryEntriesComponent { this: Profile =>
   }
 
   def insert(systemUri: URI, registration: ProbeRegistration, timestamp: DateTime)(implicit session: Session): Long = {
-    registryEntries.filter(_.probeSystem === systemUri.toString).firstOption match {
+    val probeSystem: String = systemUri.toString
+    registryEntries.filter(_.probeSystem === probeSystem).firstOption match {
       case None =>
-        val probeSystem: String = systemUri.toString
         val registrationString: String = registration.toJson.prettyPrint
         val lsn = 1
         val joinedOn: Long = timestamp.getMillis

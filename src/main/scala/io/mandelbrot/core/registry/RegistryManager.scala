@@ -84,10 +84,11 @@ class RegistryManager extends Actor with ActorLogging {
       val opContext = OperationContext(command, sender(), context.system.scheduler.scheduleOnce(timeout, self, OperationTimeout(command)))
       inFlight.put(command, opContext)
 
-//    /* return the list of registered ProbeSystems */
-//    case query: ListProbeSystems =>
-//      val systems = probeSystems.map { case (uri,system) => uri -> system.meta }.toMap
-//      sender() ! ListProbeSystemsResult(query, systems)
+    /* return the list of registered ProbeSystems */
+    case query: ListProbeSystems =>
+      registrar ! query
+      val opContext = OperationContext(query, sender(), context.system.scheduler.scheduleOnce(timeout, self, OperationTimeout(query)))
+      inFlight.put(query, opContext)
 
     /* forward ProbeSystem operations or return failure if system doesn't exist */
     case op: ProbeSystemOperation =>
@@ -168,6 +169,15 @@ class RegistryManager extends Actor with ActorLogging {
         case null =>
         case OperationContext(_, caller, cancellable) =>
           caller ! UnregisterProbeSystemResult(command)
+          cancellable.cancel()
+      }
+
+    /* list ProbeSystems */
+    case result: ListProbeSystemsResult =>
+      inFlight.remove(result.op) match {
+        case null =>
+        case OperationContext(_, caller, cancellable) =>
+          caller ! result
           cancellable.cancel()
       }
 
