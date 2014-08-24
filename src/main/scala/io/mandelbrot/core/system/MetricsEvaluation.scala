@@ -22,7 +22,7 @@ package io.mandelbrot.core.system
 import org.slf4j.LoggerFactory
 
 import scala.collection.mutable
-import scala.util.parsing.combinator.RegexParsers
+import scala.util.parsing.combinator.{JavaTokenParsers, RegexParsers}
 
 sealed trait MetricSource
 case class CounterSource(name: String) extends MetricSource
@@ -114,7 +114,7 @@ case object AlwaysFalse extends MetricsEvaluation {
 /**
  *
  */
-class MetricsEvaluationParser extends RegexParsers {
+class MetricsEvaluationParser extends JavaTokenParsers {
 
   val logger = LoggerFactory.getLogger(classOf[ProbeMatcherParser])
 
@@ -126,7 +126,75 @@ class MetricsEvaluationParser extends RegexParsers {
     r
   }
 
-  def metricsEvaluation: Parser[MetricsEvaluation] = regex(".*".r) ^^ { case any => AlwaysTrue }
+  def metricSource: Parser[MetricSource] = regex("[a-zA-Z][a-zA-Z0-9_]*".r) ^^ GaugeSource
+
+  def metricValue: Parser[MetricValue] = wholeNumber ^^ { case v => MetricValue(v.toLong) }
+
+  def equalsScalar: Parser[MetricsEvaluation] = _log(metricSource ~ literal("==") ~ metricValue)("equalsScalar") ^^ {
+    case source ~ "==" ~ value => ValueEquals(source, value)
+  }
+
+  def notEqualsScalar: Parser[MetricsEvaluation] = _log(metricSource ~ literal("!=") ~ metricValue)("notEqualsScalar") ^^ {
+    case source ~ "!=" ~ value => ValueNotEquals(source, value)
+  }
+
+  def lessThanScalar: Parser[MetricsEvaluation] = _log(metricSource ~ literal("<") ~ metricValue)("lessThanScalar") ^^ {
+    case source ~ "<" ~ value => ValueLessThan(source, value)
+  }
+
+  def greaterThanScalar: Parser[MetricsEvaluation] = _log(metricSource ~ literal(">") ~ metricValue)("greaterThanScalar") ^^ {
+    case source ~ ">" ~ value => ValueGreaterThan(source, value)
+  }
+
+  def scalarEvaluation: Parser[MetricsEvaluation] = _log(equalsScalar | notEqualsScalar | lessThanScalar | greaterThanScalar)("scalarEvaluation")
+
+  /*
+   * <Query>        ::= <OrOperator>
+   * <OrOperator>   ::= <AndOperator> ('OR' <AndOperator>)*
+   * <AndOperator>  ::= <NotOperator> ('AND' <NotOperator>)*
+   * <NotOperator>  ::= ['NOT'] <NotOperator> | <Group>
+   * <Group>        ::= '(' <OrOperator> ')' | <Expression>
+   */
+
+  def groupOperator: Parser[MetricsEvaluation] = _log((literal("(") ~> orOperator <~ literal(")")) | scalarEvaluation)("groupOperator") ^^ {
+    case group: MetricsEvaluation => group
+  }
+
+  def notOperator: Parser[MetricsEvaluation] = _log(("not" ~ notOperator) | groupOperator)("notOperator") ^^ {
+    case "not" ~ (not: MetricsEvaluation) => LogicalNot(not)
+    case group: MetricsEvaluation => group
+  }
+
+  def andOperator: Parser[MetricsEvaluation] = _log(notOperator ~ rep("and" ~ notOperator))("andOperator") ^^ {
+    case not1 ~ nots if nots.isEmpty =>
+      not1
+    case not1 ~ nots =>
+      val children: Vector[MetricsEvaluation] = nots.map { case "and" ~ group => group }.toVector
+      LogicalAnd(not1 +: children)
+  }
+
+  def orOperator: Parser[MetricsEvaluation] = _log(andOperator ~ rep("or" ~ andOperator))("orOperator") ^^ {
+    case and1 ~ ands if ands.isEmpty =>
+      and1
+    case and1 ~ ands =>
+      val children: Vector[MetricsEvaluation] = ands.map { case "or" ~ group => group }.toVector
+      LogicalOr(and1 +: children)
+  }
+
+  /* the entry point */
+  val ruleExpression: Parser[MetricsEvaluation] = _log(orOperator)("ruleExpression")
+
+  /* */
+  def whenClause: Parser[MetricsEvaluation] = _log(literal("when") ~ ruleExpression)("whenClause") ^^ {
+    case "when" ~ expression => expression
+  }
+
+  /* */
+  def unlessClause: Parser[MetricsEvaluation] = _log(literal("unless") ~ ruleExpression)("unlessClause") ^^ {
+    case "unless" ~ expression => LogicalNot(expression)
+  }
+
+  def metricsEvaluation: Parser[MetricsEvaluation] = _log(whenClause | unlessClause)("metricsEvaluation")
 
   def parseMetricsEvaluation(input: String): MetricsEvaluation = parseAll(metricsEvaluation, input) match {
     case Success(evaluation: MetricsEvaluation, _) => evaluation
