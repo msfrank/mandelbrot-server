@@ -20,7 +20,7 @@
 package io.mandelbrot.core
 
 import com.typesafe.config.Config
-import akka.actor.{Extension, Props}
+import akka.actor.Props
 import scala.reflect.runtime.universe._
 import scala.reflect.runtime.{currentMirror => cm}
 
@@ -31,7 +31,7 @@ object ServiceExtension {
    * the specified interface class.  we are liberal in this interpretation of
    * interface to mean super class, abstract class, or trait.
    */
-  def pluginImplements(pluginClassName: String, pluginInterface: Class[_]): Boolean = {
+  def pluginImplements(pluginClassName: String, pluginInterface: Class[_]): Boolean = this.synchronized {
     val pluginClass = Class.forName(pluginClassName)
     pluginInterface.isAssignableFrom(pluginClass)
   }
@@ -39,7 +39,7 @@ object ServiceExtension {
   /**
    * 
    */
-  def makePluginSettings(pluginClassName: String, pluginConfig: Config, pluginParams: Option[Any] = None): Option[Any] = {
+  def makePluginSettings(pluginClassName: String, pluginConfig: Config, pluginParams: Option[Any] = None): Option[Any] = this.synchronized {
     val pluginClass = Class.forName(pluginClassName)
     val classSymbol = cm.classSymbol(pluginClass)
     val moduleSymbol = classSymbol.companionSymbol.asModule
@@ -63,7 +63,7 @@ object ServiceExtension {
    * invoke the one-argument form of the props() method, otherwise invoke the 
    * zero-argument form.
    */
-  def makePluginProps(pluginClassName: String, pluginConfig: Option[Any]): Props = {
+  def makePluginProps(pluginClassName: String, pluginConfig: Option[Any]): Props = this.synchronized {
     val pluginClass = Class.forName(pluginClassName)
     val classSymbol = cm.classSymbol(pluginClass)
     val moduleSymbol = classSymbol.companionSymbol.asModule
