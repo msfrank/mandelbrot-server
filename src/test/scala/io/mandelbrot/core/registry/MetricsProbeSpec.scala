@@ -129,7 +129,7 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val ref = ProbeRef("fqdn:local/")
       val source = GaugeSource("foo")
       val evaluation = ValueGreaterThan(source, MetricValue(10))
-      val initialPolicy = ProbePolicy(2.seconds, 1.minute, 1.minute, 1.minute, MetricsProbeBehavior(evaluation, 1.hour, 17), None)
+      val initialPolicy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, MetricsProbeBehavior(evaluation, 1.hour, 17), None)
       val stateService = new TestProbe(_system)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, services))
