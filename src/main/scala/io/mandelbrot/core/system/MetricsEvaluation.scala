@@ -20,9 +20,8 @@
 package io.mandelbrot.core.system
 
 import org.slf4j.LoggerFactory
-
+import scala.util.parsing.combinator.JavaTokenParsers
 import scala.collection.mutable
-import scala.util.parsing.combinator.{JavaTokenParsers, RegexParsers}
 
 sealed trait MetricSource
 case class CounterSource(name: String) extends MetricSource

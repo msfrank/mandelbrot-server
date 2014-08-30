@@ -1,9 +1,8 @@
-package io.mandelbrot.core.registry
+package io.mandelbrot.core.system
 
-import io.mandelbrot.core.system._
+import org.scalatest.Inside._
 import org.scalatest.WordSpec
 import org.scalatest.matchers.MustMatchers
-import org.scalatest.Inside._
 
 class ProbeMatcherParserSpec extends WordSpec with MustMatchers {
 
