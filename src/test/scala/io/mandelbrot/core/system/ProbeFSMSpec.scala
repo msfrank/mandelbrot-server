@@ -58,10 +58,11 @@ class ProbeFSMSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitS
       val stateService = new TestProbe(_system)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
 
-      val scalarPolicy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, ScalarProbeBehavior(1.hour, 17), None)
-      val aggregatePolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, AggregateProbeBehavior(1.hour, 17), None)
+      val policy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
+      val scalarBehavior = ScalarProbeBehavior(1.hour, 17)
+      val aggregateBehavior = AggregateProbeBehavior(1.hour, 17)
 
-      val probe = system.actorOf(Probe.props(ref, blackhole, children, scalarPolicy, 0, services))
+      val probe = system.actorOf(Probe.props(ref, blackhole, children, policy, scalarBehavior, 0, services))
       stateService.expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
       stateService.reply(Success(ProbeState(status, 0)))
@@ -72,7 +73,7 @@ class ProbeFSMSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitS
       result1.status.health must be(ProbeHealthy)
       stateService.reply(Success(ProbeState(result1.status, 0)))
 
-      probe ! ChangeProbe(children, aggregatePolicy, 1)
+      probe ! ChangeProbe(children, policy, aggregateBehavior, 1)
       val result2 = stateService.expectMsgClass(classOf[ProbeState])
       result2.status.lifecycle must be(ProbeInitializing)
       result2.status.health must be(ProbeUnknown)
@@ -94,10 +95,11 @@ class ProbeFSMSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitS
       val stateService = new TestProbe(_system)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
 
-      val scalarPolicy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, ScalarProbeBehavior(1.hour, 17), None)
-      val aggregatePolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, AggregateProbeBehavior(1.hour, 17), None)
+      val policy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
+      val aggregateBehavior = AggregateProbeBehavior(1.hour, 17)
+      val scalarBehavior = ScalarProbeBehavior(1.hour, 17)
 
-      val probe = system.actorOf(Probe.props(ref, blackhole, children, aggregatePolicy, 0, services))
+      val probe = system.actorOf(Probe.props(ref, blackhole, children, policy, aggregateBehavior, 0, services))
       stateService.expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
       stateService.reply(Success(ProbeState(status, 0)))
@@ -111,7 +113,7 @@ class ProbeFSMSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitS
       result1.status.lifecycle must be(ProbeSynthetic)
       result1.status.health must be(ProbeHealthy)
 
-      probe ! ChangeProbe(children, scalarPolicy, 1)
+      probe ! ChangeProbe(children, policy, scalarBehavior, 1)
       val result2 = stateService.expectMsgClass(classOf[ProbeState])
       result2.status.lifecycle must be(ProbeInitializing)
       result2.status.health must be(ProbeUnknown)

@@ -61,9 +61,10 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "transition to ProbeKnown/ProbeHealthy when a healthy StatusMessage is received" in {
       val ref = ProbeRef("fqdn:local/")
-      val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, ScalarProbeBehavior(1.hour, 17), None)
+      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val behavior = ScalarProbeBehavior(1.hour, 17)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, self, blackhole)
-      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, services))
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services))
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
       lastSender ! Success(ProbeState(status, 0))
@@ -80,9 +81,10 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "transition to ProbeKnown/ProbeDegraded when a degraded StatusMessage is received" in {
       val ref = ProbeRef("fqdn:local/")
-      val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, ScalarProbeBehavior(1.hour, 17), None)
+      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val behavior = ScalarProbeBehavior(1.hour, 17)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, self, blackhole)
-      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, services))
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services))
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
       lastSender ! Success(ProbeState(status, 0))
@@ -99,9 +101,10 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "transition to ProbeKnown/ProbeFailed when a failed StatusMessage is received" in {
       val ref = ProbeRef("fqdn:local/")
-      val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, ScalarProbeBehavior(1.hour, 17), None)
+      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val behavior = ScalarProbeBehavior(1.hour, 17)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, self, blackhole)
-      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, services))
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services))
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
       lastSender ! Success(ProbeState(status, 0))
@@ -118,9 +121,10 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "transition to ProbeKnown/ProbeUnknown when a unknown StatusMessage is received" in {
       val ref = ProbeRef("fqdn:local/")
-      val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, ScalarProbeBehavior(1.hour, 17), None)
+      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val behavior = ScalarProbeBehavior(1.hour, 17)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, self, blackhole)
-      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, services))
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services))
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
       lastSender ! Success(ProbeState(status, 0))
@@ -137,9 +141,10 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "notify StateService when the joining timeout expires" in {
       val ref = ProbeRef("fqdn:local/")
-      val initialPolicy = ProbePolicy(5.seconds, 1.minute, 1.minute, 1.minute, ScalarProbeBehavior(1.hour, 17), None)
+      val policy = ProbePolicy(5.seconds, 1.minute, 1.minute, 1.minute, None)
+      val behavior = ScalarProbeBehavior(1.hour, 17)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, self, blackhole)
-      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, services))
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services))
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
       lastSender ! Success(ProbeState(status, 0))
@@ -158,10 +163,11 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "notify StateService when the probe timeout expires" in {
       val ref = ProbeRef("fqdn:local/")
-      val initialPolicy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, ScalarProbeBehavior(1.hour, 17), None)
+      val policy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
+      val behavior = ScalarProbeBehavior(1.hour, 17)
       val stateService = new TestProbe(_system)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
-      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, services))
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services))
       stateService.expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
       actor ! Success(ProbeState(status, 0))
@@ -182,11 +188,12 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "notify NotificationService when the alert timeout expires" in {
       val ref = ProbeRef("fqdn:local/")
-      val initialPolicy = ProbePolicy(1.minute, 1.minute, 2.seconds, 1.minute, ScalarProbeBehavior(1.hour, 17), None)
+      val policy = ProbePolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)
+      val behavior = ScalarProbeBehavior(1.hour, 17)
       val notificationService = new TestProbe(_system)
       val stateService = new TestProbe(_system)
       val services = ServiceMap(blackhole, blackhole, blackhole, notificationService.ref, stateService.ref, blackhole)
-      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, services))
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services))
       stateService.expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
       stateService.reply(Success(ProbeState(status, 0)))

@@ -36,6 +36,7 @@ class Probe(val probeRef: ProbeRef,
             val parent: ActorRef,
             var children: Set[ProbeRef],
             var policy: ProbePolicy,
+            var behavior: ProbeBehavior,
             val probeGeneration: Long,
             val services: ServiceMap) extends ProbeFSM
                                       with ScalarProbeOperations
@@ -79,9 +80,10 @@ object Probe {
             parent: ActorRef,
             children: Set[ProbeRef],
             policy: ProbePolicy,
+            behavior: ProbeBehavior,
             probeGeneration: Long,
             services: ServiceMap) = {
-    Props(classOf[Probe], probeRef, parent, children, policy, probeGeneration, services)
+    Props(classOf[Probe], probeRef, parent, children, policy, behavior, probeGeneration, services)
   }
 
   case class SendNotifications(notifications: Vector[Notification])

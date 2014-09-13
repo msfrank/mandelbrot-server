@@ -40,9 +40,10 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
   "A Probe" must {
 
     "have an initial state" in {
-      val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, ScalarProbeBehavior(1.hour, 17), None)
+      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val behavior = ScalarProbeBehavior(1.hour, 17)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, blackhole, blackhole)
-      val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), blackhole, Set.empty, initialPolicy, 0, services))
+      val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), blackhole, Set.empty, policy, behavior, 0, services))
       val probe = actor.underlyingActor
       probe.lifecycle must be(ProbeInitializing)
       probe.health must be(ProbeUnknown)
@@ -56,9 +57,10 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
     "initialize and transition to running behavior" in {
       val ref = ProbeRef("fqdn:local/")
-      val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, ScalarProbeBehavior(1.hour, 17), None)
+      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val behavior = ScalarProbeBehavior(1.hour, 17)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, self, blackhole)
-      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, services))
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services))
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
       lastSender ! Success(ProbeState(status, 0))
@@ -74,9 +76,10 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
     "initialize and transition to retired behavior if lsn is newer than generation" in {
       val ref = ProbeRef("fqdn:local/")
-      val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, ScalarProbeBehavior(1.hour, 17), None)
+      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val behavior = ScalarProbeBehavior(1.hour, 17)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, self, blackhole)
-      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, initialPolicy, 0, services))
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services))
       watch(actor)
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeKnown, ProbeHealthy, None, None, None, None, None, false)

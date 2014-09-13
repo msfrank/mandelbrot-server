@@ -54,6 +54,7 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
   // state
   var children: Set[ProbeRef]
   var policy: ProbePolicy
+  var behavior: ProbeBehavior
 
   var lifecycle: ProbeLifecycle
   var health: ProbeHealth
@@ -109,7 +110,7 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
       // otherwise replay any stashed messages and transition to initialized
       else {
         unstashAll()
-        changeBehavior(children, policy)
+        changeBehavior(children, policy, behavior)
       }
 
     case Event(Failure(failure: ApiException), _) if failure.failure == ResourceNotFound =>
@@ -153,7 +154,7 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
       correlationId = None
       acknowledgementId = None
       unstashAll()
-      changeBehavior(change.children, change.policy)
+      changeBehavior(change.children, change.policy, change.behavior)
 
     case Event(Failure(failure: Throwable), _) =>
       throw failure
@@ -188,17 +189,18 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
   /**
    *
    */
-  private def changeBehavior(newChildren: Set[ProbeRef], newPolicy: ProbePolicy) = {
+  private def changeBehavior(newChildren: Set[ProbeRef], newPolicy: ProbePolicy, newBehavior: ProbeBehavior) = {
     children = newChildren
     policy = newPolicy
-    log.debug("probe {} changes configuration: {}", probeRef, policy)
-    policy.behavior match {
-      case behavior: AggregateProbeBehavior =>
-        goto(AggregateProbeFSMState) using AggregateProbeFSMState(behavior)
-      case behavior: ScalarProbeBehavior =>
-        goto(ScalarProbeFSMState) using ScalarProbeFSMState(behavior)
-      case behavior: MetricsProbeBehavior =>
-        goto(MetricsProbeFSMState) using MetricsProbeFSMState(behavior)
+    behavior = newBehavior
+    log.debug("probe {} changes behavior: {}", probeRef, behavior)
+    newBehavior match {
+      case _behavior: AggregateProbeBehavior =>
+        goto(AggregateProbeFSMState) using AggregateProbeFSMState(_behavior)
+      case _behavior: ScalarProbeBehavior =>
+        goto(ScalarProbeFSMState) using ScalarProbeFSMState(_behavior)
+      case _behavior: MetricsProbeBehavior =>
+        goto(MetricsProbeFSMState) using MetricsProbeFSMState(_behavior)
     }
   }
 

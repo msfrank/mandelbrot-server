@@ -186,7 +186,6 @@ class RegistryManager extends Actor with ActorLogging {
       inFlight.remove(failure.op) match {
         case null =>
         case OperationContext(_, caller, cancellable) =>
-          log.debug("op fails: {} (cause: {})", failure, failure.failure.getCause)
           caller ! failure
           cancellable.cancel()
       }
@@ -224,18 +223,18 @@ object RegistryManager {
   case class ProbeSystemUnregisters(command: UnregisterProbeSystem, timestamp: DateTime, lsn: Long)
 }
 
-/* contains tunable parameters for the probe */
+/* probe tunable parameters which apply to all probe types */
 case class ProbePolicy(joiningTimeout: FiniteDuration,
                        probeTimeout: FiniteDuration,
                        alertTimeout: FiniteDuration,
                        leavingTimeout: FiniteDuration,
-                       behavior: ProbeBehavior,
                        notifications: Option[Set[String]]) extends Serializable
 
 /* the probe specification */
 case class ProbeSpec(probeType: String,
                      metadata: Map[String,String],
                      policy: ProbePolicy,
+                     behavior: ProbeBehavior,
                      children: Map[String,ProbeSpec]) extends Serializable
 
 /* a dynamic probe system registration */

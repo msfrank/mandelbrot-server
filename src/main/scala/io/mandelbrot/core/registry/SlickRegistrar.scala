@@ -160,62 +160,58 @@ trait SlickRegistrar extends Actor with ActorLogging {
 
     case command: RegisterProbeSystem =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      try {
-        db.withSession { implicit session =>
+      db.withSession { implicit session =>
+        try {
           val lsn = dal.insert(command.uri, command.registration, timestamp)
           sender() ! ProbeSystemRegisters(command, timestamp, lsn)
+        } catch {
+          case ex: Throwable => sender() ! ProbeRegistryOperationFailed(command, ex)
         }
-      } catch {
-        case ex: Throwable => sender() ! ProbeRegistryOperationFailed(command, ex)
       }
 
     case command: UpdateProbeSystem =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      try {
-        db.withSession { implicit session =>
+      db.withSession { implicit session =>
+        try {
           val lsn = dal.update(command.uri, command.registration, timestamp)
           sender() ! ProbeSystemUpdates(command, timestamp, lsn)
+        } catch {
+          case ex: Throwable => sender() ! ProbeRegistryOperationFailed(command, ex)
         }
-      } catch {
-        case ex: Throwable => sender() ! ProbeRegistryOperationFailed(command, ex)
       }
 
     case command: UnregisterProbeSystem =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      try {
-        db.withSession { implicit session =>
+      db.withSession { implicit session =>
+        try {
           val lsn = dal.delete(command.uri, timestamp)
           sender() ! ProbeSystemUnregisters(command, timestamp, lsn)
+        } catch {
+          case ex: Throwable => sender() ! ProbeRegistryOperationFailed(command, ex)
         }
-      } catch {
-        case ex: Throwable => sender() ! ProbeRegistryOperationFailed(command, ex)
       }
 
     case query: ListProbeSystems =>
-      try {
-        val last = query.last match {
-          case Some(s) => s.toLong
-          case None => 0L
+      val last = query.last match {
+        case Some(s) => s.toLong
+        case None => 0L
+      }
+      val limit = query.limit match {
+        case Some(i) if i > 100 => 100
+        case Some(i) => i
+        case None => 100
+      }
+      db.withSession { implicit session =>
+        val entries = dal.list(last, limit).toVector
+        val systems = entries.map { case (id,probeSystem,_,lsn,joinedOn,lastUpdate) =>
+          new URI(probeSystem) -> ProbeSystemMetadata(new DateTime(joinedOn), new DateTime(lastUpdate))
+        }.toMap
+        entries.lastOption match {
+          case Some((id, _, _, _, _, _)) =>
+            sender() ! ListProbeSystemsResult(query, systems, Some(id.toString))
+          case None =>
+            sender() ! ListProbeSystemsResult(query, Map.empty, None)
         }
-        val limit = query.limit match {
-          case Some(i) if i > 100 => 100
-          case Some(i) => i
-          case None => 100
-        }
-        db.withSession { implicit session =>
-          val entries = dal.list(last, limit).toVector
-          val systems = entries.map { case (id,probeSystem,_,lsn,joinedOn,lastUpdate) =>
-            new URI(probeSystem) -> ProbeSystemMetadata(new DateTime(joinedOn), new DateTime(lastUpdate))
-          }.toMap
-          entries.lastOption match {
-            case Some((id, _, _, _, _, _)) =>
-              sender() ! ListProbeSystemsResult(query, systems, Some(id.toString))
-            case None =>
-              sender() ! ListProbeSystemsResult(query, Map.empty, None)
-          }
-        }
-      } catch {
-        case ex: Throwable => sender() ! ProbeRegistryOperationFailed(query, ex)
       }
   }
 }

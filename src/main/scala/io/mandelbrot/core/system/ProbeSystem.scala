@@ -260,9 +260,9 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
       }}
       val actor = ref.parentOption match {
         case Some(parent) if parent.path.nonEmpty =>
-          context.actorOf(Probe.props(ref, probes(parent).actor, directChildren, probeSpec.policy, lsn, services))
+          context.actorOf(Probe.props(ref, probes(parent).actor, directChildren, probeSpec.policy, probeSpec.behavior, lsn, services))
         case _ =>
-          context.actorOf(Probe.props(ref, self, directChildren, probeSpec.policy, lsn, services))
+          context.actorOf(Probe.props(ref, self, directChildren, probeSpec.policy, probeSpec.behavior, lsn, services))
       }
       context.watch(actor)
       log.debug("probe {} joins", ref)
@@ -290,10 +290,10 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
         }}
         val ProbeActor(prevSpec, actor) = probes(ref)
         probes = probes + (ref -> ProbeActor(probeSpec, actor))
-        if (probeSpec.policy.behavior.getClass == prevSpec.policy.behavior.getClass)
-          actor ! UpdateProbe(directChildren, probeSpec.policy, lsn)
+        if (probeSpec.behavior.getClass == prevSpec.behavior.getClass)
+          actor ! UpdateProbe(directChildren, probeSpec.policy, probeSpec.behavior, lsn)
         else
-          actor ! ChangeProbe(directChildren, probeSpec.policy, lsn)
+          actor ! ChangeProbe(directChildren, probeSpec.policy, probeSpec.behavior, lsn)
     }
     registration = newRegistration
   }
@@ -325,8 +325,8 @@ object ProbeSystem {
 }
 
 case class ConfigureProbeSystem(registration: ProbeRegistration, lsn: Long)
-case class UpdateProbe(children: Set[ProbeRef], policy: ProbePolicy, lsn: Long)
-case class ChangeProbe(children: Set[ProbeRef], policy: ProbePolicy, lsn: Long)
+case class UpdateProbe(children: Set[ProbeRef], policy: ProbePolicy, behavior: ProbeBehavior, lsn: Long)
+case class ChangeProbe(children: Set[ProbeRef], policy: ProbePolicy, behavior: ProbeBehavior, lsn: Long)
 case class RetireProbe(lsn: Long)
 case class RetireProbeSystem(lsn: Long)
 
