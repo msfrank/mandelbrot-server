@@ -64,9 +64,14 @@ trait MetricsProbeOperations extends ProbeFSM with Actor {
      * then update our state.
      */
     case Event(update: UpdateProbe, data: MetricsProbeFSMState) =>
-      children = update.children
-      policy = update.policy
-      stay() using data.update(update)
+      update.behavior match {
+        case newBehavior: MetricsProbeBehavior =>
+          children = update.children
+          policy = update.policy
+          stay() using data.update(newBehavior)
+        case _ =>
+          stay()
+      }
 
     /*
      * if we receive a metrics message while joining or known, then update probe state
@@ -78,7 +83,7 @@ trait MetricsProbeOperations extends ProbeFSM with Actor {
      */
     case Event(message: MetricsMessage, MetricsProbeFSMState(evaluation, metrics, flapQueue)) =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      metrics ++= message.metrics
+      // FIXME: push new metrics
       // FIXME: this is a lame calculation
       val newHealth = if (evaluation.evaluate(metrics)) ProbeFailed else ProbeHealthy
       val correlation = if (newHealth == ProbeHealthy) None else {
@@ -257,15 +262,18 @@ trait MetricsProbeOperations extends ProbeFSM with Actor {
   }
 }
 
-
 case class MetricsProbeFSMState(evaluation: MetricsEvaluation,
-                                metrics: mutable.HashMap[MetricSource,MetricValue],
+                                metrics: MetricsStore,
                                 flapQueue: Option[FlapQueue]) extends ProbeFSMData {
-  def update(update: UpdateProbe): MetricsProbeFSMState = this
+
+  def update(newBehavior: MetricsProbeBehavior): MetricsProbeFSMState = {
+    metrics.resize(newBehavior.evaluation)
+    MetricsProbeFSMState(newBehavior.evaluation, metrics, flapQueue)
+  }
 }
 
 case object MetricsProbeFSMState extends ProbeFSMState {
   def apply(behavior: MetricsProbeBehavior): MetricsProbeFSMState = {
-    MetricsProbeFSMState(behavior.evaluation, mutable.HashMap.empty, None)
+    MetricsProbeFSMState(behavior.evaluation, new MetricsStore(behavior.evaluation), None)
   }
 }

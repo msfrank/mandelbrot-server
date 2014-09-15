@@ -126,6 +126,8 @@ object JsonProtocol extends DefaultJsonProtocol {
         JsObject(Map("behaviorType" -> JsString("aggregate"), "behaviorPolicy" -> behavior.toJson))
       case behavior: ScalarProbeBehavior =>
         JsObject(Map("behaviorType" -> JsString("scalar"), "behaviorPolicy" -> behavior.toJson))
+      case behavior: MetricsProbeBehavior =>
+        JsObject(Map("behaviorType" -> JsString("metrics"), "behaviorPolicy" -> behavior.toJson))
       case unknown => throw new SerializationException("unknown BehaviorPolicy " + unknown.getClass)
     }
 
@@ -308,17 +310,12 @@ object JsonProtocol extends DefaultJsonProtocol {
   implicit val UnregisterMaintenanceWindowResultFormat = jsonFormat2(UnregisterMaintenanceWindowResult)
 
   /* metrics types */
-  implicit val MetricValueFormat = jsonFormat1(MetricValue)
-  implicit object MetricSourceFormat extends RootJsonFormat[MetricSource] {
-    def write(source: MetricSource) = source match {
-      case CounterSource(name) => JsString("counter:" + name)
-      case GaugeSource(name) => JsString("gauge:" + name)
-      case unknownValue => throw new DeserializationException("unknown MetricSource format")
-    }
+  implicit object MetricValueFormat extends RootJsonFormat[MetricValue] {
+    def write(value: MetricValue) = JsString(value.toString)
     def read(value: JsValue) = value match {
-      case JsString(name) if name.startsWith("counter:") => CounterSource(name.drop(8))
-      case JsString(name) if name.startsWith("gauge:") => GaugeSource(name.drop(6))
-      case unknownValue => throw new DeserializationException("unknown MetricSource format")
+      case JsNumber(v) => if (v.isValidLong) MetricValue(v.toLongExact) else MetricValue(v.toDouble)
+      case JsString(v) => if (v.contains(".")) MetricValue(v.toDouble) else MetricValue(v.toLong)
+      case unknown => throw new DeserializationException("unknown metric value type " + unknown)
     }
   }
 

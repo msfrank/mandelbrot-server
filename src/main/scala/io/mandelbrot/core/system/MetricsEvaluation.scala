@@ -23,65 +23,191 @@ import org.slf4j.LoggerFactory
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.collection.mutable
 
-sealed trait MetricSource
-case class CounterSource(name: String) extends MetricSource
-case class GaugeSource(name: String) extends MetricSource
-case class MetricValue(v: Long)
+case class MetricSource(probePath: Vector[String], metricName: String)
+
+/**
+ *
+ */
+class MetricValue(anyVal: AnyVal) extends Ordered[MetricValue] {
+
+  assert(anyVal.isInstanceOf[Long] || anyVal.isInstanceOf[Double])
+
+  def compare(that: MetricValue): Int = anyVal match {
+    case value: Long => value.compareTo(that.toLong)
+    case value: Double => value.compareTo(that.toDouble)
+    case other => throw new IllegalArgumentException()
+  }
+
+  override def equals(that: Any): Boolean = that match {
+    case value: MetricValue => value.compare(this) == 0
+    case value: Long => value.equals(toLong)
+    case value: Double => value.equals(toDouble)
+    case other => throw new IllegalArgumentException()
+  }
+
+  def toLong: Long = anyVal match {
+    case value: Long => value
+    case value: Double => value.toLong
+  }
+
+  def toDouble: Double = anyVal match {
+    case value: Long => value.toDouble
+    case value: Double => value
+  }
+
+  override def toString = anyVal.toString
+}
+
+object MetricValue {
+  def apply(value: Long) = new MetricValue(value)
+  def apply(value: Double) = new MetricValue(value)
+  def apply(value: Int) = new MetricValue(value.toLong)
+  def apply(value: Float) = new MetricValue(value.toDouble)
+}
+
+/**
+ *
+ */
+class MetricWindow(val size: Int) {
+  if (size <= 0) throw new IllegalArgumentException()
+
+  private var curr: Int = 0
+  private var array = Array.fill[Option[MetricValue]](size)(None)
+
+  def push(value: MetricValue): Unit = {
+    array(curr) = Some(value)
+    curr = if (curr + 1 == array.size) 0 else curr + 1
+  }
+
+  private def lookup(index: Int): Int = {
+    if (index < 0 || index >= array.size) throw new IndexOutOfBoundsException()
+    if (curr - index - 1 < 0)
+      array.size + (curr - index - 1)
+    else
+      curr - index - 1
+  }
+
+  def apply(index: Int): MetricValue = array(lookup(index)).get
+  def get(index: Int): Option[MetricValue] = array(lookup(index))
+  def head: MetricValue = apply(0)
+  def headOption: Option[MetricValue] = get(0)
+  def foldLeft[A](z: A)(op: (MetricValue, A) => A): A = {
+    var out = z
+    for (i <- 0.until(array.size)) {
+      get(i) match {
+        case None => return out
+        case Some(v) => out = op(v, out)
+      }
+    }
+    out
+  }
+
+  def resize(_size: Int): Unit = {
+    if (_size <= 0) throw new IllegalArgumentException()
+    val resized = Array.fill[Option[MetricValue]](_size)(None)
+    var next = curr
+    var index = 0
+    for (_ <- 0.until(array.size)) {
+      resized(index) = array(next)
+      index = if (index + 1 == resized.size) 0 else index + 1
+      next = if (next + 1 == array.size) 0 else next + 1
+    }
+    curr = index
+    array = resized
+  }
+}
+
+/**
+ *
+ */
+class MetricsStore(evaluation: MetricsEvaluation) {
+  private val metrics = new mutable.HashMap[MetricSource, MetricWindow]
+  resize(evaluation)
+
+  def window(source: MetricSource): MetricWindow = metrics(source)
+  def windowOption(source: MetricSource): Option[MetricWindow] = metrics.get(source)
+
+  def apply(source: MetricSource, index: Int): MetricValue = metrics(source)(index)
+  def get(source: MetricSource, index: Int): Option[MetricValue] = metrics.get(source).flatMap(_.get(index))
+  def head(source: MetricSource): MetricValue = metrics(source).head
+  def headOption(source: MetricSource): Option[MetricValue] = metrics.get(source).flatMap(_.headOption)
+  def push(source: MetricSource, value: MetricValue): Unit = metrics.get(source).map(_.push(value))
+
+  def resize(evaluation: MetricsEvaluation): Unit = {
+    evaluation.sizing.foreach { case (source,size) =>
+      metrics.get(source) match {
+        case Some(window) if size == window.size => // do nothing
+        case Some(window) => metrics(source).resize(size)
+        case None => metrics(source) = new MetricWindow(size)
+      }
+    }
+  }
+}
 
 /**
  *
  */
 sealed trait MetricsEvaluation {
-  def evaluate(metrics: mutable.HashMap[MetricSource,MetricValue]): Boolean
+  def evaluate(metrics: MetricsStore): Boolean
+  def sizing: Map[MetricSource,Int]
 }
 
 /**
  *
  */
-case class ValueEquals(lhs: MetricSource, rhs: MetricValue) extends MetricsEvaluation {
-  def evaluate(metrics: mutable.HashMap[MetricSource,MetricValue]): Boolean = metrics.get(lhs) match {
-    case Some(MetricValue(v)) => v == rhs.v
+case class ValueEquals(source: MetricSource, rhs: MetricValue) extends MetricsEvaluation {
+  def evaluate(metrics: MetricsStore): Boolean = metrics.headOption(source) match {
+    case Some(lhs: MetricValue) => lhs == rhs
     case None => false
   }
+  def sizing = Map(source -> 1)
 }
 
 /**
  *
  */
-case class ValueNotEquals(lhs: MetricSource, rhs: MetricValue) extends MetricsEvaluation {
-  def evaluate(metrics: mutable.HashMap[MetricSource,MetricValue]): Boolean = metrics.get(lhs) match {
-    case Some(MetricValue(v)) => v != rhs.v
+case class ValueNotEquals(source: MetricSource, rhs: MetricValue) extends MetricsEvaluation {
+  def evaluate(metrics: MetricsStore): Boolean = metrics.headOption(source) match {
+    case Some(lhs: MetricValue) => lhs != rhs
     case None => false
   }
+  def sizing = Map(source -> 1)
 }
 
 /**
  *
  */
-case class ValueGreaterThan(lhs: MetricSource, rhs: MetricValue) extends MetricsEvaluation {
-  def evaluate(metrics: mutable.HashMap[MetricSource,MetricValue]): Boolean = metrics.get(lhs) match {
-    case Some(MetricValue(v)) => v > rhs.v
+case class ValueGreaterThan(source: MetricSource, rhs: MetricValue) extends MetricsEvaluation {
+  def evaluate(metrics: MetricsStore): Boolean = metrics.headOption(source) match {
+    case Some(lhs: MetricValue) => lhs > rhs
     case None => false
   }
+  def sizing = Map(source -> 1)
 }
 
 /**
  *
  */
-case class ValueLessThan(lhs: MetricSource, rhs: MetricValue) extends MetricsEvaluation {
-  def evaluate(metrics: mutable.HashMap[MetricSource,MetricValue]): Boolean = metrics.get(lhs) match {
-    case Some(MetricValue(v)) => v < rhs.v
+case class ValueLessThan(source: MetricSource, rhs: MetricValue) extends MetricsEvaluation {
+  def evaluate(metrics: MetricsStore): Boolean = metrics.headOption(source) match {
+    case Some(lhs: MetricValue) => lhs < rhs
     case None => false
   }
+  def sizing = Map(source -> 1)
 }
 
 /**
  *
  */
 case class LogicalAnd(children: Vector[MetricsEvaluation]) extends MetricsEvaluation {
-  def evaluate(metrics: mutable.HashMap[MetricSource,MetricValue]): Boolean = {
+  def evaluate(metrics: MetricsStore): Boolean = {
     children.foreach { child => if (!child.evaluate(metrics)) return false }
     true
+  }
+  def sizing = children.foldLeft(Map.empty[MetricSource,Int]) { case (map,child) =>
+    map ++ child.sizing.filter {
+      case (source, sizing) => sizing > map.getOrElse(source, 0)
+    }
   }
 }
 
@@ -89,9 +215,14 @@ case class LogicalAnd(children: Vector[MetricsEvaluation]) extends MetricsEvalua
  *
  */
 case class LogicalOr(children: Vector[MetricsEvaluation]) extends MetricsEvaluation {
-  def evaluate(metrics: mutable.HashMap[MetricSource, MetricValue]): Boolean = {
+  def evaluate(metrics: MetricsStore): Boolean = {
     children.foreach { child => if (child.evaluate(metrics)) return true}
     false
+  }
+  def sizing = children.foldLeft(Map.empty[MetricSource,Int]) { case (map,child) =>
+    map ++ child.sizing.filter {
+      case (source, sizing) => sizing > map.getOrElse(source, 0)
+    }
   }
 }
 
@@ -99,15 +230,18 @@ case class LogicalOr(children: Vector[MetricsEvaluation]) extends MetricsEvaluat
  *
  */
 case class LogicalNot(child: MetricsEvaluation) extends MetricsEvaluation {
-  def evaluate(metrics: mutable.HashMap[MetricSource, MetricValue]): Boolean = !child.evaluate(metrics)
+  def evaluate(metrics: MetricsStore): Boolean = !child.evaluate(metrics)
+  def sizing = child.sizing
 }
 
 case object AlwaysTrue extends MetricsEvaluation {
-  def evaluate(metrics: mutable.HashMap[MetricSource, MetricValue]): Boolean = true
+  def evaluate(metrics: MetricsStore): Boolean = true
+  def sizing = Map.empty
 }
 
 case object AlwaysFalse extends MetricsEvaluation {
-  def evaluate(metrics: mutable.HashMap[MetricSource, MetricValue]): Boolean = false
+  def evaluate(metrics: MetricsStore): Boolean = false
+  def sizing = Map.empty
 }
 
 /**
@@ -125,7 +259,13 @@ class MetricsEvaluationParser extends JavaTokenParsers {
     r
   }
 
-  def metricSource: Parser[MetricSource] = regex("[a-zA-Z][a-zA-Z0-9_]*".r) ^^ GaugeSource
+  def bareSource: Parser[MetricSource] = regex("[a-zA-Z][a-zA-Z0-9_]*".r) ^^ { MetricSource(Vector.empty, _) }
+
+  def qualifiedSource: Parser[MetricSource] = rep1(regex("""/[^#/]+""".r)) ~ literal("#") ~ bareSource ^^ {
+    case (segments: List[String]) ~ "#" ~ MetricSource(_, name) => MetricSource(segments.toVector, name)
+  }
+
+  def metricSource = bareSource
 
   def metricValue: Parser[MetricValue] = wholeNumber ^^ { case v => MetricValue(v.toLong) }
 

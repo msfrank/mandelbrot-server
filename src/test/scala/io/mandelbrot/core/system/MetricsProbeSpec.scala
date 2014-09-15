@@ -61,7 +61,7 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
 
     "transition to ProbeKnown/ProbeHealthy when a healthy MetricsMessage is received" in {
       val ref = ProbeRef("fqdn:local/")
-      val source = GaugeSource("foo")
+      val source = MetricSource(Vector.empty, "foo")
       val evaluation = ValueGreaterThan(source, MetricValue(10))
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val behavior = MetricsProbeBehavior(evaluation, 1.hour, 17)
@@ -72,7 +72,7 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
       stateService.reply(Success(ProbeState(status, 0)))
       val timestamp = DateTime.now()
-      actor ! MetricsMessage(ref, Map(source -> MetricValue(5)), timestamp)
+      actor ! MetricsMessage(ref, Map(source.metricName -> MetricValue(5)), timestamp)
       val result = stateService.expectMsgClass(classOf[ProbeState])
       result.status.lifecycle must be(ProbeKnown)
       result.status.health must be(ProbeHealthy)
@@ -83,7 +83,7 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
 
     "transition to ProbeKnown/ProbeFailed when a failed MetricsMessage is received" in {
       val ref = ProbeRef("fqdn:local/")
-      val source = GaugeSource("foo")
+      val source = MetricSource(Vector.empty, "foo")
       val evaluation = ValueGreaterThan(source, MetricValue(10))
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val behavior = MetricsProbeBehavior(evaluation, 1.hour, 17)
@@ -94,7 +94,7 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
       stateService.reply(Success(ProbeState(status, 0)))
       val timestamp = DateTime.now()
-      actor ! MetricsMessage(ref, Map(source -> MetricValue(15)), timestamp)
+      actor ! MetricsMessage(ref, Map(source.metricName -> MetricValue(15)), timestamp)
       val result = stateService.expectMsgClass(classOf[ProbeState])
       result.status.lifecycle must be(ProbeKnown)
       result.status.health must be(ProbeFailed)
@@ -105,7 +105,7 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
 
     "notify StateService when the joining timeout expires" in {
       val ref = ProbeRef("fqdn:local/")
-      val source = GaugeSource("foo")
+      val source = MetricSource(Vector.empty, "foo")
       val evaluation = ValueGreaterThan(source, MetricValue(10))
       val policy = ProbePolicy(2.seconds, 1.minute, 1.minute, 1.minute, None)
       val behavior = MetricsProbeBehavior(evaluation, 1.hour, 17)
@@ -130,7 +130,7 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
 
     "notify StateService when the probe timeout expires" in {
       val ref = ProbeRef("fqdn:local/")
-      val source = GaugeSource("foo")
+      val source = MetricSource(Vector.empty, "foo")
       val evaluation = ValueGreaterThan(source, MetricValue(10))
       val policy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
       val behavior = MetricsProbeBehavior(evaluation, 1.hour, 17)
@@ -141,7 +141,7 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
       stateService.reply(Success(ProbeState(status, 0)))
       val timestamp = DateTime.now()
-      actor ! MetricsMessage(ref, Map(source -> MetricValue(5)), timestamp)
+      actor ! MetricsMessage(ref, Map(source.metricName -> MetricValue(5)), timestamp)
       val state = stateService.expectMsgClass(classOf[ProbeState])
       stateService.reply(ProbeStatusCommitted(state.status, state.lsn))
       // expiry timer should fire within 5 seconds
@@ -159,7 +159,7 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
 
     "notify NotificationService when the alert timeout expires" in {
       val ref = ProbeRef("fqdn:local/")
-      val source = GaugeSource("foo")
+      val source = MetricSource(Vector.empty, "foo")
       val evaluation = ValueGreaterThan(source, MetricValue(10))
       val policy = ProbePolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)
       val behavior = MetricsProbeBehavior(evaluation, 1.hour, 17)
@@ -171,7 +171,7 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
       stateService.reply(Success(ProbeState(status, 0)))
       val timestamp = DateTime.now()
-      actor ! MetricsMessage(ref, Map(source -> MetricValue(15)), timestamp)
+      actor ! MetricsMessage(ref, Map(source.metricName -> MetricValue(15)), timestamp)
       val state = stateService.expectMsgClass(classOf[ProbeState])
       stateService.reply(ProbeStatusCommitted(state.status, state.lsn))
       notificationService.expectMsgClass(classOf[NotifyLifecycleChanges])
