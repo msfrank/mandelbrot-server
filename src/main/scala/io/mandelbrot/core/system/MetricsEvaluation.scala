@@ -20,50 +20,12 @@
 package io.mandelbrot.core.system
 
 import org.slf4j.LoggerFactory
+import scala.concurrent.duration.FiniteDuration
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.collection.mutable
+import scala.math.BigDecimal
 
 case class MetricSource(probePath: Vector[String], metricName: String)
-
-/**
- *
- */
-class MetricValue(anyVal: AnyVal) extends Ordered[MetricValue] {
-
-  assert(anyVal.isInstanceOf[Long] || anyVal.isInstanceOf[Double])
-
-  def compare(that: MetricValue): Int = anyVal match {
-    case value: Long => value.compareTo(that.toLong)
-    case value: Double => value.compareTo(that.toDouble)
-    case other => throw new IllegalArgumentException()
-  }
-
-  override def equals(that: Any): Boolean = that match {
-    case value: MetricValue => value.compare(this) == 0
-    case value: Long => value.equals(toLong)
-    case value: Double => value.equals(toDouble)
-    case other => throw new IllegalArgumentException()
-  }
-
-  def toLong: Long = anyVal match {
-    case value: Long => value
-    case value: Double => value.toLong
-  }
-
-  def toDouble: Double = anyVal match {
-    case value: Long => value.toDouble
-    case value: Double => value
-  }
-
-  override def toString = anyVal.toString
-}
-
-object MetricValue {
-  def apply(value: Long) = new MetricValue(value)
-  def apply(value: Double) = new MetricValue(value)
-  def apply(value: Int) = new MetricValue(value.toLong)
-  def apply(value: Float) = new MetricValue(value.toDouble)
-}
 
 /**
  *
@@ -72,9 +34,9 @@ class MetricWindow(val size: Int) {
   if (size <= 0) throw new IllegalArgumentException()
 
   private var curr: Int = 0
-  private var array = Array.fill[Option[MetricValue]](size)(None)
+  private var array = Array.fill[Option[BigDecimal]](size)(None)
 
-  def push(value: MetricValue): Unit = {
+  def push(value: BigDecimal): Unit = {
     array(curr) = Some(value)
     curr = if (curr + 1 == array.size) 0 else curr + 1
   }
@@ -87,11 +49,11 @@ class MetricWindow(val size: Int) {
       curr - index - 1
   }
 
-  def apply(index: Int): MetricValue = array(lookup(index)).get
-  def get(index: Int): Option[MetricValue] = array(lookup(index))
-  def head: MetricValue = apply(0)
-  def headOption: Option[MetricValue] = get(0)
-  def foldLeft[A](z: A)(op: (MetricValue, A) => A): A = {
+  def apply(index: Int): BigDecimal = array(lookup(index)).get
+  def get(index: Int): Option[BigDecimal] = array(lookup(index))
+  def head: BigDecimal = apply(0)
+  def headOption: Option[BigDecimal] = get(0)
+  def foldLeft[A](z: A)(op: (BigDecimal, A) => A): A = {
     var out = z
     for (i <- 0.until(array.size)) {
       get(i) match {
@@ -102,9 +64,9 @@ class MetricWindow(val size: Int) {
     out
   }
 
-  def resize(_size: Int): Unit = {
-    if (_size <= 0) throw new IllegalArgumentException()
-    val resized = Array.fill[Option[MetricValue]](_size)(None)
+  def resize(newSize: Int): Unit = {
+    if (newSize <= 0) throw new IllegalArgumentException()
+    val resized = Array.fill[Option[BigDecimal]](newSize)(None)
     var next = curr
     var index = 0
     for (_ <- 0.until(array.size)) {
@@ -127,11 +89,11 @@ class MetricsStore(evaluation: MetricsEvaluation) {
   def window(source: MetricSource): MetricWindow = metrics(source)
   def windowOption(source: MetricSource): Option[MetricWindow] = metrics.get(source)
 
-  def apply(source: MetricSource, index: Int): MetricValue = metrics(source)(index)
-  def get(source: MetricSource, index: Int): Option[MetricValue] = metrics.get(source).flatMap(_.get(index))
-  def head(source: MetricSource): MetricValue = metrics(source).head
-  def headOption(source: MetricSource): Option[MetricValue] = metrics.get(source).flatMap(_.headOption)
-  def push(source: MetricSource, value: MetricValue): Unit = metrics.get(source).map(_.push(value))
+  def apply(source: MetricSource, index: Int): BigDecimal = metrics(source)(index)
+  def get(source: MetricSource, index: Int): Option[BigDecimal] = metrics.get(source).flatMap(_.get(index))
+  def head(source: MetricSource): BigDecimal = metrics(source).head
+  def headOption(source: MetricSource): Option[BigDecimal] = metrics.get(source).flatMap(_.headOption)
+  def push(source: MetricSource, value: BigDecimal): Unit = metrics.get(source).map(_.push(value))
 
   def resize(evaluation: MetricsEvaluation): Unit = {
     evaluation.sizing.foreach { case (source,size) =>
@@ -144,104 +106,132 @@ class MetricsStore(evaluation: MetricsEvaluation) {
   }
 }
 
-/**
- *
- */
-sealed trait MetricsEvaluation {
-  def evaluate(metrics: MetricsStore): Boolean
-  def sizing: Map[MetricSource,Int]
+sealed trait ValueComparison {
+  def compare(value: BigDecimal): Boolean
+}
+
+case class ValueEquals(rhs: BigDecimal) extends ValueComparison {
+  def compare(lhs: BigDecimal): Boolean = lhs == rhs
+}
+
+case class ValueNotEquals(rhs: BigDecimal) extends ValueComparison {
+  def compare(lhs: BigDecimal): Boolean = lhs != rhs
+}
+
+case class ValueGreaterThan(rhs: BigDecimal) extends ValueComparison {
+  def compare(lhs: BigDecimal): Boolean = lhs > rhs
+}
+
+case class ValueGreaterEqualThan(rhs: BigDecimal) extends ValueComparison {
+  def compare(lhs: BigDecimal): Boolean = lhs >= rhs
+}
+
+case class ValueLessThan(rhs: BigDecimal) extends ValueComparison {
+  def compare(lhs: BigDecimal): Boolean = lhs < rhs
+}
+
+case class ValueLessEqualThan(rhs: BigDecimal) extends ValueComparison {
+  def compare(lhs: BigDecimal): Boolean = lhs <= rhs
 }
 
 /**
  *
  */
-case class ValueEquals(source: MetricSource, rhs: MetricValue) extends MetricsEvaluation {
-  def evaluate(metrics: MetricsStore): Boolean = metrics.headOption(source) match {
-    case Some(lhs: MetricValue) => lhs == rhs
-    case None => false
+sealed trait WindowFunction {
+  def apply(window: MetricWindow): Option[Boolean]
+}
+
+case class HeadFunction(comparison: ValueComparison) extends WindowFunction {
+  def apply(window: MetricWindow): Option[Boolean] = window.headOption match {
+    case Some(value) => if (comparison.compare(value)) Some(true) else Some(false)
+    case None => None
   }
-  def sizing = Map(source -> 1)
+}
+
+case class EachFunction(comparison: ValueComparison) extends WindowFunction {
+  def apply(window: MetricWindow): Option[Boolean] = window.foldLeft(Some(true)) { case (value,result) =>
+    if (!comparison.compare(value)) return Some(false)
+    result
+  }
+}
+
+case class MeanFunction(comparison: ValueComparison) extends WindowFunction {
+  def apply(window: MetricWindow): Option[Boolean] = {
+    val (sum, num) = window.foldLeft((BigDecimal(0), 0)) { case (value, (s, n)) => (s + value, n + 1)}
+    Some(comparison.compare(sum / num))
+  }
 }
 
 /**
  *
  */
-case class ValueNotEquals(source: MetricSource, rhs: MetricValue) extends MetricsEvaluation {
-  def evaluate(metrics: MetricsStore): Boolean = metrics.headOption(source) match {
-    case Some(lhs: MetricValue) => lhs != rhs
-    case None => false
-  }
-  def sizing = Map(source -> 1)
+sealed trait EvaluationExpression {
+  def evaluate(metrics: MetricsStore): Option[Boolean]
+  def sources: Set[MetricSource]
 }
 
-/**
- *
- */
-case class ValueGreaterThan(source: MetricSource, rhs: MetricValue) extends MetricsEvaluation {
-  def evaluate(metrics: MetricsStore): Boolean = metrics.headOption(source) match {
-    case Some(lhs: MetricValue) => lhs > rhs
-    case None => false
-  }
-  def sizing = Map(source -> 1)
+case class EvaluateSource(source: MetricSource, function: WindowFunction) extends EvaluationExpression {
+  def evaluate(metrics: MetricsStore) = function.apply(metrics.window(source))
+  val sources = Set(source)
 }
 
-/**
- *
- */
-case class ValueLessThan(source: MetricSource, rhs: MetricValue) extends MetricsEvaluation {
-  def evaluate(metrics: MetricsStore): Boolean = metrics.headOption(source) match {
-    case Some(lhs: MetricValue) => lhs < rhs
-    case None => false
-  }
-  def sizing = Map(source -> 1)
-}
-
-/**
- *
- */
-case class LogicalAnd(children: Vector[MetricsEvaluation]) extends MetricsEvaluation {
-  def evaluate(metrics: MetricsStore): Boolean = {
-    children.foreach { child => if (!child.evaluate(metrics)) return false }
-    true
-  }
-  def sizing = children.foldLeft(Map.empty[MetricSource,Int]) { case (map,child) =>
-    map ++ child.sizing.filter {
-      case (source, sizing) => sizing > map.getOrElse(source, 0)
+case class LogicalAnd(children: Vector[EvaluationExpression]) extends EvaluationExpression {
+  def evaluate(metrics: MetricsStore): Option[Boolean] = {
+    children.foreach {
+      child => child.evaluate(metrics) match {
+        case None => return None
+        case Some(false) => return Some(false)
+        case Some(true) =>  // do nothing
+      }
     }
+    Some(true)
   }
+  val sources = children.flatMap(_.sources).toSet
 }
 
-/**
- *
- */
-case class LogicalOr(children: Vector[MetricsEvaluation]) extends MetricsEvaluation {
-  def evaluate(metrics: MetricsStore): Boolean = {
-    children.foreach { child => if (child.evaluate(metrics)) return true}
-    false
-  }
-  def sizing = children.foldLeft(Map.empty[MetricSource,Int]) { case (map,child) =>
-    map ++ child.sizing.filter {
-      case (source, sizing) => sizing > map.getOrElse(source, 0)
+case class LogicalOr(children: Vector[EvaluationExpression]) extends EvaluationExpression {
+  def evaluate(metrics: MetricsStore): Option[Boolean] = {
+    children.foreach {
+      child => child.evaluate(metrics) match {
+        case None =>        // do nothing
+        case Some(false) => // do nothing
+        case Some(true) => return Some(true)
+      }
     }
+    Some(false)
   }
+  val sources = children.flatMap(_.sources).toSet
+}
+
+case class LogicalNot(child: EvaluationExpression) extends EvaluationExpression {
+  def evaluate(metrics: MetricsStore): Option[Boolean] = child.evaluate(metrics) match {
+    case None => None
+    case Some(result) => Some(!result)
+  }
+  val sources = child.sources
+}
+
+case object AlwaysTrue extends EvaluationExpression {
+  def evaluate(metrics: MetricsStore): Option[Boolean] = Some(true)
+  val sources = Set.empty[MetricSource]
+}
+
+case object AlwaysFalse extends EvaluationExpression {
+  def evaluate(metrics: MetricsStore): Option[Boolean] = Some(false)
+  val sources = Set.empty[MetricSource]
+}
+
+case object AlwaysUnknown extends EvaluationExpression {
+  def evaluate(metrics: MetricsStore): Option[Boolean] = None
+  val sources = Set.empty[MetricSource]
 }
 
 /**
  *
  */
-case class LogicalNot(child: MetricsEvaluation) extends MetricsEvaluation {
-  def evaluate(metrics: MetricsStore): Boolean = !child.evaluate(metrics)
-  def sizing = child.sizing
-}
-
-case object AlwaysTrue extends MetricsEvaluation {
-  def evaluate(metrics: MetricsStore): Boolean = true
-  def sizing = Map.empty
-}
-
-case object AlwaysFalse extends MetricsEvaluation {
-  def evaluate(metrics: MetricsStore): Boolean = false
-  def sizing = Map.empty
+case class MetricsEvaluation(expression: EvaluationExpression) {
+  def evaluate(metrics: MetricsStore): Option[Boolean] = expression.evaluate(metrics)
+  def sizing: Map[MetricSource,Int] = expression.sources.map(_ -> 1).toMap
 }
 
 /**
@@ -267,25 +257,33 @@ class MetricsEvaluationParser extends JavaTokenParsers {
 
   def metricSource = bareSource
 
-  def metricValue: Parser[MetricValue] = wholeNumber ^^ { case v => MetricValue(v.toLong) }
+  def metricValue: Parser[BigDecimal] = wholeNumber ^^ { case v => BigDecimal(v.toLong) }
 
-  def equalsScalar: Parser[MetricsEvaluation] = _log(metricSource ~ literal("==") ~ metricValue)("equalsScalar") ^^ {
-    case source ~ "==" ~ value => ValueEquals(source, value)
+  def equals: Parser[EvaluationExpression] = _log(metricSource ~ literal("==") ~ metricValue)("equals") ^^ {
+    case source ~ "==" ~ value => EvaluateSource(source, HeadFunction(ValueEquals(value)))
   }
 
-  def notEqualsScalar: Parser[MetricsEvaluation] = _log(metricSource ~ literal("!=") ~ metricValue)("notEqualsScalar") ^^ {
-    case source ~ "!=" ~ value => ValueNotEquals(source, value)
+  def notEquals: Parser[EvaluationExpression] = _log(metricSource ~ literal("!=") ~ metricValue)("notEquals") ^^ {
+    case source ~ "!=" ~ value => EvaluateSource(source, HeadFunction(ValueNotEquals(value)))
   }
 
-  def lessThanScalar: Parser[MetricsEvaluation] = _log(metricSource ~ literal("<") ~ metricValue)("lessThanScalar") ^^ {
-    case source ~ "<" ~ value => ValueLessThan(source, value)
+  def lessThan: Parser[EvaluationExpression] = _log(metricSource ~ literal("<") ~ metricValue)("lessThan") ^^ {
+    case source ~ "<" ~ value => EvaluateSource(source, HeadFunction(ValueLessThan(value)))
   }
 
-  def greaterThanScalar: Parser[MetricsEvaluation] = _log(metricSource ~ literal(">") ~ metricValue)("greaterThanScalar") ^^ {
-    case source ~ ">" ~ value => ValueGreaterThan(source, value)
+  def lessThanEqual: Parser[EvaluationExpression] = _log(metricSource ~ literal("<=") ~ metricValue)("lessThanEqual") ^^ {
+    case source ~ "<=" ~ value => EvaluateSource(source, HeadFunction(ValueLessEqualThan(value)))
   }
 
-  def scalarEvaluation: Parser[MetricsEvaluation] = _log(equalsScalar | notEqualsScalar | lessThanScalar | greaterThanScalar)("scalarEvaluation")
+  def greaterThan: Parser[EvaluationExpression] = _log(metricSource ~ literal(">") ~ metricValue)("greaterThan") ^^ {
+    case source ~ ">" ~ value => EvaluateSource(source, HeadFunction(ValueGreaterThan(value)))
+  }
+
+  def greaterThanEqual: Parser[EvaluationExpression] = _log(metricSource ~ literal(">=") ~ metricValue)("greaterThanEqual") ^^ {
+    case source ~ ">=" ~ value => EvaluateSource(source, HeadFunction(ValueGreaterEqualThan(value)))
+  }
+
+  def scalarEvaluation: Parser[EvaluationExpression] = equals | notEquals | lessThanEqual | lessThan | greaterThanEqual | greaterThan
 
   /*
    * <Query>        ::= <OrOperator>
@@ -295,42 +293,42 @@ class MetricsEvaluationParser extends JavaTokenParsers {
    * <Group>        ::= '(' <OrOperator> ')' | <Expression>
    */
 
-  def groupOperator: Parser[MetricsEvaluation] = _log((literal("(") ~> orOperator <~ literal(")")) | scalarEvaluation)("groupOperator") ^^ {
-    case group: MetricsEvaluation => group
+  def groupOperator: Parser[EvaluationExpression] = _log((literal("(") ~> orOperator <~ literal(")")) | scalarEvaluation)("groupOperator") ^^ {
+    case group: EvaluationExpression => group
   }
 
-  def notOperator: Parser[MetricsEvaluation] = _log(("not" ~ notOperator) | groupOperator)("notOperator") ^^ {
-    case "not" ~ (not: MetricsEvaluation) => LogicalNot(not)
-    case group: MetricsEvaluation => group
+  def notOperator: Parser[EvaluationExpression] = _log(("not" ~ notOperator) | groupOperator)("notOperator") ^^ {
+    case "not" ~ (not: EvaluationExpression) => LogicalNot(not)
+    case group: EvaluationExpression => group
   }
 
-  def andOperator: Parser[MetricsEvaluation] = _log(notOperator ~ rep("and" ~ notOperator))("andOperator") ^^ {
+  def andOperator: Parser[EvaluationExpression] = _log(notOperator ~ rep("and" ~ notOperator))("andOperator") ^^ {
     case not1 ~ nots if nots.isEmpty =>
       not1
     case not1 ~ nots =>
-      val children: Vector[MetricsEvaluation] = nots.map { case "and" ~ group => group }.toVector
+      val children: Vector[EvaluationExpression] = nots.map { case "and" ~ group => group }.toVector
       LogicalAnd(not1 +: children)
   }
 
-  def orOperator: Parser[MetricsEvaluation] = _log(andOperator ~ rep("or" ~ andOperator))("orOperator") ^^ {
+  def orOperator: Parser[EvaluationExpression] = _log(andOperator ~ rep("or" ~ andOperator))("orOperator") ^^ {
     case and1 ~ ands if ands.isEmpty =>
       and1
     case and1 ~ ands =>
-      val children: Vector[MetricsEvaluation] = ands.map { case "or" ~ group => group }.toVector
+      val children: Vector[EvaluationExpression] = ands.map { case "or" ~ group => group }.toVector
       LogicalOr(and1 +: children)
   }
 
   /* the entry point */
-  val ruleExpression: Parser[MetricsEvaluation] = _log(orOperator)("ruleExpression")
+  val ruleExpression: Parser[EvaluationExpression] = _log(orOperator)("ruleExpression")
 
   /* */
   def whenClause: Parser[MetricsEvaluation] = _log(literal("when") ~ ruleExpression)("whenClause") ^^ {
-    case "when" ~ expression => expression
+    case "when" ~ expression => MetricsEvaluation(expression)
   }
 
   /* */
   def unlessClause: Parser[MetricsEvaluation] = _log(literal("unless") ~ ruleExpression)("unlessClause") ^^ {
-    case "unless" ~ expression => LogicalNot(expression)
+    case "unless" ~ expression => MetricsEvaluation(LogicalNot(expression))
   }
 
   def metricsEvaluation: Parser[MetricsEvaluation] = _log(whenClause | unlessClause)("metricsEvaluation")

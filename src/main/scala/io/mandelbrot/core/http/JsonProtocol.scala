@@ -23,6 +23,7 @@ import spray.json._
 import spray.http.{ContentTypes, HttpEntity}
 import org.joda.time.DateTime
 import scala.concurrent.duration.{FiniteDuration, Duration}
+import scala.math.BigDecimal
 import org.joda.time.format.ISODateTimeFormat
 import java.util.UUID
 import java.net.URI
@@ -310,11 +311,11 @@ object JsonProtocol extends DefaultJsonProtocol {
   implicit val UnregisterMaintenanceWindowResultFormat = jsonFormat2(UnregisterMaintenanceWindowResult)
 
   /* metrics types */
-  implicit object MetricValueFormat extends RootJsonFormat[MetricValue] {
-    def write(value: MetricValue) = JsString(value.toString)
+  implicit object BigDecimalFormat extends RootJsonFormat[BigDecimal] {
+    def write(value: BigDecimal) = JsString(value.toString())
     def read(value: JsValue) = value match {
-      case JsNumber(v) => if (v.isValidLong) MetricValue(v.toLongExact) else MetricValue(v.toDouble)
-      case JsString(v) => if (v.contains(".")) MetricValue(v.toDouble) else MetricValue(v.toLong)
+      case JsNumber(v) => v
+      case JsString(v) => BigDecimal(v)
       case unknown => throw new DeserializationException("unknown metric value type " + unknown)
     }
   }

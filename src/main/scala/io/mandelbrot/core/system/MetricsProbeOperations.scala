@@ -83,9 +83,16 @@ trait MetricsProbeOperations extends ProbeFSM with Actor {
      */
     case Event(message: MetricsMessage, MetricsProbeFSMState(evaluation, metrics, flapQueue)) =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      // FIXME: push new metrics
-      // FIXME: this is a lame calculation
-      val newHealth = if (evaluation.evaluate(metrics)) ProbeFailed else ProbeHealthy
+      // push new metrics into the store
+      message.metrics.foreach { case (metricName,metricValue) =>
+          val source = MetricSource(message.source.path, metricName)
+          metrics.push(source, metricValue)
+      }
+      // evaluate the store
+      val newHealth = evaluation.evaluate(metrics) match {
+        case Some(result) => if (result) ProbeFailed else ProbeHealthy
+        case None => ProbeUnknown
+      }
       val correlation = if (newHealth == ProbeHealthy) None else {
         if (correlationId.isDefined) correlationId else Some(UUID.randomUUID())
       }
