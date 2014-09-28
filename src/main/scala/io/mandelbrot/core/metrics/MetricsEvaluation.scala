@@ -202,8 +202,8 @@ class MetricsEvaluationParser extends JavaTokenParsers {
 
   def bareSource: Parser[MetricSource] = regex("[a-zA-Z][a-zA-Z0-9_]*".r) ^^ { MetricSource(Vector.empty, _) }
 
-  def qualifiedSource: Parser[MetricSource] = rep1(regex("""/[^#/]+""".r)) ~ literal("#") ~ bareSource ^^ {
-    case (segments: List[String]) ~ "#" ~ MetricSource(_, name) => MetricSource(segments.toVector, name)
+  def qualifiedSource: Parser[MetricSource] = rep1(regex("""/[^:/]+""".r)) ~ literal(":") ~ bareSource ^^ {
+    case (segments: List[String]) ~ "#" ~ MetricSource(_, name) => MetricSource(segments.toVector.map(_.tail), name)
   }
 
   def metricSource = bareSource

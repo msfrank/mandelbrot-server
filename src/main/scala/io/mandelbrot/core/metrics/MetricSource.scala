@@ -19,4 +19,36 @@
 
 package io.mandelbrot.core.metrics
 
-case class MetricSource(probePath: Vector[String], metricName: String)
+class MetricSource(val probePath: Vector[String], val metricName: String) extends Ordered[MetricSource] {
+
+  def compare(that: MetricSource): Int = toString.compareTo(that.toString)
+
+  override def equals(other: Any): Boolean = other match {
+    case other: MetricSource => probePath.equals(other.probePath) && metricName.equals(other.metricName)
+    case _ => false
+  }
+
+  override def hashCode() = toString.hashCode
+
+  override def toString = if (probePath.isEmpty) metricName else probePath.mkString("/", "/", ":") + metricName
+}
+
+object MetricSource {
+  def apply(probePath: Vector[String], metricName: String): MetricSource = new MetricSource(probePath, metricName)
+
+  def apply(string: String): MetricSource = {
+    val index = string.indexOf(':')
+    if (index == -1) new MetricSource(Vector.empty, string) else {
+      if (string.head != '/')
+        throw new IllegalArgumentException()
+      val (path,name) = string.splitAt(index)
+      new MetricSource(path.tail.split('/').toVector, name)
+    }
+  }
+
+  def unapply(source: MetricSource): Option[(Vector[String], String)] = Some((source.probePath, source.metricName))
+}
+
+sealed trait SourceType
+case object GaugeSource extends SourceType    { override def toString = "gauge" }
+case object CounterSource extends SourceType  { override def toString = "counter" }

@@ -9,7 +9,7 @@ class MetricsEvaluationParserSpec extends WordSpec with MustMatchers {
 
   "MetricsEvaluationParser" must {
 
-    val source = MetricSource(Vector.empty, "foo")
+    val source = MetricSource("foo")
 
     "parse 'when foo == 0'" in {
       val evaluation = new MetricsEvaluationParser().parseMetricsEvaluation("when foo == 0")

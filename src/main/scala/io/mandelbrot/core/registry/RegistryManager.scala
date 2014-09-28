@@ -239,10 +239,11 @@ case class ProbeSpec(probeType: String,
                      children: Map[String,ProbeSpec]) extends Serializable
 
 /* metric specification */
-case class MetricSpec(step: FiniteDuration,
-                      heartbeat: FiniteDuration,
-                      unit: MetricUnit,
-                      cf: ConsolidationFunction) extends Serializable
+case class MetricSpec(sourceType: SourceType,
+                      metricUnit: MetricUnit,
+                      step: Option[FiniteDuration],
+                      heartbeat: Option[FiniteDuration],
+                      cf: Option[ConsolidationFunction]) extends Serializable
 
 /* a dynamic probe system registration */
 case class ProbeRegistration(systemType: String,

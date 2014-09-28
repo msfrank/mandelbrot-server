@@ -89,9 +89,7 @@ object JsonProtocol extends DefaultJsonProtocol {
   implicit object ProbeRefFormat extends RootJsonFormat[ProbeRef] {
     def write(ref: ProbeRef) = JsString(ref.toString)
     def read(value: JsValue) = value match {
-      case JsString(string) =>
-        val parts = string.split('/')
-        ProbeRef(new URI(parts.head), parts.tail.toVector)
+      case JsString(string) => ProbeRef(string)
       case _ => throw new DeserializationException("expected ProbeRef")
     }
   }
@@ -106,7 +104,14 @@ object JsonProtocol extends DefaultJsonProtocol {
     }
   }
 
-  implicit val MetricSourceFormat = jsonFormat2(MetricSource)
+  /* convert ProbeRef class */
+  implicit object MetricSourceFormat extends RootJsonFormat[MetricSource] {
+    def write(source: MetricSource) = JsString(source.toString)
+    def read(value: JsValue) = value match {
+      case JsString(string) => MetricSource(string)
+      case _ => throw new DeserializationException("expected ProbeRef")
+    }
+  }
 
   /* convert MetricsEvaluation class */
   implicit object MetricsEvaluationFormat extends RootJsonFormat[MetricsEvaluation] {
@@ -160,11 +165,22 @@ object JsonProtocol extends DefaultJsonProtocol {
   /* convert ProbePolicy class */
   implicit val ProbePolicyFormat = jsonFormat5(ProbePolicy)
 
+
+  /* convert MetricsEvaluation class */
+  implicit object SourceTypeFormat extends RootJsonFormat[SourceType] {
+    def write(sourceType: SourceType) = JsString(sourceType.toString)
+    def read(value: JsValue) = value match {
+      case JsString("gauge") => GaugeSource
+      case JsString("counter") => CounterSource
+      case _ => throw new DeserializationException("expected SourceType")
+    }
+  }
+
   /* convert MetricsEvaluation class */
   implicit object MetricUnitFormat extends RootJsonFormat[MetricUnit] {
     def write(unit: MetricUnit) = JsString(unit.name)
     def read(value: JsValue) = value match {
-      case JsString("none") => NoUnit
+      case JsString("units") => Units
       case JsString("years") => Years
       case JsString("months") => Months
       case JsString("weeks") => Weeks
@@ -198,7 +214,7 @@ object JsonProtocol extends DefaultJsonProtocol {
   }
 
   /* convert MetricSpec class */
-  implicit val MetricSpecFormat = jsonFormat4(MetricSpec)
+  implicit val MetricSpecFormat = jsonFormat5(MetricSpec)
 
   /* a little extra magic here- we use lazyFormat because ProbeSpec has a recursive definition */
   implicit val _ProbeSpecFormat: JsonFormat[ProbeSpec] = lazyFormat(jsonFormat(ProbeSpec, "probeType", "metadata", "policy", "behavior", "children"))
