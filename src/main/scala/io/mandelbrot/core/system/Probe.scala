@@ -21,6 +21,7 @@ package io.mandelbrot.core.system
 
 import akka.actor._
 import io.mandelbrot.core.ServiceMap
+import io.mandelbrot.core.util.Timer
 import org.joda.time.DateTime
 import scala.concurrent.duration._
 import java.util.UUID

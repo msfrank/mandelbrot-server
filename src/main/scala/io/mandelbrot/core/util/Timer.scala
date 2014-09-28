@@ -17,7 +17,7 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.system
+package io.mandelbrot.core.util
 
 import akka.actor.{ActorContext, ActorRef, Cancellable}
 import org.joda.time.{DateTime, DateTimeZone}

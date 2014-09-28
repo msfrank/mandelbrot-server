@@ -17,72 +17,31 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.system
+package io.mandelbrot.core.metrics
 
 import org.slf4j.LoggerFactory
-import scala.concurrent.duration.FiniteDuration
-import scala.util.parsing.combinator.JavaTokenParsers
 import scala.collection.mutable
 import scala.math.BigDecimal
+import scala.util.parsing.combinator.JavaTokenParsers
 
-case class MetricSource(probePath: Vector[String], metricName: String)
+import io.mandelbrot.core.util.CircularBuffer
 
 /**
  *
  */
-class MetricWindow(val size: Int) {
-  if (size <= 0) throw new IllegalArgumentException()
-
-  private var curr: Int = 0
-  private var array = Array.fill[Option[BigDecimal]](size)(None)
-
-  def push(value: BigDecimal): Unit = {
-    array(curr) = Some(value)
-    curr = if (curr + 1 == array.size) 0 else curr + 1
-  }
-
-  private def lookup(index: Int): Int = {
-    if (index < 0 || index >= array.size) throw new IndexOutOfBoundsException()
-    if (curr - index - 1 < 0)
-      array.size + (curr - index - 1)
-    else
-      curr - index - 1
-  }
-
-  def apply(index: Int): BigDecimal = array(lookup(index)).get
-  def get(index: Int): Option[BigDecimal] = array(lookup(index))
-  def head: BigDecimal = apply(0)
-  def headOption: Option[BigDecimal] = get(0)
-  def foldLeft[A](z: A)(op: (BigDecimal, A) => A): A = {
-    var out = z
-    for (i <- 0.until(array.size)) {
-      get(i) match {
-        case None => return out
-        case Some(v) => out = op(v, out)
-      }
-    }
-    out
-  }
-
-  def resize(newSize: Int): Unit = {
-    if (newSize <= 0) throw new IllegalArgumentException()
-    val resized = Array.fill[Option[BigDecimal]](newSize)(None)
-    var next = curr
-    var index = 0
-    for (_ <- 0.until(array.size)) {
-      resized(index) = array(next)
-      index = if (index + 1 == resized.size) 0 else index + 1
-      next = if (next + 1 == array.size) 0 else next + 1
-    }
-    curr = index
-    array = resized
-  }
+case class MetricsEvaluation(expression: EvaluationExpression) {
+  def evaluate(metrics: MetricsStore): Option[Boolean] = expression.evaluate(metrics)
+  def sizing: Map[MetricSource,Int] = expression.sources.map(_ -> 1).toMap
 }
+
+/* */
+class MetricWindow(size: Int) extends CircularBuffer[BigDecimal](size)
 
 /**
  *
  */
 class MetricsStore(evaluation: MetricsEvaluation) {
+
   private val metrics = new mutable.HashMap[MetricSource, MetricWindow]
   resize(evaluation)
 
@@ -93,7 +52,7 @@ class MetricsStore(evaluation: MetricsEvaluation) {
   def get(source: MetricSource, index: Int): Option[BigDecimal] = metrics.get(source).flatMap(_.get(index))
   def head(source: MetricSource): BigDecimal = metrics(source).head
   def headOption(source: MetricSource): Option[BigDecimal] = metrics.get(source).flatMap(_.headOption)
-  def push(source: MetricSource, value: BigDecimal): Unit = metrics.get(source).map(_.push(value))
+  def append(source: MetricSource, value: BigDecimal): Unit = metrics.get(source).map(_.append(value))
 
   def resize(evaluation: MetricsEvaluation): Unit = {
     evaluation.sizing.foreach { case (source,size) =>
@@ -229,17 +188,9 @@ case object AlwaysUnknown extends EvaluationExpression {
 /**
  *
  */
-case class MetricsEvaluation(expression: EvaluationExpression) {
-  def evaluate(metrics: MetricsStore): Option[Boolean] = expression.evaluate(metrics)
-  def sizing: Map[MetricSource,Int] = expression.sources.map(_ -> 1).toMap
-}
-
-/**
- *
- */
 class MetricsEvaluationParser extends JavaTokenParsers {
 
-  val logger = LoggerFactory.getLogger(classOf[ProbeMatcherParser])
+  val logger = LoggerFactory.getLogger(classOf[MetricsEvaluationParser])
 
   /* shamelessly copied from Parsers.scala */
   def _log[T](p: => Parser[T])(name: String): Parser[T] = Parser { in =>

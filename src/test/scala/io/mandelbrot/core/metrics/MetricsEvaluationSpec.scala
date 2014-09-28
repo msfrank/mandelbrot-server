@@ -1,7 +1,8 @@
-package io.mandelbrot.core.system
+package io.mandelbrot.core.metrics
 
 import org.scalatest.WordSpec
 import org.scalatest.matchers.MustMatchers
+
 import scala.math.BigDecimal
 
 class MetricsEvaluationSpec extends WordSpec with MustMatchers {
@@ -13,40 +14,40 @@ class MetricsEvaluationSpec extends WordSpec with MustMatchers {
     "evaluate ==" in {
       val evaluation = MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueEquals(BigDecimal(10)))))
       val metrics = new MetricsStore(evaluation)
-      metrics.push(source, BigDecimal(10))
+      metrics.append(source, BigDecimal(10))
       evaluation.evaluate(metrics) must be(Some(true))
-      metrics.push(source, BigDecimal(11))
+      metrics.append(source, BigDecimal(11))
       evaluation.evaluate(metrics) must be(Some(false))
     }
 
     "evaluate !=" in {
       val evaluation = MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueNotEquals(BigDecimal(10)))))
       val metrics = new MetricsStore(evaluation)
-      metrics.push(source, BigDecimal(10))
+      metrics.append(source, BigDecimal(10))
       evaluation.evaluate(metrics) must be(Some(false))
-      metrics.push(source, BigDecimal(11))
+      metrics.append(source, BigDecimal(11))
       evaluation.evaluate(metrics) must be(Some(true))
     }
 
     "evaluate <" in {
       val evaluation = MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueLessThan(BigDecimal(10)))))
       val metrics = new MetricsStore(evaluation)
-      metrics.push(source, BigDecimal(5))
+      metrics.append(source, BigDecimal(5))
       evaluation.evaluate(metrics) must be(Some(true))
-      metrics.push(source, BigDecimal(10))
+      metrics.append(source, BigDecimal(10))
       evaluation.evaluate(metrics) must be(Some(false))
-      metrics.push(source, BigDecimal(15))
+      metrics.append(source, BigDecimal(15))
       evaluation.evaluate(metrics) must be(Some(false))
     }
 
     "evaluate >" in {
       val evaluation = MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueGreaterThan(BigDecimal(10)))))
       val metrics = new MetricsStore(evaluation)
-      metrics.push(source, BigDecimal(5))
+      metrics.append(source, BigDecimal(5))
       evaluation.evaluate(metrics) must be(Some(false))
-      metrics.push(source, BigDecimal(10))
+      metrics.append(source, BigDecimal(10))
       evaluation.evaluate(metrics) must be(Some(false))
-      metrics.push(source, BigDecimal(15))
+      metrics.append(source, BigDecimal(15))
       evaluation.evaluate(metrics) must be(Some(true))
     }
   }
@@ -66,21 +67,21 @@ class MetricWindowSpec extends WordSpec with MustMatchers {
       evaluating { window(5) } must produce[IndexOutOfBoundsException]
     }
 
-    "push multiple elements into the window" in {
+    "append multiple elements into the window" in {
       val window = new MetricWindow(5)
-      window.push(BigDecimal(1L))
-      window.push(BigDecimal(2L))
-      window.push(BigDecimal(3L))
-      window.push(BigDecimal(4L))
-      window.push(BigDecimal(5L))
+      window.append(BigDecimal(1L))
+      window.append(BigDecimal(2L))
+      window.append(BigDecimal(3L))
+      window.append(BigDecimal(4L))
+      window.append(BigDecimal(5L))
       window(0) must be === BigDecimal(5L)
       window(1) must be === BigDecimal(4L)
       window(2) must be === BigDecimal(3L)
       window(3) must be === BigDecimal(2L)
       window(4) must be === BigDecimal(1L)
-      window.push(BigDecimal(6L))
-      window.push(BigDecimal(7L))
-      window.push(BigDecimal(8L))
+      window.append(BigDecimal(6L))
+      window.append(BigDecimal(7L))
+      window.append(BigDecimal(8L))
       window(0) must be === BigDecimal(8L)
       window(1) must be === BigDecimal(7L)
       window(2) must be === BigDecimal(6L)
@@ -90,9 +91,9 @@ class MetricWindowSpec extends WordSpec with MustMatchers {
 
     "get the head element" in {
       val window = new MetricWindow(5)
-      window.push(BigDecimal(3L))
-      window.push(BigDecimal(2L))
-      window.push(BigDecimal(1L))
+      window.append(BigDecimal(3L))
+      window.append(BigDecimal(2L))
+      window.append(BigDecimal(1L))
       window.head must be === BigDecimal(1L)
       window.headOption must be === Some(BigDecimal(1L))
       window.get(0) must be === Some(BigDecimal(1L))
@@ -101,9 +102,9 @@ class MetricWindowSpec extends WordSpec with MustMatchers {
 
     "retrieve elements by index" in {
       val window = new MetricWindow(5)
-      window.push(BigDecimal(3L))
-      window.push(BigDecimal(2L))
-      window.push(BigDecimal(1L))
+      window.append(BigDecimal(3L))
+      window.append(BigDecimal(2L))
+      window.append(BigDecimal(1L))
       window.get(0) must be === Some(BigDecimal(1L))
       window.get(1) must be === Some(BigDecimal(2L))
       window.get(2) must be === Some(BigDecimal(3L))
@@ -120,17 +121,17 @@ class MetricWindowSpec extends WordSpec with MustMatchers {
 
     "fold elements" in {
       val window = new MetricWindow(5)
-      window.push(BigDecimal(3L))
-      window.push(BigDecimal(2L))
-      window.push(BigDecimal(1L))
+      window.append(BigDecimal(3L))
+      window.append(BigDecimal(2L))
+      window.append(BigDecimal(1L))
       window.foldLeft(0L) { case (v,sum) => v.toLong + sum } must be === 6L
     }
 
     "resize with new size greater than old size" in {
       val window = new MetricWindow(3)
-      window.push(BigDecimal(3L))
-      window.push(BigDecimal(2L))
-      window.push(BigDecimal(1L))
+      window.append(BigDecimal(3L))
+      window.append(BigDecimal(2L))
+      window.append(BigDecimal(1L))
       window.resize(5)
       window.get(0) must be === Some(BigDecimal(1L))
       window.get(1) must be === Some(BigDecimal(2L))
@@ -141,11 +142,11 @@ class MetricWindowSpec extends WordSpec with MustMatchers {
 
     "resize with new size smaller than old size" in {
       val window = new MetricWindow(5)
-      window.push(BigDecimal(5L))
-      window.push(BigDecimal(4L))
-      window.push(BigDecimal(3L))
-      window.push(BigDecimal(2L))
-      window.push(BigDecimal(1L))
+      window.append(BigDecimal(5L))
+      window.append(BigDecimal(4L))
+      window.append(BigDecimal(3L))
+      window.append(BigDecimal(2L))
+      window.append(BigDecimal(1L))
       window.resize(3)
       window.get(0) must be === Some(BigDecimal(1L))
       window.get(1) must be === Some(BigDecimal(2L))

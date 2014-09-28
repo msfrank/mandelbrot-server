@@ -1,7 +1,8 @@
-package io.mandelbrot.core.system
+package io.mandelbrot.core.metrics
 
 import org.scalatest.WordSpec
 import org.scalatest.matchers.MustMatchers
+
 import scala.math.BigDecimal
 
 class MetricsEvaluationParserSpec extends WordSpec with MustMatchers {

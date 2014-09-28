@@ -27,6 +27,7 @@ import scala.collection.JavaConversions._
 import java.net.URI
 
 import io.mandelbrot.core._
+import io.mandelbrot.core.metrics._
 import io.mandelbrot.core.system._
 
 /**
@@ -230,17 +231,24 @@ case class ProbePolicy(joiningTimeout: FiniteDuration,
                        leavingTimeout: FiniteDuration,
                        notifications: Option[Set[String]]) extends Serializable
 
-/* the probe specification */
+/* probe specification */
 case class ProbeSpec(probeType: String,
                      metadata: Map[String,String],
                      policy: ProbePolicy,
                      behavior: ProbeBehavior,
                      children: Map[String,ProbeSpec]) extends Serializable
 
+/* metric specification */
+case class MetricSpec(step: FiniteDuration,
+                      heartbeat: FiniteDuration,
+                      unit: MetricUnit,
+                      cf: ConsolidationFunction) extends Serializable
+
 /* a dynamic probe system registration */
 case class ProbeRegistration(systemType: String,
                              metadata: Map[String,String],
-                             probes: Map[String,ProbeSpec]) extends Serializable
+                             probes: Map[String,ProbeSpec],
+                             metrics: Map[MetricSource,MetricSpec]) extends Serializable
 
 /* */
 case class ProbeSystemMetadata(joinedOn: DateTime, lastUpdate: DateTime)

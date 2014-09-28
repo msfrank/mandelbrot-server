@@ -22,6 +22,7 @@ package io.mandelbrot.core.system
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import com.typesafe.config.ConfigFactory
+import io.mandelbrot.core.metrics.{EvaluateSource, HeadFunction, ValueGreaterThan, MetricsEvaluation}
 import org.joda.time.DateTime
 import org.scalatest.matchers.MustMatchers
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
@@ -30,6 +31,7 @@ import scala.math.BigDecimal
 import scala.util.Success
 
 import io.mandelbrot.core.notification._
+import io.mandelbrot.core.metrics._
 import io.mandelbrot.core.registry.ProbePolicy
 import io.mandelbrot.core.state.{InitializeProbeState, ProbeState, ProbeStatusCommitted}
 import io.mandelbrot.core.{Blackhole, ServiceMap}

@@ -32,6 +32,7 @@ import java.nio.charset.Charset
 
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.history._
+import io.mandelbrot.core.metrics._
 import io.mandelbrot.core.system._
 import io.mandelbrot.core.notification._
 
@@ -105,13 +106,15 @@ object JsonProtocol extends DefaultJsonProtocol {
     }
   }
 
+  implicit val MetricSourceFormat = jsonFormat2(MetricSource)
+
   /* convert MetricsEvaluation class */
   implicit object MetricsEvaluationFormat extends RootJsonFormat[MetricsEvaluation] {
     val metricsEvaluationParser = new MetricsEvaluationParser()
     def write(evaluation: MetricsEvaluation) = JsString(evaluation.toString)
     def read(value: JsValue) = value match {
       case JsString(string) => metricsEvaluationParser.parseMetricsEvaluation(string)
-      case _ => throw new DeserializationException("expected ProbeMatcher")
+      case _ => throw new DeserializationException("expected MetricsEvaluation")
     }
   }
 
@@ -157,12 +160,52 @@ object JsonProtocol extends DefaultJsonProtocol {
   /* convert ProbePolicy class */
   implicit val ProbePolicyFormat = jsonFormat5(ProbePolicy)
 
+  /* convert MetricsEvaluation class */
+  implicit object MetricUnitFormat extends RootJsonFormat[MetricUnit] {
+    def write(unit: MetricUnit) = JsString(unit.name)
+    def read(value: JsValue) = value match {
+      case JsString("none") => NoUnit
+      case JsString("years") => Years
+      case JsString("months") => Months
+      case JsString("weeks") => Weeks
+      case JsString("days") => Days
+      case JsString("hours") => Hours
+      case JsString("minutes") => Minutes
+      case JsString("seconds") => Seconds
+      case JsString("milliseconds") => Millis
+      case JsString("microseconds") => Micros
+      case JsString("bytes") => Bytes
+      case JsString("kilobytes") => KiloBytes
+      case JsString("megabytes") => MegaBytes
+      case JsString("gigabytes") => GigaBytes
+      case JsString("terabytes") => TeraBytes
+      case JsString("petabytes") => PetaBytes
+      case _ => throw new DeserializationException("expected MetricUnit")
+    }
+  }
+
+  /* convert MetricsEvaluation class */
+  implicit object ConsolidationFunctionFormat extends RootJsonFormat[ConsolidationFunction] {
+    def write(function: ConsolidationFunction) = JsString(function.name)
+    def read(value: JsValue) = value match {
+      case JsString("last") => ConsolidateLast
+      case JsString("first") => ConsolidateFirst
+      case JsString("min") => ConsolidateMin
+      case JsString("max") => ConsolidateMax
+      case JsString("mean") => ConsolidateMean
+      case _ => throw new DeserializationException("expected ConsolidationFunction")
+    }
+  }
+
+  /* convert MetricSpec class */
+  implicit val MetricSpecFormat = jsonFormat4(MetricSpec)
+
   /* a little extra magic here- we use lazyFormat because ProbeSpec has a recursive definition */
   implicit val _ProbeSpecFormat: JsonFormat[ProbeSpec] = lazyFormat(jsonFormat(ProbeSpec, "probeType", "metadata", "policy", "behavior", "children"))
   implicit val ProbeSpecFormat = rootFormat(_ProbeSpecFormat)
 
   /* convert ProbeRegistration class */
-  implicit val ProbeRegistrationFormat = jsonFormat3(ProbeRegistration)
+  implicit val ProbeRegistrationFormat = jsonFormat4(ProbeRegistration)
 
   /* convert ProbeSystemMetadata class */
   implicit val ProbeSystemMetadataFormat = jsonFormat2(ProbeSystemMetadata)

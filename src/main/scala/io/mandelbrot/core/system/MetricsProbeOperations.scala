@@ -28,6 +28,7 @@ import scala.collection.mutable
 import scala.util.{Failure, Success}
 
 import io.mandelbrot.core.notification._
+import io.mandelbrot.core.metrics._
 import io.mandelbrot.core.state.DeleteProbeState
 
 /**
@@ -86,7 +87,7 @@ trait MetricsProbeOperations extends ProbeFSM with Actor {
       // push new metrics into the store
       message.metrics.foreach { case (metricName,metricValue) =>
           val source = MetricSource(message.source.path, metricName)
-          metrics.push(source, metricValue)
+          metrics.append(source, metricValue)
       }
       // evaluate the store
       val newHealth = evaluation.evaluate(metrics) match {

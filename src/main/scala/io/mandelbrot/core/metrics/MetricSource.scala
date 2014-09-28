@@ -17,29 +17,6 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.system
+package io.mandelbrot.core.metrics
 
-import io.mandelbrot.core.metrics.MetricsEvaluation
-
-import scala.concurrent.duration.FiniteDuration
-
-sealed trait ProbeBehavior
-
-/**
- *
- */
-case class ScalarProbeBehavior(flapWindow: FiniteDuration,
-                               flapDeviations: Int) extends ProbeBehavior
-
-/**
- *
- */
-case class AggregateProbeBehavior(flapWindow: FiniteDuration,
-                                  flapDeviations: Int) extends ProbeBehavior
-
-/**
- *
- */
-case class MetricsProbeBehavior(evaluation: MetricsEvaluation,
-                                flapWindow: FiniteDuration,
-                                flapDeviations: Int) extends ProbeBehavior
+case class MetricSource(probePath: Vector[String], metricName: String)
