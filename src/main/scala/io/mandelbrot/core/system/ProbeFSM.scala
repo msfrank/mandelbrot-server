@@ -24,6 +24,7 @@ import java.util.UUID
 import akka.actor.{Actor, Stash, LoggingFSM, ActorRef}
 import akka.pattern.ask
 import akka.pattern.pipe
+import io.mandelbrot.core.metrics.MetricsBus
 import io.mandelbrot.core.util.Timer
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.Future
@@ -51,6 +52,7 @@ trait ProbeFSM extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Actor with St
   val parent: ActorRef
   val probeGeneration: Long
   val services: ServiceMap
+  val metricsBus: MetricsBus
 
   // state
   var children: Set[ProbeRef]

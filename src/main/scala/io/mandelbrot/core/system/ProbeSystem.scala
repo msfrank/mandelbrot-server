@@ -23,6 +23,7 @@ import akka.actor._
 import akka.pattern.ask
 import akka.pattern.pipe
 import akka.util.Timeout
+import io.mandelbrot.core.metrics.MetricsBus
 import org.joda.time.DateTime
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -54,6 +55,7 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
   val retiredProbes = new mutable.HashMap[ActorRef,(ProbeRef,Long)]
   val zombieProbes = new mutable.HashSet[ProbeRef]
   val links = new mutable.HashMap[ProbeRef,ProbeLink]
+  val metricsBus = new MetricsBus()
 
   var notifier: Option[ActorRef] = Some(services.notificationService)
 
@@ -170,14 +172,21 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
           ProbeSystemOperationFailed(query, failure.failure)
       }.pipeTo(sender())
 
-    /* send message to specified probe */
-    case message: ProbeMessage =>
+    /* send status message to specified probe */
+    case message: StatusMessage =>
       probes.get(message.source) match {
         case Some(probeActor: ProbeActor) =>
           probeActor.actor ! message
         case None =>
-          log.warning("ignoring message {}: probe is not known", message)
+          log.warning("ignoring message {}: probe source is not known", message)
       }
+
+    /* send metrics message to all interested probes */
+    case message: MetricsMessage =>
+      if (probes.contains(message.source))
+        metricsBus.publish(message)
+      else
+        log.warning("ignoring message {}: probe source is not known", message)
 
     /* forward probe operations to the specified probe */
     case op: ProbeOperation =>
@@ -260,9 +269,9 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
       }}
       val actor = ref.parentOption match {
         case Some(parent) if parent.path.nonEmpty =>
-          context.actorOf(Probe.props(ref, probes(parent).actor, directChildren, probeSpec.policy, probeSpec.behavior, lsn, services))
+          context.actorOf(Probe.props(ref, probes(parent).actor, directChildren, probeSpec.policy, probeSpec.behavior, lsn, services, metricsBus))
         case _ =>
-          context.actorOf(Probe.props(ref, self, directChildren, probeSpec.policy, probeSpec.behavior, lsn, services))
+          context.actorOf(Probe.props(ref, self, directChildren, probeSpec.policy, probeSpec.behavior, lsn, services, metricsBus))
       }
       context.watch(actor)
       log.debug("probe {} joins", ref)

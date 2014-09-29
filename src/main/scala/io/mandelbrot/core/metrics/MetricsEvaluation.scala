@@ -30,8 +30,9 @@ import io.mandelbrot.core.util.CircularBuffer
  *
  */
 case class MetricsEvaluation(expression: EvaluationExpression) {
+  val sources: Set[MetricSource] = expression.sources
+  val sizing: Map[MetricSource,Int] = expression.sources.map(_ -> 1).toMap
   def evaluate(metrics: MetricsStore): Option[Boolean] = expression.evaluate(metrics)
-  def sizing: Map[MetricSource,Int] = expression.sources.map(_ -> 1).toMap
 }
 
 /* */
@@ -44,6 +45,8 @@ class MetricsStore(evaluation: MetricsEvaluation) {
 
   private val metrics = new mutable.HashMap[MetricSource, MetricWindow]
   resize(evaluation)
+
+  def sources = metrics.keySet
 
   def window(source: MetricSource): MetricWindow = metrics(source)
   def windowOption(source: MetricSource): Option[MetricWindow] = metrics.get(source)

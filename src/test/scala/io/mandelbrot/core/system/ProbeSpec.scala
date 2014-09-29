@@ -3,6 +3,7 @@ package io.mandelbrot.core.system
 import akka.actor.{ActorSystem, Terminated}
 import akka.testkit.{ImplicitSender, TestActorRef, TestKit}
 import com.typesafe.config.ConfigFactory
+import io.mandelbrot.core.metrics.MetricsBus
 import org.joda.time.DateTime
 import org.scalatest.matchers.MustMatchers
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
@@ -43,7 +44,8 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val behavior = ScalarProbeBehavior(1.hour, 17)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, blackhole, blackhole)
-      val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), blackhole, Set.empty, policy, behavior, 0, services))
+      val metricsBus = new MetricsBus()
+      val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val probe = actor.underlyingActor
       probe.lifecycle must be(ProbeInitializing)
       probe.health must be(ProbeUnknown)
@@ -60,7 +62,8 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val behavior = ScalarProbeBehavior(1.hour, 17)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, self, blackhole)
-      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services))
+      val metricsBus = new MetricsBus()
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
       lastSender ! Success(ProbeState(status, 0))
@@ -79,7 +82,8 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val behavior = ScalarProbeBehavior(1.hour, 17)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, self, blackhole)
-      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services))
+      val metricsBus = new MetricsBus()
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       watch(actor)
       expectMsgClass(classOf[InitializeProbeState])
       val status = ProbeStatus(ref, DateTime.now(), ProbeKnown, ProbeHealthy, None, None, None, None, None, false)

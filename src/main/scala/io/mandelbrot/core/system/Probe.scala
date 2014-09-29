@@ -20,14 +20,15 @@
 package io.mandelbrot.core.system
 
 import akka.actor._
-import io.mandelbrot.core.ServiceMap
-import io.mandelbrot.core.util.Timer
 import org.joda.time.DateTime
 import scala.concurrent.duration._
 import java.util.UUID
 
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.notification._
+import io.mandelbrot.core.ServiceMap
+import io.mandelbrot.core.metrics.MetricsBus
+import io.mandelbrot.core.util.Timer
 
 /**
  * the Probe actor encapsulates all of the monitoring business logic.  For every probe
@@ -39,10 +40,11 @@ class Probe(val probeRef: ProbeRef,
             var policy: ProbePolicy,
             var behavior: ProbeBehavior,
             val probeGeneration: Long,
-            val services: ServiceMap) extends ProbeFSM
-                                      with ScalarProbeOperations
-                                      with AggregateProbeOperations
-                                      with MetricsProbeOperations {
+            val services: ServiceMap,
+            val metricsBus: MetricsBus) extends ProbeFSM
+                                        with ScalarProbeOperations
+                                        with AggregateProbeOperations
+                                        with MetricsProbeOperations {
   import Probe._
   import context.dispatcher
 
@@ -83,8 +85,9 @@ object Probe {
             policy: ProbePolicy,
             behavior: ProbeBehavior,
             probeGeneration: Long,
-            services: ServiceMap) = {
-    Props(classOf[Probe], probeRef, parent, children, policy, behavior, probeGeneration, services)
+            services: ServiceMap,
+            metricsBus: MetricsBus) = {
+    Props(classOf[Probe], probeRef, parent, children, policy, behavior, probeGeneration, services, metricsBus)
   }
 
   case class SendNotifications(notifications: Vector[Notification])

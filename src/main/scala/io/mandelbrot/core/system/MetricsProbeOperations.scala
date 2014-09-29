@@ -24,7 +24,6 @@ import java.util.UUID
 import akka.actor.{PoisonPill, Actor}
 import akka.pattern.ask
 import org.joda.time.{DateTimeZone, DateTime}
-import scala.collection.mutable
 import scala.util.{Failure, Success}
 
 import io.mandelbrot.core.notification._
