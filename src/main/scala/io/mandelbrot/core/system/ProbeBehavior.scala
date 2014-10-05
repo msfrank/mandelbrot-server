@@ -19,27 +19,38 @@
 
 package io.mandelbrot.core.system
 
-import io.mandelbrot.core.metrics.MetricsEvaluation
+import io.mandelbrot.core.notification.Notification
+import io.mandelbrot.core.system.Probe.{ProbeExpiryTimeout, ProbeAlertTimeout}
 
-import scala.concurrent.duration.FiniteDuration
-
-sealed trait ProbeBehavior
-
-/**
- *
- */
-case class ScalarProbeBehavior(flapWindow: FiniteDuration,
-                               flapDeviations: Int) extends ProbeBehavior
+import scala.concurrent.Future
 
 /**
  *
  */
-case class AggregateProbeBehavior(flapWindow: FiniteDuration,
-                                  flapDeviations: Int) extends ProbeBehavior
+trait ProbeBehavior {
+  def makeProbeBehavior(): ProbeBehaviorInterface
+}
 
 /**
  *
  */
-case class MetricsProbeBehavior(evaluation: MetricsEvaluation,
-                                flapWindow: FiniteDuration,
-                                flapDeviations: Int) extends ProbeBehavior
+trait ProbeBehaviorInterface {
+  def enter(probe: ProbeInterface): Option[ProbeMutation]
+  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[ProbeMutation]
+  def processStatus(probe: ProbeInterface, message: StatusMessage): Option[ProbeMutation]
+  def processMetrics(probe: ProbeInterface, message: MetricsMessage): Option[ProbeMutation]
+  def processChild(probe: ProbeInterface, message: ProbeStatus): Option[ProbeMutation]
+  def processAlertTimeout(probe: ProbeInterface): Option[ProbeMutation]
+  def processExpiryTimeout(probe: ProbeInterface): Option[ProbeMutation]
+  def retire(probe: ProbeInterface, lsn: Long): Option[ProbeMutation]
+  def exit(probe: ProbeInterface): Option[ProbeMutation]
+
+  def process(probe: ProbeInterface, message: Any): Option[ProbeMutation] = message match {
+    case m: StatusMessage => processStatus(probe, m)
+    case m: MetricsMessage => processMetrics(probe, m)
+    case m: ProbeStatus => processChild(probe, m)
+    case ProbeAlertTimeout => processAlertTimeout(probe)
+    case ProbeExpiryTimeout => processExpiryTimeout(probe)
+    case _ => throw new IllegalArgumentException()
+  }
+}

@@ -113,6 +113,15 @@ object JsonProtocol extends DefaultJsonProtocol {
     }
   }
 
+  /* convert AggregateEvaluation class */
+  implicit object AggregateEvaluationFormat extends RootJsonFormat[AggregateEvaluation] {
+    def write(evaluation: AggregateEvaluation) = JsString(evaluation.toString)
+    def read(value: JsValue) = value match {
+      case JsString(string) => EvaluateWorst
+      case _ => throw new DeserializationException("expected AggregateEvaluation")
+    }
+  }
+
   /* convert MetricsEvaluation class */
   implicit object MetricsEvaluationFormat extends RootJsonFormat[MetricsEvaluation] {
     val metricsEvaluationParser = new MetricsEvaluationParser()
@@ -123,13 +132,13 @@ object JsonProtocol extends DefaultJsonProtocol {
     }
   }
 
-  /* convert BehaviorPolicy implementations */
-  implicit val ScalarBehaviorPolicyFormat = jsonFormat2(ScalarProbeBehavior)
-  implicit val AggregateBehaviorPolicyFormat = jsonFormat2(AggregateProbeBehavior)
-  implicit val MetricsBehaviorPolicyFormat = jsonFormat3(MetricsProbeBehavior)
+  /* convert ProbeBehavior implementations */
+  implicit val ScalarBehaviorFormat = jsonFormat2(ScalarProbeBehavior)
+  implicit val AggregateBehaviorFormat = jsonFormat3(AggregateProbeBehavior)
+  implicit val MetricsBehaviorFormat = jsonFormat3(MetricsProbeBehavior)
 
-  /* convert BehaviorPolicy class */
-  implicit object BehaviorPolicyFormat extends RootJsonFormat[ProbeBehavior] {
+  /* convert ProbeBehavior class */
+  implicit object ProbeBehaviorFormat extends RootJsonFormat[ProbeBehavior] {
     def write(behaviorPolicy: ProbeBehavior) = behaviorPolicy match {
       case behavior: AggregateProbeBehavior =>
         JsObject(Map("behaviorType" -> JsString("aggregate"), "behaviorPolicy" -> behavior.toJson))
@@ -146,11 +155,11 @@ object JsonProtocol extends DefaultJsonProtocol {
           throw new DeserializationException("missing behaviorPolicy")
         fields.get("behaviorType") match {
           case Some(JsString("aggregate")) =>
-            AggregateBehaviorPolicyFormat.read(fields("behaviorPolicy"))
+            AggregateBehaviorFormat.read(fields("behaviorPolicy"))
           case Some(JsString("scalar")) =>
-            ScalarBehaviorPolicyFormat.read(fields("behaviorPolicy"))
+            ScalarBehaviorFormat.read(fields("behaviorPolicy"))
           case Some(JsString("metrics")) =>
-            MetricsBehaviorPolicyFormat.read(fields("behaviorPolicy"))
+            MetricsBehaviorFormat.read(fields("behaviorPolicy"))
           case Some(JsString(unknown)) =>
             throw new DeserializationException("unknown behaviorType " + unknown)
           case None =>
