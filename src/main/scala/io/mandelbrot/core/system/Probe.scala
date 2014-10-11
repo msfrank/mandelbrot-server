@@ -362,7 +362,22 @@ class Probe(val probeRef: ProbeRef,
     case _ -> StaleProbe => unstashAll()
   }
 
-  initialize()
+  /**
+   * send the notification if the notification set policy is not specified (meaning
+   * send all notifications) or if the policy is specified and this specific notification
+   * type is in the notification set.
+   */
+  def sendNotification(notification: Notification): Unit = notification match {
+    case alert: Alert =>
+      log.debug("sending alert {}", notification)
+      services.notificationService ! alert
+    case _ if policy.notifications.isEmpty || policy.notifications.get.contains(notification.kind) =>
+      log.debug("sending notification {}", notification)
+      services.notificationService ! notification
+    case _ => // drop notification
+  }
+
+  def sendNotifications(notifications: Iterable[Notification]): Unit = notifications.foreach(sendNotification)
 
   /**
    * ensure all timers are stopped, so we don't get spurious messages (and the corresponding
@@ -372,6 +387,9 @@ class Probe(val probeRef: ProbeRef,
     expiryTimer.stop()
     alertTimer.stop()
   }
+
+  /* FSM initialization is the last step in the constructor */
+  initialize()
 }
 
 object Probe {

@@ -76,25 +76,6 @@ trait ProbeOperations extends Actor with ProbeInterface {
       _squelch = status.squelched
   }
 
-  /**
-   * send the notification if the notification set policy is not specified (meaning
-   * send all notifications) or if the policy is specified and this specific notification
-   * type is in the notification set.
-   */
-  def sendNotification(notification: Notification): Unit = notification match {
-    case alert: Alert =>
-      services.notificationService ! alert
-    case _ =>
-      if (policy.notifications.isEmpty)
-        services.notificationService ! notification
-      else if (policy.notifications.get.contains(notification.kind))
-        services.notificationService ! notification
-  }
-
-  def sendNotifications(notifications: Iterable[Notification]): Unit = {
-    println("sendNotifications: " + notifications)
-    notifications.foreach(sendNotification)
-  }
 
 //  /**
 //   *

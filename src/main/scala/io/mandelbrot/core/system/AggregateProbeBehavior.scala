@@ -52,7 +52,7 @@ class AggregateProbeBehaviorImpl(evaluation: AggregateEvaluation) extends ProbeB
     probe.expiryTimer.restart(probe.policy.joiningTimeout)
     val status = if (probe.lifecycle == ProbeInitializing) {
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      probe.getProbeStatus.copy(lifecycle = ProbeJoining, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
+      probe.getProbeStatus.copy(lifecycle = ProbeSynthetic, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
     } else probe.getProbeStatus
     Some(EventMutation(status, Vector.empty))
   }
