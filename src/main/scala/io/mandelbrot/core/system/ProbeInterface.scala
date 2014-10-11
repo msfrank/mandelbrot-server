@@ -20,6 +20,7 @@
 package io.mandelbrot.core.system
 
 import akka.actor.ActorRef
+import io.mandelbrot.core.metrics.{MetricSource, MetricsBus}
 import org.joda.time.{DateTimeZone, DateTime}
 import java.util.UUID
 
@@ -52,4 +53,8 @@ trait ProbeInterface {
 
   def getProbeStatus(timestamp: DateTime) = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
   def getProbeStatus: ProbeStatus = getProbeStatus(DateTime.now(DateTimeZone.UTC))
+
+  /* */
+  def subscribeToMetrics(probePath: Vector[String]): Unit
+  def unsubscribeFromMetrics(probePath: Vector[String]): Unit
 }

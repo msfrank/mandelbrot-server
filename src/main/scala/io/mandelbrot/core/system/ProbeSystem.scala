@@ -188,6 +188,9 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
       else
         log.warning("ignoring message {}: probe source is not known", message)
 
+    /* ignore probe status from top level probes */
+    case status: ProbeStatus =>
+
     /* forward probe operations to the specified probe */
     case op: ProbeOperation =>
       probes.get(op.probeRef) match {

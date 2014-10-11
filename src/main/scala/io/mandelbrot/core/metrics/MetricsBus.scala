@@ -10,10 +10,10 @@ import io.mandelbrot.core.system.{ProbeRef, MetricsMessage}
  */
 class MetricsBus extends EventBus with LookupClassification {
   type Event = MetricsMessage
-  type Classifier = ProbeRef
+  type Classifier = Vector[String]
   type Subscriber = ActorRef
 
-  override protected def classify(event: Event): Classifier = event.source
+  override protected def classify(event: Event): Classifier = event.source.path
   override protected def publish(event: Event, subscriber: Subscriber): Unit = subscriber ! event
   override protected def compareSubscribers(a: Subscriber, b: Subscriber): Int = a.compareTo(b)
 

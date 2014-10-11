@@ -44,11 +44,12 @@ class MetricsProbeBehaviorImpl(evaluation: MetricsEvaluation) extends ProbeBehav
   def enter(probe: ProbeInterface): Option[EventMutation] = {
     probe.alertTimer.stop()
     probe.expiryTimer.restart(probe.policy.joiningTimeout)
-    val status = if (probe.lifecycle == ProbeInitializing) {
+    metrics.sources.map(_.probePath).toSet.foreach(probe.subscribeToMetrics)
+    if (probe.lifecycle == ProbeInitializing) {
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      probe.getProbeStatus.copy(lifecycle = ProbeJoining, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
-    } else probe.getProbeStatus
-    Some(EventMutation(status, Vector.empty))
+      val status = probe.getProbeStatus.copy(lifecycle = ProbeJoining, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
+      Some(EventMutation(status, Vector.empty))
+    } else None
   }
 
   /*
@@ -206,6 +207,7 @@ class MetricsProbeBehaviorImpl(evaluation: MetricsEvaluation) extends ProbeBehav
   def exit(probe: ProbeInterface): Option[EventMutation] = {
     // stop timers
     probe.alertTimer.stop()
+    metrics.sources.map(_.probePath).toSet.foreach(probe.unsubscribeFromMetrics)
     None
   }
 }

@@ -20,16 +20,14 @@
 package io.mandelbrot.core.system
 
 import akka.actor._
-import akka.pattern.ask
-import akka.pattern.pipe
-import io.mandelbrot.core.state.{DeleteProbeState, ProbeStatusCommitted, ProbeState, InitializeProbeState}
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 import java.util.UUID
 
+import io.mandelbrot.core._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.notification._
-import io.mandelbrot.core._
+import io.mandelbrot.core.state._
 import io.mandelbrot.core.metrics.MetricsBus
 import io.mandelbrot.core.util.Timer
 
@@ -48,7 +46,6 @@ class Probe(val probeRef: ProbeRef,
             val services: ServiceMap,
             val metricsBus: MetricsBus) extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Stash with ProbeOperations {
   import Probe._
-  import context.dispatcher
 
   // config
   val timeout = 5.seconds
@@ -69,9 +66,6 @@ class Probe(val probeRef: ProbeRef,
 
   /* we start in Initializing state */
   startWith(InitializingProbe, NoData)
-
-  private def setCommitTimer() = setTimer("commit", ProbeCommitTimeout, timeout)
-  private def cancelCommitTimer() = cancelTimer("commit")
 
   /**
    * before starting the FSM, request the ProbeState from the state service.  the result
@@ -123,64 +117,6 @@ class Probe(val probeRef: ProbeRef,
       // TODO: drop any messages of type Message?
       stash()
       stay()
-  }
-
-  private def persist(state: RunningProbe): RunningProbe = {
-    var queued = state.queued
-    while (queued.nonEmpty) {
-      val mutation: Option[InflightMutation] = queued.head match {
-        case QueuedCommand(command, caller) =>
-          processor.processCommand(this, command) match {
-            case Success(result) =>
-              Some(result)
-            case Failure(ex) =>
-              caller ! ProbeOperationFailed(command, ex)
-              None
-          }
-        case QueuedEvent(event, timestamp) =>
-          processor.processEvent(this, event)
-      }
-      mutation match {
-        case None =>
-          queued = queued.tail
-        case mutation @ Some(CommandMutation( _, status, _)) =>
-          services.stateService ! ProbeState(status, probeGeneration)
-          setCommitTimer()
-          return RunningProbe(mutation, queued)
-        case mutation @ Some(EventMutation(status, _)) =>
-          services.stateService ! ProbeState(status, probeGeneration)
-          setCommitTimer()
-          return RunningProbe(mutation, queued)
-      }
-    }
-    RunningProbe(None, queued)
-  }
-
-  private def enqueue(state: RunningProbe, message: QueuedMessage): RunningProbe = {
-    val updated = RunningProbe(state.inflight, state.queued :+ message)
-    if (state.inflight.isDefined) updated else persist(updated)
-  }
-
-  private def process(state: RunningProbe): RunningProbe = {
-    cancelCommitTimer()
-    state.inflight match {
-      case Some(EventMutation(status, notifications)) =>
-        setProbeStatus(status)
-        parent ! status
-        sendNotifications(notifications)
-      case Some(CommandMutation(result, status, notifications)) =>
-        setProbeStatus(status)
-        // blegh this is ugly
-        state.queued.head.asInstanceOf[QueuedCommand].caller ! result
-        sendNotifications(notifications)
-    }
-    persist(RunningProbe(None, state.queued.tail))
-  }
-
-  private def recover(state: RunningProbe): RunningProbe = {
-    cancelCommitTimer()
-    // FIXME: implement some retry policy here
-    persist(RunningProbe(None, state.queued.tail))
   }
 
   /*
@@ -362,6 +298,70 @@ class Probe(val probeRef: ProbeRef,
     case _ -> StaleProbe => unstashAll()
   }
 
+  private def setCommitTimer() = setTimer("commit", ProbeCommitTimeout, timeout)
+  private def cancelCommitTimer() = cancelTimer("commit")
+
+  /**
+   *
+   */
+  private def persist(state: RunningProbe): RunningProbe = {
+    var queued = state.queued
+    while (queued.nonEmpty) {
+      val mutation: Option[InflightMutation] = queued.head match {
+        case QueuedCommand(command, caller) =>
+          processor.processCommand(this, command) match {
+            case Success(result) =>
+              Some(result)
+            case Failure(ex) =>
+              caller ! ProbeOperationFailed(command, ex)
+              None
+          }
+        case QueuedEvent(event, timestamp) =>
+          processor.processEvent(this, event)
+      }
+      mutation match {
+        case None =>
+          queued = queued.tail
+        case mutation @ Some(CommandMutation( _, status, _)) =>
+          services.stateService ! ProbeState(status, probeGeneration)
+          setCommitTimer()
+          return RunningProbe(mutation, queued)
+        case mutation @ Some(EventMutation(status, _)) =>
+          services.stateService ! ProbeState(status, probeGeneration)
+          setCommitTimer()
+          return RunningProbe(mutation, queued)
+      }
+    }
+    RunningProbe(None, queued)
+  }
+
+  private def enqueue(state: RunningProbe, message: QueuedMessage): RunningProbe = {
+    val updated = RunningProbe(state.inflight, state.queued :+ message)
+    if (state.inflight.isDefined) updated else persist(updated)
+  }
+
+  private def process(state: RunningProbe): RunningProbe = {
+    cancelCommitTimer()
+    state.inflight match {
+      case Some(EventMutation(status, notifications)) =>
+        setProbeStatus(status)
+        parent ! status
+        sendNotifications(notifications)
+      case Some(CommandMutation(result, status, notifications)) =>
+        setProbeStatus(status)
+        // blegh this is ugly
+        state.queued.head.asInstanceOf[QueuedCommand].caller ! result
+        sendNotifications(notifications)
+    }
+    persist(RunningProbe(None, state.queued.tail))
+  }
+
+  private def recover(state: RunningProbe): RunningProbe = {
+    cancelCommitTimer()
+    // FIXME: implement some retry policy here
+    persist(RunningProbe(None, state.queued.tail))
+  }
+
   /**
    * send the notification if the notification set policy is not specified (meaning
    * send all notifications) or if the policy is specified and this specific notification
@@ -378,6 +378,16 @@ class Probe(val probeRef: ProbeRef,
   }
 
   def sendNotifications(notifications: Iterable[Notification]): Unit = notifications.foreach(sendNotification)
+
+  /**
+   * subscribe probe to all metrics at the specified probe path.
+   */
+  def subscribeToMetrics(probePath: Vector[String]): Unit = metricsBus.subscribe(self, probePath)
+
+  /**
+   * unsubscribe probe from all metrics at the specified probe path.
+   */
+  def unsubscribeFromMetrics(probePath: Vector[String]): Unit = metricsBus.unsubscribe(self, probePath)
 
   /**
    * ensure all timers are stopped, so we don't get spurious messages (and the corresponding
