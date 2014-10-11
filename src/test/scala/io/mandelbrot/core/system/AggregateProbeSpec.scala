@@ -65,7 +65,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
     "transition to ProbeSynthetic/ProbeHealthy when all children have notified of healthy status" in {
       val ref = ProbeRef("fqdn:local/")
-      val behavior = AggregateProbeBehavior(1.hour, 17)
+      val behavior = AggregateProbeBehavior(EvaluateWorst, 1.hour, 17)
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val children = Set(child1, child2, child3)
       val stateService = new TestProbe(_system)
@@ -89,7 +89,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
     "transition to ProbeSynthetic/ProbeDegraded when one child has notified of degraded status" in {
       val ref = ProbeRef("fqdn:local/")
-      val behavior = AggregateProbeBehavior(1.hour, 17)
+      val behavior = AggregateProbeBehavior(EvaluateWorst, 1.hour, 17)
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val children = Set(child1, child2, child3)
       val stateService = new TestProbe(_system)
@@ -113,7 +113,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
     "transition to ProbeSynthetic/ProbeFailed when one child has notified of failed status" in {
       val ref = ProbeRef("fqdn:local/")
-      val behavior = AggregateProbeBehavior(1.hour, 17)
+      val behavior = AggregateProbeBehavior(EvaluateWorst, 1.hour, 17)
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val children = Set(child1, child2, child3)
       val stateService = new TestProbe(_system)
@@ -137,7 +137,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
     "notify NotificationService when the alert timeout expires" in {
       val ref = ProbeRef("fqdn:local/")
-      val behavior = AggregateProbeBehavior(1.hour, 17)
+      val behavior = AggregateProbeBehavior(EvaluateWorst, 1.hour, 17)
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)
       val children = Set(child1, child2, child3)
       val notificationService = new TestProbe(_system)

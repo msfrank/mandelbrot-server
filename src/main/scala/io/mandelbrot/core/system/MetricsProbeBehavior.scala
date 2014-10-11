@@ -41,27 +41,27 @@ class MetricsProbeBehaviorImpl(evaluation: MetricsEvaluation) extends ProbeBehav
   val metrics = new MetricsStore(evaluation)
   val flapQueue: Option[FlapQueue] = None
 
-  def enter(probe: ProbeInterface): Option[ProbeMutation] = {
+  def enter(probe: ProbeInterface): Option[EventMutation] = {
     probe.alertTimer.stop()
     probe.expiryTimer.restart(probe.policy.joiningTimeout)
     val status = if (probe.lifecycle == ProbeInitializing) {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       probe.getProbeStatus.copy(lifecycle = ProbeJoining, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
     } else probe.getProbeStatus
-    Some(ProbeMutation(status, Vector.empty))
+    Some(EventMutation(status, Vector.empty))
   }
 
   /*
    * if the set of direct children has changed, or the probe policy has updated,
    * then update our state.
    */
-  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[ProbeMutation] = None
+  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventMutation] = None
 
   /* ignore status messages */
-  def processStatus(probe: ProbeInterface, message: StatusMessage): Option[ProbeMutation] = None
+  def processStatus(probe: ProbeInterface, message: StatusMessage): Option[EventMutation] = None
 
   /* ignore child messages */
-  def processChild(probe: ProbeInterface, message: ProbeStatus): Option[ProbeMutation] = None
+  def processChild(probe: ProbeInterface, message: ProbeStatus): Option[EventMutation] = None
 
   /*
    * if we receive a metrics message while joining or known, then update probe state
@@ -71,7 +71,7 @@ class MetricsProbeBehaviorImpl(evaluation: MetricsEvaluation) extends ProbeBehav
    * we set the correlation if it is different from the current correlation, and we start
    * the alert timer.
    */
-  def processMetrics(probe: ProbeInterface, message: MetricsMessage): Option[ProbeMutation] = {
+  def processMetrics(probe: ProbeInterface, message: MetricsMessage): Option[EventMutation] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val lastUpdate = Some(timestamp)
 
@@ -138,7 +138,7 @@ class MetricsProbeBehaviorImpl(evaluation: MetricsEvaluation) extends ProbeBehav
     if (probe.health == ProbeHealthy && probe.acknowledgementId.isDefined)
       notifications = notifications :+ NotifyRecovers(probe.probeRef, timestamp, probe.correlationId.get, probe.acknowledgementId.get)
 
-    Some(ProbeMutation(status, notifications))
+    Some(EventMutation(status, notifications))
   }
 
   /*
@@ -171,13 +171,13 @@ class MetricsProbeBehaviorImpl(evaluation: MetricsEvaluation) extends ProbeBehav
       case _ =>
         Vector(NotifyHealthExpires(probe.probeRef, timestamp, probe.correlationId))
     }
-    Some(ProbeMutation(status, notifications))
+    Some(EventMutation(status, notifications))
   }
 
   /*
    * if the alert timer expires, then send a health-alerts notification and restart the alert timer.
    */
-  def processAlertTimeout(probe: ProbeInterface): Option[ProbeMutation] = {
+  def processAlertTimeout(probe: ProbeInterface): Option[EventMutation] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val status = probe.getProbeStatus(timestamp)
     // restart the alert timer
@@ -186,7 +186,7 @@ class MetricsProbeBehaviorImpl(evaluation: MetricsEvaluation) extends ProbeBehav
     val notifications = probe.correlationId.map { correlation =>
       NotifyHealthAlerts(probe.probeRef, timestamp, probe.health, correlation, probe.acknowledgementId)
     }.toVector
-    Some(ProbeMutation(status, notifications))
+    Some(EventMutation(status, notifications))
   }
 
   /*
@@ -194,16 +194,16 @@ class MetricsProbeBehaviorImpl(evaluation: MetricsEvaluation) extends ProbeBehav
    * retired, state is updated, and lifecycle-changes notification is sent.  finally, all timers
    * are stopped, then the actor itself is stopped.
    */
-  def retire(probe: ProbeInterface, lsn: Long): Option[ProbeMutation] = {
+  def retire(probe: ProbeInterface, lsn: Long): Option[EventMutation] = {
     probe.expiryTimer.stop()
     probe.alertTimer.stop()
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val status = probe.getProbeStatus(timestamp).copy(lifecycle = ProbeRetired, lastChange = Some(timestamp), lastUpdate = Some(timestamp))
     val notifications = Vector(NotifyLifecycleChanges(probe.probeRef, timestamp, probe.lifecycle, ProbeRetired))
-    Some(ProbeMutation(status, notifications))
+    Some(EventMutation(status, notifications))
   }
 
-  def exit(probe: ProbeInterface): Option[ProbeMutation] = {
+  def exit(probe: ProbeInterface): Option[EventMutation] = {
     // stop timers
     probe.alertTimer.stop()
     None

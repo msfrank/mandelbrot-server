@@ -82,11 +82,11 @@ class StateManager extends PersistentActor with ActorLogging {
     case InitializeProbeState(ref, timestamp, lsn) =>
       probeState.get(ref) match {
         case Some(state) =>
-          sender() ! Success(state)
+          sender() ! state
         case None if lsn >= currentLsn =>
           persist(ProbeStatusInitializes(ref, timestamp, lsn))(updateState)
         case None =>
-          sender() ! Failure(new ApiException(ResourceNotFound))
+          sender() ! new ApiException(ResourceNotFound)
       }
 
     /* update current status for ref */
@@ -110,7 +110,7 @@ class StateManager extends PersistentActor with ActorLogging {
         case Left(ref) => Set(ref)
         case Right(refs) => refs.filter(probeState.contains)
       }
-      if (!target.isEmpty) {
+      if (target.nonEmpty) {
         val status = target.map { ref => probeState(ref).status }.toVector
         sender() ! GetCurrentStatusResult(query, status)
       } else
@@ -175,7 +175,7 @@ class StateManager extends PersistentActor with ActorLogging {
       probeState.put(ref, state)
       currentLsn = lsn
       if (!recoveryRunning)
-        sender() ! Success(state)
+        sender() ! state
 
     case ProbeStatusUpdates(status, lsn) =>
       log.debug("status updates for {} (lsn {})", status.probeRef, lsn)

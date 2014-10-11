@@ -7,7 +7,7 @@ object MandelbrotServerBuild extends Build {
   val mandelbrotVersion = "0.0.8"
 
   val scalaLangVersion = "2.10.4"
-  val akkaVersion = "2.3.5"
+  val akkaVersion = "2.3.6"
   val sprayVersion = "1.3.1"
   val luceneVersion = "4.7.1"
   val slickVersion = "2.0.3"

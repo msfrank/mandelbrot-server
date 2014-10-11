@@ -62,7 +62,7 @@ class ProbeFSMSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitS
 
       val policy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
       val scalarBehavior = ScalarProbeBehavior(1.hour, 17)
-      val aggregateBehavior = AggregateProbeBehavior(1.hour, 17)
+      val aggregateBehavior = AggregateProbeBehavior(EvaluateWorst, 1.hour, 17)
 
       val probe = system.actorOf(Probe.props(ref, blackhole, children, policy, scalarBehavior, 0, services, metricsBus))
       stateService.expectMsgClass(classOf[InitializeProbeState])
@@ -99,7 +99,7 @@ class ProbeFSMSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitS
       val metricsBus = new MetricsBus()
 
       val policy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
-      val aggregateBehavior = AggregateProbeBehavior(1.hour, 17)
+      val aggregateBehavior = AggregateProbeBehavior(EvaluateWorst, 1.hour, 17)
       val scalarBehavior = ScalarProbeBehavior(1.hour, 17)
 
       val probe = system.actorOf(Probe.props(ref, blackhole, children, policy, aggregateBehavior, 0, services, metricsBus))
