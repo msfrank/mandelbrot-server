@@ -39,6 +39,7 @@ import io.mandelbrot.core.registry._
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.history._
 import io.mandelbrot.core.notification._
+import io.mandelbrot.core.tracking._
 
 /**
  * ApiService contains the REST API logic.
@@ -386,6 +387,64 @@ trait ApiService extends HttpService {
               HttpResponse(StatusCodes.OK)
             case failure: NotificationManagerOperationFailed =>
               throw failure.failure
+          }
+        }
+      }
+    }
+  }
+
+  val objectsTicketsRoutes = {
+    path("tickets") {
+      /* create new tracking ticket */
+      post {
+        entity(as[CreateTicket]) { case createTicket: CreateTicket =>
+          complete {
+            services.trackingService.ask(createTicket).map {
+              case result: CreateTicketResult =>
+                HttpResponse(StatusCodes.Accepted,
+                  headers = List(Location("/objects/tickets/" + result.ticket.toString)),
+                  entity = JsonBody(result.ticket.toJson))
+              case failure: TrackingServiceOperationFailed =>
+                throw failure.failure
+            }
+          }
+        }
+      } ~
+      /* enumerate all tracking tickets */
+      get {
+        pagingParams { paging =>
+        complete {
+          services.trackingService.ask(ListTrackingTickets(paging.last, paging.limit)).map {
+            case result: ListTrackingTicketsResult =>
+              result.tickets
+            case failure: TrackingServiceOperationFailed =>
+              throw failure.failure
+          }
+        }}
+      } ~
+      pathPrefix("tickets" / JavaUUID) { case uuid: UUID =>
+          //      /* modify an existing tracking ticket */
+          //      put {
+          //        entity(as[AppendWorknote]) { case appendWorknote: AppendWorknote =>
+          //          complete {
+          //            services.trackingService.ask(appendWorknote)).map {
+          //              case result: AppendWorknoteResult =>
+          //                result.ticket
+          //              case failure: TrackingServiceOperationFailed =>
+          //                throw failure.failure
+          //            }
+          //          }
+          //        }
+          //      } ~
+          /* close an existing tracking ticket */
+        delete {
+          complete {
+            services.trackingService.ask(ResolveTicket(uuid)).map {
+              case result: ResolveTicketResult =>
+                HttpResponse(StatusCodes.OK)
+              case failure: TrackingServiceOperationFailed =>
+                throw failure.failure
+            }
           }
         }
       }

@@ -31,7 +31,7 @@ import io.mandelbrot.core.state._
 import io.mandelbrot.core.metrics.MetricsBus
 import io.mandelbrot.core.util.Timer
 
-import scala.util.{Try, Failure, Success}
+import scala.util.{Failure, Success}
 
 /**
  * the Probe actor encapsulates all of the monitoring business logic.  For every probe
@@ -44,7 +44,7 @@ class Probe(val probeRef: ProbeRef,
             var behavior: ProbeBehavior,
             val probeGeneration: Long,
             val services: ServiceMap,
-            val metricsBus: MetricsBus) extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Stash with ProbeOperations {
+            val metricsBus: MetricsBus) extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Stash with ProbeInterface {
   import Probe._
 
   // config
@@ -298,7 +298,34 @@ class Probe(val probeRef: ProbeRef,
     case _ -> StaleProbe => unstashAll()
   }
 
+  /* implement accessors for ProbeInterface */
+  def lifecycle: ProbeLifecycle = _lifecycle
+  def health: ProbeHealth = _health
+  def summary: Option[String] = _summary
+  def lastChange: Option[DateTime] = _lastChange
+  def lastUpdate: Option[DateTime] = _lastUpdate
+  def correlationId: Option[UUID] = _correlationId
+  def acknowledgementId: Option[UUID] = _acknowledgementId
+  def squelch: Boolean = _squelch
+
+  /**
+   * set internal state based on the specified ProbeStatus.
+   */
+  def setProbeStatus(status: ProbeStatus): Unit = {
+      _lifecycle = status.lifecycle
+      _health = status.health
+      _summary = status.summary
+      _lastChange = status.lastChange
+      _lastUpdate = status.lastUpdate
+      _correlationId = status.correlation
+      _acknowledgementId = status.acknowledged
+      _squelch = status.squelched
+  }
+
+  /* set/reset the commit timer */
   private def setCommitTimer() = setTimer("commit", ProbeCommitTimeout, timeout)
+
+  /* cancel the commit timer */
   private def cancelCommitTimer() = cancelTimer("commit")
 
   /**

@@ -55,10 +55,6 @@ class TrackingManager extends Actor with ActorLogging {
     case command: ResolveTicket =>
       log.debug("resolve ticket for {}", command.acknowledgement)
       sender() ! ResolveTicketResult(command, command.acknowledgement)
-
-    case command: CloseTicket =>
-      log.debug("delete ticket for {}", command.acknowledgement)
-      sender() ! CloseTicketResult(command, command.acknowledgement)
   }
 }
 
@@ -74,17 +70,17 @@ sealed trait TrackingServiceCommand extends TrackingServiceOperation
 sealed trait TrackingServiceQuery extends TrackingServiceOperation
 case class TrackingServiceOperationFailed(op: TrackingServiceOperation, failure: Throwable)
 
+case class ListTrackingTickets(last: Option[String], limit: Option[Int]) extends TrackingServiceQuery
+case class ListTrackingTicketsResult(op: ListTrackingTickets, tickets: Vector[UUID], last: Option[String])
+
 case class CreateTicket(acknowledgement: UUID, timestamp: DateTime, probeRef: ProbeRef, correlation: UUID) extends TrackingServiceCommand
-case class CreateTicketResult(op: CreateTicket, acknowledgement: UUID)
+case class CreateTicketResult(op: CreateTicket, ticket: UUID)
 
 case class AppendWorknote(acknowledgement: UUID, timestamp: DateTime, description: String, internal: Boolean) extends TrackingServiceCommand
-case class AppendWorknoteResult(op: AppendWorknote, acknowledgement: UUID)
+case class AppendWorknoteResult(op: AppendWorknote, ticket: UUID)
 
 case class ResolveTicket(acknowledgement: UUID) extends TrackingServiceCommand
-case class ResolveTicketResult(op: ResolveTicket, acknowledgement: UUID)
-
-case class CloseTicket(acknowledgement: UUID) extends TrackingServiceCommand
-case class CloseTicketResult(op: CloseTicket, acknowledgement: UUID)
+case class ResolveTicketResult(op: ResolveTicket, ticket: UUID)
 
 /* marker trait for Tracker implementations */
 trait Tracker

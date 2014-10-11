@@ -34,6 +34,7 @@ import io.mandelbrot.core.registry._
 import io.mandelbrot.core.history._
 import io.mandelbrot.core.metrics._
 import io.mandelbrot.core.system._
+import io.mandelbrot.core.tracking._
 import io.mandelbrot.core.notification._
 
 object JsonProtocol extends DefaultJsonProtocol {
@@ -377,6 +378,14 @@ object JsonProtocol extends DefaultJsonProtocol {
   implicit val ModifyMaintenanceWindowResultFormat = jsonFormat2(ModifyMaintenanceWindowResult)
   implicit val UnregisterMaintenanceWindowFormat = jsonFormat1(UnregisterMaintenanceWindow)
   implicit val UnregisterMaintenanceWindowResultFormat = jsonFormat2(UnregisterMaintenanceWindowResult)
+
+  /* tracking service operations */
+  implicit val CreateTicketFormat = jsonFormat4(CreateTicket)
+  implicit val CreateTicketResultFormat = jsonFormat2(CreateTicketResult)
+  implicit val AppendWorknoteFormat = jsonFormat4(AppendWorknote)
+  implicit val AppendWorknoteResultFormat = jsonFormat2(AppendWorknoteResult)
+  implicit val ResolveTicketFormat = jsonFormat1(ResolveTicket)
+  implicit val ResolveTicketResultFormat = jsonFormat2(ResolveTicketResult)
 
   /* metrics types */
   implicit object BigDecimalFormat extends RootJsonFormat[BigDecimal] {
