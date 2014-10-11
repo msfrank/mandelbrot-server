@@ -92,6 +92,7 @@ trait ProbeOperations extends Actor with ProbeInterface {
   }
 
   def sendNotifications(notifications: Iterable[Notification]): Unit = {
+    println("sendNotifications: " + notifications)
     notifications.foreach(sendNotification)
   }
 

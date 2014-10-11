@@ -21,35 +21,21 @@ package io.mandelbrot.core.system
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
-import com.typesafe.config.ConfigFactory
 import io.mandelbrot.core.metrics.MetricsBus
 import org.joda.time.DateTime
 import org.scalatest.matchers.MustMatchers
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import scala.concurrent.duration._
-import scala.util.Success
 
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.registry.ProbePolicy
 import io.mandelbrot.core.state.{InitializeProbeState, ProbeState, ProbeStatusCommitted}
-import io.mandelbrot.core.{Blackhole, ServiceMap}
+import io.mandelbrot.core.{PersistenceConfig, AkkaConfig, Blackhole, ServiceMap}
+import io.mandelbrot.core.ConfigConversions._
 
 class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpec with MustMatchers with BeforeAndAfterAll {
 
-  def this() = this(ActorSystem("ScalarProbeSpec", ConfigFactory.parseString(
-    """
-      |akka {
-      |  persistence {
-      |    journal {
-      |      plugin = "akka.persistence.journal.inmem"
-      |      inmem {
-      |        class = "akka.persistence.journal.inmem.InmemJournal"
-      |        plugin-dispatcher = "akka.actor.default-dispatcher"
-      |      }
-      |    }
-      |  }
-      |}
-    """.stripMargin)))
+  def this() = this(ActorSystem("ScalarProbeSpec", AkkaConfig ++ PersistenceConfig))
 
   // shutdown the actor system
   override def afterAll() {
@@ -150,7 +136,7 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "notify StateService when the joining timeout expires" in {
       val ref = ProbeRef("fqdn:local/")
-      val policy = ProbePolicy(5.seconds, 1.minute, 1.minute, 1.minute, None)
+      val policy = ProbePolicy(2.seconds, 1.minute, 1.minute, 1.minute, None)
       val behavior = ScalarProbeBehavior(1.hour, 17)
       val stateService = new TestProbe(_system)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
@@ -160,16 +146,14 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val status = ProbeStatus(ref, DateTime.now(), ProbeJoining, ProbeUnknown, None, None, None, None, None, false)
       stateService.reply(ProbeState(status, 0))
       // expiry timer should fire within 5 seconds
-      within(10.seconds) {
-        val result = stateService.expectMsgClass(classOf[ProbeState])
-        result.status.probeRef must be(ref)
-        result.status.lifecycle must be(ProbeJoining)
-        result.status.health must be(ProbeUnknown)
-        result.status.summary must be(None)
-        result.status.correlation must not be(None)
-        result.status.acknowledged must be(None)
-        result.status.squelched must be(false)
-      }
+      val result = stateService.expectMsgClass(5.seconds, classOf[ProbeState])
+      result.status.probeRef must be(ref)
+      result.status.lifecycle must be(ProbeJoining)
+      result.status.health must be(ProbeUnknown)
+      result.status.summary must be(None)
+      result.status.correlation must not be(None)
+      result.status.acknowledged must be(None)
+      result.status.squelched must be(false)
     }
 
     "notify StateService when the probe timeout expires" in {
@@ -216,8 +200,10 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       stateService.reply(ProbeStatusCommitted(state.status, state.lsn))
       notificationService.expectMsgClass(classOf[NotifyLifecycleChanges])
       notificationService.expectMsgClass(classOf[NotifyHealthChanges])
-      // expiry timer should fire within 5 seconds
-      val notification = notificationService.expectMsgClass(5.seconds, classOf[NotifyHealthAlerts])
+      // alert timer should fire within 5 seconds
+      val result = stateService.expectMsgClass(5.seconds, classOf[ProbeState])
+      stateService.reply(ProbeStatusCommitted(result.status, result.lsn))
+      val notification = notificationService.expectMsgClass(8.seconds, classOf[NotifyHealthAlerts])
       notification.probeRef must be(ref)
       notification.health must be(ProbeFailed)
       notification.correlation must be === state.status.correlation

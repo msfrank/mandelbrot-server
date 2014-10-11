@@ -14,18 +14,6 @@ trait ComposableConfig {
 
 class MergedConfig(val config: Config) extends ComposableConfig
 
-//class ServiceMock(testActor: ActorRef) extends ComposableConfig {
-//  val config = ConfigFactory.parseString(
-//    """
-//      |service-mock {
-//      |  plugin = "io.mandelbrot.core.TestService"
-//      |  plugin-settings {
-//      |    forward-to = "%s"
-//      |  }
-//      |}
-//    """.format(testActor.path).stripMargin)
-//}
-
 object MandelbrotConfig extends ComposableConfig {
   val config = ConfigFactory.parseString("mandelbrot {}")
 }
@@ -45,6 +33,23 @@ object AkkaConfig extends ComposableConfig {
       |      event-stream = on
       |      unhandled = on
       |      router-misconfiguration = on
+      |    }
+      |  }
+      |}
+    """.stripMargin)
+}
+
+object PersistenceConfig extends ComposableConfig {
+  val config = ConfigFactory.parseString(
+    """
+      |akka {
+      |  persistence {
+      |    journal {
+      |      plugin = "akka.persistence.journal.inmem"
+      |      inmem {
+      |        class = "akka.persistence.journal.inmem.InmemJournal"
+      |        plugin-dispatcher = "akka.actor.default-dispatcher"
+      |      }
       |    }
       |  }
       |}

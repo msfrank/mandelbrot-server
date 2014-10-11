@@ -97,19 +97,14 @@ class Probe(val probeRef: ProbeRef,
       // this generation is not current, so switch to retired behavior
       if (lsn > probeGeneration) {
         log.debug("gen {}: probe becomes retired (lsn {})", probeGeneration, probeRef, lsn)
-        unstashAll()
         goto(StaleProbe) using NoData
       }
       // otherwise replay any stashed messages and transition to initialized
-      else {
-        processor.enter(this)
-        unstashAll()
-        goto(RunningProbe) using RunningProbe(None, Vector.empty)
-      }
+      else
+        goto(RunningProbe) using enqueue(RunningProbe(None, Vector.empty), QueuedEvent(ProbeEnters, DateTime.now(DateTimeZone.UTC)))
 
     case Event(failure: ApiException, _) if failure.failure == ResourceNotFound =>
       log.debug("probe {} becomes retired", probeRef)
-      unstashAll()
       cancelCommitTimer()
       goto(StaleProbe) using NoData
 
@@ -179,13 +174,13 @@ class Probe(val probeRef: ProbeRef,
         state.queued.head.asInstanceOf[QueuedCommand].caller ! result
         sendNotifications(notifications)
     }
-    persist(state)
+    persist(RunningProbe(None, state.queued.tail))
   }
 
   private def recover(state: RunningProbe): RunningProbe = {
     cancelCommitTimer()
     // FIXME: implement some retry policy here
-    persist(state)
+    persist(RunningProbe(None, state.queued.tail))
   }
 
   /*
@@ -253,6 +248,10 @@ class Probe(val probeRef: ProbeRef,
     /* move to retired state */
     case Event(RetireProbe(lsn), _) =>
       goto(RetiringProbe) using RetiringProbe(lsn)
+  }
+
+  onTransition {
+    case _ -> RunningProbe => unstashAll()
   }
 
   /*
@@ -359,6 +358,10 @@ class Probe(val probeRef: ProbeRef,
       stay()
   }
 
+  onTransition {
+    case _ -> StaleProbe => unstashAll()
+  }
+
   initialize()
 
   /**
@@ -383,6 +386,8 @@ object Probe {
     Props(classOf[Probe], probeRef, parent, children, policy, behavior, probeGeneration, services, metricsBus)
   }
 
+  case object ProbeEnters
+  case object ProbeExits
   case object ProbeCommitTimeout
   case object ProbeAlertTimeout
   case object ProbeExpiryTimeout

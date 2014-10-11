@@ -21,7 +21,6 @@ package io.mandelbrot.core.system
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
-import com.typesafe.config.ConfigFactory
 import io.mandelbrot.core.metrics.MetricsBus
 import io.mandelbrot.core.registry.ProbePolicy
 import org.joda.time.DateTime
@@ -32,24 +31,12 @@ import scala.util.Success
 
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.state.{InitializeProbeState, ProbeState, ProbeStatusCommitted}
-import io.mandelbrot.core.{Blackhole, ServiceMap}
+import io.mandelbrot.core.{PersistenceConfig, AkkaConfig, Blackhole, ServiceMap}
+import io.mandelbrot.core.ConfigConversions._
 
 class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpec with MustMatchers with BeforeAndAfterAll {
 
-  def this() = this(ActorSystem("AggregateProbeSpec", ConfigFactory.parseString(
-    """
-      |akka {
-      |  persistence {
-      |    journal {
-      |      plugin = "akka.persistence.journal.inmem"
-      |      inmem {
-      |        class = "akka.persistence.journal.inmem.InmemJournal"
-      |        plugin-dispatcher = "akka.actor.default-dispatcher"
-      |      }
-      |    }
-      |  }
-      |}
-    """.stripMargin)))
+  def this() = this(ActorSystem("AggregateProbeSpec", AkkaConfig ++ PersistenceConfig))
 
   // shutdown the actor system
   override def afterAll() {

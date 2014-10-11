@@ -220,6 +220,7 @@ object StateManager {
 case class ProbeState(status: ProbeStatus, lsn: Long)
 
 case class InitializeProbeState(ref: ProbeRef, timestamp: DateTime, lsn: Long)
+case class CommitProbeState(ref: ProbeRef, status: ProbeStatus, lsn: Long)
 case class DeleteProbeState(ref: ProbeRef, lastStatus: Option[ProbeStatus], lsn: Long)
 case class QueryProbes(query: String, limit: Option[Int])
 case class ProbeResults(refs: Vector[ProbeRef])

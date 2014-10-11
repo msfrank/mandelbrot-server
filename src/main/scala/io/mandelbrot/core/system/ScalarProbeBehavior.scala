@@ -42,11 +42,11 @@ class ScalarProbeBehaviorImpl extends ProbeBehaviorInterface {
   def enter(probe: ProbeInterface): Option[EventMutation] = {
     probe.alertTimer.stop()
     probe.expiryTimer.restart(probe.policy.joiningTimeout)
-    val status = if (probe.lifecycle == ProbeInitializing) {
+    if (probe.lifecycle == ProbeInitializing) {
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      probe.getProbeStatus.copy(lifecycle = ProbeJoining, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
-    } else probe.getProbeStatus
-    Some(EventMutation(status, Vector.empty))
+      val status = probe.getProbeStatus.copy(lifecycle = ProbeJoining, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
+      Some(EventMutation(status, Vector.empty))
+    } else None
   }
 
   def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventMutation] = None
@@ -139,6 +139,7 @@ class ScalarProbeBehaviorImpl extends ProbeBehaviorInterface {
       // reset the expiry timer
       probe.expiryTimer.restart(probe.policy.probeTimeout)
       val status = probe.getProbeStatus(timestamp).copy(health = health, summary = None, lastChange = lastChange, correlation = correlationId)
+      println("expiry status is " + status.toString)
       // append health notification
       val notifications = flapQueue match {
         case Some(flapDetector) if flapDetector.isFlapping =>

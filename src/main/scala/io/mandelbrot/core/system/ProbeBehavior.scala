@@ -23,7 +23,6 @@ import io.mandelbrot.core.{BadRequest, Conflict, ResourceNotFound, ApiException}
 import org.joda.time.{DateTimeZone, DateTime}
 import java.util.UUID
 
-import io.mandelbrot.core.system.Probe.{ProbeExpiryTimeout, ProbeAlertTimeout}
 import io.mandelbrot.core.notification._
 
 import scala.util.{Success, Failure, Try}
@@ -39,6 +38,7 @@ trait ProbeBehavior {
  *
  */
 trait ProbeBehaviorInterface {
+  import io.mandelbrot.core.system.Probe._
 
   def enter(probe: ProbeInterface): Option[EventMutation]
   def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventMutation]
@@ -54,11 +54,13 @@ trait ProbeBehaviorInterface {
    *
    */
   def processEvent(probe: ProbeInterface, message: Any): Option[EventMutation] = message match {
+    case ProbeEnters => enter(probe)
     case msg: StatusMessage => processStatus(probe, msg)
     case msg: MetricsMessage => processMetrics(probe, msg)
     case msg: ProbeStatus => processChild(probe, msg)
     case ProbeAlertTimeout => processAlertTimeout(probe)
     case ProbeExpiryTimeout => processExpiryTimeout(probe)
+    case ProbeExits => exit(probe)
     case _ => throw new IllegalArgumentException()
   }
 
