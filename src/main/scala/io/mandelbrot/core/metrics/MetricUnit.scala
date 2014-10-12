@@ -25,6 +25,8 @@ sealed trait MetricUnit {
 
 /* no unit specified */
 case object Units extends MetricUnit   { val name = "units" }
+case object Ops extends MetricUnit     { val name = "operations" }
+case object Percent extends MetricUnit { val name = "percent" }
 
 /* time units */
 case object Years extends MetricUnit    { val name = "years" }

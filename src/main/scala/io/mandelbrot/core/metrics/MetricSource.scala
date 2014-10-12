@@ -19,6 +19,9 @@
 
 package io.mandelbrot.core.metrics
 
+/**
+ * A MetricSource uniquely identifies a metric within a ProbeSystem.
+ */
 class MetricSource(val probePath: Vector[String], val metricName: String) extends Ordered[MetricSource] {
 
   def compare(that: MetricSource): Int = toString.compareTo(that.toString)
@@ -42,7 +45,7 @@ object MetricSource {
       if (string.head != '/')
         throw new IllegalArgumentException()
       val (path,name) = string.splitAt(index)
-      new MetricSource(path.tail.split('/').toVector, name)
+      new MetricSource(path.tail.split('/').toVector, name.tail)
     }
   }
 

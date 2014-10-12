@@ -224,7 +224,7 @@ class H2Registrar(managerSettings: H2RegistrarSettings) extends SlickRegistrar w
 
   // config
   val url = "jdbc:h2:" + {
-    if (managerSettings.inMemory) "mem:history" else "file:" + managerSettings.databasePath.getAbsolutePath
+    if (managerSettings.inMemory) "mem:history" else "file:" + managerSettings.databasePath.getAbsolutePath + "/registry"
   } + ";" + {
     if (managerSettings.inMemory) "DB_CLOSE_DELAY=-1;" else ""
   } + {

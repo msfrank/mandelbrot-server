@@ -12,7 +12,7 @@ class MetricsEvaluationSpec extends WordSpec with MustMatchers {
     val source = MetricSource(Vector.empty, "foo")
 
     "evaluate ==" in {
-      val evaluation = MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueEquals(BigDecimal(10)))))
+      val evaluation = new MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueEquals(BigDecimal(10)))), "")
       val metrics = new MetricsStore(evaluation)
       metrics.append(source, BigDecimal(10))
       evaluation.evaluate(metrics) must be(Some(true))
@@ -21,7 +21,7 @@ class MetricsEvaluationSpec extends WordSpec with MustMatchers {
     }
 
     "evaluate !=" in {
-      val evaluation = MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueNotEquals(BigDecimal(10)))))
+      val evaluation = new MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueNotEquals(BigDecimal(10)))), "")
       val metrics = new MetricsStore(evaluation)
       metrics.append(source, BigDecimal(10))
       evaluation.evaluate(metrics) must be(Some(false))
@@ -30,7 +30,7 @@ class MetricsEvaluationSpec extends WordSpec with MustMatchers {
     }
 
     "evaluate <" in {
-      val evaluation = MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueLessThan(BigDecimal(10)))))
+      val evaluation = new MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueLessThan(BigDecimal(10)))), "")
       val metrics = new MetricsStore(evaluation)
       metrics.append(source, BigDecimal(5))
       evaluation.evaluate(metrics) must be(Some(true))
@@ -41,12 +41,34 @@ class MetricsEvaluationSpec extends WordSpec with MustMatchers {
     }
 
     "evaluate >" in {
-      val evaluation = MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueGreaterThan(BigDecimal(10)))))
+      val evaluation = new MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueGreaterThan(BigDecimal(10)))), "")
       val metrics = new MetricsStore(evaluation)
       metrics.append(source, BigDecimal(5))
       evaluation.evaluate(metrics) must be(Some(false))
       metrics.append(source, BigDecimal(10))
       evaluation.evaluate(metrics) must be(Some(false))
+      metrics.append(source, BigDecimal(15))
+      evaluation.evaluate(metrics) must be(Some(true))
+    }
+
+    "evaluate <=" in {
+      val evaluation = new MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueLessEqualThan(BigDecimal(10)))), "")
+      val metrics = new MetricsStore(evaluation)
+      metrics.append(source, BigDecimal(5))
+      evaluation.evaluate(metrics) must be(Some(true))
+      metrics.append(source, BigDecimal(10))
+      evaluation.evaluate(metrics) must be(Some(true))
+      metrics.append(source, BigDecimal(15))
+      evaluation.evaluate(metrics) must be(Some(false))
+    }
+
+    "evaluate >=" in {
+      val evaluation = new MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueGreaterEqualThan(BigDecimal(10)))), "")
+      val metrics = new MetricsStore(evaluation)
+      metrics.append(source, BigDecimal(5))
+      evaluation.evaluate(metrics) must be(Some(false))
+      metrics.append(source, BigDecimal(10))
+      evaluation.evaluate(metrics) must be(Some(true))
       metrics.append(source, BigDecimal(15))
       evaluation.evaluate(metrics) must be(Some(true))
     }

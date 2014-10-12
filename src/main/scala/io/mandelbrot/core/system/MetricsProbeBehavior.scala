@@ -47,7 +47,8 @@ class MetricsProbeBehaviorImpl(evaluation: MetricsEvaluation) extends ProbeBehav
     metrics.sources.map(_.probePath).toSet.foreach(probe.subscribeToMetrics)
     if (probe.lifecycle == ProbeInitializing) {
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      val status = probe.getProbeStatus.copy(lifecycle = ProbeJoining, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
+      val status = probe.getProbeStatus.copy(lifecycle = ProbeJoining, health = ProbeUnknown,
+        summary = Some(evaluation.toString), lastUpdate = Some(timestamp), lastChange = Some(timestamp))
       Some(EventMutation(status, Vector.empty))
     } else None
   }

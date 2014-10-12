@@ -261,7 +261,7 @@ class H2Archiver(managerSettings: H2ArchiverSettings) extends SlickArchiver with
 
    // config
   val url = "jdbc:h2:" + {
-    if (managerSettings.inMemory) "mem:history" else "file:" + managerSettings.databasePath.getAbsolutePath
+    if (managerSettings.inMemory) "mem:history" else "file:" + managerSettings.databasePath.getAbsolutePath + "/history"
   } + ";" + {
     if (managerSettings.inMemory) "DB_CLOSE_DELAY=-1;" else ""
   } + {

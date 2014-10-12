@@ -191,6 +191,8 @@ object JsonProtocol extends DefaultJsonProtocol {
     def write(unit: MetricUnit) = JsString(unit.name)
     def read(value: JsValue) = value match {
       case JsString("units") => Units
+      case JsString("operations") => Ops
+      case JsString("percent") => Percent
       case JsString("years") => Years
       case JsString("months") => Months
       case JsString("weeks") => Weeks

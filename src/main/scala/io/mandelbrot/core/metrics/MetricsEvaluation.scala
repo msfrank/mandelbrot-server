@@ -29,10 +29,11 @@ import io.mandelbrot.core.util.CircularBuffer
 /**
  *
  */
-case class MetricsEvaluation(expression: EvaluationExpression) {
+class MetricsEvaluation(val expression: EvaluationExpression, input: String) {
   val sources: Set[MetricSource] = expression.sources
   val sizing: Map[MetricSource,Int] = expression.sources.map(_ -> 1).toMap
   def evaluate(metrics: MetricsStore): Option[Boolean] = expression.evaluate(metrics)
+  override def toString = input
 }
 
 /* */
@@ -203,41 +204,62 @@ class MetricsEvaluationParser extends JavaTokenParsers {
     r
   }
 
+  def wholeNumberValue: Parser[BigDecimal] = wholeNumber ^^ { case v => BigDecimal(v.toLong) }
+  def floatingPointNumberValue: Parser[BigDecimal] = floatingPointNumber ^^ { case v => BigDecimal(v.toDouble) }
+
+  def metricValue: Parser[BigDecimal] = wholeNumberValue | floatingPointNumberValue
+
+  def equals: Parser[ValueComparison] = _log(literal("==") ~ metricValue)("equals") ^^ {
+    case "==" ~ value => ValueEquals(value)
+  }
+
+  def notEquals: Parser[ValueComparison] = _log(literal("!=") ~ metricValue)("notEquals") ^^ {
+    case "!=" ~ value => ValueNotEquals(value)
+  }
+
+  def lessThan: Parser[ValueComparison] = _log(literal("<") ~ metricValue)("lessThan") ^^ {
+    case "<" ~ value => ValueLessThan(value)
+  }
+
+  def lessThanEqual: Parser[ValueComparison] = _log(literal("<=") ~ metricValue)("lessThanEqual") ^^ {
+    case "<=" ~ value => ValueLessEqualThan(value)
+  }
+
+  def greaterThan: Parser[ValueComparison] = _log(literal(">") ~ metricValue)("greaterThan") ^^ {
+    case ">" ~ value => ValueGreaterThan(value)
+  }
+
+  def greaterThanEqual: Parser[ValueComparison] = _log(literal(">=") ~ metricValue)("greaterThanEqual") ^^ {
+    case ">=" ~ value => ValueGreaterEqualThan(value)
+  }
+
+  def valueComparison: Parser[ValueComparison] = equals | notEquals | lessThanEqual | lessThan | greaterThanEqual | greaterThan
+
   def bareSource: Parser[MetricSource] = regex("[a-zA-Z][a-zA-Z0-9_]*".r) ^^ { MetricSource(Vector.empty, _) }
 
   def qualifiedSource: Parser[MetricSource] = rep1(regex("""/[^:/]+""".r)) ~ literal(":") ~ bareSource ^^ {
-    case (segments: List[String]) ~ "#" ~ MetricSource(_, name) => MetricSource(segments.toVector.map(_.tail), name)
+    case (segments: List[String]) ~ ":" ~ MetricSource(_, name) => MetricSource(segments.toVector.map(_.tail), name)
   }
 
-  def metricSource = bareSource
+  def metricSource: Parser[MetricSource] = bareSource | qualifiedSource
 
-  def metricValue: Parser[BigDecimal] = wholeNumber ^^ { case v => BigDecimal(v.toLong) }
-
-  def equals: Parser[EvaluationExpression] = _log(metricSource ~ literal("==") ~ metricValue)("equals") ^^ {
-    case source ~ "==" ~ value => EvaluateSource(source, HeadFunction(ValueEquals(value)))
+  def headFunction: Parser[EvaluationExpression] = metricSource ~ literal(".") ~ literal("head") ~ valueComparison ^^ {
+    case source ~ "." ~ "head" ~ comparison => EvaluateSource(source, HeadFunction(comparison))
   }
 
-  def notEquals: Parser[EvaluationExpression] = _log(metricSource ~ literal("!=") ~ metricValue)("notEquals") ^^ {
-    case source ~ "!=" ~ value => EvaluateSource(source, HeadFunction(ValueNotEquals(value)))
+  def eachFunction: Parser[EvaluationExpression] = metricSource ~ literal(".") ~ literal("each") ~ valueComparison ^^ {
+    case source ~ "." ~ "each" ~ comparison => EvaluateSource(source, EachFunction(comparison))
   }
 
-  def lessThan: Parser[EvaluationExpression] = _log(metricSource ~ literal("<") ~ metricValue)("lessThan") ^^ {
-    case source ~ "<" ~ value => EvaluateSource(source, HeadFunction(ValueLessThan(value)))
+  def meanFunction: Parser[EvaluationExpression] = metricSource ~ literal(".") ~ literal("mean") ~ valueComparison ^^ {
+    case source ~ "." ~ "mean" ~ comparison => EvaluateSource(source, MeanFunction(comparison))
   }
 
-  def lessThanEqual: Parser[EvaluationExpression] = _log(metricSource ~ literal("<=") ~ metricValue)("lessThanEqual") ^^ {
-    case source ~ "<=" ~ value => EvaluateSource(source, HeadFunction(ValueLessEqualThan(value)))
+  def implicitFunction: Parser[EvaluationExpression] = metricSource ~ valueComparison ^^ {
+    case source ~ comparison => EvaluateSource(source, HeadFunction(comparison))
   }
 
-  def greaterThan: Parser[EvaluationExpression] = _log(metricSource ~ literal(">") ~ metricValue)("greaterThan") ^^ {
-    case source ~ ">" ~ value => EvaluateSource(source, HeadFunction(ValueGreaterThan(value)))
-  }
-
-  def greaterThanEqual: Parser[EvaluationExpression] = _log(metricSource ~ literal(">=") ~ metricValue)("greaterThanEqual") ^^ {
-    case source ~ ">=" ~ value => EvaluateSource(source, HeadFunction(ValueGreaterEqualThan(value)))
-  }
-
-  def scalarEvaluation: Parser[EvaluationExpression] = equals | notEquals | lessThanEqual | lessThan | greaterThanEqual | greaterThan
+  def evaluationExpression: Parser[EvaluationExpression] = headFunction | eachFunction | meanFunction | implicitFunction
 
   /*
    * <Query>        ::= <OrOperator>
@@ -247,7 +269,7 @@ class MetricsEvaluationParser extends JavaTokenParsers {
    * <Group>        ::= '(' <OrOperator> ')' | <Expression>
    */
 
-  def groupOperator: Parser[EvaluationExpression] = _log((literal("(") ~> orOperator <~ literal(")")) | scalarEvaluation)("groupOperator") ^^ {
+  def groupOperator: Parser[EvaluationExpression] = _log((literal("(") ~> orOperator <~ literal(")")) | evaluationExpression)("groupOperator") ^^ {
     case group: EvaluationExpression => group
   }
 
@@ -272,24 +294,24 @@ class MetricsEvaluationParser extends JavaTokenParsers {
       LogicalOr(and1 +: children)
   }
 
-  /* the entry point */
   val ruleExpression: Parser[EvaluationExpression] = _log(orOperator)("ruleExpression")
 
   /* */
-  def whenClause: Parser[MetricsEvaluation] = _log(literal("when") ~ ruleExpression)("whenClause") ^^ {
-    case "when" ~ expression => MetricsEvaluation(expression)
+  def whenClause: Parser[EvaluationExpression] = _log(literal("when") ~ ruleExpression)("whenClause") ^^ {
+    case "when" ~ expression => expression
   }
 
   /* */
-  def unlessClause: Parser[MetricsEvaluation] = _log(literal("unless") ~ ruleExpression)("unlessClause") ^^ {
-    case "unless" ~ expression => MetricsEvaluation(LogicalNot(expression))
+  def unlessClause: Parser[EvaluationExpression] = _log(literal("unless") ~ ruleExpression)("unlessClause") ^^ {
+    case "unless" ~ expression => LogicalNot(expression)
   }
 
-  def metricsEvaluation: Parser[MetricsEvaluation] = _log(whenClause | unlessClause)("metricsEvaluation")
+  /* the entry point */
+  def metricsEvaluation: Parser[EvaluationExpression] = _log(whenClause | unlessClause)("metricsEvaluation")
 
   def parseMetricsEvaluation(input: String): MetricsEvaluation = parseAll(metricsEvaluation, input) match {
-    case Success(evaluation: MetricsEvaluation, _) => evaluation
+    case Success(expression: EvaluationExpression, _) => new MetricsEvaluation(expression, input)
     case Success(other, _) => throw new Exception("unexpected parse result")
-    case failure : NoSuccess => throw new Exception(failure.msg)
+    case failure : NoSuccess => throw new Exception("failed to parse MetricsEvaluation: " + failure.msg)
   }
 }

@@ -46,13 +46,14 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
   }
 
   val blackhole = system.actorOf(Blackhole.props())
+  val parser = new MetricsEvaluationParser()
 
   "A Probe with metrics behavior" must {
 
     "transition to ProbeKnown/ProbeHealthy when a healthy MetricsMessage is received" in {
       val ref = ProbeRef("fqdn:local/")
       val source = MetricSource(Vector.empty, "foo")
-      val evaluation = MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueGreaterThan(BigDecimal(10)))))
+      val evaluation = parser.parseMetricsEvaluation("foo > 10")
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val behavior = MetricsProbeBehavior(evaluation, 1.hour, 17)
       val stateService = new TestProbe(_system)
@@ -78,7 +79,7 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
     "transition to ProbeKnown/ProbeFailed when a failed MetricsMessage is received" in {
       val ref = ProbeRef("fqdn:local/")
       val source = MetricSource(Vector.empty, "foo")
-      val evaluation = MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueGreaterThan(BigDecimal(10)))))
+      val evaluation = parser.parseMetricsEvaluation("foo > 10")
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val behavior = MetricsProbeBehavior(evaluation, 1.hour, 17)
       val stateService = new TestProbe(_system)
@@ -104,7 +105,7 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
     "notify StateService when the joining timeout expires" in {
       val ref = ProbeRef("fqdn:local/")
       val source = MetricSource(Vector.empty, "foo")
-      val evaluation = MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueGreaterThan(BigDecimal(10)))))
+      val evaluation = parser.parseMetricsEvaluation("foo > 10")
       val policy = ProbePolicy(2.seconds, 1.minute, 1.minute, 1.minute, None)
       val behavior = MetricsProbeBehavior(evaluation, 1.hour, 17)
       val stateService = new TestProbe(_system)
@@ -131,7 +132,7 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
     "notify StateService when the probe timeout expires" in {
       val ref = ProbeRef("fqdn:local/")
       val source = MetricSource(Vector.empty, "foo")
-      val evaluation = MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueGreaterThan(BigDecimal(10)))))
+      val evaluation = parser.parseMetricsEvaluation("foo > 10")
       val policy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
       val behavior = MetricsProbeBehavior(evaluation, 1.hour, 17)
       val stateService = new TestProbe(_system)
@@ -165,7 +166,7 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
     "notify NotificationService when the alert timeout expires" in {
       val ref = ProbeRef("fqdn:local/")
       val source = MetricSource(Vector.empty, "foo")
-      val evaluation = MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueGreaterThan(BigDecimal(10)))))
+      val evaluation = parser.parseMetricsEvaluation("foo > 10")
       val policy = ProbePolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)
       val behavior = MetricsProbeBehavior(evaluation, 1.hour, 17)
       val notificationService = new TestProbe(_system)
