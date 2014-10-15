@@ -79,28 +79,28 @@ class StateManager extends PersistentActor with ActorLogging {
       historyService = services.historyService
 
     /* */
-    case InitializeProbeState(ref, timestamp, lsn) =>
-      probeState.get(ref) match {
+    case op: InitializeProbeState =>
+      probeState.get(op.ref) match {
         case Some(state) =>
           sender() ! state
-        case None if lsn >= currentLsn =>
-          persist(ProbeStatusInitializes(ref, timestamp, lsn))(updateState)
+        case None if op.lsn >= currentLsn =>
+          persist(op)(updateState)
         case None =>
-          sender() ! new ApiException(ResourceNotFound)
+          sender() ! StateServiceOperationFailed(op, new ApiException(ResourceNotFound))
       }
 
     /* update current status for ref */
-    case state: ProbeState =>
-      persist(ProbeStatusUpdates(state.status, state.lsn))(updateState)
+    case op: UpdateProbeState =>
+      persist(op)(updateState)
 
     /* update current metadata for ref */
     case metadata: ProbeMetadata =>
       searcher ! metadata
 
     /* */
-    case command: DeleteProbeState =>
-      if (probeState.contains(command.ref)) {
-        persist(ProbeStatusDeleted(command.ref, command.lastStatus, command.lsn))(updateState)
+    case op: DeleteProbeState =>
+      if (probeState.contains(op.ref)) {
+        persist(op)(updateState)
       }
 
     /* get the current status for each matching ref */
@@ -120,14 +120,14 @@ class StateManager extends PersistentActor with ActorLogging {
     case query: SearchCurrentStatus =>
       val caller = sender()
       searcher.ask(QueryProbes(query.query, query.limit)).map {
-        case Success(results: ProbeResults) => OpCallerResults(query, caller, Success(results))
+        case Success(results: QueryProbesResult) => OpCallerResults(query, caller, Success(results))
         case Failure(ex: ApiException) => OpCallerResults(query, caller, Failure(ex))
         case Failure(ex: Throwable) => OpCallerResults(query, caller, Failure(new ApiException(InternalError)))
       }.pipeTo(self)
 
     case OpCallerResults(op, caller, results) =>
       results match {
-        case Success(ProbeResults(refs)) =>
+        case Success(QueryProbesResult(_, refs)) =>
           val state = refs.filter(probeState.contains).map(probeState.apply)
           val status = state.map { s => s.status.probeRef -> s.status }.toMap
           caller ! SearchCurrentStatusResult(op, status)
@@ -153,8 +153,8 @@ class StateManager extends PersistentActor with ActorLogging {
 
   def receiveRecover = {
 
-    case event: Event =>
-      updateState(event)
+    case op: StateServiceCommand =>
+      updateState(op)
 
     /* recreate probe state from snapshot */
     case SnapshotOffer(metadata, snapshot: StateManagerSnapshot) =>
@@ -166,29 +166,29 @@ class StateManager extends PersistentActor with ActorLogging {
       log.debug("resetting current lsn to {}", currentLsn)
   }
 
-  def updateState(event: Event): Unit = event match {
+  def updateState(op: StateServiceCommand) = op match {
 
-    case ProbeStatusInitializes(ref, timestamp, lsn) =>
+    case command @ InitializeProbeState(ref, timestamp, lsn) =>
       log.debug("status initializes for {} (lsn {})", ref, lsn)
       val status = ProbeStatus(ref, timestamp, ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
       val state = ProbeState(status, lsn)
       probeState.put(ref, state)
       currentLsn = lsn
       if (!recoveryRunning)
-        sender() ! state
+        sender() ! InitializeProbeStateResult(command, status, lsn)
 
-    case ProbeStatusUpdates(status, lsn) =>
+    case command @ UpdateProbeState(ref, status, lsn) =>
       log.debug("status updates for {} (lsn {})", status.probeRef, lsn)
       probeState.put(status.probeRef, ProbeState(status, lsn))
       if (lsn > currentLsn)
         currentLsn = lsn
       if (!recoveryRunning) {
-        sender() ! ProbeStatusCommitted(status, lsn)
+        sender() ! UpdateProbeStateResult(command)
         searcher ! status
         historyService ! status
       }
 
-    case ProbeStatusDeleted(ref: ProbeRef, lastStatus: Option[ProbeStatus], lsn) =>
+    case command @ DeleteProbeState(ref: ProbeRef, lastStatus: Option[ProbeStatus], lsn) =>
       log.debug("status deleted for {} (lsn {})", ref, lsn)
       probeState.remove(ref)
       if (lsn > currentLsn)
@@ -197,7 +197,7 @@ class StateManager extends PersistentActor with ActorLogging {
         // FIXME: delete state from searcher
         //searcher ! DeleteProbeState(ref, lastStatus)
         for (status <- lastStatus) {
-          sender() ! ProbeStatusCommitted(status, lsn)
+          sender() ! DeleteProbeStateResult(command)
           historyService ! status
         }
       }
@@ -207,24 +207,12 @@ class StateManager extends PersistentActor with ActorLogging {
 object StateManager {
   def props() = Props(classOf[StateManager])
 
-  sealed trait Event
-  case class ProbeStatusInitializes(ref: ProbeRef, timestamp: DateTime, lsn: Long) extends Event
-  case class ProbeStatusUpdates(status: ProbeStatus, lsn: Long) extends Event
-  case class ProbeStatusDeleted(ref: ProbeRef, lastStatus: Option[ProbeStatus], lsn: Long) extends Event
-  case class StateManagerSnapshot(currentLsn: Long, probeState: Map[ProbeRef,ProbeState]) extends Serializable
-
-  case class OpCallerResults(op: SearchCurrentStatus, caller: ActorRef, results: Try[ProbeResults])
+  case class OpCallerResults(op: SearchCurrentStatus, caller: ActorRef, results: Try[QueryProbesResult])
+  case class StateManagerSnapshot(currentLsn: Long, probeState: Map[ProbeRef,ProbeState])
   case object TakeSnapshot
 }
 
 case class ProbeState(status: ProbeStatus, lsn: Long)
-
-case class InitializeProbeState(ref: ProbeRef, timestamp: DateTime, lsn: Long)
-case class CommitProbeState(ref: ProbeRef, status: ProbeStatus, lsn: Long)
-case class DeleteProbeState(ref: ProbeRef, lastStatus: Option[ProbeStatus], lsn: Long)
-case class QueryProbes(query: String, limit: Option[Int])
-case class ProbeResults(refs: Vector[ProbeRef])
-case class ProbeStatusCommitted(status: ProbeStatus, lsn: Long)
 
 /**
  *
@@ -234,11 +222,23 @@ sealed trait StateServiceCommand extends StateServiceOperation
 sealed trait StateServiceQuery extends StateServiceOperation
 case class StateServiceOperationFailed(op: StateServiceOperation, failure: Throwable)
 
+case class InitializeProbeState(ref: ProbeRef, timestamp: DateTime, lsn: Long) extends StateServiceCommand
+case class InitializeProbeStateResult(op: InitializeProbeState, status: ProbeStatus, lsn: Long)
+
+case class UpdateProbeState(ref: ProbeRef, status: ProbeStatus, lsn: Long) extends StateServiceCommand
+case class UpdateProbeStateResult(op: UpdateProbeState)
+
+case class DeleteProbeState(ref: ProbeRef, lastStatus: Option[ProbeStatus], lsn: Long) extends StateServiceCommand
+case class DeleteProbeStateResult(op: DeleteProbeState)
+
 case class GetCurrentStatus(refspec: Either[ProbeRef,Set[ProbeRef]]) extends StateServiceQuery
 case class GetCurrentStatusResult(op: GetCurrentStatus, status: Vector[ProbeStatus])
 
 case class SearchCurrentStatus(query: String, limit: Option[Int]) extends StateServiceQuery
 case class SearchCurrentStatusResult(op: SearchCurrentStatus, status: Map[ProbeRef,ProbeStatus])
+
+case class QueryProbes(query: String, limit: Option[Int]) extends StateServiceQuery
+case class QueryProbesResult(op: QueryProbes, refs: Vector[ProbeRef])
 
 /* marker trait for Searcher implementations */
 trait Searcher

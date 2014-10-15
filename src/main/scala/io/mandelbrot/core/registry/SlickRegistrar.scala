@@ -24,12 +24,14 @@ import com.typesafe.config.Config
 import scala.slick.driver.JdbcProfile
 import scala.slick.jdbc.JdbcBackend.Database
 import org.joda.time.{DateTimeZone, DateTime}
+import scala.util._
 import java.io.File
 import java.net.URI
 
 import io.mandelbrot.core.{Conflict, ResourceNotFound, ApiException}
 import io.mandelbrot.core.http.JsonProtocol
 import io.mandelbrot.core.registry.H2Registrar.H2RegistrarSettings
+
 
 /*
  this multi-db code is heavily inspired by
@@ -65,21 +67,21 @@ trait RegistryEntriesComponent { this: Profile =>
     registryEntries.filter(_.id > last).take(limit).list()
   }
 
-  def insert(systemUri: URI, registration: ProbeRegistration, timestamp: DateTime)(implicit session: Session): Long = {
+  def insert(systemUri: URI, registration: ProbeRegistration, timestamp: DateTime)(implicit session: Session): Try[Long] = {
     val probeSystem: String = systemUri.toString
     registryEntries.filter(_.probeSystem === probeSystem).firstOption match {
       case None =>
         val registrationString: String = registration.toJson.prettyPrint
-        val lsn = 1
+        val lsn = 1L
         val joinedOn: Long = timestamp.getMillis
         registryEntries += ((0, probeSystem, registrationString, lsn, joinedOn, joinedOn))
-        lsn
+        Success(lsn)
       case _ =>
-        throw new ApiException(Conflict)
+        Failure(new ApiException(Conflict))
     }
   }
 
-  def update(systemUri: URI, registration: ProbeRegistration, timestamp: DateTime)(implicit session: Session): Long = {
+  def update(systemUri: URI, registration: ProbeRegistration, timestamp: DateTime)(implicit session: Session): Try[Long] = {
     val probeSystem: String = systemUri.toString
     registryEntries.filter(_.probeSystem === probeSystem).map(e => e.lsn).firstOption match {
       case Some(lsn: Long) =>
@@ -89,20 +91,20 @@ trait RegistryEntriesComponent { this: Profile =>
         registryEntries.filter(_.probeSystem === probeSystem)
           .map(e => (e.registration,e.lsn,e.lastUpdate))
           .update((registrationString, updatedLsn, lastUpdate))
-        updatedLsn
+        Success(updatedLsn)
       case None =>
-        throw new ApiException(ResourceNotFound)
+        Failure(new ApiException(ResourceNotFound))
     }
   }
 
-  def delete(systemUri: URI, timestamp: DateTime)(implicit session: Session): Long = {
+  def delete(systemUri: URI, timestamp: DateTime)(implicit session: Session): Try[Long] = {
     val probeSystem = systemUri.toString
     registryEntries.filter(_.probeSystem === probeSystem).firstOption match {
       case Some((_, _, _, lsn: Long, _, _)) =>
         registryEntries.filter(_.probeSystem === probeSystem).delete
-        lsn
+        Success(lsn)
       case None =>
-        throw new ApiException(ResourceNotFound)
+        Failure(new ApiException(ResourceNotFound))
     }
   }
 
@@ -161,33 +163,27 @@ trait SlickRegistrar extends Actor with ActorLogging {
     case command: RegisterProbeSystem =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       db.withSession { implicit session =>
-        try {
-          val lsn = dal.insert(command.uri, command.registration, timestamp)
-          sender() ! ProbeSystemRegisters(command, timestamp, lsn)
-        } catch {
-          case ex: Throwable => sender() ! ProbeRegistryOperationFailed(command, ex)
+        dal.insert(command.uri, command.registration, timestamp) match {
+          case Success(lsn) => sender() ! ProbeSystemRegisters(command, timestamp, lsn)
+          case Failure(ex) => sender() ! ProbeRegistryOperationFailed(command, ex)
         }
       }
 
     case command: UpdateProbeSystem =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       db.withSession { implicit session =>
-        try {
-          val lsn = dal.update(command.uri, command.registration, timestamp)
-          sender() ! ProbeSystemUpdates(command, timestamp, lsn)
-        } catch {
-          case ex: Throwable => sender() ! ProbeRegistryOperationFailed(command, ex)
+        dal.update(command.uri, command.registration, timestamp) match {
+          case Success(lsn) => sender() ! ProbeSystemUpdates(command, timestamp, lsn)
+          case Failure(ex) => sender() ! ProbeRegistryOperationFailed(command, ex)
         }
       }
 
     case command: UnregisterProbeSystem =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       db.withSession { implicit session =>
-        try {
-          val lsn = dal.delete(command.uri, timestamp)
-          sender() ! ProbeSystemUnregisters(command, timestamp, lsn)
-        } catch {
-          case ex: Throwable => sender() ! ProbeRegistryOperationFailed(command, ex)
+        dal.delete(command.uri, timestamp) match {
+          case Success(lsn) => sender() ! ProbeSystemUnregisters(command, timestamp, lsn)
+          case Failure(ex) => sender() ! ProbeRegistryOperationFailed(command, ex)
         }
       }
 

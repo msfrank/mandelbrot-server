@@ -499,7 +499,7 @@ trait ApiService extends HttpService {
             services.stateService.ask(QueryProbes(query.qs, None)).flatMap {
               case Failure(failure: Throwable) =>
                 throw failure
-              case Success(result: ProbeResults) =>
+              case Success(result: QueryProbesResult) =>
                 services.historyService.ask(GetStatusHistory(Right(result.refs.toSet), timeseries.from, timeseries.to, paging.limit)).map {
                   case result: GetStatusHistoryResult =>
                     result.history
@@ -521,7 +521,7 @@ trait ApiService extends HttpService {
             services.stateService.ask(QueryProbes(query.qs, None)).flatMap {
               case Failure(failure: Throwable) =>
                 throw failure
-              case Success(result: ProbeResults) =>
+              case Success(result: QueryProbesResult) =>
                 services.historyService.ask(GetNotificationHistory(Right(result.refs.toSet), timeseries.from, timeseries.to, paging.limit)).map {
                   case result: GetNotificationHistoryResult =>
                     result.history
@@ -546,7 +546,6 @@ trait ApiService extends HttpService {
    */
   implicit def exceptionHandler(implicit log: LoggingContext) = ExceptionHandler {
     case ex: ApiException => ctx =>
-      log.error(ex, "caught exception: {}", ex.getMessage)
       ex.failure match {
         case failure: RetryLater =>
           ctx.complete(HttpResponse(StatusCodes.ServiceUnavailable, JsonBody(throwableToJson(ex))))
@@ -557,10 +556,11 @@ trait ApiService extends HttpService {
         case failure: Conflict =>
           ctx.complete(HttpResponse(StatusCodes.Conflict, JsonBody(throwableToJson(ex))))
         case _ =>
+          log.error(ex, "caught exception processing HTTP request: {}", ex.getMessage)
           ctx.complete(HttpResponse(StatusCodes.InternalServerError, JsonBody(throwableToJson(ex))))
       }
     case ex: Throwable => ctx =>
-      log.error(ex, "caught exception in spray routing: {}", ex.getMessage)
+      log.error(ex, "caught exception processing HTTP request: {}", ex.getMessage)
       ctx.complete(HttpResponse(StatusCodes.InternalServerError, JsonBody(throwableToJson(new Exception("internal server error")))))
   }
 

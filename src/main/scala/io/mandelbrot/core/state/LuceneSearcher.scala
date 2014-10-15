@@ -85,7 +85,7 @@ class LuceneSearcher(managerSettings: ManagerSettings) extends Actor with ActorL
       iwriter.updateDocument(new Term("id", "meta:" + metadata.probeRef.toString), doc)
       iwriter.close()
 
-    case QueryProbes(qs, limit) =>
+    case query @ QueryProbes(qs, limit) =>
       try {
         val ireader = DirectoryReader.open(store)
         val isearcher = new IndexSearcher(ireader)
@@ -102,7 +102,7 @@ class LuceneSearcher(managerSettings: ManagerSettings) extends Actor with ActorL
         }.toVector
         ireader.close()
         log.debug("search {} results: {}", qs, refs)
-        sender() ! Success(ProbeResults(refs))
+        sender() ! Success(QueryProbesResult(query, refs))
       } catch {
         case ex: ParseException =>
           log.debug("search {} raises exception: {}", ex.getMessage)

@@ -64,17 +64,18 @@ class Probe(val probeRef: ProbeRef,
   val expiryTimer = new Timer(context, self, ProbeExpiryTimeout)
   val alertTimer = new Timer(context, self, ProbeAlertTimeout)
 
-  /* we start in Initializing state */
-  startWith(InitializingProbe, NoData)
-
   /**
    * before starting the FSM, request the ProbeState from the state service.  the result
    * of this query determines which FSM state we transition to from Initializing.
    */
   override def preStart(): Unit = {
     // ask state service what our current status is
-    services.stateService ! InitializeProbeState(probeRef, DateTime.now(DateTimeZone.UTC), probeGeneration)
+    val op = InitializeProbeState(probeRef, now, probeGeneration)
+    services.stateService ! op
     setCommitTimer()
+    startWith(InitializingProbe, InitializingProbe(op))
+    /* FSM initialization is the last step in the constructor */
+    initialize()
   }
 
   /*
@@ -84,7 +85,10 @@ class Probe(val probeRef: ProbeRef,
    */
   when(InitializingProbe) {
 
-    case Event(ProbeState(status, lsn), _) =>
+    case Event(result: InitializeProbeStateResult, state: InitializingProbe) if result.op != state.command =>
+      stay()
+
+    case Event(InitializeProbeStateResult(op, status, lsn), state: InitializingProbe) =>
       log.debug("gen {}: received initial state: {} (lsn {})", probeGeneration, status, lsn)
       // initialize probe state
       setProbeStatus(status)
@@ -95,23 +99,27 @@ class Probe(val probeRef: ProbeRef,
       }
       // otherwise replay any stashed messages and transition to initialized
       else
-        goto(RunningProbe) using enqueue(RunningProbe(None, Vector.empty), QueuedEvent(ProbeEnters, DateTime.now(DateTimeZone.UTC)))
+        goto(RunningProbe) using enqueue(RunningProbe(None, Vector.empty), QueuedEvent(ProbeEnters, now))
 
-    case Event(failure: ApiException, _) if failure.failure == ResourceNotFound =>
+    case Event(result: StateServiceOperationFailed, state: InitializingProbe) if result.op != state.command =>
+      stay()
+
+    case Event(StateServiceOperationFailed(_, failure: ApiException), _) if failure.failure == ResourceNotFound =>
       log.debug("probe {} becomes retired", probeRef)
       cancelCommitTimer()
       goto(StaleProbe) using NoData
 
-    case Event(ProbeCommitTimeout, _) =>
-      log.debug("gen {}: timeout while receiving initial state", probeGeneration)
-      services.stateService ! InitializeProbeState(probeRef, DateTime.now(DateTimeZone.UTC), probeGeneration)
-      setCommitTimer()
-      stay()
-
-    case Event(failure: Throwable, _) =>
+    case Event(StateServiceOperationFailed(op, failure), _) =>
       log.debug("gen {}: failure receiving initial state: {}", probeGeneration, failure)
       cancelCommitTimer()
       throw failure
+
+    case Event(ProbeCommitTimeout, _) =>
+      log.debug("gen {}: timeout while receiving initial state", probeGeneration)
+      val op = InitializeProbeState(probeRef, now, probeGeneration)
+      services.stateService ! op
+      setCommitTimer()
+      stay() using InitializingProbe(op)
 
     case Event(other, _) =>
       // TODO: drop any messages of type Message?
@@ -130,173 +138,129 @@ class Probe(val probeRef: ProbeRef,
       stay()
 
     /* if the probe behavior has changed, then transition to a new state */
-    case Event(change: ChangeProbe, RunningProbe(inflight, queued)) =>
-      goto(ChangingProbe) using ChangingProbe(change, inflight, queued)
+    case Event(change: ChangeProbe, state: RunningProbe) =>
+      val timestamp = now
+      val messages = Vector(QueuedEvent(ProbeExits, timestamp),
+                            QueuedChange(change, timestamp),
+                            QueuedEvent(ProbeEnters, timestamp))
+      stay() using enqueue(state, messages)
 
     /* if the probe behavior has updated, then update our state */
-    case Event(update: UpdateProbe, _) =>
-      children = update.children
-      policy = update.policy
-      behavior = update.behavior
-      processor.update(this, behavior)
-      stay()
+    case Event(update: UpdateProbe, state: RunningProbe) =>
+      stay() using enqueue(state, QueuedUpdate(update, now))
 
     /* process status message and update state */
     case Event(message: StatusMessage, state: RunningProbe) =>
-      stay() using enqueue(state, QueuedEvent(message, DateTime.now(DateTimeZone.UTC)))
+      stay() using enqueue(state, QueuedEvent(message, now))
 
     /* process metrics message and update state */
     case Event(message: MetricsMessage, state: RunningProbe) =>
-      stay() using enqueue(state, QueuedEvent(message, DateTime.now(DateTimeZone.UTC)))
+      stay() using enqueue(state, QueuedEvent(message, now))
 
     /* process child status and update state */
     case Event(message: ProbeStatus, state: RunningProbe) =>
       if (!children.contains(message.probeRef)) stay() else {
-        stay() using enqueue(state, QueuedEvent(message, DateTime.now(DateTimeZone.UTC)))
+        stay() using enqueue(state, QueuedEvent(message, now))
       }
 
     /* process alert timeout and update state */
     case Event(message @ ProbeAlertTimeout, state: RunningProbe) =>
-      stay() using enqueue(state, QueuedEvent(message, DateTime.now(DateTimeZone.UTC)))
+      stay() using enqueue(state, QueuedEvent(message, now))
 
     /* process expiry timeout and update state */
     case Event(message @ ProbeExpiryTimeout, state: RunningProbe) =>
-      stay() using enqueue(state, QueuedEvent(message, DateTime.now(DateTimeZone.UTC)))
+      stay() using enqueue(state, QueuedEvent(message, now))
 
     /* process probe commands */
     case Event(command: ProbeCommand, state: RunningProbe) =>
       stay() using enqueue(state, QueuedCommand(command, sender()))
 
     /* probe state has been committed, now we can apply the mutation */
-    case Event(committed: ProbeStatusCommitted, state: RunningProbe) =>
-      stay() using process(state)
+    case Event(result: UpdateProbeStateResult, state: RunningProbe) =>
+      state.inflight match {
+        case None => stay()
+        case Some(InflightMutation(op, _)) if result.op != op => stay()
+        case _ => stay() using process(state)
+      }
+
+    /* state failed to commit */
+    case Event(failure: StateServiceOperationFailed, state: RunningProbe) =>
+      state.inflight match {
+        case None => stay()
+        case Some(InflightMutation(op, _)) if failure.op != op => stay()
+        case _ =>
+          log.warning("failed to commit status for {}: {}", probeRef, failure.failure)
+          stay() using recover(state)
+      }
 
     /* timeout waiting to commit */
     case Event(ProbeCommitTimeout, state: RunningProbe) =>
-      log.warning("timeout committing status for {}", probeRef)
+      log.debug("timeout committing status for {}", probeRef)
       stay() using recover(state)
 
-    /* state failed to commit */
-    case Event(ex: Throwable, state: RunningProbe) =>
-      log.warning("failed to commit status for {}: {}", probeRef, ex)
-      stay() using recover(state)
-
-    /* move to retired state */
-    case Event(RetireProbe(lsn), _) =>
-      goto(RetiringProbe) using RetiringProbe(lsn)
+//    /* move to retired state */
+//    case Event(RetireProbe(lsn), _) =>
+//      goto(RetiringProbe) using RetiringProbe(lsn)
   }
 
   onTransition {
     case _ -> RunningProbe => unstashAll()
   }
 
-  /*
-   * probe is transitioning between behaviors.  we change probe state to Initializing and
-   * commit it to the state service.  once the change has been committed, we transition to
-   * the new behavior.
-   */
-  when(ChangingProbe) {
-
-    case Event(ProbeStatusCommitted(status, lsn), ChangingProbe(change, _, queued)) =>
-      // FIXME: what do we do if correlationId or acknowledgementId are set?
-      _correlationId = None
-      _acknowledgementId = None
-      children = change.children
-      policy = change.policy
-      behavior = change.behavior
-      processor = behavior.makeProbeBehavior()
-      processor.enter(this)
-      unstashAll()
-      goto(RunningProbe) using RunningProbe(None, queued)
-
-    case Event(ProbeCommitTimeout, _) =>
-      log.debug("gen {}: timeout while receiving initial state", probeGeneration)
-      services.stateService ! ProbeState(getProbeStatus(lastChange.get), probeGeneration)
-      setCommitTimer()
-      stay()
-
-    case Event(failure: Throwable, _) =>
-      log.debug("gen {}: failure changing state: {}", probeGeneration, failure)
-      cancelCommitTimer()
-      throw failure
-
-    case Event(other, _) =>
-      // TODO: drop any messages of type Message?
-      stash()
-      stay()
-  }
-
-  onTransition {
-    case _ -> ChangingProbe =>
-      // ensure that timers are not running
-      expiryTimer.stop()
-      alertTimer.stop()
-      cancelCommitTimer()
-      // persist initializing state
-      val timestamp = DateTime.now(DateTimeZone.UTC)
-      _lifecycle = ProbeInitializing
-      _health = ProbeUnknown
-      _summary = None
-      _lastChange = Some(timestamp)
-      _lastUpdate = Some(timestamp)
-      processor.exit(this)
-      services.stateService ! ProbeState(getProbeStatus(timestamp), probeGeneration)
-      setCommitTimer()
-  }
-
-
-  /*
-   * probe is transitioning from running to retired.  once the probe state is deleted
-   * from the state service, the probe is stopped.
-   */
-  when(RetiringProbe) {
-    case Event(ProbeStatusCommitted(status, lsn), _) =>
-      context.stop(self)
-      stay()
-
-    case Event(ProbeCommitTimeout, _) =>
-      log.debug("gen {}: timeout while deleting state", probeGeneration)
-      services.stateService ! DeleteProbeState(probeRef, None, probeGeneration)
-      setCommitTimer()
-      stay()
-
-    case Event(Failure(failure: Throwable), _) =>
-      log.debug("gen {}: failure deleting state: {}", probeGeneration, failure)
-      cancelCommitTimer()
-      throw failure
-
-    case Event(other, _) =>
-      stay()
-  }
-
-  onTransition {
-    case _ -> RetiringProbe =>
-      expiryTimer.stop()
-      alertTimer.stop()
-      processor.exit(this)
-      services.stateService ! DeleteProbeState(probeRef, None, probeGeneration)
-      setCommitTimer()
-  }
-
-  /*
-   * probe becomes Retired when it is determined to be stale; that is, the lsn from the
-   * state service is newer than the probe generation.  when Retired, the probe ignores
-   * all messages except for RetireProbe, which causes the Probe actor to stop.
-   */
-  when (StaleProbe) {
-
-    case Event(RetireProbe(lsn), _) =>
-      context.stop(self)
-      stay()
-
-    // ignore any other message
-    case _ =>
-      stay()
-  }
-
-  onTransition {
-    case _ -> StaleProbe => unstashAll()
-  }
+//  /*
+//   * probe is transitioning from running to retired.  once the probe state is deleted
+//   * from the state service, the probe is stopped.
+//   */
+//  when(RetiringProbe) {
+//    case Event(result: UpdateProbeStateResult, state: RetiringProbe) =>
+//      if (result.inflight.op != op) {
+//      }
+//      context.stop(self)
+//      stay()
+//
+//    case Event(ProbeCommitTimeout, _) =>
+//      log.debug("gen {}: timeout while deleting state", probeGeneration)
+//      services.stateService ! DeleteProbeState(probeRef, None, probeGeneration)
+//      setCommitTimer()
+//      stay()
+//
+//    case Event(Failure(failure: Throwable), _) =>
+//      log.debug("gen {}: failure deleting state: {}", probeGeneration, failure)
+//      cancelCommitTimer()
+//      throw failure
+//
+//    case Event(other, _) =>
+//      stay()
+//  }
+//
+//  onTransition {
+//    case _ -> RetiringProbe =>
+//      expiryTimer.stop()
+//      alertTimer.stop()
+//      processor.exit(this)
+//      services.stateService ! DeleteProbeState(probeRef, None, probeGeneration)
+//      setCommitTimer()
+//  }
+//
+//  /*
+//   * probe becomes Retired when it is determined to be stale; that is, the lsn from the
+//   * state service is newer than the probe generation.  when Retired, the probe ignores
+//   * all messages except for RetireProbe, which causes the Probe actor to stop.
+//   */
+//  when (StaleProbe) {
+//
+//    case Event(RetireProbe(lsn), _) =>
+//      context.stop(self)
+//      stay()
+//
+//    // ignore any other message
+//    case _ =>
+//      stay()
+//  }
+//
+//  onTransition {
+//    case _ -> StaleProbe => unstashAll()
+//  }
 
   /* implement accessors for ProbeInterface */
   def lifecycle: ProbeLifecycle = _lifecycle
@@ -322,6 +286,8 @@ class Probe(val probeRef: ProbeRef,
       _squelch = status.squelched
   }
 
+  def now = DateTime.now(DateTimeZone.UTC)
+  
   /* set/reset the commit timer */
   private def setCommitTimer() = setTimer("commit", ProbeCommitTimeout, timeout)
 
@@ -334,7 +300,7 @@ class Probe(val probeRef: ProbeRef,
   private def persist(state: RunningProbe): RunningProbe = {
     var queued = state.queued
     while (queued.nonEmpty) {
-      val mutation: Option[InflightMutation] = queued.head match {
+      val mutation: Option[Mutation] = queued.head match {
         case QueuedCommand(command, caller) =>
           processor.processCommand(this, command) match {
             case Success(result) =>
@@ -345,40 +311,56 @@ class Probe(val probeRef: ProbeRef,
           }
         case QueuedEvent(event, timestamp) =>
           processor.processEvent(this, event)
+        case QueuedUpdate(update, timestamp) =>
+          processor.update(this, update.behavior) match {
+            case Some(EventMutation(status, notifications)) => processor.update(this, update.behavior)
+              Some(ConfigMutation(update.children, update.policy, update.behavior, status))
+            case None =>
+              children = update.children
+              policy = update.policy
+              behavior = update.behavior
+              None
+          }
+        case QueuedChange(change, timestamp) =>
+          children = change.children
+          policy = change.policy
+          behavior = change.behavior
+          None
       }
       mutation match {
         case None =>
           queued = queued.tail
-        case mutation @ Some(CommandMutation( _, status, _)) =>
-          services.stateService ! ProbeState(status, probeGeneration)
+        case Some(mutation: Mutation) =>
+          val op = UpdateProbeState(probeRef, mutation.status, probeGeneration)
+          services.stateService ! op
           setCommitTimer()
-          return RunningProbe(mutation, queued)
-        case mutation @ Some(EventMutation(status, _)) =>
-          services.stateService ! ProbeState(status, probeGeneration)
-          setCommitTimer()
-          return RunningProbe(mutation, queued)
+          return RunningProbe(Some(InflightMutation(op, mutation)), queued)
       }
     }
     RunningProbe(None, queued)
   }
 
-  private def enqueue(state: RunningProbe, message: QueuedMessage): RunningProbe = {
-    val updated = RunningProbe(state.inflight, state.queued :+ message)
-    if (state.inflight.isDefined) updated else persist(updated)
-  }
-
   private def process(state: RunningProbe): RunningProbe = {
     cancelCommitTimer()
     state.inflight match {
-      case Some(EventMutation(status, notifications)) =>
+      case None =>  // do nothing
+      case Some(InflightMutation(op, EventMutation(status, notifications))) =>
         setProbeStatus(status)
         parent ! status
         sendNotifications(notifications)
-      case Some(CommandMutation(result, status, notifications)) =>
+      case Some(InflightMutation(op, CommandMutation(result, status, notifications))) =>
         setProbeStatus(status)
+        parent ! status
         // blegh this is ugly
         state.queued.head.asInstanceOf[QueuedCommand].caller ! result
         sendNotifications(notifications)
+      case Some(InflightMutation(op, config: ConfigMutation)) =>
+        children = config.children
+        policy = config.policy
+        behavior = config.behavior
+        setProbeStatus(config.status)
+        processor = behavior.makeProbeBehavior()
+        parent ! config.status
     }
     persist(RunningProbe(None, state.queued.tail))
   }
@@ -387,6 +369,16 @@ class Probe(val probeRef: ProbeRef,
     cancelCommitTimer()
     // FIXME: implement some retry policy here
     persist(RunningProbe(None, state.queued.tail))
+  }
+
+  private def enqueue(state: RunningProbe, message: QueuedMessage): RunningProbe = {
+    val updated = RunningProbe(state.inflight, state.queued :+ message)
+    if (state.inflight.isDefined) updated else persist(updated)
+  }
+
+  private def enqueue(state: RunningProbe, messages: Vector[QueuedMessage]): RunningProbe = {
+    val updated = RunningProbe(state.inflight, state.queued ++ messages)
+    if (state.inflight.isDefined) updated else persist(updated)
   }
 
   /**
@@ -424,9 +416,6 @@ class Probe(val probeRef: ProbeRef,
     expiryTimer.stop()
     alertTimer.stop()
   }
-
-  /* FSM initialization is the last step in the constructor */
-  initialize()
 }
 
 object Probe {
@@ -449,13 +438,18 @@ object Probe {
 }
 
 /* */
-sealed trait InflightMutation
-case class CommandMutation(result: Any, status: ProbeStatus, notifications: Vector[Notification]) extends InflightMutation
-case class EventMutation(status: ProbeStatus, notifications: Vector[Notification]) extends InflightMutation
+sealed trait Mutation { val status: ProbeStatus }
+case class CommandMutation(result: Any, status: ProbeStatus, notifications: Vector[Notification]) extends Mutation
+case class EventMutation(status: ProbeStatus, notifications: Vector[Notification]) extends Mutation
+case class ConfigMutation(children: Set[ProbeRef], policy: ProbePolicy, behavior: ProbeBehavior, status: ProbeStatus) extends Mutation
+
+case class InflightMutation(op: UpdateProbeState, mutation: Mutation)
 
 sealed trait QueuedMessage
 case class QueuedCommand(command: ProbeCommand, caller: ActorRef) extends QueuedMessage
 case class QueuedEvent(event: Any, timestamp: DateTime) extends QueuedMessage
+case class QueuedUpdate(update: UpdateProbe, timestamp: DateTime) extends QueuedMessage
+case class QueuedChange(change: ChangeProbe, timestamp: DateTime) extends QueuedMessage
 
 sealed trait ProbeFSMState
 case object InitializingProbe extends ProbeFSMState
@@ -465,10 +459,11 @@ case object RetiringProbe extends ProbeFSMState
 case object StaleProbe extends ProbeFSMState
 
 sealed trait ProbeFSMData
-case object NoData extends ProbeFSMData
-case class ChangingProbe(command: ChangeProbe, inflight: Option[InflightMutation], queued: Vector[QueuedMessage]) extends ProbeFSMData
+case class InitializingProbe(command: InitializeProbeState) extends ProbeFSMData
+case class ChangingProbe(command: ChangeProbe, inflight: InflightMutation, queued: Vector[QueuedMessage]) extends ProbeFSMData
 case class RunningProbe(inflight: Option[InflightMutation], queued: Vector[QueuedMessage]) extends ProbeFSMData
-case class RetiringProbe(lsn: Long) extends ProbeFSMData
+case class RetiringProbe(inflight: InflightMutation, lsn: Long) extends ProbeFSMData
+case object NoData extends ProbeFSMData
 
 /* object lifecycle */
 sealed trait ProbeLifecycle
