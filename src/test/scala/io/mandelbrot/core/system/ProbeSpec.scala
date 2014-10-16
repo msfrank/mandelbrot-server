@@ -10,7 +10,7 @@ import scala.concurrent.duration._
 import scala.util.Success
 
 import io.mandelbrot.core.registry.ProbePolicy
-import io.mandelbrot.core.state.{InitializeProbeStateResult, InitializeProbeState, ProbeState}
+import io.mandelbrot.core.state._
 import io.mandelbrot.core.{PersistenceConfig, AkkaConfig, Blackhole, ServiceMap}
 import io.mandelbrot.core.ConfigConversions._
 
@@ -32,7 +32,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
     "have an initial state" in {
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val behavior = ScalarProbeBehavior(1.hour, 17)
+      val behavior = TestBehavior()
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, blackhole, blackhole)
       val metricsBus = new MetricsBus()
       val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
@@ -50,7 +50,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "initialize and transition to running behavior" in {
       val ref = ProbeRef("fqdn:local/")
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val behavior = ScalarProbeBehavior(1.hour, 17)
+      val behavior = TestBehavior()
       val stateService = new TestProbe(_system)
       val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
       val metricsBus = new MetricsBus()
@@ -68,22 +68,24 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       result.state.squelched must be(false)
     }
 
-//    "initialize and transition to retired behavior if lsn is newer than generation" in {
-//      val ref = ProbeRef("fqdn:local/")
-//      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-//      val behavior = ScalarProbeBehavior(1.hour, 17)
-//      val stateService = new TestProbe(_system)
-//      val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
-//      val metricsBus = new MetricsBus()
-//      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
-//      watch(actor)
-//      val initialize = stateService.expectMsgClass(classOf[InitializeProbeState])
-//      val status = ProbeStatus(ref, DateTime.now(), ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
-//      stateService.reply(InitializeProbeStateResult(initialize, status, 1))
-//      actor ! RetireProbe(1)
-//      val result = expectMsgClass(classOf[Terminated])
-//      result.actor must be(actor)
-//    }
+    "transition to retired behavior" in {
+      val ref = ProbeRef("fqdn:local/")
+      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val behavior = ScalarProbeBehavior(1.hour, 17)
+      val stateService = new TestProbe(_system)
+      val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
+      val metricsBus = new MetricsBus()
+      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
+      watch(actor)
+      val initialize = stateService.expectMsgClass(classOf[InitializeProbeState])
+      val status = ProbeStatus(ref, DateTime.now(), ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
+      stateService.reply(InitializeProbeStateResult(initialize, status, 0))
+      actor ! RetireProbe(0)
+      val retire = stateService.expectMsgClass(classOf[DeleteProbeState])
+      stateService.reply(DeleteProbeStateResult(retire))
+      val result = expectMsgClass(classOf[Terminated])
+      result.actor must be(actor)
+    }
 
 //    "transition behavior from scalar to aggregate" in {
 //      val ref = ProbeRef("fqdn:local/")
