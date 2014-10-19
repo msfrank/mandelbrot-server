@@ -85,6 +85,16 @@ class Probe(val probeRef: ProbeRef,
    */
   when(InitializingProbe) {
 
+    /* peek at internal state */
+    case Event(query: GetProbeStatus, _) =>
+      sender() ! GetProbeStatusResult(query, getProbeStatus)
+      stay()
+
+    /* peek at internal config */
+    case Event(query: GetProbeConfig, _) =>
+      sender() ! GetProbeConfigResult(query, children, policy, behavior)
+      stay()
+
     case Event(result: InitializeProbeStateResult, state: InitializingProbe) if result.op != state.command =>
       stay()
 
@@ -134,9 +144,14 @@ class Probe(val probeRef: ProbeRef,
    */
   when(RunningProbe) {
 
-    /* peek at internals */
+    /* peek at internal state */
     case Event(query: GetProbeStatus, _) =>
       sender() ! GetProbeStatusResult(query, getProbeStatus)
+      stay()
+
+    /* peek at internal config */
+    case Event(query: GetProbeConfig, _) =>
+      sender() ! GetProbeConfigResult(query, children, policy, behavior)
       stay()
 
     /* if the probe behavior has changed, then transition to a new state */
@@ -206,6 +221,16 @@ class Probe(val probeRef: ProbeRef,
    * from the state service, the probe is stopped.
    */
   when(RetiringProbe) {
+
+    /* peek at internal state */
+    case Event(query: GetProbeStatus, _) =>
+      sender() ! GetProbeStatusResult(query, getProbeStatus)
+      stay()
+
+    /* peek at internal config */
+    case Event(query: GetProbeConfig, _) =>
+      sender() ! GetProbeConfigResult(query, children, policy, behavior)
+      stay()
 
     /* probe state has been committed, now we can apply the mutation */
     case Event(result: UpdateProbeStateResult, state: RunningProbe) =>
@@ -306,6 +331,7 @@ class Probe(val probeRef: ProbeRef,
           children = change.children
           policy = change.policy
           behavior = change.behavior
+          processor = behavior.makeProbeBehavior()
           processor.enter(this)
         case QueuedRetire(retire, timestamp) =>
           processor.exit(this) match {
@@ -504,6 +530,9 @@ case class ProbeOperationFailed(op: ProbeOperation, failure: Throwable)
 
 case class GetProbeStatus(probeRef: ProbeRef) extends ProbeQuery
 case class GetProbeStatusResult(op: GetProbeStatus, state: ProbeStatus)
+
+case class GetProbeConfig(probeRef: ProbeRef) extends ProbeQuery
+case class GetProbeConfigResult(op: GetProbeConfig, children: Set[ProbeRef], policy: ProbePolicy, behavior: ProbeBehavior)
 
 case class SetProbeSquelch(probeRef: ProbeRef, squelch: Boolean) extends ProbeCommand
 case class SetProbeSquelchResult(op: SetProbeSquelch, squelch: Boolean)
