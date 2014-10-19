@@ -19,11 +19,10 @@
 
 package io.mandelbrot.core.http
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorRef, ActorSystem}
 import akka.pattern.ask
 import akka.util.Timeout
 import akka.event.LoggingAdapter
-import io.mandelbrot.core.system.Message
 import spray.routing.{HttpService, ExceptionHandler}
 import spray.http._
 import spray.http.HttpHeaders.Location
@@ -58,7 +57,7 @@ trait ApiService extends HttpService {
   implicit def executionContext = actorRefFactory.dispatcher
   implicit val timeout: Timeout
 
-  var services: ServiceMap
+  val serviceProxy: ActorRef
 
   val datetimeParser = ISODateTimeFormat.dateTimeParser().withZoneUTC()
 
@@ -71,7 +70,7 @@ trait ApiService extends HttpService {
       post {
         entity(as[RegisterProbeSystem]) { case registerProbeSystem: RegisterProbeSystem =>
           complete {
-            services.registryService.ask(registerProbeSystem).map {
+            serviceProxy.ask(registerProbeSystem).map {
               case result: RegisterProbeSystemResult =>
                 HttpResponse(StatusCodes.Accepted,
                              headers = List(Location("/objects/systems/" + registerProbeSystem.uri.toString)),
@@ -86,7 +85,7 @@ trait ApiService extends HttpService {
       get {
         pagingParams { paging =>
           complete {
-            services.registryService.ask(ListProbeSystems(paging.last, paging.limit)).map {
+            serviceProxy.ask(ListProbeSystems(paging.last, paging.limit)).map {
               case result: ListProbeSystemsResult =>
                 result.systems
               case failure: ProbeRegistryOperationFailed =>
@@ -101,7 +100,7 @@ trait ApiService extends HttpService {
         /* retrieve the spec for the specified probe system */
         get {
           complete {
-            services.registryService.ask(DescribeProbeSystem(uri)).map {
+            serviceProxy.ask(DescribeProbeSystem(uri)).map {
               case result: DescribeProbeSystemResult =>
                 result.registration
               case failure: ProbeSystemOperationFailed =>
@@ -113,7 +112,7 @@ trait ApiService extends HttpService {
         put {
           entity(as[UpdateProbeSystem]) { case updateProbeSystem: UpdateProbeSystem =>
             complete {
-              services.registryService.ask(updateProbeSystem).map {
+              serviceProxy.ask(updateProbeSystem).map {
                 case result: UpdateProbeSystemResult =>
                   HttpResponse(StatusCodes.Accepted,
                                headers = List(Location("/objects/systems/" + updateProbeSystem.uri.toString)),
@@ -127,7 +126,7 @@ trait ApiService extends HttpService {
         /* unregister the probe system */
         delete {
           complete {
-            services.registryService.ask(UnregisterProbeSystem(uri)).map {
+            serviceProxy.ask(UnregisterProbeSystem(uri)).map {
               case result: UnregisterProbeSystemResult =>
                 HttpResponse(StatusCodes.Accepted)
               case failure: ProbeRegistryOperationFailed =>
@@ -142,7 +141,7 @@ trait ApiService extends HttpService {
           get {
             pathParams { paths =>
             complete {
-              services.registryService.ask(GetProbeSystemStatus(uri, paths)).map {
+              serviceProxy.ask(GetProbeSystemStatus(uri, paths)).map {
                 case result: GetProbeSystemStatusResult =>
                   result.status
                 case failure: ProbeSystemOperationFailed =>
@@ -156,7 +155,7 @@ trait ApiService extends HttpService {
           get {
             pathParams { paths =>
             complete {
-              services.registryService.ask(GetProbeSystemMetadata(uri, paths)).map {
+              serviceProxy.ask(GetProbeSystemMetadata(uri, paths)).map {
                 case result: GetProbeSystemMetadataResult =>
                   result.metadata
                 case failure: ProbeSystemOperationFailed =>
@@ -170,7 +169,7 @@ trait ApiService extends HttpService {
           get {
             pathParams { paths =>
             complete {
-              services.registryService.ask(GetProbeSystemPolicy(uri, paths)).map {
+              serviceProxy.ask(GetProbeSystemPolicy(uri, paths)).map {
                 case result: GetProbeSystemPolicyResult =>
                   result.policy
                 case failure: ProbeSystemOperationFailed =>
@@ -184,7 +183,7 @@ trait ApiService extends HttpService {
           get {
             pathParams { paths =>
             complete {
-              services.registryService.ask(GetProbeSystemLinks(uri, paths)).map {
+              serviceProxy.ask(GetProbeSystemLinks(uri, paths)).map {
                 case result: GetProbeSystemLinksResult =>
                   result.links
                 case failure: ProbeSystemOperationFailed =>
@@ -201,7 +200,7 @@ trait ApiService extends HttpService {
             timeseriesParams { timeseries =>
             pagingParams { paging =>
               complete {
-                services.registryService.ask(GetProbeSystemStatusHistory(uri, paths, timeseries.from, timeseries.to, paging.limit)).map {
+                serviceProxy.ask(GetProbeSystemStatusHistory(uri, paths, timeseries.from, timeseries.to, paging.limit)).map {
                   case result: GetProbeSystemStatusHistoryResult =>
                     result.history
                   case failure: ProbeSystemOperationFailed =>
@@ -217,7 +216,7 @@ trait ApiService extends HttpService {
             timeseriesParams { timeseries =>
             pagingParams { paging =>
               complete {
-                services.registryService.ask(GetProbeSystemNotificationHistory(uri, paths, timeseries.from, timeseries.to, paging.limit)).map {
+                serviceProxy.ask(GetProbeSystemNotificationHistory(uri, paths, timeseries.from, timeseries.to, paging.limit)).map {
                   case result: GetProbeSystemNotificationHistoryResult =>
                     result.history
                   case failure: ProbeSystemOperationFailed =>
@@ -239,10 +238,10 @@ trait ApiService extends HttpService {
           /* publish message to the message stream */
           post {
             // FIXME: reject message if proberef doesn't match
-            entity(as[Message]) {
-              case message: ProbeMessage =>
+            entity(as[ProbeEvent]) {
+              case message: ProbeEvent =>
                 complete {
-                  services.registryService ! message
+                  serviceProxy ! message
                   HttpResponse(StatusCodes.OK)
                 }
               case other =>
@@ -255,7 +254,7 @@ trait ApiService extends HttpService {
           post {
             entity(as[AcknowledgeProbeSystem]) { case command: AcknowledgeProbeSystem =>
               complete {
-                services.registryService.ask(command).map {
+                serviceProxy.ask(command).map {
                   case result: AcknowledgeProbeSystemResult =>
                     result.acknowledgements
                   case failure: ProbeSystemOperationFailed =>
@@ -270,7 +269,7 @@ trait ApiService extends HttpService {
           post {
             entity(as[UnacknowledgeProbeSystem]) { case command: UnacknowledgeProbeSystem =>
               complete {
-                services.registryService.ask(command).map {
+                serviceProxy.ask(command).map {
                   case result: UnacknowledgeProbeSystemResult =>
                     result.unacknowledgements
                   case failure: ProbeSystemOperationFailed =>
@@ -285,7 +284,7 @@ trait ApiService extends HttpService {
           post {
             entity(as[SetProbeSquelch]) { case command: SetProbeSquelch =>
               complete {
-                services.registryService.ask(command).map {
+                serviceProxy.ask(command).map {
                   case result: SetProbeSquelchResult =>
                     result
                   case failure: ProbeOperationFailed =>
@@ -327,7 +326,7 @@ trait ApiService extends HttpService {
       post {
         entity(as[RegisterMaintenanceWindow]) { case registerMaintenanceWindow: RegisterMaintenanceWindow =>
           complete {
-            services.notificationService.ask(registerMaintenanceWindow).map {
+            serviceProxy.ask(registerMaintenanceWindow).map {
               case result: RegisterMaintenanceWindowResult =>
                 HttpResponse(StatusCodes.Accepted,
                              headers = List(Location("/objects/windows/" + result.id.toString)),
@@ -341,7 +340,7 @@ trait ApiService extends HttpService {
       /* enumerate all maintenance windows */
       get {
         complete {
-          services.notificationService.ask(ListMaintenanceWindows()).map {
+          serviceProxy.ask(ListMaintenanceWindows()).map {
             case result: ListMaintenanceWindowsResult =>
               result.windows
             case failure: NotificationManagerOperationFailed =>
@@ -355,7 +354,7 @@ trait ApiService extends HttpService {
       put {
         entity(as[MaintenanceWindowModification]) { case modifications: MaintenanceWindowModification =>
           complete {
-            services.notificationService.ask(ModifyMaintenanceWindow(uuid, modifications)).map {
+            serviceProxy.ask(ModifyMaintenanceWindow(uuid, modifications)).map {
               case result: ModifyMaintenanceWindowResult =>
                 result.id
               case failure: NotificationManagerOperationFailed =>
@@ -367,7 +366,7 @@ trait ApiService extends HttpService {
       /* unregister an existing maintenance window */
       delete {
         complete {
-          services.notificationService.ask(UnregisterMaintenanceWindow(uuid)).map {
+          serviceProxy.ask(UnregisterMaintenanceWindow(uuid)).map {
             case result: UnregisterMaintenanceWindowResult =>
               HttpResponse(StatusCodes.OK)
             case failure: NotificationManagerOperationFailed =>
@@ -384,7 +383,7 @@ trait ApiService extends HttpService {
       post {
         entity(as[CreateTicket]) { case createTicket: CreateTicket =>
           complete {
-            services.trackingService.ask(createTicket).map {
+            serviceProxy.ask(createTicket).map {
               case result: CreateTicketResult =>
                 HttpResponse(StatusCodes.Accepted,
                   headers = List(Location("/objects/tickets/" + result.ticket.toString)),
@@ -399,7 +398,7 @@ trait ApiService extends HttpService {
       get {
         pagingParams { paging =>
         complete {
-          services.trackingService.ask(ListTrackingTickets(paging.last, paging.limit)).map {
+          serviceProxy.ask(ListTrackingTickets(paging.last, paging.limit)).map {
             case result: ListTrackingTicketsResult =>
               result.tickets
             case failure: TrackingServiceOperationFailed =>
@@ -412,7 +411,7 @@ trait ApiService extends HttpService {
           //      put {
           //        entity(as[AppendWorknote]) { case appendWorknote: AppendWorknote =>
           //          complete {
-          //            services.trackingService.ask(appendWorknote)).map {
+          //            serviceProxy.ask(appendWorknote)).map {
           //              case result: AppendWorknoteResult =>
           //                result.ticket
           //              case failure: TrackingServiceOperationFailed =>
@@ -424,7 +423,7 @@ trait ApiService extends HttpService {
           /* close an existing tracking ticket */
         delete {
           complete {
-            services.trackingService.ask(ResolveTicket(uuid)).map {
+            serviceProxy.ask(ResolveTicket(uuid)).map {
               case result: ResolveTicketResult =>
                 HttpResponse(StatusCodes.OK)
               case failure: TrackingServiceOperationFailed =>
@@ -441,7 +440,7 @@ trait ApiService extends HttpService {
       /* enumerate all maintenance windows */
       get {
         complete {
-          services.notificationService.ask(ListNotificationRules()).map {
+          serviceProxy.ask(ListNotificationRules()).map {
             case result: ListNotificationRulesResult =>
               result.rules
             case failure: NotificationManagerOperationFailed =>
@@ -466,7 +465,7 @@ trait ApiService extends HttpService {
           queryParams { query =>
           pagingParams { paging =>
           complete {
-            services.stateService.ask(SearchCurrentStatus(query.qs, paging.limit)).map {
+            serviceProxy.ask(SearchCurrentStatus(query.qs, paging.limit)).map {
               case result: SearchCurrentStatusResult =>
                 result.status
             }
@@ -481,11 +480,11 @@ trait ApiService extends HttpService {
           timeseriesParams { timeseries =>
           pagingParams { paging =>
           complete {
-            services.stateService.ask(QueryProbes(query.qs, None)).flatMap {
+            serviceProxy.ask(QueryProbes(query.qs, None)).flatMap {
               case Failure(failure: Throwable) =>
                 throw failure
               case Success(result: QueryProbesResult) =>
-                services.historyService.ask(GetStatusHistory(Right(result.refs.toSet), timeseries.from, timeseries.to, paging.limit)).map {
+                serviceProxy.ask(GetStatusHistory(Right(result.refs.toSet), timeseries.from, timeseries.to, paging.limit)).map {
                   case result: GetStatusHistoryResult =>
                     result.history
                   case failure: HistoryServiceOperationFailed =>
@@ -503,11 +502,11 @@ trait ApiService extends HttpService {
           timeseriesParams { timeseries =>
           pagingParams { paging =>
           complete {
-            services.stateService.ask(QueryProbes(query.qs, None)).flatMap {
+            serviceProxy.ask(QueryProbes(query.qs, None)).flatMap {
               case Failure(failure: Throwable) =>
                 throw failure
               case Success(result: QueryProbesResult) =>
-                services.historyService.ask(GetNotificationHistory(Right(result.refs.toSet), timeseries.from, timeseries.to, paging.limit)).map {
+                serviceProxy.ask(GetNotificationHistory(Right(result.refs.toSet), timeseries.from, timeseries.to, paging.limit)).map {
                   case result: GetNotificationHistoryResult =>
                     result.history
                   case failure: HistoryServiceOperationFailed =>

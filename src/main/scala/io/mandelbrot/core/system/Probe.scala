@@ -43,7 +43,7 @@ class Probe(val probeRef: ProbeRef,
             var policy: ProbePolicy,
             var behavior: ProbeBehavior,
             val probeGeneration: Long,
-            val services: ServiceMap,
+            val services: ActorRef,
             val metricsBus: MetricsBus) extends LoggingFSM[ProbeFSMState,ProbeFSMData] with Stash with ProbeInterface {
   import Probe._
 
@@ -71,7 +71,7 @@ class Probe(val probeRef: ProbeRef,
   override def preStart(): Unit = {
     // ask state service what our current status is
     val op = InitializeProbeState(probeRef, now, probeGeneration)
-    services.stateService ! op
+    services ! op
     setCommitTimer()
     startWith(InitializingProbe, InitializingProbe(op))
     /* FSM initialization is the last step in the constructor */
@@ -129,7 +129,7 @@ class Probe(val probeRef: ProbeRef,
     case Event(ProbeCommitTimeout, _) =>
       log.debug("gen {}: timeout while receiving initial state", probeGeneration)
       val op = InitializeProbeState(probeRef, now, probeGeneration)
-      services.stateService ! op
+      services ! op
       setCommitTimer()
       stay() using InitializingProbe(op)
 
@@ -346,12 +346,12 @@ class Probe(val probeRef: ProbeRef,
           queued = queued.tail
         case Some(mutation: UpdateMutation) =>
           val op = UpdateProbeState(probeRef, mutation.status, probeGeneration)
-          services.stateService ! op
+          services ! op
           setCommitTimer()
           return RunningProbe(Some(InflightMutation(op, mutation)), queued)
         case Some(deletion: Deletion) =>
           val op = DeleteProbeState(probeRef, deletion.lastStatus, deletion.lsn)
-          services.stateService ! op
+          services ! op
           setCommitTimer()
           return RunningProbe(Some(InflightMutation(op, deletion)), queued)
       }
@@ -411,17 +411,17 @@ class Probe(val probeRef: ProbeRef,
    * send all notifications) or if the policy is specified and this specific notification
    * type is in the notification set.
    */
-  def sendNotification(notification: Notification): Unit = notification match {
+  def sendNotification(notification: NotificationEvent): Unit = notification match {
     case alert: Alert =>
       log.debug("sending alert {}", notification)
-      services.notificationService ! alert
+      services ! alert
     case _ if policy.notifications.isEmpty || policy.notifications.get.contains(notification.kind) =>
       log.debug("sending notification {}", notification)
-      services.notificationService ! notification
+      services ! notification
     case _ => // drop notification
   }
 
-  def sendNotifications(notifications: Iterable[Notification]): Unit = notifications.foreach(sendNotification)
+  def sendNotifications(notifications: Iterable[NotificationEvent]): Unit = notifications.foreach(sendNotification)
 
   /**
    * subscribe probe to all metrics at the specified probe path.
@@ -450,7 +450,7 @@ object Probe {
             policy: ProbePolicy,
             behavior: ProbeBehavior,
             probeGeneration: Long,
-            services: ServiceMap,
+            services: ActorRef,
             metricsBus: MetricsBus) = {
     Props(classOf[Probe], probeRef, parent, children, policy, behavior, probeGeneration, services, metricsBus)
   }
@@ -465,10 +465,10 @@ object Probe {
 /* */
 sealed trait Mutation
 sealed trait UpdateMutation extends Mutation { val status: ProbeStatus }
-case class CommandMutation(result: Any, status: ProbeStatus, notifications: Vector[Notification]) extends UpdateMutation
-case class EventMutation(status: ProbeStatus, notifications: Vector[Notification]) extends UpdateMutation
+case class CommandMutation(result: Any, status: ProbeStatus, notifications: Vector[NotificationEvent]) extends UpdateMutation
+case class EventMutation(status: ProbeStatus, notifications: Vector[NotificationEvent]) extends UpdateMutation
 case class ConfigMutation(children: Set[ProbeRef], policy: ProbePolicy, behavior: ProbeBehavior, status: ProbeStatus) extends UpdateMutation
-case class Deletion(lastStatus: Option[ProbeStatus], notifications: Vector[Notification], lsn: Long) extends Mutation
+case class Deletion(lastStatus: Option[ProbeStatus], notifications: Vector[NotificationEvent], lsn: Long) extends Mutation
 
 case class InflightMutation(op: StateServiceCommand, mutation: Mutation)
 
@@ -523,7 +523,7 @@ case class ProbeStatus(probeRef: ProbeRef,
 case class ProbeMetadata(probeRef: ProbeRef, metadata: Map[String,String])
 
 /* */
-sealed trait ProbeOperation { val probeRef: ProbeRef }
+trait ProbeOperation { val probeRef: ProbeRef }
 sealed trait ProbeCommand extends ProbeOperation
 sealed trait ProbeQuery extends ProbeOperation
 case class ProbeOperationFailed(op: ProbeOperation, failure: Throwable)

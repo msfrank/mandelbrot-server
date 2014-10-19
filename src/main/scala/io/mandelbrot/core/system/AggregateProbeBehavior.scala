@@ -102,7 +102,7 @@ class AggregateProbeBehaviorImpl(evaluation: AggregateEvaluation) extends ProbeB
 
     val status = ProbeStatus(probe.probeRef, timestamp, probe.lifecycle, health, None, lastUpdate, lastChange, correlationId, acknowledgementId, probe.squelch)
 
-    var notifications = Vector.empty[Notification]
+    var notifications = Vector.empty[NotificationEvent]
     // append health notification
     flapQueue match {
       case Some(flapDetector) if flapDetector.isFlapping =>

@@ -21,19 +21,17 @@ package io.mandelbrot.core.system
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
-import io.mandelbrot.core.metrics.{EvaluateSource, HeadFunction, ValueGreaterThan, MetricsEvaluation}
 import org.joda.time.DateTime
 import org.scalatest.matchers.MustMatchers
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import scala.concurrent.duration._
 import scala.math.BigDecimal
-import scala.util.Success
 
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.metrics._
 import io.mandelbrot.core.registry.ProbePolicy
 import io.mandelbrot.core.state._
-import io.mandelbrot.core.{PersistenceConfig, AkkaConfig, Blackhole, ServiceMap}
+import io.mandelbrot.core.{PersistenceConfig, AkkaConfig, Blackhole}
 import io.mandelbrot.core.ConfigConversions._
 
 class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpec with MustMatchers with BeforeAndAfterAll {
@@ -57,7 +55,7 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val behavior = MetricsProbeBehavior(evaluation, 1.hour, 17)
       val stateService = new TestProbe(_system)
-      val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
+      val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeState])
@@ -83,7 +81,7 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val behavior = MetricsProbeBehavior(evaluation, 1.hour, 17)
       val stateService = new TestProbe(_system)
-      val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
+      val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeState])
@@ -109,7 +107,7 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val policy = ProbePolicy(2.seconds, 1.minute, 1.minute, 1.minute, None)
       val behavior = MetricsProbeBehavior(evaluation, 1.hour, 17)
       val stateService = new TestProbe(_system)
-      val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
+      val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeState])
@@ -135,7 +133,7 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val policy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
       val behavior = MetricsProbeBehavior(evaluation, 1.hour, 17)
       val stateService = new TestProbe(_system)
-      val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
+      val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeState])
@@ -170,7 +168,7 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val behavior = MetricsProbeBehavior(evaluation, 1.hour, 17)
       val notificationService = new TestProbe(_system)
       val stateService = new TestProbe(_system)
-      val services = ServiceMap(blackhole, blackhole, blackhole, notificationService.ref, stateService.ref, blackhole)
+      val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref), notificationService = Some(notificationService.ref)))
       val metricsBus = new MetricsBus()
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeState])

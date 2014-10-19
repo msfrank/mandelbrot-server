@@ -26,7 +26,7 @@ import java.util.UUID
 /**
  * base trait for Notifications
  */
-sealed trait Notification {
+sealed trait NotificationEvent extends NotificationManagerOperation {
   val timestamp: DateTime
   val kind: String
   val description: String
@@ -36,7 +36,7 @@ sealed trait Notification {
 /**
  * A notification about a probe
  */
-class ProbeNotification(val probeRef: ProbeRef, val timestamp: DateTime, val kind: String, val description: String, val correlation: Option[UUID]) extends Notification {
+class ProbeNotification(val probeRef: ProbeRef, val timestamp: DateTime, val kind: String, val description: String, val correlation: Option[UUID]) extends NotificationEvent {
   override def toString = "%s: %s %s".format(kind, probeRef, description)
 }
 
@@ -52,7 +52,7 @@ object ProbeNotification {
 /**
  * An alert about a probe
  */
-sealed trait Alert extends Notification {
+sealed trait Alert extends NotificationEvent {
   val probeRef: ProbeRef
   val correlationId: UUID
 }

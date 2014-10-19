@@ -7,11 +7,10 @@ import org.joda.time.DateTime
 import org.scalatest.matchers.MustMatchers
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import scala.concurrent.duration._
-import scala.util.Success
 
 import io.mandelbrot.core.registry.ProbePolicy
 import io.mandelbrot.core.state._
-import io.mandelbrot.core.{PersistenceConfig, AkkaConfig, Blackhole, ServiceMap}
+import io.mandelbrot.core.{PersistenceConfig, AkkaConfig, Blackhole}
 import io.mandelbrot.core.ConfigConversions._
 
 class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpec with MustMatchers with BeforeAndAfterAll {
@@ -24,16 +23,13 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
   }
 
   val blackhole = system.actorOf(Blackhole.props())
-  val child1 = ProbeRef("fqdn:local/child1")
-  val child2 = ProbeRef("fqdn:local/child2")
-  val child3 = ProbeRef("fqdn:local/child3")
 
   "A Probe" must {
 
     "have an initial state" in {
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val behavior = TestBehavior()
-      val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, blackhole, blackhole)
+      val services = system.actorOf(TestServiceProxy.props())
       val metricsBus = new MetricsBus()
       val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val probe = actor.underlyingActor
@@ -52,7 +48,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val behavior = TestBehavior()
       val stateService = new TestProbe(_system)
-      val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
+      val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeState])
@@ -73,7 +69,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val behavior = TestUpdateBehavior(1)
       val stateService = new TestProbe(_system)
-      val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
+      val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeState])
@@ -89,9 +85,12 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
     "change behaviors" in {
       val ref = ProbeRef("fqdn:local/")
+      val child1 = ProbeRef("fqdn:local/child1")
+      val child2 = ProbeRef("fqdn:local/child2")
+      val child3 = ProbeRef("fqdn:local/child3")
       val children = Set(child1, child2, child3)
       val stateService = new TestProbe(_system)
-      val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
+      val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
       val policy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
       val initialBehavior = TestBehavior()
@@ -114,7 +113,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val behavior = ScalarProbeBehavior(1.hour, 17)
       val stateService = new TestProbe(_system)
-      val services = ServiceMap(blackhole, blackhole, blackhole, blackhole, stateService.ref, blackhole)
+      val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       watch(actor)

@@ -31,21 +31,21 @@ import io.mandelbrot.core.system._
  * interface for implementing a rule matcher.
  */
 sealed trait RuleMatcher {
-  def matches(notification: Notification): Boolean
+  def matches(notification: NotificationEvent): Boolean
 }
 
 /**
  * 'any' matches all notifications.
  */
 case object AnyMatcher extends RuleMatcher {
-  def matches(notification: Notification): Boolean = true
+  def matches(notification: NotificationEvent): Boolean = true
 }
 
 /**
  * 'probe' matches if notification is a ProbeNotification and probeRef matches.
  */
 case class ProbeRuleMatcher(matcher: ProbeMatcher) extends RuleMatcher {
-  def matches(notification: Notification): Boolean = notification match {
+  def matches(notification: NotificationEvent): Boolean = notification match {
     case n: ProbeNotification if matcher.matches(n.probeRef) =>
       true
     case otherwise =>
@@ -57,14 +57,14 @@ case class ProbeRuleMatcher(matcher: ProbeMatcher) extends RuleMatcher {
  * 'type' matches if notification kind matches.
  */
 case class TypeRuleMatcher(kind: String) extends RuleMatcher {
-  def matches(notification: Notification): Boolean = notification.kind == kind
+  def matches(notification: NotificationEvent): Boolean = notification.kind == kind
 }
 
 /**
  * 'lifecycle' matches if notification is of type NotifyLifecycleChanges and newLifecycle matches.
  */
 case class LifecycleRuleMatcher(lifecycle: ProbeLifecycle) extends RuleMatcher {
-  def matches(notification: Notification): Boolean = notification match {
+  def matches(notification: NotificationEvent): Boolean = notification match {
     case n: NotifyLifecycleChanges if n.newLifecycle == lifecycle =>
       true
     case otherwise =>
@@ -76,7 +76,7 @@ case class LifecycleRuleMatcher(lifecycle: ProbeLifecycle) extends RuleMatcher {
  * 'health' matches if notification is of type NotifyHealthChanges and newHealth matches.
  */
 case class HealthRuleMatcher(health: ProbeHealth) extends RuleMatcher {
-  def matches(notification: Notification): Boolean = notification match {
+  def matches(notification: NotificationEvent): Boolean = notification match {
     case n: NotifyHealthChanges if n.newHealth == health =>
       true
     case otherwise =>
@@ -88,7 +88,7 @@ case class HealthRuleMatcher(health: ProbeHealth) extends RuleMatcher {
  * 'alert' matches if notification is of type NotifyHealthAlerts and health matches.
  */
 case class AlertRuleMatcher(health: ProbeHealth) extends RuleMatcher {
-  def matches(notification: Notification): Boolean = notification match {
+  def matches(notification: NotificationEvent): Boolean = notification match {
     case n: NotifyHealthAlerts if n.health == health =>
       true
     case otherwise =>
@@ -100,7 +100,7 @@ case class AlertRuleMatcher(health: ProbeHealth) extends RuleMatcher {
  * 'and' matches if and only if all of its children match.
  */
 case class AndOperator(children: Vector[RuleMatcher]) extends RuleMatcher {
-  def matches(notification: Notification): Boolean = {
+  def matches(notification: NotificationEvent): Boolean = {
     children.foreach(child => if (!child.matches(notification)) return false)
     true
   }
@@ -110,7 +110,7 @@ case class AndOperator(children: Vector[RuleMatcher]) extends RuleMatcher {
  * 'or' matches if any of its children match.
  */
 case class OrOperator(children: Vector[RuleMatcher]) extends RuleMatcher {
-  def matches(notification: Notification): Boolean = {
+  def matches(notification: NotificationEvent): Boolean = {
     children.foreach(child => if (child.matches(notification)) return true)
     false
   }
@@ -120,7 +120,7 @@ case class OrOperator(children: Vector[RuleMatcher]) extends RuleMatcher {
  * 'not' matches if its child does _not_ match.
  */
 case class NotOperator(child: RuleMatcher) extends RuleMatcher {
-  def matches(notification: Notification): Boolean = !child.matches(notification)
+  def matches(notification: NotificationEvent): Boolean = !child.matches(notification)
 }
 
 
@@ -128,14 +128,14 @@ case class NotOperator(child: RuleMatcher) extends RuleMatcher {
  * 
  */
 sealed trait RuleAction {
-  def execute(notification: Notification, notifiers: Map[String,ActorRef]): Option[Notification]
+  def execute(notification: NotificationEvent, notifiers: Map[String,ActorRef]): Option[NotificationEvent]
 }
 
 /**
  *
  */
 case class NotifyContacts(contacts: Set[Contact]) extends RuleAction {
-  def execute(notification: Notification, notifiers: Map[String,ActorRef]) = {
+  def execute(notification: NotificationEvent, notifiers: Map[String,ActorRef]) = {
     for (contact <- contacts; notifier <- notifiers.values) {
       notifier ! NotifyContact(contact, notification)
     }
@@ -147,7 +147,7 @@ case class NotifyContacts(contacts: Set[Contact]) extends RuleAction {
  *
  */
 case class NotifyOnlyContacts(contacts: Set[Contact]) extends RuleAction {
-  def execute(notification: Notification, notifiers: Map[String,ActorRef]) = {
+  def execute(notification: NotificationEvent, notifiers: Map[String,ActorRef]) = {
     for (contact <- contacts; notifier <- notifiers.values) {
       notifier ! NotifyContact(contact, notification)
     }
@@ -159,15 +159,15 @@ case class NotifyOnlyContacts(contacts: Set[Contact]) extends RuleAction {
  *
  */
 case object DropNotification extends RuleAction {
-  def execute(notification: Notification, notifiers: Map[String,ActorRef]) = None
+  def execute(notification: NotificationEvent, notifiers: Map[String,ActorRef]) = None
 }
 
 /**
  * 
  */
 case class NotificationRule(matcher: RuleMatcher, action: RuleAction) {
-  def matches(notification: Notification): Boolean = matcher.matches(notification)
-  def execute(notification: Notification, notifiers: Map[String,ActorRef]) = {
+  def matches(notification: NotificationEvent): Boolean = matcher.matches(notification)
+  def execute(notification: NotificationEvent, notifiers: Map[String,ActorRef]) = {
     action.execute(notification, notifiers)
   }
 }
@@ -176,8 +176,8 @@ case class NotificationRule(matcher: RuleMatcher, action: RuleAction) {
  * 
  */
 class NotificationRules(val rules: Vector[NotificationRule]) {
-  def evaluate(notification: Notification, notifiers: Map[String,ActorRef]): Unit = {
-    var current: Notification = notification
+  def evaluate(notification: NotificationEvent, notifiers: Map[String,ActorRef]): Unit = {
+    var current: NotificationEvent = notification
     for (rule <- rules if rule.matches(current)) {
       rule.execute(current, notifiers) match {
         case Some(modified) =>

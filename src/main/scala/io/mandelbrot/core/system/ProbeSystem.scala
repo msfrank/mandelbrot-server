@@ -31,9 +31,9 @@ import scala.collection.mutable
 import java.net.{URL, URI}
 import java.util.UUID
 
-import io.mandelbrot.core.{ServiceMap, ServerConfig, ResourceNotFound, ApiException}
+import io.mandelbrot.core.{ServerConfig, ResourceNotFound, ApiException}
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.notification.{ProbeNotification, Notification}
+import io.mandelbrot.core.notification.{ProbeNotification, NotificationEvent}
 import io.mandelbrot.core.history._
 
 /**
@@ -42,7 +42,7 @@ import io.mandelbrot.core.history._
  * as updating probes when policy changes.  lastly, the ProbeSystem acts as an endpoint
  * for commands and queries operating on sets of probes in the system.
  */
-class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Long, services: ServiceMap) extends Actor with ActorLogging {
+class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Long, services: ActorRef) extends Actor with ActorLogging {
   import ProbeSystem._
   import context.dispatcher
 
@@ -57,7 +57,7 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
   val links = new mutable.HashMap[ProbeRef,ProbeLink]
   val metricsBus = new MetricsBus()
 
-  var notifier: Option[ActorRef] = Some(services.notificationService)
+  var notifier: Option[ActorRef] = Some(services)
 
   override def preStart(): Unit = {
     applyProbeRegistration(registration, generation)
@@ -152,7 +152,7 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
         val refs = findMatching(query.paths).map(_._1)
         GetStatusHistory(Right(refs), query.from, query.to, query.limit)
       }
-      services.historyService.ask(q).map {
+      services.ask(q).map {
         case GetStatusHistoryResult(_, history) =>
           GetProbeSystemStatusHistoryResult(query, history)
         case failure: HistoryServiceOperationFailed =>
@@ -165,7 +165,7 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
         val refs = findMatching(query.paths).map(_._1)
         GetNotificationHistory(Right(refs), query.from, query.to, query.limit)
       }
-      services.historyService.ask(q).map {
+      services.ask(q).map {
         case GetNotificationHistoryResult(_, history) =>
           GetProbeSystemNotificationHistoryResult(query, history)
         case failure: HistoryServiceOperationFailed =>
@@ -174,7 +174,7 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
 
     /* send status message to specified probe */
     case message: StatusMessage =>
-      probes.get(message.source) match {
+      probes.get(message.probeRef) match {
         case Some(probeActor: ProbeActor) =>
           probeActor.actor ! message
         case None =>
@@ -183,7 +183,7 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
 
     /* send metrics message to all interested probes */
     case message: MetricsMessage =>
-      if (probes.contains(message.source))
+      if (probes.contains(message.probeRef))
         metricsBus.publish(message)
       else
         log.warning("ignoring message {}: probe source is not known", message)
@@ -201,7 +201,7 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
       }
 
     /* handle notifications which have been passed up from Probe */
-    case notification: Notification =>
+    case notification: NotificationEvent =>
       notifier.foreach(_ ! notification)
 
     /* retire all running probes */
@@ -279,7 +279,7 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
       context.watch(actor)
       log.debug("probe {} joins", ref)
       probes = probes + (ref -> ProbeActor(probeSpec, actor))
-      services.stateService ! ProbeMetadata(ref, newRegistration.metadata)
+      services ! ProbeMetadata(ref, newRegistration.metadata)
     }
     // remove stale probes
     val probesRemoved = probeSet -- specSet
@@ -329,7 +329,7 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
 }
 
 object ProbeSystem {
-  def props(uri: URI, registration: ProbeRegistration, generation: Long, services: ServiceMap) = {
+  def props(uri: URI, registration: ProbeRegistration, generation: Long, services: ActorRef) = {
     Props(classOf[ProbeSystem], uri, registration, generation, services)
   }
 

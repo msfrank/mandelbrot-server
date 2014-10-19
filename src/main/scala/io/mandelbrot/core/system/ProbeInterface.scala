@@ -20,11 +20,9 @@
 package io.mandelbrot.core.system
 
 import akka.actor.ActorRef
-import io.mandelbrot.core.metrics.{MetricSource, MetricsBus}
 import org.joda.time.{DateTimeZone, DateTime}
 import java.util.UUID
 
-import io.mandelbrot.core.ServiceMap
 import io.mandelbrot.core.registry.ProbePolicy
 import io.mandelbrot.core.util.Timer
 
@@ -36,7 +34,6 @@ trait ProbeInterface {
   val probeRef: ProbeRef
   val parent: ActorRef
   val probeGeneration: Long
-  val services: ServiceMap
   val expiryTimer: Timer
   val alertTimer: Timer
 

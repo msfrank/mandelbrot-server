@@ -23,12 +23,6 @@ import org.joda.time.DateTime
 import spray.json._
 import scala.math.BigDecimal
 
-/**
- *
- */
-sealed trait Message
-case class GenericMessage(messageType: String, value: JsValue) extends Message
-
-sealed trait ProbeMessage extends Message { val source: ProbeRef }
-case class StatusMessage(source: ProbeRef, health: ProbeHealth, summary: String, detail: Option[String], timestamp: DateTime) extends ProbeMessage
-case class MetricsMessage(source: ProbeRef, metrics: Map[String,BigDecimal], timestamp: DateTime) extends ProbeMessage
+sealed trait ProbeEvent extends ProbeOperation
+case class StatusMessage(probeRef: ProbeRef, health: ProbeHealth, summary: String, detail: Option[String], timestamp: DateTime) extends ProbeEvent
+case class MetricsMessage(probeRef: ProbeRef, metrics: Map[String,BigDecimal], timestamp: DateTime) extends ProbeEvent

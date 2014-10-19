@@ -46,7 +46,6 @@ class RegistryManager extends Actor with ActorLogging {
   val maxInFlight: Int = 1024 // FIXME: make this a config parameter
 
   // state
-  var services: ServiceMap = null
   val inFlight = new java.util.HashMap[ProbeRegistryOperation,OperationContext](maxInFlight)
   val probeSystems = new java.util.HashMap[URI,ActorRef](1024)
   val unregisteredRefs = new java.util.HashMap[ActorRef,URI](64)
@@ -57,12 +56,9 @@ class RegistryManager extends Actor with ActorLogging {
     context.actorOf(props, "registrar")
   }
 
-  def receive = {
+  override def preStart(): Unit = registrar ! RecoverProbeSystems
 
-    /* we must receive this message before we can recover */
-    case _services: ServiceMap =>
-      services = _services
-      registrar ! RecoverProbeSystems
+  def receive = {
 
     case op: ProbeRegistryOperation if inFlight.size() == maxInFlight =>
       sender() ! ProbeRegistryOperationFailed(op, new ApiException(RetryLater))
@@ -100,22 +96,22 @@ class RegistryManager extends Actor with ActorLogging {
           actor.forward(op)
       }
 
-    /* forward Probe operations or return failure if system doesn't exist */
+    /* forward probe events to the appropriate ProbeSystem */
+    case message: ProbeEvent =>
+      probeSystems.get(message.probeRef.uri) match {
+        case null =>
+          // do nothing
+        case actor: ActorRef =>
+          actor ! message
+      }
+
+    /* forward other Probe operations or return failure if system doesn't exist */
     case op: ProbeOperation =>
       probeSystems.get(op.probeRef.uri) match {
         case null =>
           sender() ! ProbeOperationFailed(op, new ApiException(ResourceNotFound))
         case actor: ActorRef =>
           actor.forward(op)
-      }
-
-    /* forward state messages to the appropriate ProbeSystem */
-    case message: ProbeMessage =>
-      probeSystems.get(message.source.uri) match {
-        case null =>
-          // do nothing
-        case actor: ActorRef =>
-          actor ! message
       }
 
     /* probe system actor has terminated */
@@ -129,14 +125,14 @@ class RegistryManager extends Actor with ActorLogging {
 
     /* */
     case ProbeSystemRecovers(uri, registration, lsn) =>
-      val actor = context.actorOf(ProbeSystem.props(uri, registration, lsn, services))
+      val actor = context.actorOf(ProbeSystem.props(uri, registration, lsn, context.parent))
       log.debug("recovering probe system {} at {}", uri, actor.path)
       context.watch(actor)
       probeSystems.put(uri, actor)
 
     /* register the ProbeSystem */
     case ProbeSystemRegisters(command, timestamp, lsn) =>
-      val actor = context.actorOf(ProbeSystem.props(command.uri, command.registration, lsn, services))
+      val actor = context.actorOf(ProbeSystem.props(command.uri, command.registration, lsn, context.parent))
       log.debug("registering probe system {} at {}", command.uri, actor.path)
       context.watch(actor)
       probeSystems.put(command.uri, actor)

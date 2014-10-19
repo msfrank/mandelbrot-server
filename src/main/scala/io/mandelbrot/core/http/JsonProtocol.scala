@@ -404,15 +404,15 @@ object JsonProtocol extends DefaultJsonProtocol {
   implicit val MetricsMessageFormat = jsonFormat3(MetricsMessage)
 
   /* */
-  implicit object MessageFormat extends RootJsonFormat[Message] {
-    def write(message: Message) = {
+  implicit object ProbeEventFormat extends RootJsonFormat[ProbeEvent] {
+    def write(message: ProbeEvent) = {
       val (messageType, payload) = message match {
         case m: MetricsMessage =>
           "io.mandelbrot.message.MetricsMessage" -> MetricsMessageFormat.write(m)
         case m: StatusMessage =>
           "io.mandelbrot.message.StatusMessage" -> StatusMessageFormat.write(m)
-        case m: GenericMessage =>
-          m.messageType -> m.value
+        case unknownType =>
+          throw new DeserializationException("unknown messageType")
       }
       JsObject(Map("messageType" -> JsString(messageType), "payload" -> payload))
     }
@@ -427,7 +427,7 @@ object JsonProtocol extends DefaultJsonProtocol {
             case Some(JsString("io.mandelbrot.message.MetricsMessage")) =>
               MetricsMessageFormat.read(fields("payload"))
             case Some(JsString(unknownType)) =>
-              GenericMessage(unknownType, fields("payload"))
+              throw new DeserializationException("unknown messageType")
             case None =>
               throw new DeserializationException("missing messageType")
             case unknownValue =>

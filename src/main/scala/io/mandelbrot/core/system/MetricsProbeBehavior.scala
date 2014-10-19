@@ -82,11 +82,11 @@ class MetricsProbeBehaviorImpl(evaluation: MetricsEvaluation) extends ProbeBehav
     var lastChange = probe.lastChange
     var correlationId = probe.correlationId
     var acknowledgementId = probe.acknowledgementId
-    var notifications = Vector.empty[Notification]
+    var notifications = Vector.empty[NotificationEvent]
 
     // push new metrics into the store
     message.metrics.foreach { case (metricName, metricValue) =>
-      val source = MetricSource(message.source.path, metricName)
+      val source = MetricSource(message.probeRef.path, metricName)
       metrics.append(source, metricValue)
     }
     // evaluate the store

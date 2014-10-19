@@ -13,4 +13,4 @@ case class ContactGroup(id: String, name: String, metadata: Map[String,String], 
 /**
  *
  */
-case class NotifyContact(contact: Contact, notification: Notification)
+case class NotifyContact(contact: Contact, notification: NotificationEvent)

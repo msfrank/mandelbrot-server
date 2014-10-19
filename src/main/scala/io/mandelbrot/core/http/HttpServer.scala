@@ -26,13 +26,14 @@ import spray.io.{ServerSSLEngineProvider, PipelineContext}
 import javax.net.ssl.{SSLEngine, TrustManagerFactory, KeyManagerFactory, SSLContext}
 import java.security.KeyStore
 import java.io.FileInputStream
-import io.mandelbrot.core.{ServiceMap, ServerConfig}
+
+import io.mandelbrot.core.ServerConfig
 
 /**
  * HttpServer is responsible for listening on the HTTP port, accepting connections,
  * and handing them over to the ApiService for processing.
  */
-class HttpServer extends Actor with ApiService with ActorLogging {
+class HttpServer(val serviceProxy: ActorRef) extends Actor with ApiService with ActorLogging {
   import spray.can.Http
 
   implicit val system = context.system
@@ -42,9 +43,6 @@ class HttpServer extends Actor with ApiService with ActorLogging {
   // config
   val settings = ServerConfig(context.system).settings.http
   implicit val timeout: Timeout = settings.requestTimeout
-
-  // state
-  var services: ServiceMap = null
 
   // if tls is enabled, then create an SSLContext
   val sslContext: Option[SSLContext] = settings.tls match {
@@ -81,23 +79,20 @@ class HttpServer extends Actor with ApiService with ActorLogging {
       case None => None
   }
 
-  def receive = {
-    case _services: ServiceMap =>
-      services = _services
-      IO(Http) ! Http.Bind(self, settings.interface, port = settings.port, backlog = settings.backlog)
-      log.debug("binding to {}:{} with backlog {}", settings.interface, settings.port, settings.backlog)
-      if (settings.tls.isDefined)
-        log.debug("enabled TLS")
-      context.become(running)
+  override def preStart(): Unit = {
+    IO(Http) ! Http.Bind(self, settings.interface, port = settings.port, backlog = settings.backlog)
+    log.debug("binding to {}:{} with backlog {}", settings.interface, settings.port, settings.backlog)
+    if (settings.tls.isDefined)
+      log.debug("enabled TLS")
   }
 
-  def running: Receive = runRoute(routes) orElse {
+  def receive = runRoute(routes) orElse {
     case bound: Http.Bound =>
       log.debug("bound HTTP listener to {}", bound.localAddress)
   }
 }
 
 object HttpServer {
-  def props() = Props(classOf[HttpServer])
+  def props(serviceProxy: ActorRef) = Props(classOf[HttpServer], serviceProxy)
 }
 

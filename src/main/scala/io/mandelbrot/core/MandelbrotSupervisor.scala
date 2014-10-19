@@ -21,12 +21,8 @@ package io.mandelbrot.core
 
 import akka.actor._
 
-import io.mandelbrot.core.history.HistoryManager
+import io.mandelbrot.core.cluster.ServiceProxy
 import io.mandelbrot.core.http.HttpServer
-import io.mandelbrot.core.notification.NotificationManager
-import io.mandelbrot.core.registry.RegistryManager
-import io.mandelbrot.core.state.StateManager
-import io.mandelbrot.core.tracking.TrackingManager
 
 /**
  *
@@ -37,22 +33,13 @@ class MandelbrotSupervisor extends Actor with ActorLogging {
   var alive = Set.empty[ActorRef]
   var requestor = ActorRef.noSender
 
-  val services = {
-    val registryService = context.actorOf(RegistryManager.props(), "registry-service")
-    val trackingService = context.actorOf(TrackingManager.props(), "tracking-service")
-    val historyService = context.actorOf(HistoryManager.props(), "history-service")
-    val notificationService = context.actorOf(NotificationManager.props(), "notification-service")
-    val stateService = context.actorOf(StateManager.props(), "state-service")
-    val httpServer = context.actorOf(HttpServer.props(), "http-service")
-    alive = Set(trackingService, historyService, notificationService, stateService, registryService, httpServer)
-    ServiceMap(registryService, trackingService, historyService, notificationService, stateService, httpServer)
-  }
+  val serviceProxy = context.actorOf(ServiceProxy.props(), "service-proxy")
+  val httpServer = context.actorOf(HttpServer.props(serviceProxy), "http-service")
+
+  alive = Set(httpServer, serviceProxy)
 
   // monitor lifecycle for all specified actors
   alive.foreach(context.watch)
-
-  // send service map to all top-level services
-  alive.foreach(_ ! services)
 
   def receive = {
 
@@ -75,13 +62,6 @@ class MandelbrotSupervisor extends Actor with ActorLogging {
 object MandelbrotSupervisor {
   def props() = Props(classOf[MandelbrotSupervisor])
 }
-
-case class ServiceMap(registryService: ActorRef,
-                      trackingService: ActorRef,
-                      historyService: ActorRef,
-                      notificationService: ActorRef,
-                      stateService: ActorRef,
-                      httpServer: ActorRef)
 
 case object TerminateSupervisor
 case object TerminationComplete

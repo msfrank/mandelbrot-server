@@ -73,9 +73,6 @@ class NotificationManager extends PersistentActor with ActorLogging {
 
   def receiveCommand = {
 
-    case services: ServiceMap =>
-      historyService = services.historyService
-
     case query: ListNotificationRules =>
       sender() ! ListNotificationRulesResult(query, settings.rules.rules)
 
@@ -99,7 +96,7 @@ class NotificationManager extends PersistentActor with ActorLogging {
     case query: ListMaintenanceWindows =>
       sender() ! ListMaintenanceWindowsResult(query, windows.values.toVector)
 
-    case notification: Notification =>
+    case notification: NotificationEvent =>
       if (!isSuppressed(notification)) {
         settings.rules.evaluate(notification, notifiers)
         historyService ! notification
@@ -178,7 +175,7 @@ class NotificationManager extends PersistentActor with ActorLogging {
   /**
    *
    */
-  def isSuppressed(notification: Notification): Boolean = notification match {
+  def isSuppressed(notification: NotificationEvent): Boolean = notification match {
     case probeNotification: ProbeNotification =>
       windows.values.foreach {
         case window if notification.timestamp.isAfter(window.from) && notification.timestamp.isBefore(window.to) =>
@@ -215,7 +212,7 @@ case class MaintenanceWindowModification(added: Option[Set[ProbeMatcher]],
                                          description: Option[String])
 
 /* notification manager operations */
-sealed trait NotificationManagerOperation
+trait NotificationManagerOperation
 sealed trait NotificationManagerQuery extends NotificationManagerOperation
 sealed trait NotificationManagerCommand extends NotificationManagerOperation
 case class NotificationManagerOperationFailed(op: NotificationManagerOperation, failure: Throwable)

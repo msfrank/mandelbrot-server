@@ -75,9 +75,6 @@ class StateManager extends PersistentActor with ActorLogging {
 
   def receiveCommand = {
 
-    case services: ServiceMap =>
-      historyService = services.historyService
-
     /* */
     case op: InitializeProbeState =>
       probeState.get(op.ref) match {
