@@ -362,8 +362,8 @@ object JsonProtocol extends DefaultJsonProtocol {
   /* probe operations */
   implicit val AcknowledgeProbeFormat = jsonFormat2(AcknowledgeProbe)
   implicit val AcknowledgeProbeResultFormat = jsonFormat2(AcknowledgeProbeResult)
-  implicit val AppendProbeWorknoteFormat = jsonFormat4(AppendProbeWorknote)
-  implicit val AppendProbeWorknoteResultFormat = jsonFormat2(AppendProbeWorknoteResult)
+  implicit val UnacknowledgeProbeFormat = jsonFormat2(UnacknowledgeProbe)
+  implicit val UnacknowledgeProbeResultFormat = jsonFormat2(UnacknowledgeProbeResult)
   implicit val SetProbeSquelchFormat = jsonFormat2(SetProbeSquelch)
   implicit val SetProbeSquelchResultFormat = jsonFormat2(SetProbeSquelchResult)
 

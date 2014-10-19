@@ -540,8 +540,5 @@ case class SetProbeSquelchResult(op: SetProbeSquelch, squelch: Boolean)
 case class AcknowledgeProbe(probeRef: ProbeRef, correlationId: UUID) extends ProbeCommand
 case class AcknowledgeProbeResult(op: AcknowledgeProbe, acknowledgementId: UUID)
 
-case class AppendProbeWorknote(probeRef: ProbeRef, acknowledgementId: UUID, comment: String, internal: Option[Boolean]) extends ProbeCommand
-case class AppendProbeWorknoteResult(op: AppendProbeWorknote, worknoteId: UUID)
-
 case class UnacknowledgeProbe(probeRef: ProbeRef, acknowledgementId: UUID) extends ProbeCommand
 case class UnacknowledgeProbeResult(op: UnacknowledgeProbe, acknowledgementId: UUID)

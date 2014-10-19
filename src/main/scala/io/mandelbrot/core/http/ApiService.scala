@@ -265,21 +265,6 @@ trait ApiService extends HttpService {
             }
           }
         } ~
-        path("comment") {
-          /* add worknote to acknowledged probe */
-          post {
-            entity(as[AppendProbeWorknote]) { case command: AppendProbeWorknote =>
-              complete {
-                services.registryService.ask(command).map {
-                  case result: AppendProbeWorknoteResult =>
-                    result.worknoteId
-                  case failure: ProbeOperationFailed =>
-                    throw failure.failure
-                }
-              }
-            }
-          }
-        } ~
         path("unacknowledge") {
           /* acknowledge an unhealthy probe */
           post {
