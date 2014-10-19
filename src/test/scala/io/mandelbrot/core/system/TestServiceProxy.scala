@@ -3,8 +3,8 @@ package io.mandelbrot.core.system
 import akka.actor.{ActorLogging, Props, Actor, ActorRef}
 
 import io.mandelbrot.core.history.HistoryServiceOperation
-import io.mandelbrot.core.notification.NotificationManagerOperation
-import io.mandelbrot.core.registry.ProbeRegistryOperation
+import io.mandelbrot.core.notification.NotificationServiceOperation
+import io.mandelbrot.core.registry.RegistryServiceOperation
 import io.mandelbrot.core.state.StateServiceOperation
 import io.mandelbrot.core.tracking.TrackingServiceOperation
 
@@ -16,7 +16,15 @@ class TestServiceProxy(registryService: Option[ActorRef],
 
   def receive = {
 
-    case op: ProbeRegistryOperation =>
+    case op: RegistryServiceOperation =>
+      log.debug("received {}", op)
+      registryService.foreach(_ forward op)
+
+    case op: ProbeSystemOperation =>
+      log.debug("received {}", op)
+      registryService.foreach(_ forward op)
+
+    case op: ProbeOperation =>
       log.debug("received {}", op)
       registryService.foreach(_ forward op)
 
@@ -28,7 +36,7 @@ class TestServiceProxy(registryService: Option[ActorRef],
       log.debug("received {}", op)
       historyService.foreach(_ forward op)
 
-    case op: NotificationManagerOperation =>
+    case op: NotificationServiceOperation =>
       log.debug("received {}", op)
       notificationService.foreach(_ forward op)
 

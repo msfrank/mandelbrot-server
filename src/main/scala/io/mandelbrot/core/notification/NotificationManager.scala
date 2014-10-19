@@ -85,13 +85,13 @@ class NotificationManager extends PersistentActor with ActorLogging {
       if (windows.contains(command.id))
         persist(MaintenanceWindowUpdates(command))(updateState)
       else
-        sender() ! NotificationManagerOperationFailed(command, new ApiException(ResourceNotFound))
+        sender() ! NotificationServiceOperationFailed(command, new ApiException(ResourceNotFound))
 
     case command: UnregisterMaintenanceWindow =>
       if (windows.contains(command.id))
         persist(MaintenanceWindowUnregisters(command))(updateState)
       else
-        sender() ! NotificationManagerOperationFailed(command, new ApiException(ResourceNotFound))
+        sender() ! NotificationServiceOperationFailed(command, new ApiException(ResourceNotFound))
 
     case query: ListMaintenanceWindows =>
       sender() ! ListMaintenanceWindowsResult(query, windows.values.toVector)
@@ -212,24 +212,24 @@ case class MaintenanceWindowModification(added: Option[Set[ProbeMatcher]],
                                          description: Option[String])
 
 /* notification manager operations */
-trait NotificationManagerOperation
-sealed trait NotificationManagerQuery extends NotificationManagerOperation
-sealed trait NotificationManagerCommand extends NotificationManagerOperation
-case class NotificationManagerOperationFailed(op: NotificationManagerOperation, failure: Throwable)
+trait NotificationServiceOperation
+sealed trait NotificationServiceQuery extends NotificationServiceOperation
+sealed trait NotificationServiceCommand extends NotificationServiceOperation
+case class NotificationServiceOperationFailed(op: NotificationServiceOperation, failure: Throwable)
 
-case class ListNotificationRules() extends NotificationManagerQuery
+case class ListNotificationRules() extends NotificationServiceQuery
 case class ListNotificationRulesResult(op: ListNotificationRules, rules: Vector[NotificationRule])
 
-case class ModifyMaintenanceWindow(id: UUID, modifications: MaintenanceWindowModification) extends NotificationManagerCommand
+case class ModifyMaintenanceWindow(id: UUID, modifications: MaintenanceWindowModification) extends NotificationServiceCommand
 case class ModifyMaintenanceWindowResult(op: ModifyMaintenanceWindow, id: UUID)
 
-case class RegisterMaintenanceWindow(affected: Set[ProbeMatcher], from: DateTime, to: DateTime, description: Option[String]) extends NotificationManagerCommand
+case class RegisterMaintenanceWindow(affected: Set[ProbeMatcher], from: DateTime, to: DateTime, description: Option[String]) extends NotificationServiceCommand
 case class RegisterMaintenanceWindowResult(op: RegisterMaintenanceWindow, id: UUID)
 
-case class ListMaintenanceWindows() extends NotificationManagerQuery
+case class ListMaintenanceWindows() extends NotificationServiceQuery
 case class ListMaintenanceWindowsResult(op: ListMaintenanceWindows, windows: Vector[MaintenanceWindow])
 
-case class UnregisterMaintenanceWindow(id: UUID) extends NotificationManagerCommand
+case class UnregisterMaintenanceWindow(id: UUID) extends NotificationServiceCommand
 case class UnregisterMaintenanceWindowResult(op: UnregisterMaintenanceWindow, id: UUID)
 
 

@@ -165,7 +165,7 @@ trait SlickRegistrar extends Actor with ActorLogging {
       db.withSession { implicit session =>
         dal.insert(command.uri, command.registration, timestamp) match {
           case Success(lsn) => sender() ! ProbeSystemRegisters(command, timestamp, lsn)
-          case Failure(ex) => sender() ! ProbeRegistryOperationFailed(command, ex)
+          case Failure(ex) => sender() ! RegistryServiceOperationFailed(command, ex)
         }
       }
 
@@ -174,7 +174,7 @@ trait SlickRegistrar extends Actor with ActorLogging {
       db.withSession { implicit session =>
         dal.update(command.uri, command.registration, timestamp) match {
           case Success(lsn) => sender() ! ProbeSystemUpdates(command, timestamp, lsn)
-          case Failure(ex) => sender() ! ProbeRegistryOperationFailed(command, ex)
+          case Failure(ex) => sender() ! RegistryServiceOperationFailed(command, ex)
         }
       }
 
@@ -183,7 +183,7 @@ trait SlickRegistrar extends Actor with ActorLogging {
       db.withSession { implicit session =>
         dal.delete(command.uri, timestamp) match {
           case Success(lsn) => sender() ! ProbeSystemUnregisters(command, timestamp, lsn)
-          case Failure(ex) => sender() ! ProbeRegistryOperationFailed(command, ex)
+          case Failure(ex) => sender() ! RegistryServiceOperationFailed(command, ex)
         }
       }
 

@@ -26,7 +26,7 @@ import java.util.UUID
 /**
  * base trait for Notifications
  */
-sealed trait NotificationEvent extends NotificationManagerOperation {
+sealed trait NotificationEvent extends NotificationServiceOperation {
   val timestamp: DateTime
   val kind: String
   val description: String

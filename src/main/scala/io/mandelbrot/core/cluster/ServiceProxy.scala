@@ -22,9 +22,10 @@ package io.mandelbrot.core.cluster
 import akka.actor._
 import scala.concurrent.duration._
 
+import io.mandelbrot.core.system.{ProbeOperationFailed, ProbeOperation, ProbeSystemOperationFailed, ProbeSystemOperation}
 import io.mandelbrot.core.history.{HistoryManager, HistoryServiceOperationFailed, HistoryServiceOperation}
-import io.mandelbrot.core.notification.{NotificationManager, NotificationManagerOperationFailed, NotificationManagerOperation}
-import io.mandelbrot.core.registry.{RegistryManager, ProbeRegistryOperationFailed, ProbeRegistryOperation}
+import io.mandelbrot.core.notification.{NotificationManager, NotificationServiceOperationFailed, NotificationServiceOperation}
+import io.mandelbrot.core.registry.{RegistryManager, RegistryServiceOperationFailed, RegistryServiceOperation}
 import io.mandelbrot.core.state.{StateManager, StateServiceOperationFailed, StateServiceOperation}
 import io.mandelbrot.core.tracking.{TrackingManager, TrackingServiceOperationFailed, TrackingServiceOperation}
 import io.mandelbrot.core.{RetryLater, ApiException}
@@ -51,11 +52,23 @@ class ServiceProxy extends Actor with ActorLogging {
     case LeaseRenewed(length) =>
       lease = System.nanoTime() + length.toNanos
 
-    case op: ProbeRegistryOperation =>
+    case op: RegistryServiceOperation =>
       if (System.nanoTime() < lease)
         registryService.forward(op)
       else
-        sender() ! ProbeRegistryOperationFailed(op, new ApiException(RetryLater))
+        sender() ! RegistryServiceOperationFailed(op, new ApiException(RetryLater))
+
+    case op: ProbeSystemOperation =>
+      if (System.nanoTime() < lease)
+        registryService.forward(op)
+      else
+        sender() ! ProbeSystemOperationFailed(op, new ApiException(RetryLater))
+
+    case op: ProbeOperation =>
+      if (System.nanoTime() < lease)
+        registryService.forward(op)
+      else
+        sender() ! ProbeOperationFailed(op, new ApiException(RetryLater))
 
     case op: TrackingServiceOperation =>
       if (System.nanoTime() < lease)
@@ -69,11 +82,11 @@ class ServiceProxy extends Actor with ActorLogging {
       else
         sender() ! HistoryServiceOperationFailed(op, new ApiException(RetryLater))
 
-    case op: NotificationManagerOperation =>
+    case op: NotificationServiceOperation =>
       if (System.nanoTime() < lease)
         notificationService.forward(op)
       else
-        sender() ! NotificationManagerOperationFailed(op, new ApiException(RetryLater))
+        sender() ! NotificationServiceOperationFailed(op, new ApiException(RetryLater))
 
     case op: StateServiceOperation =>
       if (System.nanoTime() < lease)

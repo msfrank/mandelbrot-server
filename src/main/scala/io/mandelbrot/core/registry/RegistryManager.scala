@@ -46,7 +46,7 @@ class RegistryManager extends Actor with ActorLogging {
   val maxInFlight: Int = 1024 // FIXME: make this a config parameter
 
   // state
-  val inFlight = new java.util.HashMap[ProbeRegistryOperation,OperationContext](maxInFlight)
+  val inFlight = new java.util.HashMap[RegistryServiceOperation,OperationContext](maxInFlight)
   val probeSystems = new java.util.HashMap[URI,ActorRef](1024)
   val unregisteredRefs = new java.util.HashMap[ActorRef,URI](64)
 
@@ -60,8 +60,8 @@ class RegistryManager extends Actor with ActorLogging {
 
   def receive = {
 
-    case op: ProbeRegistryOperation if inFlight.size() == maxInFlight =>
-      sender() ! ProbeRegistryOperationFailed(op, new ApiException(RetryLater))
+    case op: RegistryServiceOperation if inFlight.size() == maxInFlight =>
+      sender() ! RegistryServiceOperationFailed(op, new ApiException(RetryLater))
 
     /* register the ProbeSystem */
     case command: RegisterProbeSystem =>
@@ -96,16 +96,7 @@ class RegistryManager extends Actor with ActorLogging {
           actor.forward(op)
       }
 
-    /* forward probe events to the appropriate ProbeSystem */
-    case message: ProbeEvent =>
-      probeSystems.get(message.probeRef.uri) match {
-        case null =>
-          // do nothing
-        case actor: ActorRef =>
-          actor ! message
-      }
-
-    /* forward other Probe operations or return failure if system doesn't exist */
+    /* forward Probe operations or return failure if system doesn't exist */
     case op: ProbeOperation =>
       probeSystems.get(op.probeRef.uri) match {
         case null =>
@@ -179,7 +170,7 @@ class RegistryManager extends Actor with ActorLogging {
       }
 
     /* async operation failed */
-    case failure: ProbeRegistryOperationFailed =>
+    case failure: RegistryServiceOperationFailed =>
       inFlight.remove(failure.op) match {
         case null =>
         case OperationContext(_, caller, cancellable) =>
@@ -192,7 +183,7 @@ class RegistryManager extends Actor with ActorLogging {
       inFlight.remove(op) match {
         case null =>
         case OperationContext(_, caller, cancellable) =>
-          caller ! ProbeRegistryOperationFailed(op, new ApiException(RetryLater))
+          caller ! RegistryServiceOperationFailed(op, new ApiException(RetryLater))
       }
   }
 
@@ -213,8 +204,8 @@ object RegistryManager {
 
   case object RecoverProbeSystems
   case class ProbeSystemRecovers(uri: URI, registration: ProbeRegistration, lsn: Long)
-  case class OperationContext(op: ProbeRegistryOperation, caller: ActorRef, cancellable: Cancellable)
-  case class OperationTimeout(op: ProbeRegistryOperation)
+  case class OperationContext(op: RegistryServiceOperation, caller: ActorRef, cancellable: Cancellable)
+  case class OperationTimeout(op: RegistryServiceOperation)
   case class ProbeSystemRegisters(command: RegisterProbeSystem, timestamp: DateTime, lsn: Long)
   case class ProbeSystemUpdates(command: UpdateProbeSystem, timestamp: DateTime, lsn: Long)
   case class ProbeSystemUnregisters(command: UnregisterProbeSystem, timestamp: DateTime, lsn: Long)
@@ -251,21 +242,21 @@ case class ProbeRegistration(systemType: String,
 case class ProbeSystemMetadata(joinedOn: DateTime, lastUpdate: DateTime)
 
 /* object registry operations */
-sealed trait ProbeRegistryOperation
-sealed trait ProbeRegistryQuery extends ProbeRegistryOperation
-sealed trait ProbeRegistryCommand extends ProbeRegistryOperation
-case class ProbeRegistryOperationFailed(op: ProbeRegistryOperation, failure: Throwable)
+sealed trait RegistryServiceOperation
+sealed trait RegistryServiceQuery extends RegistryServiceOperation
+sealed trait RegistryServiceCommand extends RegistryServiceOperation
+case class RegistryServiceOperationFailed(op: RegistryServiceOperation, failure: Throwable)
 
-case class RegisterProbeSystem(uri: URI, registration: ProbeRegistration) extends ProbeRegistryCommand
+case class RegisterProbeSystem(uri: URI, registration: ProbeRegistration) extends RegistryServiceCommand
 case class RegisterProbeSystemResult(op: RegisterProbeSystem, ref: ActorRef)
 
-case class UpdateProbeSystem(uri: URI, registration: ProbeRegistration) extends ProbeRegistryCommand
+case class UpdateProbeSystem(uri: URI, registration: ProbeRegistration) extends RegistryServiceCommand
 case class UpdateProbeSystemResult(op: UpdateProbeSystem, ref: ActorRef)
 
-case class ListProbeSystems(last: Option[String], limit: Option[Int]) extends ProbeRegistryQuery
+case class ListProbeSystems(last: Option[String], limit: Option[Int]) extends RegistryServiceQuery
 case class ListProbeSystemsResult(op: ListProbeSystems, systems: Map[URI,ProbeSystemMetadata], last: Option[String])
 
-case class UnregisterProbeSystem(uri: URI) extends ProbeRegistryCommand
+case class UnregisterProbeSystem(uri: URI) extends RegistryServiceCommand
 case class UnregisterProbeSystemResult(op: UnregisterProbeSystem)
 
 /* marker trait for Registrar implementations */

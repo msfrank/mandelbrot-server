@@ -75,7 +75,7 @@ trait ApiService extends HttpService {
                 HttpResponse(StatusCodes.Accepted,
                              headers = List(Location("/objects/systems/" + registerProbeSystem.uri.toString)),
                              entity = JsonBody(result.op.uri.toJson))
-              case failure: ProbeRegistryOperationFailed =>
+              case failure: RegistryServiceOperationFailed =>
                 throw failure.failure
             }
           }
@@ -88,7 +88,7 @@ trait ApiService extends HttpService {
             serviceProxy.ask(ListProbeSystems(paging.last, paging.limit)).map {
               case result: ListProbeSystemsResult =>
                 result.systems
-              case failure: ProbeRegistryOperationFailed =>
+              case failure: RegistryServiceOperationFailed =>
                 throw failure.failure
             }
           }
@@ -117,7 +117,7 @@ trait ApiService extends HttpService {
                   HttpResponse(StatusCodes.Accepted,
                                headers = List(Location("/objects/systems/" + updateProbeSystem.uri.toString)),
                                entity = JsonBody(result.op.uri.toJson))
-                case failure: ProbeRegistryOperationFailed =>
+                case failure: RegistryServiceOperationFailed =>
                   throw failure.failure
               }
             }
@@ -129,7 +129,7 @@ trait ApiService extends HttpService {
             serviceProxy.ask(UnregisterProbeSystem(uri)).map {
               case result: UnregisterProbeSystemResult =>
                 HttpResponse(StatusCodes.Accepted)
-              case failure: ProbeRegistryOperationFailed =>
+              case failure: RegistryServiceOperationFailed =>
                 throw failure.failure
             }
           }
@@ -331,7 +331,7 @@ trait ApiService extends HttpService {
                 HttpResponse(StatusCodes.Accepted,
                              headers = List(Location("/objects/windows/" + result.id.toString)),
                              entity = JsonBody(result.id.toJson))
-              case failure: NotificationManagerOperationFailed =>
+              case failure: NotificationServiceOperationFailed =>
                 throw failure.failure
             }
           }
@@ -343,7 +343,7 @@ trait ApiService extends HttpService {
           serviceProxy.ask(ListMaintenanceWindows()).map {
             case result: ListMaintenanceWindowsResult =>
               result.windows
-            case failure: NotificationManagerOperationFailed =>
+            case failure: NotificationServiceOperationFailed =>
               throw failure.failure
           }
         }
@@ -357,7 +357,7 @@ trait ApiService extends HttpService {
             serviceProxy.ask(ModifyMaintenanceWindow(uuid, modifications)).map {
               case result: ModifyMaintenanceWindowResult =>
                 result.id
-              case failure: NotificationManagerOperationFailed =>
+              case failure: NotificationServiceOperationFailed =>
                 throw failure.failure
             }
           }
@@ -369,7 +369,7 @@ trait ApiService extends HttpService {
           serviceProxy.ask(UnregisterMaintenanceWindow(uuid)).map {
             case result: UnregisterMaintenanceWindowResult =>
               HttpResponse(StatusCodes.OK)
-            case failure: NotificationManagerOperationFailed =>
+            case failure: NotificationServiceOperationFailed =>
               throw failure.failure
           }
         }
@@ -443,7 +443,7 @@ trait ApiService extends HttpService {
           serviceProxy.ask(ListNotificationRules()).map {
             case result: ListNotificationRulesResult =>
               result.rules
-            case failure: NotificationManagerOperationFailed =>
+            case failure: NotificationServiceOperationFailed =>
               throw failure.failure
           }
         }
