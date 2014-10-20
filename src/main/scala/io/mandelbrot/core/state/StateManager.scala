@@ -24,6 +24,7 @@ import akka.pattern.ask
 import akka.pattern.pipe
 import akka.persistence._
 import akka.util.Timeout
+import io.mandelbrot.core.history.StatusAppends
 import io.mandelbrot.core.system.ProbeRef
 import org.joda.time.DateTime
 import scala.concurrent.duration._
@@ -52,9 +53,9 @@ class StateManager extends PersistentActor with ActorLogging {
     context.actorOf(props, "searcher")
   }
   implicit val timeout = Timeout(5.seconds)   // TODO: pull this from settings
+  val historyService = context.parent
 
   // state
-  var historyService = ActorRef.noSender
   val probeState = new mutable.HashMap[ProbeRef,ProbeState]()
   var currentLsn = Long.MinValue
   var snapshotCancellable: Option[Cancellable] = None
@@ -79,7 +80,7 @@ class StateManager extends PersistentActor with ActorLogging {
     case op: InitializeProbeState =>
       probeState.get(op.ref) match {
         case Some(state) =>
-          sender() ! state
+          sender() ! InitializeProbeStateResult(op, state.status, state.lsn)
         case None if op.lsn >= currentLsn =>
           persist(op)(updateState)
         case None =>
@@ -182,7 +183,7 @@ class StateManager extends PersistentActor with ActorLogging {
       if (!recoveryRunning) {
         sender() ! UpdateProbeStateResult(command)
         searcher ! status
-        historyService ! status
+        historyService ! StatusAppends(status)
       }
 
     case command @ DeleteProbeState(ref: ProbeRef, lastStatus: Option[ProbeStatus], lsn) =>

@@ -99,6 +99,7 @@ class Probe(val probeRef: ProbeRef,
       stay()
 
     case Event(InitializeProbeStateResult(op, status, lsn), state: InitializingProbe) =>
+      cancelCommitTimer()
       log.debug("gen {}: received initial state: {} (lsn {})", probeGeneration, status, lsn)
       // initialize probe state
       setProbeStatus(status)

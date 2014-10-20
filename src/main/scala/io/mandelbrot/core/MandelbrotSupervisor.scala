@@ -29,11 +29,15 @@ import io.mandelbrot.core.http.HttpServer
  */
 class MandelbrotSupervisor extends Actor with ActorLogging {
 
+  // config
   val settings = ServerConfig(context.system).settings
+
+  // state
   var alive = Set.empty[ActorRef]
   var requestor = ActorRef.noSender
 
-  val serviceProxy = context.actorOf(ServiceProxy.props(), "service-proxy")
+  // val coordinator = system.actorOf(ClusterSingletonManager.props())
+  val serviceProxy = context.actorOf(ServiceProxy.props(None), "service-proxy")
   val httpServer = context.actorOf(HttpServer.props(serviceProxy), "http-service")
 
   alive = Set(httpServer, serviceProxy)

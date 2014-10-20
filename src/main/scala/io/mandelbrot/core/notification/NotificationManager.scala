@@ -21,6 +21,7 @@ package io.mandelbrot.core.notification
 
 import akka.actor._
 import akka.persistence._
+import io.mandelbrot.core.history.NotificationAppends
 import io.mandelbrot.core.system.ProbeMatcher
 import org.joda.time.DateTime
 import scala.collection.mutable
@@ -46,9 +47,9 @@ class NotificationManager extends PersistentActor with ActorLogging {
     log.info("loading notifier plugin {}", name)
     name -> context.actorOf(props, name)
   }
+  val historyService = context.parent
 
   // state
-  var historyService = ActorRef.noSender
   val windows = new mutable.HashMap[UUID,MaintenanceWindow]()
   var windowCleaner: Option[Cancellable] = None
   var snapshotCancellable: Option[Cancellable] = None
@@ -96,10 +97,15 @@ class NotificationManager extends PersistentActor with ActorLogging {
     case query: ListMaintenanceWindows =>
       sender() ! ListMaintenanceWindowsResult(query, windows.values.toVector)
 
+    case notification: ProbeNotification =>
+      if (!isSuppressed(notification)) {
+        settings.rules.evaluate(notification, notifiers)
+        historyService ! NotificationAppends(notification)
+      }
+
     case notification: NotificationEvent =>
       if (!isSuppressed(notification)) {
         settings.rules.evaluate(notification, notifiers)
-        historyService ! notification
       }
 
     /* remove all expired windows */

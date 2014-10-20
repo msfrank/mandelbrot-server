@@ -36,7 +36,7 @@ import io.mandelbrot.core.{RetryLater, ApiException}
  * LeaseRenewed messages continue to arrive at regular intervals the breaker remains open,
  * but if the renewals stop then all service operations will return RetryLater.
  */
-class ServiceProxy extends Actor with ActorLogging {
+class ServiceProxy(coordinator: Option[ActorRef]) extends Actor with ActorLogging {
 
   // state
   var lease: Long = 0
@@ -49,47 +49,47 @@ class ServiceProxy extends Actor with ActorLogging {
 
   def receive = {
 
-    case LeaseRenewed(length) =>
+    case LeaseAcquired(length) =>
       lease = System.nanoTime() + length.toNanos
 
     case op: RegistryServiceOperation =>
-      if (System.nanoTime() < lease)
+      if (coordinator.isEmpty || System.nanoTime() < lease)
         registryService.forward(op)
       else
         sender() ! RegistryServiceOperationFailed(op, new ApiException(RetryLater))
 
     case op: ProbeSystemOperation =>
-      if (System.nanoTime() < lease)
+      if (coordinator.isEmpty || System.nanoTime() < lease)
         registryService.forward(op)
       else
         sender() ! ProbeSystemOperationFailed(op, new ApiException(RetryLater))
 
     case op: ProbeOperation =>
-      if (System.nanoTime() < lease)
+      if (coordinator.isEmpty || System.nanoTime() < lease)
         registryService.forward(op)
       else
         sender() ! ProbeOperationFailed(op, new ApiException(RetryLater))
 
     case op: TrackingServiceOperation =>
-      if (System.nanoTime() < lease)
+      if (coordinator.isEmpty || System.nanoTime() < lease)
         trackingService.forward(op)
       else
         sender() ! TrackingServiceOperationFailed(op, new ApiException(RetryLater))
 
     case op: HistoryServiceOperation =>
-      if (System.nanoTime() < lease)
+      if (coordinator.isEmpty || System.nanoTime() < lease)
         historyService.forward(op)
       else
         sender() ! HistoryServiceOperationFailed(op, new ApiException(RetryLater))
 
     case op: NotificationServiceOperation =>
-      if (System.nanoTime() < lease)
+      if (coordinator.isEmpty || System.nanoTime() < lease)
         notificationService.forward(op)
       else
         sender() ! NotificationServiceOperationFailed(op, new ApiException(RetryLater))
 
     case op: StateServiceOperation =>
-      if (System.nanoTime() < lease)
+      if (coordinator.isEmpty || System.nanoTime() < lease)
         stateService.forward(op)
       else
         sender() ! StateServiceOperationFailed(op, new ApiException(RetryLater))
@@ -97,7 +97,9 @@ class ServiceProxy extends Actor with ActorLogging {
 }
 
 object ServiceProxy {
-  def props() =  Props(classOf[ServiceProxy])
+  def props(coordinator: Option[ActorRef]) =  Props(classOf[ServiceProxy], coordinator)
 }
 
-case class LeaseRenewed(length: FiniteDuration)
+case class AcquireLease()
+case class LeaseAcquired(length: FiniteDuration)
+case class ReleaseLease()
