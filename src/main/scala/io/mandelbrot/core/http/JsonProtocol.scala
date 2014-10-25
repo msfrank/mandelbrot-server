@@ -345,9 +345,9 @@ object JsonProtocol extends DefaultJsonProtocol {
 
   /* registry operations */
   implicit val RegisterProbeSystemFormat = jsonFormat2(RegisterProbeSystem)
-  implicit val UpdateProbeSystemFormat = jsonFormat2(UpdateProbeSystem)
 
   /* probe system operations */
+  implicit val UpdateProbeSystemFormat = jsonFormat2(UpdateProbeSystem)
   implicit val GetProbeSystemStatusFormat = jsonFormat2(GetProbeSystemStatus)
   implicit val GetProbeSystemStatusResultFormat = jsonFormat2(GetProbeSystemStatusResult)
   implicit val GetProbeSystemMetadataFormat = jsonFormat2(GetProbeSystemMetadata)

@@ -20,6 +20,7 @@
 package io.mandelbrot.core.system
 
 import akka.actor._
+import akka.contrib.pattern.ShardRegion
 import akka.pattern.ask
 import akka.pattern.pipe
 import akka.util.Timeout
@@ -42,13 +43,11 @@ import io.mandelbrot.core.history._
  * as updating probes when policy changes.  lastly, the ProbeSystem acts as an endpoint
  * for commands and queries operating on sets of probes in the system.
  */
-class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Long, services: ActorRef) extends Actor with ActorLogging {
+class ProbeSystem(services: ActorRef) extends LoggingFSM[SystemFSMState,SystemFSMData] with Stash {
   import ProbeSystem._
-  import context.dispatcher
 
   // config
   val settings = ServerConfig(context.system).settings
-  implicit val timeout = Timeout(5.seconds)   // TODO: pull this from settings
 
   // state
   var probes: Map[ProbeRef,ProbeActor] = Map.empty
@@ -57,190 +56,215 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
   val links = new mutable.HashMap[ProbeRef,ProbeLink]
   val metricsBus = new MetricsBus()
 
-  var notifier: Option[ActorRef] = Some(services)
-
   override def preStart(): Unit = {
-    applyProbeRegistration(registration, generation)
+    startWith(SystemIncubating, SystemWaiting)
+    initialize()
   }
 
-  def receive = {
+  when(SystemIncubating) {
+    case Event(op: ProbeSystemOperation, _) =>
+      stash()
+      goto(SystemInitializing) using SystemInitializing(op.uri)
+      
+    case Event(op: ProbeOperation, _) =>
+      stash()
+      goto(SystemInitializing) using SystemInitializing(op.probeRef.uri)
 
-    /* initialize or update the probe system with the specified spec */
-    case ConfigureProbeSystem(newRegistration, lsn) =>
-      applyProbeRegistration(newRegistration, lsn)
+    case _: Event => stop()
+  }
+  
+  onTransition {
+    case SystemIncubating -> SystemInitializing => nextStateData match {
+      case state: SystemInitializing => services ! GetProbeSystemEntry(state.uri)
+      case _ =>
+    }
+  }
+  
+  when(SystemInitializing) {
+    case Event(result: GetProbeSystemEntryResult, state: SystemInitializing) =>
+      goto(SystemRunning) using SystemRunning(state.uri, result.registration, 0)
+    case Event(failure: RegistryServiceOperationFailed, state: SystemInitializing) =>
+      goto(SystemFailed) using SystemError(failure.failure)
+    case Event(op: ProbeSystemOperation, _) =>
+      stash()
+      stay()
+    case Event(op: ProbeOperation, _) =>
+      stash()
+      stay()
+  }
+
+  onTransition {
+    case _ -> SystemRunning => nextStateData match {
+      case state: SystemRunning =>
+        log.debug("configuring probe system {}", state.uri)
+        unstashAll()
+        applyProbeRegistration(state.uri, state.registration, state.lsn)
+      case _ =>
+    }
+  }
+
+  when (SystemRunning) {
+
+    /* get the ProbeSystem lsn */
+    case Event(op: ReviveProbeSystem, state: SystemRunning) =>
+      stay() replying ReviveProbeSystemResult(op, state.lsn)
 
     /* get the ProbeSystem spec */
-    case query: DescribeProbeSystem =>
-      sender() ! DescribeProbeSystemResult(query, registration)
+    case Event(query: DescribeProbeSystem, state: SystemRunning) =>
+      stay() replying DescribeProbeSystemResult(query, state.registration, state.lsn)
 
-    /* acknowledge the specified probes in the probe system */
-    case command: AcknowledgeProbeSystem =>
-      val futures: Iterable[Future[Option[(ProbeRef,UUID)]]] = command.correlations.filter {
-        case (ref: ProbeRef, correlation: UUID) => probes.contains(ref)
-      }.map { case (ref: ProbeRef, correlation: UUID) =>
-        val future = probes(ref).actor.ask(AcknowledgeProbe(ref, correlation))(timeout)
-        future.map {
-          case result: AcknowledgeProbeResult => Some(ref -> result.acknowledgementId)
-          case result: ProbeOperationFailed => None
-        }.mapTo[Option[(ProbeRef,UUID)]]
-      }
-      Future.sequence(futures).map {
-        case results: Iterable[Option[(ProbeRef,UUID)]] =>
-          val acknowledgements = results.flatten.toMap
-          AcknowledgeProbeSystemResult(command, acknowledgements)
-      }.recover {
-        case ex: Throwable => ProbeSystemOperationFailed(command, ex)
-      }.pipeTo(sender())
+    /* update probes */
+    case Event(op: UpdateProbeSystem, state: SystemRunning) =>
+      goto(SystemUpdating) using SystemUpdating(op, sender(), state)
 
-    /* unacknowledge the specified probes in the probe system */
-    case command: UnacknowledgeProbeSystem =>
-      val futures: Iterable[Future[Option[(ProbeRef,UUID)]]] = command.unacknowledgements.filter {
-        case (ref: ProbeRef, unacknowledgement: UUID) => probes.contains(ref)
-      }.map { case (ref: ProbeRef, unacknowledgement: UUID) =>
-        val future = probes(ref).actor.ask(UnacknowledgeProbe(ref, unacknowledgement))(timeout)
-        future.map {
-          case result: UnacknowledgeProbeResult => Some(ref -> result.acknowledgementId)
-          case result: ProbeOperationFailed => None
-        }.mapTo[Option[(ProbeRef,UUID)]]
-      }
-      Future.sequence(futures).map {
-        case results: Iterable[Option[(ProbeRef,UUID)]] =>
-          val unacknowledgements = results.flatten.toMap
-          UnacknowledgeProbeSystemResult(command, unacknowledgements)
-      }.recover {
-        case ex: Throwable => ProbeSystemOperationFailed(command, ex)
-      }.pipeTo(sender())
-
-    /* get the state of probes in the system */
-    case query: GetProbeSystemStatus =>
-      val futures = findMatching(query.paths).map { case (ref: ProbeRef, actor: ProbeActor) =>
-        actor.actor.ask(GetProbeStatus(ref))(timeout).mapTo[GetProbeStatusResult]
-      }
-      if (futures.isEmpty)
-        sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
-      else
-        Future.sequence(futures).map {
-          case results: Set[GetProbeStatusResult] =>
-            GetProbeSystemStatusResult(query, results.map(result => result.state.probeRef -> result.state).toMap)
-        }.recover {
-          case ex: Throwable => ProbeSystemOperationFailed(query, ex)
-        }.pipeTo(sender())
-
-    /* get the metadata of probes in the system */
-    case query: GetProbeSystemMetadata =>
-          val metadata = findMatching(query.paths).map { case (ref: ProbeRef, actor: ProbeActor) =>
-            ref -> findProbeSpec(registration, ref.path).metadata
-          }.toMap
-      if (metadata.isEmpty)
-        sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
-      else
-        sender() ! GetProbeSystemMetadataResult(query, metadata)
-
-    /* get the policy of probes in the system */
-    case query: GetProbeSystemPolicy =>
-      val policy = findMatching(query.paths).map { case (ref: ProbeRef, actor: ProbeActor) =>
-        ref -> findProbeSpec(registration, ref.path).policy
-      }.toMap
-      if (policy.isEmpty)
-        sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
-      else
-        sender() ! GetProbeSystemPolicyResult(query, policy)
-
-    /* get the status history for the specified probes */
-    case query: GetProbeSystemStatusHistory =>
-      val q = if (query.paths.isEmpty) GetStatusHistory(Left(ProbeRef(uri)), query.from, query.to, query.limit) else {
-        val refs = findMatching(query.paths).map(_._1)
-        GetStatusHistory(Right(refs), query.from, query.to, query.limit)
-      }
-      services.ask(q).map {
-        case GetStatusHistoryResult(_, history) =>
-          GetProbeSystemStatusHistoryResult(query, history)
-        case failure: HistoryServiceOperationFailed =>
-          ProbeSystemOperationFailed(query, failure.failure)
-      }.pipeTo(sender())
-
-    /* get the notification history for the specified probes */
-    case query: GetProbeSystemNotificationHistory =>
-      val q = if (query.paths.isEmpty) GetNotificationHistory(Left(ProbeRef(uri)), query.from, query.to, query.limit) else {
-        val refs = findMatching(query.paths).map(_._1)
-        GetNotificationHistory(Right(refs), query.from, query.to, query.limit)
-      }
-      services.ask(q).map {
-        case GetNotificationHistoryResult(_, history) =>
-          GetProbeSystemNotificationHistoryResult(query, history)
-        case failure: HistoryServiceOperationFailed =>
-          ProbeSystemOperationFailed(query, failure.failure)
-      }.pipeTo(sender())
+    /* retire all running probes */
+    case Event(op: RetireProbeSystem, state: SystemRunning) =>
+      goto(SystemRetiring) using SystemRetiring(op, sender(), state)
 
     /* send status message to specified probe */
-    case message: StatusMessage =>
+    case Event(message: StatusMessage, state: SystemRunning) =>
       probes.get(message.probeRef) match {
         case Some(probeActor: ProbeActor) =>
           probeActor.actor ! message
         case None =>
           log.warning("ignoring message {}: probe source is not known", message)
       }
+      stay()
 
     /* send metrics message to all interested probes */
-    case message: MetricsMessage =>
+    case Event(message: MetricsMessage, state: SystemRunning) =>
       if (probes.contains(message.probeRef))
         metricsBus.publish(message)
       else
         log.warning("ignoring message {}: probe source is not known", message)
+      stay()
 
     /* ignore probe status from top level probes */
-    case status: ProbeStatus =>
+    case Event(status: ProbeStatus, state: SystemRunning) =>
+      stay()
 
     /* forward probe operations to the specified probe */
-    case op: ProbeOperation =>
+    case Event(op: ProbeOperation, state: SystemRunning) =>
       probes.get(op.probeRef) match {
         case Some(probeActor: ProbeActor) =>
           probeActor.actor.forward(op)
         case None =>
           sender() ! ProbeOperationFailed(op, new ApiException(ResourceNotFound))
       }
+      stay()
 
     /* handle notifications which have been passed up from Probe */
-    case notification: NotificationEvent =>
-      notifier.foreach(_ ! notification)
-
-    /* retire all running probes */
-    case command: RetireProbeSystem =>
-      probes.foreach {
-        case (ref,probeactor) if !retiredProbes.contains(probeactor.actor) =>
-          probeactor.actor ! RetireProbe(command.lsn)
-          retiredProbes.put(probeactor.actor, (ref,command.lsn))
-        case _ => // do nothing
-      }
+    case Event(notification: NotificationEvent, state: SystemRunning) =>
+      services ! notification
+      stay()
 
     /* clean up retired probes, reanimate zombie probes */
-    case Terminated(actorref) =>
-      val (proberef,lsn) = retiredProbes(actorref)
-      probes = probes - proberef
-      retiredProbes.remove(actorref)
-      if (zombieProbes.contains(proberef)) {
-        zombieProbes.remove(proberef)
-        applyProbeRegistration(registration, lsn)
+    case Event(Terminated(actorRef), state: SystemRunning) =>
+      val (probeRef,lsn) = retiredProbes(actorRef)
+      probes = probes - probeRef
+      retiredProbes.remove(actorRef)
+      if (zombieProbes.contains(probeRef)) {
+        zombieProbes.remove(probeRef)
+        applyProbeRegistration(state.uri, state.registration, state.lsn)
       } else
-        log.debug("probe {} has been terminated", proberef)
-      if (probes.isEmpty)
-        context.stop(self)
+        log.debug("probe {} has been terminated", probeRef)
+      stay()
+  }
 
+  onTransition {
+    case _ -> SystemUpdating => nextStateData match  {
+      case state: SystemUpdating => services ! UpdateProbeSystemEntry(state.op.uri, state.op.registration, state.prev.lsn)
+      case _ =>
+    }
+  }
+
+  when(SystemUpdating) {
+    case Event(result: UpdateProbeSystemEntryResult, state: SystemUpdating) =>
+      state.sender ! UpdateProbeSystemResult(state.op, result.lsn)
+      goto(SystemRunning) using SystemRunning(state.op.uri, state.op.registration, result.lsn)
+    case Event(failure: RegistryServiceOperationFailed, state: SystemUpdating) =>
+      state.sender ! failure
+      goto(SystemRunning) using state.prev
+    case Event(_, state: SystemUpdating) =>
+      stash()
+      stay()
+  }
+
+  onTransition {
+    case _ -> SystemRetiring => nextStateData match {
+      case state: SystemRetiring => services ! DeleteProbeSystemEntry(state.op.uri, state.prev.lsn)
+      case _ =>
+    }
+  }
+
+  when(SystemRetiring) {
+    case Event(result: DeleteProbeSystemEntryResult, state: SystemRetiring) =>
+      state.sender ! RetireProbeSystemResult(state.op, result.lsn)
+      goto(SystemRetired) using SystemRetired(state.prev.uri, state.prev.registration, result.lsn)
+    case Event(failure: RegistryServiceOperationFailed, state: SystemRetiring) =>
+      state.sender ! failure
+      goto(SystemRunning) using state.prev
+    case Event(_, state: SystemRetiring) =>
+      stash()
+      stay()
+  }
+
+  onTransition {
+    case _ -> SystemRetired => nextStateData match {
+      case state: SystemRetired =>
+        unstashAll()
+        probes.foreach {
+          case (probeRef,probeActor) if !retiredProbes.contains(probeActor.actor) =>
+            probeActor.actor ! RetireProbe(state.lsn)
+            retiredProbes.put(probeActor.actor, (probeRef,state.lsn))
+          case _ => // do nothing
+        }
+      case _ =>
+      }
+  }
+
+  when(SystemRetired) {
+    /* clean up retired probes, reanimate zombie probes */
+    case Event(Terminated(actorRef), state: SystemRetired) =>
+      val (probeRef,lsn) = retiredProbes(actorRef)
+      probes = probes - probeRef
+      retiredProbes.remove(actorRef)
+      if (zombieProbes.contains(probeRef))
+        zombieProbes.remove(probeRef)
+      if (probes.nonEmpty) stay() else stop()
+    /* system doesn't exist anymore, so return resource not found */
+    case Event(op: ProbeSystemOperation, _) =>
+      stay() replying ProbeSystemOperationFailed(op, new ApiException(ResourceNotFound))
+    case Event(op: ProbeOperation, _) =>
+      stay() replying ProbeOperationFailed(op, new ApiException(ResourceNotFound))
+  }
+
+  onTransition {
+    case _ -> SystemFailed => unstashAll()
+  }
+
+  when(SystemFailed) {
+    case Event(op: ProbeSystemOperation, state: SystemError) =>
+      stop() replying ProbeSystemOperationFailed(op, state.ex)
+    case Event(op: ProbeOperation, state: SystemError) =>
+      stop() replying ProbeOperationFailed(op, state.ex)
+    /* ignore any other messages */
+    case _: Event => stay()
   }
 
   /**
    * flatten ProbeRegistration into a Set of ProbeRefs
    */
-  def spec2RefSet(path: Vector[String], spec: ProbeSpec): Set[ProbeRef] = {
+  def spec2RefSet(uri: URI, path: Vector[String], spec: ProbeSpec): Set[ProbeRef] = {
     val iterChildren = spec.children.toSet
     val childRefs = iterChildren.map { case (name: String, childSpec: ProbeSpec) =>
-      spec2RefSet(path :+ name, childSpec)
+      spec2RefSet(uri, path :+ name, childSpec)
     }.flatten
     childRefs + ProbeRef(uri, path)
   }
-  def registration2RefSet(registration: ProbeRegistration): Set[ProbeRef] = {
+  def registration2RefSet(uri: URI, registration: ProbeRegistration): Set[ProbeRef] = {
     registration.probes.flatMap { case (name,spec) =>
-      spec2RefSet(Vector(name), spec)
+      spec2RefSet(uri, Vector(name), spec)
     }.toSet
   }
 
@@ -258,14 +282,13 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
   /**
    * apply the spec to the probe system, adding and removing probes as necessary
    */
-  def applyProbeRegistration(newRegistration: ProbeRegistration, lsn: Long): Unit = {
-    log.debug("configuring probe system {}", uri)
-    val specSet = registration2RefSet(newRegistration)
+  def applyProbeRegistration(uri: URI, registration: ProbeRegistration, lsn: Long): Unit = {
+    val specSet = registration2RefSet(uri, registration)
     val probeSet = probes.keySet
     // add new probes
     val probesAdded = specSet -- probeSet
     probesAdded.toVector.sorted.foreach { case ref: ProbeRef =>
-      val probeSpec = findProbeSpec(newRegistration, ref.path)
+      val probeSpec = findProbeSpec(registration, ref.path)
       val directChildren = specSet.filter { _.parentOption match {
         case Some(parent) => parent == ref
         case None => false
@@ -279,7 +302,7 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
       context.watch(actor)
       log.debug("probe {} joins", ref)
       probes = probes + (ref -> ProbeActor(probeSpec, actor))
-      services ! ProbeMetadata(ref, newRegistration.metadata)
+      services ! ProbeMetadata(ref, registration.metadata)
     }
     // remove stale probes
     val probesRemoved = probeSet -- specSet
@@ -295,7 +318,7 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
       case ref: ProbeRef if retiredProbes.contains(probes(ref).actor) =>
         zombieProbes.add(ref)
       case ref: ProbeRef =>
-        val probeSpec = findProbeSpec(newRegistration, ref.path)
+        val probeSpec = findProbeSpec(registration, ref.path)
         val directChildren = specSet.filter { _.parentOption match {
           case Some(parent) => parent == ref
           case None => false
@@ -307,13 +330,12 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
         else
           actor ! ChangeProbe(directChildren, probeSpec.policy, probeSpec.behavior, lsn)
     }
-    registration = newRegistration
   }
 
   /**
    *
    */
-  def findMatching(paths: Option[Set[String]]): Set[(ProbeRef,ProbeActor)] = paths match {
+  def findMatching(uri: URI, paths: Option[Set[String]]): Set[(ProbeRef,ProbeActor)] = paths match {
     case None =>
       probes.toSet
     case Some(_paths) =>
@@ -329,18 +351,39 @@ class ProbeSystem(uri: URI, var registration: ProbeRegistration, generation: Lon
 }
 
 object ProbeSystem {
-  def props(uri: URI, registration: ProbeRegistration, generation: Long, services: ActorRef) = {
-    Props(classOf[ProbeSystem], uri, registration, generation, services)
+  def props(services: ActorRef) =  Props(classOf[ProbeSystem], services)
+  val idExtractor: ShardRegion.IdExtractor = {
+    case op: ProbeSystemOperation => (op.uri.toString, op)
+    case op: ProbeOperation => (op.probeRef.uri.toString, op)
   }
-
+  val shardResolver: ShardRegion.ShardResolver = {
+    case op: ProbeSystemOperation => op.uri.toString
+    case op: ProbeOperation => op.probeRef.uri.toString
+  }
   case class ProbeActor(spec: ProbeSpec, actor: ActorRef)
 }
 
-case class ConfigureProbeSystem(registration: ProbeRegistration, lsn: Long)
+sealed trait SystemFSMState
+case object SystemIncubating extends SystemFSMState
+case object SystemInitializing extends SystemFSMState
+case object SystemRunning extends SystemFSMState
+case object SystemUpdating extends SystemFSMState
+case object SystemRetiring extends SystemFSMState
+case object SystemRetired extends SystemFSMState
+case object SystemFailed extends SystemFSMState
+
+sealed trait SystemFSMData
+case object SystemWaiting extends SystemFSMData
+case class SystemInitializing(uri: URI) extends SystemFSMData
+case class SystemRunning(uri: URI, registration: ProbeRegistration, lsn: Long) extends SystemFSMData
+case class SystemUpdating(op: UpdateProbeSystem, sender: ActorRef, prev: SystemRunning) extends SystemFSMData
+case class SystemRetiring(op: RetireProbeSystem, sender: ActorRef, prev: SystemRunning) extends SystemFSMData
+case class SystemRetired(uri: URI, registration: ProbeRegistration, lsn: Long) extends SystemFSMData
+case class SystemError(ex: Throwable) extends SystemFSMData
+
 case class UpdateProbe(children: Set[ProbeRef], policy: ProbePolicy, behavior: ProbeBehavior, lsn: Long)
 case class ChangeProbe(children: Set[ProbeRef], policy: ProbePolicy, behavior: ProbeBehavior, lsn: Long)
 case class RetireProbe(lsn: Long)
-case class RetireProbeSystem(lsn: Long)
 
 /* describes a link to a probe subtree from a different probe system */
 case class ProbeLink(localRef: ProbeRef, remoteUrl: URI, remoteMatch: String)
@@ -348,45 +391,19 @@ case class ProbeLink(localRef: ProbeRef, remoteUrl: URI, remoteMatch: String)
 /**
  *
  */
-sealed trait ProbeSystemOperation {
-  val uri: URI
-}
+sealed trait ProbeSystemOperation { val uri: URI }
 sealed trait ProbeSystemCommand extends ProbeSystemOperation
 sealed trait ProbeSystemQuery extends ProbeSystemOperation
 case class ProbeSystemOperationFailed(op: ProbeSystemOperation, failure: Throwable)
 
+case class UpdateProbeSystem(uri: URI, registration: ProbeRegistration) extends ProbeSystemCommand
+case class UpdateProbeSystemResult(op: UpdateProbeSystem, lsn: Long)
+
+case class RetireProbeSystem(uri: URI) extends ProbeSystemCommand
+case class RetireProbeSystemResult(op: RetireProbeSystem, lsn: Long)
+
+case class ReviveProbeSystem(uri: URI) extends ProbeSystemQuery
+case class ReviveProbeSystemResult(op: ReviveProbeSystem, lsn: Long)
+
 case class DescribeProbeSystem(uri: URI) extends ProbeSystemQuery
-case class DescribeProbeSystemResult(op: DescribeProbeSystem, registration: ProbeRegistration)
-
-case class AcknowledgeProbeSystem(uri: URI, correlations: Map[ProbeRef,UUID]) extends ProbeSystemCommand
-case class AcknowledgeProbeSystemResult(op: AcknowledgeProbeSystem, acknowledgements: Map[ProbeRef,UUID])
-
-case class RegisterProbeSystemLink(uri: URI, link: ProbeLink) extends ProbeSystemCommand
-case class RegisterProbeSystemLinkResult(op: RegisterProbeSystemLink)
-
-case class UpdateProbeSystemLink(uri: URI, link: ProbeLink) extends ProbeSystemCommand
-case class UpdateProbeSystemLinkResult(op: UpdateProbeSystemLink)
-
-case class UnregisterProbeSystemLink(uri: URI, linkRef: ProbeRef) extends ProbeSystemCommand
-case class UnregisterProbeSystemLinkResult(op: UnregisterProbeSystemLink)
-
-case class UnacknowledgeProbeSystem(uri: URI, unacknowledgements: Map[ProbeRef,UUID]) extends ProbeSystemCommand
-case class UnacknowledgeProbeSystemResult(op: UnacknowledgeProbeSystem, unacknowledgements: Map[ProbeRef,UUID])
-
-case class GetProbeSystemStatus(uri: URI, paths: Option[Set[String]]) extends ProbeSystemQuery
-case class GetProbeSystemStatusResult(op: GetProbeSystemStatus, status: Map[ProbeRef,ProbeStatus])
-
-case class GetProbeSystemMetadata(uri: URI, paths: Option[Set[String]]) extends ProbeSystemQuery
-case class GetProbeSystemMetadataResult(op: GetProbeSystemMetadata, metadata: Map[ProbeRef,Map[String,String]])
-
-case class GetProbeSystemPolicy(uri: URI, paths: Option[Set[String]]) extends ProbeSystemQuery
-case class GetProbeSystemPolicyResult(op: GetProbeSystemPolicy, policy: Map[ProbeRef,ProbePolicy])
-
-case class GetProbeSystemLinks(uri: URI, paths: Option[Set[String]]) extends ProbeSystemQuery
-case class GetProbeSystemLinksResult(op: GetProbeSystemLinks, links: Map[ProbeRef,ProbeLink])
-
-case class GetProbeSystemStatusHistory(uri: URI, paths: Option[Set[String]], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends ProbeSystemQuery
-case class GetProbeSystemStatusHistoryResult(op: GetProbeSystemStatusHistory, history: Vector[ProbeStatus])
-
-case class GetProbeSystemNotificationHistory(uri: URI, paths: Option[Set[String]], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends ProbeSystemQuery
-case class GetProbeSystemNotificationHistoryResult(op: GetProbeSystemNotificationHistory, history: Vector[ProbeNotification])
+case class DescribeProbeSystemResult(op: DescribeProbeSystem, registration: ProbeRegistration, lsn: Long)

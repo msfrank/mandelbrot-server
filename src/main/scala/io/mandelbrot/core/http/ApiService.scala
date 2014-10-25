@@ -100,8 +100,8 @@ trait ApiService extends HttpService {
         /* retrieve the spec for the specified probe system */
         get {
           complete {
-            serviceProxy.ask(DescribeProbeSystem(uri)).map {
-              case result: DescribeProbeSystemResult =>
+            serviceProxy.ask(GetProbeSystemEntry(uri)).map {
+              case result: GetProbeSystemEntryResult =>
                 result.registration
               case failure: ProbeSystemOperationFailed =>
                 throw failure.failure
@@ -117,7 +117,7 @@ trait ApiService extends HttpService {
                   HttpResponse(StatusCodes.Accepted,
                                headers = List(Location("/objects/systems/" + updateProbeSystem.uri.toString)),
                                entity = JsonBody(result.op.uri.toJson))
-                case failure: RegistryServiceOperationFailed =>
+                case failure: ProbeSystemOperationFailed =>
                   throw failure.failure
               }
             }
@@ -126,10 +126,10 @@ trait ApiService extends HttpService {
         /* unregister the probe system */
         delete {
           complete {
-            serviceProxy.ask(UnregisterProbeSystem(uri)).map {
-              case result: UnregisterProbeSystemResult =>
+            serviceProxy.ask(RetireProbeSystem(uri)).map {
+              case result: RetireProbeSystemResult =>
                 HttpResponse(StatusCodes.Accepted)
-              case failure: RegistryServiceOperationFailed =>
+              case failure: ProbeSystemOperationFailed =>
                 throw failure.failure
             }
           }

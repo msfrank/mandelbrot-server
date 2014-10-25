@@ -67,6 +67,10 @@ trait RegistryEntriesComponent { this: Profile =>
     registryEntries.filter(_.id > last).take(limit).list()
   }
 
+  def get(systemUri: URI)(implicit session: Session): Option[RegistryEntry] = {
+    registryEntries.filter(_.probeSystem === systemUri.toString).firstOption
+  }
+
   def insert(systemUri: URI, registration: ProbeRegistration, timestamp: DateTime)(implicit session: Session): Try[Long] = {
     val probeSystem: String = systemUri.toString
     registryEntries.filter(_.probeSystem === probeSystem).firstOption match {
@@ -145,45 +149,40 @@ trait SlickRegistrar extends Actor with ActorLogging {
 
   def receive = {
 
-    case RecoverProbeSystems =>
-      db.withSession { implicit session =>
-        var last = 0L
-        var systems: Vector[(Long,String,String,Long,Long,Long)] = dal.list(last, 100).toVector
-        while (systems.nonEmpty) {
-          systems.foreach { case (id, probeSystem, registration, lsn, _, _) =>
-            val uri = new URI(probeSystem)
-            sender() ! ProbeSystemRecovers(uri, JsonParser(registration).convertTo[ProbeRegistration], lsn)
-            last = id
-            log.debug("recovered probe system {} has lsn {}", uri, lsn)
-          }
-          systems = dal.list(last, 100).toVector
-        }
-      }
-
     case command: RegisterProbeSystem =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       db.withSession { implicit session =>
         dal.insert(command.uri, command.registration, timestamp) match {
-          case Success(lsn) => sender() ! ProbeSystemRegisters(command, timestamp, lsn)
+          case Success(lsn) => sender() ! RegisterProbeSystemResult(command, 1)
           case Failure(ex) => sender() ! RegistryServiceOperationFailed(command, ex)
         }
       }
 
-    case command: UpdateProbeSystem =>
+    case command: UpdateProbeSystemEntry =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       db.withSession { implicit session =>
         dal.update(command.uri, command.registration, timestamp) match {
-          case Success(lsn) => sender() ! ProbeSystemUpdates(command, timestamp, lsn)
+          case Success(lsn) => sender() ! UpdateProbeSystemEntryResult(command, 1)
           case Failure(ex) => sender() ! RegistryServiceOperationFailed(command, ex)
         }
       }
 
-    case command: UnregisterProbeSystem =>
+    case command: DeleteProbeSystemEntry =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       db.withSession { implicit session =>
         dal.delete(command.uri, timestamp) match {
-          case Success(lsn) => sender() ! ProbeSystemUnregisters(command, timestamp, lsn)
+          case Success(lsn) => sender() ! DeleteProbeSystemEntryResult(command, 1)
           case Failure(ex) => sender() ! RegistryServiceOperationFailed(command, ex)
+        }
+      }
+
+    case query: GetProbeSystemEntry =>
+      db.withSession { implicit session =>
+        dal.get(query.uri) match {
+          case Some((_, _, registration, lsn, _, _)) =>
+            sender() ! GetProbeSystemEntryResult(query, JsonParser(registration).convertTo[ProbeRegistration], lsn)
+          case None =>
+            sender() ! RegistryServiceOperationFailed(query, new ApiException(ResourceNotFound))
         }
       }
 

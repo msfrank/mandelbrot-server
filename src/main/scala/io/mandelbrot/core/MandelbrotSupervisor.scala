@@ -23,6 +23,7 @@ import akka.actor._
 
 import io.mandelbrot.core.cluster.ServiceProxy
 import io.mandelbrot.core.http.HttpServer
+import io.mandelbrot.core.registry.RegistryReviver
 
 /**
  *
@@ -36,14 +37,17 @@ class MandelbrotSupervisor extends Actor with ActorLogging {
   var alive = Set.empty[ActorRef]
   var requestor = ActorRef.noSender
 
-  // val coordinator = system.actorOf(ClusterSingletonManager.props())
-  val serviceProxy = context.actorOf(ServiceProxy.props(None), "service-proxy")
+  val serviceProxy = context.actorOf(ServiceProxy.props(), "service-proxy")
   val httpServer = context.actorOf(HttpServer.props(serviceProxy), "http-service")
 
   alive = Set(httpServer, serviceProxy)
 
   // monitor lifecycle for all specified actors
   alive.foreach(context.watch)
+
+  override def preStart(): Unit = {
+    val reviver = context.actorOf(RegistryReviver.props(serviceProxy))
+  }
 
   def receive = {
 

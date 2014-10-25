@@ -58,11 +58,11 @@ class HistoryManager extends Actor with ActorLogging {
   def receive = {
 
     /* append probe status to history */
-    case status: ProbeStatus =>
+    case StatusAppends(status) =>
       archiver ! status
 
     /* append notification to history */
-    case notification: ProbeNotification =>
+    case NotificationAppends(notification) =>
       archiver ! notification
 
     /* retrieve status history */

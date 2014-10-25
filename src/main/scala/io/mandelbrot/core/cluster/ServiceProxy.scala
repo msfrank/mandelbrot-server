@@ -20,26 +20,22 @@
 package io.mandelbrot.core.cluster
 
 import akka.actor._
-import scala.concurrent.duration._
 
-import io.mandelbrot.core.system.{ProbeOperationFailed, ProbeOperation, ProbeSystemOperationFailed, ProbeSystemOperation}
-import io.mandelbrot.core.history.{HistoryManager, HistoryServiceOperationFailed, HistoryServiceOperation}
-import io.mandelbrot.core.notification.{NotificationManager, NotificationServiceOperationFailed, NotificationServiceOperation}
-import io.mandelbrot.core.registry.{RegistryManager, RegistryServiceOperationFailed, RegistryServiceOperation}
-import io.mandelbrot.core.state.{StateManager, StateServiceOperationFailed, StateServiceOperation}
-import io.mandelbrot.core.tracking.{TrackingManager, TrackingServiceOperationFailed, TrackingServiceOperation}
-import io.mandelbrot.core.{RetryLater, ApiException}
+import io.mandelbrot.core.ServerConfig
+import io.mandelbrot.core.system._
+import io.mandelbrot.core.history._
+import io.mandelbrot.core.notification._
+import io.mandelbrot.core.registry._
+import io.mandelbrot.core.state._
+import io.mandelbrot.core.tracking._
 
 /**
  * ServiceProxy is a router for all service operation messages, responsible for sending
- * operations to the correct service.  ServiceProxy is also a circuit breaker; as long as
- * LeaseRenewed messages continue to arrive at regular intervals the breaker remains open,
- * but if the renewals stop then all service operations will return RetryLater.
+ * operations to the correct service.
  */
-class ServiceProxy(coordinator: Option[ActorRef]) extends Actor with ActorLogging {
+class ServiceProxy extends Actor with ActorLogging {
 
-  // state
-  var lease: Long = 0
+  val settings = ServerConfig(context.system).settings
 
   val registryService = context.actorOf(RegistryManager.props(), "registry-service")
   val trackingService = context.actorOf(TrackingManager.props(), "tracking-service")
@@ -47,59 +43,36 @@ class ServiceProxy(coordinator: Option[ActorRef]) extends Actor with ActorLoggin
   val notificationService = context.actorOf(NotificationManager.props(), "notification-service")
   val stateService = context.actorOf(StateManager.props(), "state-service")
 
+  val coordinator = if (settings.cluster.enabled)
+    context.actorOf(ClusterCoordinator.props(registryService))
+  else context.actorOf(StandaloneCoordinator.props(registryService))
+
   def receive = {
 
-    case LeaseAcquired(length) =>
-      lease = System.nanoTime() + length.toNanos
-
     case op: RegistryServiceOperation =>
-      if (coordinator.isEmpty || System.nanoTime() < lease)
-        registryService.forward(op)
-      else
-        sender() ! RegistryServiceOperationFailed(op, new ApiException(RetryLater))
+      coordinator forward op
 
     case op: ProbeSystemOperation =>
-      if (coordinator.isEmpty || System.nanoTime() < lease)
-        registryService.forward(op)
-      else
-        sender() ! ProbeSystemOperationFailed(op, new ApiException(RetryLater))
+      coordinator forward op
 
     case op: ProbeOperation =>
-      if (coordinator.isEmpty || System.nanoTime() < lease)
-        registryService.forward(op)
-      else
-        sender() ! ProbeOperationFailed(op, new ApiException(RetryLater))
-
-    case op: TrackingServiceOperation =>
-      if (coordinator.isEmpty || System.nanoTime() < lease)
-        trackingService.forward(op)
-      else
-        sender() ! TrackingServiceOperationFailed(op, new ApiException(RetryLater))
-
-    case op: HistoryServiceOperation =>
-      if (coordinator.isEmpty || System.nanoTime() < lease)
-        historyService.forward(op)
-      else
-        sender() ! HistoryServiceOperationFailed(op, new ApiException(RetryLater))
-
-    case op: NotificationServiceOperation =>
-      if (coordinator.isEmpty || System.nanoTime() < lease)
-        notificationService.forward(op)
-      else
-        sender() ! NotificationServiceOperationFailed(op, new ApiException(RetryLater))
+      coordinator forward op
 
     case op: StateServiceOperation =>
-      if (coordinator.isEmpty || System.nanoTime() < lease)
-        stateService.forward(op)
-      else
-        sender() ! StateServiceOperationFailed(op, new ApiException(RetryLater))
+      stateService forward op
+
+    case op: HistoryServiceOperation =>
+      historyService forward op
+
+    case op: NotificationServiceOperation =>
+      notificationService forward op
+
+    case op: TrackingServiceOperation =>
+      trackingService forward op
   }
 }
 
 object ServiceProxy {
-  def props(coordinator: Option[ActorRef]) =  Props(classOf[ServiceProxy], coordinator)
+  def props() =  Props(classOf[ServiceProxy])
 }
 
-case class AcquireLease()
-case class LeaseAcquired(length: FiniteDuration)
-case class ReleaseLease()

@@ -30,6 +30,7 @@ object MandelbrotServerBuild extends Build {
         "com.typesafe.akka" %% "akka-persistence-experimental" % akkaVersion,
         "com.typesafe.akka" %% "akka-remote" % akkaVersion,
         "com.typesafe.akka" %% "akka-cluster" % akkaVersion,
+        "com.typesafe.akka" %% "akka-contrib" % akkaVersion,
         "com.typesafe.akka" %% "akka-slf4j" % akkaVersion,
         "io.spray" % "spray-can" % sprayVersion,
         "io.spray" % "spray-routing" % sprayVersion,
