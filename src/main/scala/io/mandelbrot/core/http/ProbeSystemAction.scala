@@ -19,29 +19,26 @@
 
 package io.mandelbrot.core.http
 
-import akka.actor.{Props, ActorRef, ActorLogging, Actor}
+import java.util.UUID
+
+import akka.actor.{ActorRef, ActorLogging, Actor}
 import akka.util.Timeout
-import io.mandelbrot.core.state.{GetCurrentStatusResult, GetCurrentStatus}
-import io.mandelbrot.core.{RetryLater, ApiException}
+import io.mandelbrot.core.registry.ProbePolicy
 import spray.routing.RequestContext
 import spray.httpx.SprayJsonSupport._
 import org.joda.time.DateTime
 import java.net.URI
-import java.util.UUID
 
-import io.mandelbrot.core.registry._
 import io.mandelbrot.core.system._
-import io.mandelbrot.core.notification.ProbeNotification
+import io.mandelbrot.core.state._
+import io.mandelbrot.core.notification._
+import io.mandelbrot.core.history._
+import io.mandelbrot.core.{RetryLater, ApiException}
 import JsonProtocol._
 
-case object ActionTimeout
-
-sealed trait HttpOperation
-case class HttpActionParams(ctx: RequestContext, timeout: Timeout, services: ActorRef)
-
-case class GetProbeSystemStatus(uri: URI, paths: Option[Set[String]]) extends HttpOperation
-case class GetProbeSystemStatusResult(op: GetProbeSystemStatus, status: Map[ProbeRef,ProbeStatus])
-
+/**
+ *
+ */
 class GetProbeSystemStatusAction(params: HttpActionParams, op: GetProbeSystemStatus) extends Actor with ActorLogging {
   import context.dispatcher
 
@@ -60,7 +57,7 @@ class GetProbeSystemStatusAction(params: HttpActionParams, op: GetProbeSystemSta
     case result: GetCurrentStatusResult =>
       actionTimeout.cancel()
       val status = result.status.map(s => s.probeRef -> s).toMap
-      params.ctx.complete(GetProbeSystemStatusResult(GetProbeSystemStatus(op.uri, op.paths), status))
+      params.ctx.complete(GetProbeSystemStatusResult(op, status))
       context.stop(self)
 
     case ActionTimeout =>
@@ -68,6 +65,94 @@ class GetProbeSystemStatusAction(params: HttpActionParams, op: GetProbeSystemSta
       context.stop(self)
   }
 }
+
+/**
+ *
+ */
+class GetProbeSystemStatusHistoryAction(params: HttpActionParams, op: GetProbeSystemStatusHistory) extends Actor with ActorLogging {
+  import context.dispatcher
+
+  val actionTimeout = context.system.scheduler.scheduleOnce(params.timeout.duration, self, ActionTimeout)
+  val parser = new ProbeMatcherParser()
+  val matchers: Set[ProbeMatcher] = op.paths match {
+    case None => Set.empty
+    case Some(paths) => paths.map(path => parser.parseProbeMatcher(op.uri.toString + path))
+  }
+  params.services ! MatchProbeSystem(op.uri, matchers)
+
+  def receive = {
+    case result: MatchProbeSystemResult =>
+      params.services ! GetStatusHistory(Right(result.refs), op.from, op.to, op.limit)
+
+    case result: GetStatusHistoryResult =>
+      actionTimeout.cancel()
+      params.ctx.complete(GetProbeSystemStatusHistoryResult(op, result.history))
+      context.stop(self)
+
+    case ActionTimeout =>
+      params.ctx.complete(new ApiException(RetryLater))
+      context.stop(self)
+  }
+}
+
+/**
+ *
+ */
+class GetProbeSystemNotificationHistoryAction(params: HttpActionParams, op: GetProbeSystemNotificationHistory) extends Actor with ActorLogging {
+  import context.dispatcher
+
+  val actionTimeout = context.system.scheduler.scheduleOnce(params.timeout.duration, self, ActionTimeout)
+  val parser = new ProbeMatcherParser()
+  val matchers: Set[ProbeMatcher] = op.paths match {
+    case None => Set.empty
+    case Some(paths) => paths.map(path => parser.parseProbeMatcher(op.uri.toString + path))
+  }
+  params.services ! MatchProbeSystem(op.uri, matchers)
+
+  def receive = {
+    case result: MatchProbeSystemResult =>
+      params.services ! GetNotificationHistory(Right(result.refs), op.from, op.to, op.limit)
+
+    case result: GetNotificationHistoryResult =>
+      actionTimeout.cancel()
+      params.ctx.complete(GetProbeSystemNotificationHistoryResult(op, result.history))
+      context.stop(self)
+
+    case ActionTimeout =>
+      params.ctx.complete(new ApiException(RetryLater))
+      context.stop(self)
+  }
+}
+
+case class HttpActionParams(ctx: RequestContext, timeout: Timeout, services: ActorRef)
+case object ActionTimeout
+
+sealed trait HttpOperation
+
+case class GetProbeSystemStatus(uri: URI, paths: Option[Set[String]]) extends HttpOperation
+case class GetProbeSystemStatusResult(op: GetProbeSystemStatus, status: Map[ProbeRef,ProbeStatus])
+
+case class GetProbeSystemMetadata(uri: URI, paths: Option[Set[String]]) extends HttpOperation
+case class GetProbeSystemMetadataResult(op: GetProbeSystemMetadata, metadata: Map[ProbeRef,Map[String,String]])
+
+case class GetProbeSystemPolicy(uri: URI, paths: Option[Set[String]]) extends HttpOperation
+case class GetProbeSystemPolicyResult(op: GetProbeSystemPolicy, policy: Map[ProbeRef,ProbePolicy])
+
+case class GetProbeSystemLinks(uri: URI, paths: Option[Set[String]]) extends HttpOperation
+case class GetProbeSystemLinksResult(op: GetProbeSystemLinks, links: Map[ProbeRef,ProbeLink])
+
+case class GetProbeSystemStatusHistory(uri: URI, paths: Option[Set[String]], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends HttpOperation
+case class GetProbeSystemStatusHistoryResult(op: GetProbeSystemStatusHistory, history: Vector[ProbeStatus])
+
+case class GetProbeSystemNotificationHistory(uri: URI, paths: Option[Set[String]], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends HttpOperation
+case class GetProbeSystemNotificationHistoryResult(op: GetProbeSystemNotificationHistory, history: Vector[ProbeNotification])
+
+case class AcknowledgeProbeSystem(uri: URI, correlations: Map[ProbeRef,UUID]) extends HttpOperation
+case class AcknowledgeProbeSystemResult(op: AcknowledgeProbeSystem, acknowledgements: Map[ProbeRef,UUID])
+
+case class UnacknowledgeProbeSystem(uri: URI, unacknowledgements: Map[ProbeRef,UUID]) extends HttpOperation
+case class UnacknowledgeProbeSystemResult(op: UnacknowledgeProbeSystem, unacknowledgements: Map[ProbeRef,UUID])
+
 
 //    /* acknowledge the specified probes in the probe system */
 //    case command: AcknowledgeProbeSystem =>
@@ -87,7 +172,8 @@ class GetProbeSystemStatusAction(params: HttpActionParams, op: GetProbeSystemSta
 //      }.recover {
 //        case ex: Throwable => ProbeSystemOperationFailed(command, ex)
 //      }.pipeTo(sender())
-//
+
+
 //    /* unacknowledge the specified probes in the probe system */
 //    case command: UnacknowledgeProbeSystem =>
 //      val futures: Iterable[Future[Option[(ProbeRef,UUID)]]] = command.unacknowledgements.filter {
@@ -106,7 +192,8 @@ class GetProbeSystemStatusAction(params: HttpActionParams, op: GetProbeSystemSta
 //      }.recover {
 //        case ex: Throwable => ProbeSystemOperationFailed(command, ex)
 //      }.pipeTo(sender())
-//
+
+
 //    /* get the metadata of probes in the system */
 //    case query: GetProbeSystemMetadata =>
 //      val metadata = findMatching(query.paths).map { case (ref: ProbeRef, actor: ProbeActor) =>
@@ -116,7 +203,8 @@ class GetProbeSystemStatusAction(params: HttpActionParams, op: GetProbeSystemSta
 //        sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
 //      else
 //        sender() ! GetProbeSystemMetadataResult(query, metadata)
-//
+
+
 //    /* get the policy of probes in the system */
 //    case query: GetProbeSystemPolicy =>
 //      val policy = findMatching(query.paths).map { case (ref: ProbeRef, actor: ProbeActor) =>
@@ -126,57 +214,3 @@ class GetProbeSystemStatusAction(params: HttpActionParams, op: GetProbeSystemSta
 //        sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
 //      else
 //        sender() ! GetProbeSystemPolicyResult(query, policy)
-//
-//    /* get the status history for the specified probes */
-//    case query: GetProbeSystemStatusHistory =>
-//      val q = if (query.paths.isEmpty) GetStatusHistory(Left(ProbeRef(uri)), query.from, query.to, query.limit) else {
-//        val refs = findMatching(query.paths).map(_._1)
-//        GetStatusHistory(Right(refs), query.from, query.to, query.limit)
-//      }
-//      services.ask(q).map {
-//        case GetStatusHistoryResult(_, history) =>
-//          GetProbeSystemStatusHistoryResult(query, history)
-//        case failure: HistoryServiceOperationFailed =>
-//          ProbeSystemOperationFailed(query, failure.failure)
-//      }.pipeTo(sender())
-//
-//    /* get the notification history for the specified probes */
-//    case query: GetProbeSystemNotificationHistory =>
-//      val q = if (query.paths.isEmpty) GetNotificationHistory(Left(ProbeRef(uri)), query.from, query.to, query.limit) else {
-//        val refs = findMatching(query.paths).map(_._1)
-//        GetNotificationHistory(Right(refs), query.from, query.to, query.limit)
-//      }
-//      services.ask(q).map {
-//        case GetNotificationHistoryResult(_, history) =>
-//          GetProbeSystemNotificationHistoryResult(query, history)
-//        case failure: HistoryServiceOperationFailed =>
-//          ProbeSystemOperationFailed(query, failure.failure)
-//      }.pipeTo(sender())
-//}
-
-
-sealed trait ProbeSystemOperation { val uri: URI }
-sealed trait ProbeSystemCommand extends ProbeSystemOperation
-sealed trait ProbeSystemQuery extends ProbeSystemOperation
-case class ProbeSystemOperationFailed(op: ProbeSystemOperation, failure: Throwable)
-
-case class AcknowledgeProbeSystem(uri: URI, correlations: Map[ProbeRef,UUID]) extends ProbeSystemCommand
-case class AcknowledgeProbeSystemResult(op: AcknowledgeProbeSystem, acknowledgements: Map[ProbeRef,UUID])
-
-case class UnacknowledgeProbeSystem(uri: URI, unacknowledgements: Map[ProbeRef,UUID]) extends ProbeSystemCommand
-case class UnacknowledgeProbeSystemResult(op: UnacknowledgeProbeSystem, unacknowledgements: Map[ProbeRef,UUID])
-
-case class GetProbeSystemMetadata(uri: URI, paths: Option[Set[String]]) extends ProbeSystemQuery
-case class GetProbeSystemMetadataResult(op: GetProbeSystemMetadata, metadata: Map[ProbeRef,Map[String,String]])
-
-case class GetProbeSystemPolicy(uri: URI, paths: Option[Set[String]]) extends ProbeSystemQuery
-case class GetProbeSystemPolicyResult(op: GetProbeSystemPolicy, policy: Map[ProbeRef,ProbePolicy])
-
-case class GetProbeSystemLinks(uri: URI, paths: Option[Set[String]]) extends ProbeSystemQuery
-case class GetProbeSystemLinksResult(op: GetProbeSystemLinks, links: Map[ProbeRef,ProbeLink])
-
-case class GetProbeSystemStatusHistory(uri: URI, paths: Option[Set[String]], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends ProbeSystemQuery
-case class GetProbeSystemStatusHistoryResult(op: GetProbeSystemStatusHistory, history: Vector[ProbeStatus])
-
-case class GetProbeSystemNotificationHistory(uri: URI, paths: Option[Set[String]], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends ProbeSystemQuery
-case class GetProbeSystemNotificationHistoryResult(op: GetProbeSystemNotificationHistory, history: Vector[ProbeNotification])

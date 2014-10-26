@@ -197,14 +197,8 @@ trait ApiService extends HttpService {
             pathParams { paths =>
             timeseriesParams { timeseries =>
             pagingParams { paging =>
-              complete {
-                serviceProxy.ask(GetProbeSystemStatusHistory(uri, paths, timeseries.from, timeseries.to, paging.limit)).map {
-                  case result: GetProbeSystemStatusHistoryResult =>
-                    result.history
-                  case failure: ProbeSystemOperationFailed =>
-                    throw failure.failure
-                }
-              }
+              val op = GetProbeSystemStatusHistory(uri, paths, timeseries.from, timeseries.to, paging.limit)
+              completeAction(classOf[GetProbeSystemStatusHistoryAction], op)
             }}}
           }
         } ~
@@ -213,14 +207,8 @@ trait ApiService extends HttpService {
             pathParams { paths =>
             timeseriesParams { timeseries =>
             pagingParams { paging =>
-              complete {
-                serviceProxy.ask(GetProbeSystemNotificationHistory(uri, paths, timeseries.from, timeseries.to, paging.limit)).map {
-                  case result: GetProbeSystemNotificationHistoryResult =>
-                    result.history
-                  case failure: ProbeSystemOperationFailed =>
-                    throw failure.failure
-                }
-              }
+              val op = GetProbeSystemNotificationHistory(uri, paths, timeseries.from, timeseries.to, paging.limit)
+              completeAction(classOf[GetProbeSystemNotificationHistoryAction], op)
             }}}
           }
         } ~

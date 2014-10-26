@@ -348,16 +348,6 @@ object JsonProtocol extends DefaultJsonProtocol {
 
   /* probe system operations */
   implicit val UpdateProbeSystemFormat = jsonFormat2(UpdateProbeSystem)
-  implicit val GetProbeSystemStatusFormat = jsonFormat2(GetProbeSystemStatus)
-  implicit val GetProbeSystemStatusResultFormat = jsonFormat2(GetProbeSystemStatusResult)
-  implicit val GetProbeSystemMetadataFormat = jsonFormat2(GetProbeSystemMetadata)
-  implicit val GetProbeSystemMetadataResultFormat = jsonFormat2(GetProbeSystemMetadataResult)
-  implicit val GetProbeSystemPolicyFormat = jsonFormat2(GetProbeSystemPolicy)
-  implicit val GetProbeSystemPolicyResultFormat = jsonFormat2(GetProbeSystemPolicyResult)
-  implicit val AcknowledgeProbeSystemFormat = jsonFormat2(AcknowledgeProbeSystem)
-  implicit val AcknowledgeProbeSystemResultFormat = jsonFormat2(AcknowledgeProbeSystemResult)
-  implicit val UnacknowledgeProbeSystemFormat = jsonFormat2(UnacknowledgeProbeSystem)
-  implicit val UnacknowledgeProbeSystemResultFormat = jsonFormat2(UnacknowledgeProbeSystemResult)
 
   /* probe operations */
   implicit val AcknowledgeProbeFormat = jsonFormat2(AcknowledgeProbe)
@@ -388,6 +378,22 @@ object JsonProtocol extends DefaultJsonProtocol {
   implicit val AppendWorknoteResultFormat = jsonFormat2(AppendWorknoteResult)
   implicit val ResolveTicketFormat = jsonFormat1(ResolveTicket)
   implicit val ResolveTicketResultFormat = jsonFormat2(ResolveTicketResult)
+
+  /* http actions */
+  implicit val GetProbeSystemStatusFormat = jsonFormat2(GetProbeSystemStatus)
+  implicit val GetProbeSystemStatusResultFormat = jsonFormat2(GetProbeSystemStatusResult)
+  implicit val GetProbeSystemStatusHistoryFormat = jsonFormat5(GetProbeSystemStatusHistory)
+  implicit val GetProbeSystemStatusHistoryResultFormat = jsonFormat2(GetProbeSystemStatusHistoryResult)
+  implicit val GetProbeSystemNotificationHistoryFormat = jsonFormat5(GetProbeSystemNotificationHistory)
+  implicit val GetProbeSystemNotificationHistoryResultFormat = jsonFormat2(GetProbeSystemNotificationHistoryResult)
+  implicit val GetProbeSystemMetadataFormat = jsonFormat2(GetProbeSystemMetadata)
+  implicit val GetProbeSystemMetadataResultFormat = jsonFormat2(GetProbeSystemMetadataResult)
+  implicit val GetProbeSystemPolicyFormat = jsonFormat2(GetProbeSystemPolicy)
+  implicit val GetProbeSystemPolicyResultFormat = jsonFormat2(GetProbeSystemPolicyResult)
+  implicit val AcknowledgeProbeSystemFormat = jsonFormat2(AcknowledgeProbeSystem)
+  implicit val AcknowledgeProbeSystemResultFormat = jsonFormat2(AcknowledgeProbeSystemResult)
+  implicit val UnacknowledgeProbeSystemFormat = jsonFormat2(UnacknowledgeProbeSystem)
+  implicit val UnacknowledgeProbeSystemResultFormat = jsonFormat2(UnacknowledgeProbeSystemResult)
 
   /* metrics types */
   implicit object BigDecimalFormat extends RootJsonFormat[BigDecimal] {
