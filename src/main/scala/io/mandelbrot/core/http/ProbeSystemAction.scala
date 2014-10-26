@@ -21,10 +21,10 @@ package io.mandelbrot.core.http
 
 import java.util.UUID
 
-import akka.actor.{ActorRef, ActorLogging, Actor}
+import akka.actor._
 import akka.util.Timeout
 import io.mandelbrot.core.registry.ProbePolicy
-import spray.routing.RequestContext
+import spray.routing.{Route, RequestContext}
 import spray.httpx.SprayJsonSupport._
 import org.joda.time.DateTime
 import java.net.URI
@@ -153,6 +153,27 @@ case class AcknowledgeProbeSystemResult(op: AcknowledgeProbeSystem, acknowledgem
 case class UnacknowledgeProbeSystem(uri: URI, unacknowledgements: Map[ProbeRef,UUID]) extends HttpOperation
 case class UnacknowledgeProbeSystemResult(op: UnacknowledgeProbeSystem, unacknowledgements: Map[ProbeRef,UUID])
 
+trait HttpActionPropsCreator[T] {
+  def props(params: HttpActionParams, op: T): Props
+}
+
+object HttpActionProps {
+
+  def completeAction[T](op: T)(implicit ev: HttpActionPropsCreator[T], actorRefFactory: ActorRefFactory, timeout: Timeout, serviceProxy: ActorRef) = Route { ctx =>
+    val props = ev.props(HttpActionParams(ctx, timeout, serviceProxy), op)
+    actorRefFactory.actorOf(props)
+  }
+
+  implicit object GetProbeSystemStatusPropsCreator extends HttpActionPropsCreator[GetProbeSystemStatus] {
+    def props(params: HttpActionParams, op: GetProbeSystemStatus) = Props(classOf[GetProbeSystemStatusAction], params, op)
+  }
+  implicit object GetProbeSystemStatusHistoryPropsCreator extends HttpActionPropsCreator[GetProbeSystemStatusHistory] {
+    def props(params: HttpActionParams, op: GetProbeSystemStatusHistory) = Props(classOf[GetProbeSystemStatusHistoryAction], params, op)
+  }
+  implicit object GetProbeSystemNotificationHistoryPropsCreator extends HttpActionPropsCreator[GetProbeSystemNotificationHistory] {
+    def props(params: HttpActionParams, op: GetProbeSystemNotificationHistory) = Props(classOf[GetProbeSystemNotificationHistoryAction], params, op)
+  }
+}
 
 //    /* acknowledge the specified probes in the probe system */
 //    case command: AcknowledgeProbeSystem =>

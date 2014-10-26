@@ -49,6 +49,7 @@ trait ApiService extends HttpService {
   import spray.json._
   import JsonProtocol._
   import RoutingDirectives._
+  import HttpActionProps._
 
   val settings: HttpSettings
 
@@ -59,11 +60,6 @@ trait ApiService extends HttpService {
   implicit val serviceProxy: ActorRef
 
   val datetimeParser = ISODateTimeFormat.dateTimeParser().withZoneUTC()
-
-  def completeAction(klass: Class[_], op: HttpOperation) = Route { ctx =>
-    val props = Props(klass, HttpActionParams(ctx, timeout, serviceProxy), op)
-    actorRefFactory.actorOf(props)
-  }
 
   /**
    * Spray routes for managing objects
@@ -144,7 +140,7 @@ trait ApiService extends HttpService {
           /* describe the status of the ProbeSystem */
           get {
             pathParams { paths =>
-              completeAction(classOf[GetProbeSystemStatusAction], GetProbeSystemStatus(uri, paths))
+              completeAction(GetProbeSystemStatus(uri, paths))
             }
           }
         } ~
@@ -197,8 +193,7 @@ trait ApiService extends HttpService {
             pathParams { paths =>
             timeseriesParams { timeseries =>
             pagingParams { paging =>
-              val op = GetProbeSystemStatusHistory(uri, paths, timeseries.from, timeseries.to, paging.limit)
-              completeAction(classOf[GetProbeSystemStatusHistoryAction], op)
+              completeAction(GetProbeSystemStatusHistory(uri, paths, timeseries.from, timeseries.to, paging.limit))
             }}}
           }
         } ~
@@ -207,8 +202,7 @@ trait ApiService extends HttpService {
             pathParams { paths =>
             timeseriesParams { timeseries =>
             pagingParams { paging =>
-              val op = GetProbeSystemNotificationHistory(uri, paths, timeseries.from, timeseries.to, paging.limit)
-              completeAction(classOf[GetProbeSystemNotificationHistoryAction], op)
+              completeAction(GetProbeSystemNotificationHistory(uri, paths, timeseries.from, timeseries.to, paging.limit))
             }}}
           }
         } ~
