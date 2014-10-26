@@ -19,11 +19,11 @@
 
 package io.mandelbrot.core.http
 
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.{Props, ActorRef, ActorSystem}
 import akka.pattern.ask
 import akka.util.Timeout
 import akka.event.LoggingAdapter
-import spray.routing.{HttpService, ExceptionHandler}
+import spray.routing.{Route, HttpService, ExceptionHandler}
 import spray.http._
 import spray.http.HttpHeaders.Location
 import spray.util.LoggingContext
@@ -56,10 +56,14 @@ trait ApiService extends HttpService {
   implicit val system: ActorSystem
   implicit def executionContext = actorRefFactory.dispatcher
   implicit val timeout: Timeout
-
-  val serviceProxy: ActorRef
+  implicit val serviceProxy: ActorRef
 
   val datetimeParser = ISODateTimeFormat.dateTimeParser().withZoneUTC()
+
+  def completeAction(klass: Class[_], op: HttpOperation) = Route { ctx =>
+    val props = Props(klass, HttpActionParams(ctx, timeout, serviceProxy), op)
+    actorRefFactory.actorOf(props)
+  }
 
   /**
    * Spray routes for managing objects
@@ -140,14 +144,8 @@ trait ApiService extends HttpService {
           /* describe the status of the ProbeSystem */
           get {
             pathParams { paths =>
-            complete {
-              serviceProxy.ask(GetProbeSystemStatus(uri, paths)).map {
-                case result: GetProbeSystemStatusResult =>
-                  result.status
-                case failure: ProbeSystemOperationFailed =>
-                  throw failure.failure
-              }
-            }}
+              completeAction(classOf[GetProbeSystemStatusAction], GetProbeSystemStatus(uri, paths))
+            }
           }
         } ~
         path("metadata") {

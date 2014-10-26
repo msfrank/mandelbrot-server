@@ -113,6 +113,14 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[SystemFSMState,SystemFS
     case Event(query: DescribeProbeSystem, state: SystemRunning) =>
       stay() replying DescribeProbeSystemResult(query, state.registration, state.lsn)
 
+    case Event(query: MatchProbeSystem, state: SystemRunning) =>
+      if (query.matchers.isEmpty) stay() replying MatchProbeSystemResult(query, probes.keySet) else {
+        val matchingRefs = probes.keys.flatMap { case ref =>
+          query.matchers.collectFirst { case matcher if matcher.matches(ref) => ref }
+        }.toSet
+        stay() replying MatchProbeSystemResult(query, matchingRefs)
+      }
+
     /* update probes */
     case Event(op: UpdateProbeSystem, state: SystemRunning) =>
       goto(SystemUpdating) using SystemUpdating(op, sender(), state)
@@ -407,3 +415,6 @@ case class ReviveProbeSystemResult(op: ReviveProbeSystem, lsn: Long)
 
 case class DescribeProbeSystem(uri: URI) extends ProbeSystemQuery
 case class DescribeProbeSystemResult(op: DescribeProbeSystem, registration: ProbeRegistration, lsn: Long)
+
+case class MatchProbeSystem(uri: URI, matchers: Set[ProbeMatcher]) extends ProbeSystemQuery
+case class MatchProbeSystemResult(op: MatchProbeSystem, refs: Set[ProbeRef])
