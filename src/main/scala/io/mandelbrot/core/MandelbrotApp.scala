@@ -54,7 +54,7 @@ object MandelbrotApp extends App {
 
   } catch {
     case ex: Throwable =>
-      println("caught runtime error: %s".format(ex.getMessage))
+      ex.printStackTrace()
       sys.exit(1)
   }
 }

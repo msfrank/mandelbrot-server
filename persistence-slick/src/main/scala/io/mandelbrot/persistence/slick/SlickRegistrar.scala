@@ -17,7 +17,7 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.registry
+package io.mandelbrot.persistence.slick
 
 import akka.actor.{Props, ActorLogging, Actor}
 import com.typesafe.config.Config
@@ -28,23 +28,23 @@ import scala.util._
 import java.io.File
 import java.net.URI
 
+import io.mandelbrot.core.registry._
 import io.mandelbrot.core.{Conflict, ResourceNotFound, ApiException}
 import io.mandelbrot.core.http.JsonProtocol
-import io.mandelbrot.core.registry.H2Registrar.H2RegistrarSettings
-
+import io.mandelbrot.persistence.slick.H2Registrar.H2RegistrarSettings
 
 /*
  this multi-db code is heavily inspired by
  https://github.com/slick/slick-examples/blob/master/src/main/scala/com/typesafe/slick/examples/lifted/MultiDBCakeExample.scala
  */
 
-trait Profile {
+trait RegistrarProfile {
   val profile: JdbcProfile
 }
 /**
  *
  */
-trait RegistryEntriesComponent { this: Profile =>
+trait RegistryEntriesComponent { this: RegistrarProfile =>
   import profile.simple._
   import RegistryEntries._
   import spray.json._
@@ -120,7 +120,7 @@ trait RegistryEntriesComponent { this: Profile =>
 /**
  *
  */
-class DAL(override val profile: JdbcProfile) extends RegistryEntriesComponent with Profile {
+class RegistryDAL(override val profile: JdbcProfile) extends RegistryEntriesComponent with RegistrarProfile {
   import profile.simple._
 
   def create(implicit session: Session): Unit = {
@@ -145,7 +145,7 @@ trait SlickRegistrar extends Actor with ActorLogging {
 
   // abstract members
   val db: Database
-  val dal: DAL
+  val dal: RegistryDAL
 
   def receive = {
 
@@ -227,7 +227,7 @@ class H2Registrar(managerSettings: H2RegistrarSettings) extends SlickRegistrar w
   }
 
   val db = Database.forURL(url = url, driver = "org.h2.Driver")
-  val dal = new DAL(H2Driver)
+  val dal = new RegistryDAL(H2Driver)
   db.withSession { implicit session => dal.create }
   log.debug("initialized registry DAL")
 }

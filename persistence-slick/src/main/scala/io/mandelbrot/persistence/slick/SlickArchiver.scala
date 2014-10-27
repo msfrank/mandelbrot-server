@@ -17,11 +17,10 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.history
+package io.mandelbrot.persistence.slick
 
 import com.typesafe.config.Config
 import akka.actor.{Props, ActorLogging, Actor}
-import io.mandelbrot.core.system.ProbeRef
 import scala.slick.driver.JdbcProfile
 import scala.slick.jdbc.JdbcBackend.Database
 import org.joda.time.DateTime
@@ -30,23 +29,22 @@ import java.util.UUID
 
 import io.mandelbrot.core.ServerConfig
 import io.mandelbrot.core.system._
-import io.mandelbrot.core.notification.ProbeNotification
-import io.mandelbrot.core.system.ProbeStatus
-
-import io.mandelbrot.core.history.H2Archiver.H2ArchiverSettings
+import io.mandelbrot.core.history._
+import io.mandelbrot.core.notification._
+import io.mandelbrot.persistence.slick.H2Archiver.H2ArchiverSettings
 
 /*
  this multi-db code is heavily inspired by
  https://github.com/slick/slick-examples/blob/master/src/main/scala/com/typesafe/slick/examples/lifted/MultiDBCakeExample.scala
  */
 
-trait Profile {
+trait ArchiverProfile {
   val profile: JdbcProfile
 }
 /**
  *
  */
-trait StatusEntriesComponent { this: Profile =>
+trait StatusEntriesComponent { this: ArchiverProfile =>
   import profile.simple._
   import StatusEntries._
 
@@ -129,7 +127,7 @@ trait StatusEntriesComponent { this: Profile =>
 /**
  *
  */
-trait NotificationEntriesComponent { this: Profile =>
+trait NotificationEntriesComponent { this: ArchiverProfile =>
   import profile.simple._
   import NotificationEntries._
 
@@ -185,7 +183,7 @@ trait NotificationEntriesComponent { this: Profile =>
 /**
  *
  */
-class DAL(override val profile: JdbcProfile) extends StatusEntriesComponent with NotificationEntriesComponent with Profile {
+class ArchiveDAL(override val profile: JdbcProfile) extends StatusEntriesComponent with NotificationEntriesComponent with ArchiverProfile {
   import profile.simple._
 
   def create(implicit session: Session): Unit = {
@@ -218,7 +216,7 @@ trait SlickArchiver extends Actor with ActorLogging {
 
   // abstract members
   val db: Database
-  val dal: DAL
+  val dal: ArchiveDAL
 
   // config
   val settings = ServerConfig(context.system).settings.history
@@ -269,7 +267,7 @@ class H2Archiver(managerSettings: H2ArchiverSettings) extends SlickArchiver with
   }
 
   val db = Database.forURL(url = url, driver = "org.h2.Driver")
-  val dal = new DAL(H2Driver)
+  val dal = new ArchiveDAL(H2Driver)
 
   db.withSession { implicit session => dal.create }
 }
