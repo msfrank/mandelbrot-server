@@ -2,20 +2,20 @@ import sbt._
 import Keys._
 import com.github.retronym.SbtOneJar
 
-object MandelbrotServerBuild extends Build {
-
+object MandelbrotCommon {
   val mandelbrotVersion = "0.0.8"
-
   val scalaLangVersion = "2.10.4"
   val akkaVersion = "2.3.6"
   val sprayVersion = "1.3.1"
   val luceneVersion = "4.7.1"
   val slickVersion = "2.0.3"
+  val datastaxVersion = "2.1.2"
+}
 
-  lazy val mandelbrotBuild = Project(
-    id = "mandelbrot-server",
-    base = file("."),
-    settings = Project.defaultSettings ++ SbtOneJar.oneJarSettings ++ Seq(
+object MandelbrotServerBuild extends Build {
+  import MandelbrotCommon._
+
+  lazy val mandelbrotServerBuild = (project in file(".")).settings(
 
       exportJars := true,
       name := "mandelbrot-server",
@@ -52,6 +52,21 @@ object MandelbrotServerBuild extends Build {
       ),
 
       fork in (Test,run) := true  // for akka-persistence leveldb plugin
+  ).settings(SbtOneJar.oneJarSettings:_*)
+
+  lazy val mandelbrotPersistenceCassandraBuild = (project in file("persistence-cassandra")).settings(
+
+    exportJars := true,
+    name := "mandelbrot-persistence-cassandra",
+    version := mandelbrotVersion,
+    scalaVersion := scalaLangVersion,
+    scalacOptions ++= Seq("-feature", "-deprecation"),
+    javacOptions ++= Seq("-source", "1.7"),
+
+    libraryDependencies ++= Seq(
+      "com.datastax.cassandra" % "cassandra-driver-core" % datastaxVersion,
+      "org.scalatest" %% "scalatest" % "1.9.1" % "test",
+      "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
     )
-  )
+  ).settings(SbtOneJar.oneJarSettings:_*).dependsOn(mandelbrotServerBuild)
 }
