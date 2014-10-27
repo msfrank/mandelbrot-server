@@ -39,8 +39,6 @@ object MandelbrotServerBuild extends Build {
         "org.apache.lucene" % "lucene-analyzers-common" % luceneVersion,
         "org.apache.lucene" % "lucene-memory" % luceneVersion,
         "org.apache.lucene" % "lucene-queryparser" % luceneVersion,
-        "com.typesafe.slick" %% "slick" % slickVersion,
-        "com.h2database" % "h2" % "1.4.177",
         "javax.mail" % "mail" % "1.4.7",
         "joda-time" % "joda-time" % "2.2",
         "org.joda" % "joda-convert" % "1.3.1",
@@ -69,4 +67,22 @@ object MandelbrotServerBuild extends Build {
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
     )
   ).settings(SbtOneJar.oneJarSettings:_*).dependsOn(mandelbrotServerBuild)
+
+  lazy val mandelbrotPersistenceSlickBuild = (project in file("persistence-slick")).settings(
+
+    exportJars := true,
+    name := "mandelbrot-persistence-slick",
+    version := mandelbrotVersion,
+    scalaVersion := scalaLangVersion,
+    scalacOptions ++= Seq("-feature", "-deprecation"),
+    javacOptions ++= Seq("-source", "1.7"),
+
+    libraryDependencies ++= Seq(
+      "com.typesafe.slick" %% "slick" % slickVersion,
+      "com.h2database" % "h2" % "1.4.177",
+      "org.scalatest" %% "scalatest" % "1.9.1" % "test",
+      "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
+    )
+  ).settings(SbtOneJar.oneJarSettings:_*).dependsOn(mandelbrotServerBuild)
+
 }
