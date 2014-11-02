@@ -13,7 +13,7 @@ import io.mandelbrot.core.ServerConfig
 class CassandraExtension(system: ActorSystem) extends Extension {
 
   private val log = LoggerFactory.getLogger(classOf[CassandraExtension])
-  private val config = ServerConfig(system).config.getConfig("mandelbrot.persistence.cassandra")
+  private val config = system.settings.config.getConfig("mandelbrot.persistence.cassandra")
 
   val seedNodes = config.getStringList("seed-nodes")
   val replicationFactor = config.getInt("replication-factor")

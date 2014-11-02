@@ -1,8 +1,10 @@
 import sbt._
 import Keys._
-import com.github.retronym.SbtOneJar
+import sbtassembly.Plugin.assemblySettings
+import sbtassembly.Plugin.AssemblyKeys._
 
-object MandelbrotCommon {
+object MandelbrotServerBuild extends Build {
+
   val mandelbrotVersion = "0.0.8"
   val scalaLangVersion = "2.10.4"
   val akkaVersion = "2.3.6"
@@ -10,15 +12,13 @@ object MandelbrotCommon {
   val luceneVersion = "4.7.1"
   val slickVersion = "2.0.3"
   val datastaxVersion = "2.1.2"
-}
 
-object MandelbrotServerBuild extends Build {
-  import MandelbrotCommon._
-
-  lazy val mandelbrotServerBuild = (project in file(".")).settings(
+  lazy val mandelbrotCoreBuild = (project in file("."))
+    .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
+    .settings(
 
       exportJars := true,
-      name := "mandelbrot-server",
+      name := "mandelbrot-core",
       version := mandelbrotVersion,
       scalaVersion := scalaLangVersion,
       scalacOptions ++= Seq("-feature", "-deprecation"),
@@ -27,7 +27,6 @@ object MandelbrotServerBuild extends Build {
       libraryDependencies ++= Seq(
         "org.scala-lang" % "scala-reflect" % scalaLangVersion,
         "com.typesafe.akka" %% "akka-actor" % akkaVersion,
-        "com.typesafe.akka" %% "akka-persistence-experimental" % akkaVersion,
         "com.typesafe.akka" %% "akka-remote" % akkaVersion,
         "com.typesafe.akka" %% "akka-cluster" % akkaVersion,
         "com.typesafe.akka" %% "akka-contrib" % akkaVersion,
@@ -47,42 +46,51 @@ object MandelbrotServerBuild extends Build {
         "org.scalatest" %% "scalatest" % "1.9.1" % "test",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
         "io.spray" % "spray-testkit" % sprayVersion % "test"
+      )
+  )
+
+  lazy val mandelbrotServerCassandraBuild = (project in file("persistence-cassandra"))
+    .settings(assemblySettings: _*)
+    .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
+    .settings(
+
+      exportJars := true,
+      name := "mandelbrot-server-cassandra",
+      version := mandelbrotVersion,
+      scalaVersion := scalaLangVersion,
+      scalacOptions ++= Seq("-feature", "-deprecation"),
+      javacOptions ++= Seq("-source", "1.7"),
+
+      resolvers += "krasserm at bintray" at "http://dl.bintray.com/krasserm/maven",
+
+      libraryDependencies ++= Seq(
+        "com.typesafe.akka" %% "akka-persistence-experimental" % akkaVersion exclude("org.google.guava", "guava"),
+        "com.github.krasserm" %% "akka-persistence-cassandra" % "0.3.4"
+        //"com.datastax.cassandra" % "cassandra-driver-core" % datastaxVersion
       ),
 
       fork in (Test,run) := true  // for akka-persistence leveldb plugin
-  ).settings(SbtOneJar.oneJarSettings:_*)
 
-  lazy val mandelbrotPersistenceCassandraBuild = (project in file("persistence-cassandra")).settings(
+  ).dependsOn(mandelbrotCoreBuild)
 
-    exportJars := true,
-    name := "mandelbrot-persistence-cassandra",
-    version := mandelbrotVersion,
-    scalaVersion := scalaLangVersion,
-    scalacOptions ++= Seq("-feature", "-deprecation"),
-    javacOptions ++= Seq("-source", "1.7"),
+  lazy val mandelbrotServerSlickBuild = (project in file("persistence-slick"))
+    .settings(assemblySettings: _*)
+    .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
+    .settings(
 
-    libraryDependencies ++= Seq(
-      "com.datastax.cassandra" % "cassandra-driver-core" % datastaxVersion,
-      "org.scalatest" %% "scalatest" % "1.9.1" % "test",
-      "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
-    )
-  ).settings(SbtOneJar.oneJarSettings:_*).dependsOn(mandelbrotServerBuild)
+      exportJars := true,
+      name := "mandelbrot-server-slick",
+      version := mandelbrotVersion,
+      scalaVersion := scalaLangVersion,
+      scalacOptions ++= Seq("-feature", "-deprecation"),
+      javacOptions ++= Seq("-source", "1.7"),
 
-  lazy val mandelbrotPersistenceSlickBuild = (project in file("persistence-slick")).settings(
+      libraryDependencies ++= Seq(
+        "com.typesafe.akka" %% "akka-persistence-experimental" % akkaVersion,
+        "com.typesafe.slick" %% "slick" % slickVersion,
+        "com.h2database" % "h2" % "1.4.177"
+      )
 
-    exportJars := true,
-    name := "mandelbrot-persistence-slick",
-    version := mandelbrotVersion,
-    scalaVersion := scalaLangVersion,
-    scalacOptions ++= Seq("-feature", "-deprecation"),
-    javacOptions ++= Seq("-source", "1.7"),
-
-    libraryDependencies ++= Seq(
-      "com.typesafe.slick" %% "slick" % slickVersion,
-      "com.h2database" % "h2" % "1.4.177",
-      "org.scalatest" %% "scalatest" % "1.9.1" % "test",
-      "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
-    )
-  ).settings(SbtOneJar.oneJarSettings:_*).dependsOn(mandelbrotServerBuild)
+  ).dependsOn(mandelbrotCoreBuild)
 
 }

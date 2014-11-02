@@ -25,6 +25,8 @@ class CassandraRegistrar(settings: CassandraRegistrarSettings) extends Actor wit
   val keyspaceName = Cassandra(context.system).keyspaceName
   val tableName = "registry"
 
+  session.execute(createRegistryTable)
+
   def receive = {
 
     case op: RegisterProbeSystem =>

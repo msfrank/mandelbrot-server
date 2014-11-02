@@ -55,46 +55,9 @@ class ServerConfigExtension(system: ActorSystem) extends Extension {
 
   private val log = LoggerFactory.getLogger(classOf[ServerConfigExtension])
 
-  /**
-   * load the mandelbrot config file from the location specified by the mandelbrot.config.file
-   * config value in baseConfig.  this config value can be a string (e.g. from system property
-   * -Dmandelbrot.config.file) or a string list.
-   */
-  def loadConfigFile(baseConfig: Config): Config = {
-    val possibleConfigFiles = try {
-      if (!baseConfig.hasPath("mandelbrot.config.file"))
-        throw new ServerConfigException("mandelbrot.config.file is not specified")
-      baseConfig.getStringList("mandelbrot.config.file").map(new File(_))
-    } catch {
-      case ex: WrongType =>
-        Seq(new File(baseConfig.getString("mandelbrot.config.file")))
-    }
-    for (file <- possibleConfigFiles) {
-      if (file.canRead) {
-        log.debug("found config file {}", file.getAbsolutePath)
-        return ConfigFactory.parseFile(file)
-      }
-    }
-    throw new ServerConfigException("failed to find a readable config file")
-  }
-
-  /* build the runtime configuration */
-  val config = try {
-    val baseConfig = ConfigFactory.load()
-    val mandelbrotConfig = loadConfigFile(baseConfig)
-    ConfigFactory.defaultOverrides.withFallback(mandelbrotConfig.withFallback(baseConfig))
-  } catch {
-    case ex: ServerConfigException =>
-      throw ex
-    case ex: ConfigException =>
-      throw new ServerConfigException(ex)
-    case ex: Throwable =>
-      throw new ServerConfigException("unexpected exception while parsing configuration", ex)
-  }
-
   /* build the settings tree */
   val settings = try {
-    val mandelbrotConfig = config.getConfig("mandelbrot")
+    val mandelbrotConfig = system.settings.config.getConfig("mandelbrot")
 
     /* parse registry settings */
     val registrySettings = RegistrySettings.parse(mandelbrotConfig.getConfig("registry"))
@@ -133,11 +96,51 @@ class ServerConfigExtension(system: ActorSystem) extends Extension {
 }
 
 object ServerConfig extends ExtensionId[ServerConfigExtension] with ExtensionIdProvider {
+
+  private val log = LoggerFactory.getLogger("io.mandelbrot.core.ServerConfig")
+
   override def lookup() = ServerConfig
   override def createExtension(system: ExtendedActorSystem) = new ServerConfigExtension(system)
 
   /* retrieve the ServerConfigSettings from the actor system */
   def settings(implicit system: ActorSystem): ServerConfigSettings = super.get(system).settings
+
+  /**
+   * load the mandelbrot config file from the location specified by the mandelbrot.config.file
+   * config value in baseConfig.  this config value can be a string (e.g. from system property
+   * -Dmandelbrot.config.file) or a string list.
+   */
+  def loadConfigFile(baseConfig: Config): Config = {
+    val possibleConfigFiles = try {
+      if (!baseConfig.hasPath("mandelbrot.config.file"))
+        throw new ServerConfigException("mandelbrot.config.file is not specified")
+      baseConfig.getStringList("mandelbrot.config.file").map(new File(_))
+    } catch {
+      case ex: WrongType =>
+        Seq(new File(baseConfig.getString("mandelbrot.config.file")))
+    }
+    for (file <- possibleConfigFiles) {
+      if (file.canRead) {
+        log.debug("found config file {}", file.getAbsolutePath)
+        return ConfigFactory.parseFile(file)
+      }
+    }
+    throw new ServerConfigException("failed to find a readable config file")
+  }
+
+  /* build the runtime configuration from mandelbrot.conf, with fallbacks to the base config */
+  def load() = try {
+    val baseConfig = ConfigFactory.load()
+    val mandelbrotConfig = loadConfigFile(baseConfig)
+    ConfigFactory.defaultOverrides.withFallback(mandelbrotConfig.withFallback(baseConfig))
+  } catch {
+    case ex: ServerConfigException =>
+      throw ex
+    case ex: ConfigException =>
+      throw new ServerConfigException(ex)
+    case ex: Throwable =>
+      throw new ServerConfigException("unexpected exception while parsing configuration", ex)
+  }
 }
 
 /**

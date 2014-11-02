@@ -29,11 +29,12 @@ import scala.concurrent.Await
  * application entry point
  */
 object MandelbrotApp extends App {
+
   val log = LoggerFactory.getLogger("io.mandelbrot.core.MandelbrotApp")
 
   try {
     /* start the actor system */
-    val system = ActorSystem("mandelbrot")
+    val system = ActorSystem("mandelbrot", ServerConfig.load())
 
     /* load application settings */
     val settings = ServerConfig(system).settings
