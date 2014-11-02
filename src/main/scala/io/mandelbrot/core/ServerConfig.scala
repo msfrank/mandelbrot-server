@@ -70,8 +70,10 @@ class ServerConfigExtension(system: ActorSystem) extends Extension {
         Seq(new File(baseConfig.getString("mandelbrot.config.file")))
     }
     for (file <- possibleConfigFiles) {
-      if (file.canRead)
+      if (file.canRead) {
+        log.debug("found config file {}", file.getAbsolutePath)
         return ConfigFactory.parseFile(file)
+      }
     }
     throw new ServerConfigException("failed to find a readable config file")
   }
