@@ -22,7 +22,6 @@ trait RegistrarStatements {
        |VALUES (?, ?, 1, ?, ?) IF NOT EXISTS
      """.stripMargin
 
-
   def updateProbeSystemStatement =
     s"""
        |UPDATE $tableName
@@ -30,7 +29,6 @@ trait RegistrarStatements {
        |WHERE uri = ?
        |IF lsn = ?
      """.stripMargin
-
 
   def deleteProbeSystemStatement =
     s"""

@@ -93,10 +93,10 @@ sealed trait HistoryServiceQuery extends HistoryServiceOperation
 sealed trait HistoryServiceEvent extends HistoryServiceOperation
 case class HistoryServiceOperationFailed(op: HistoryServiceOperation, failure: Throwable)
 
-case class GetStatusHistory(refspec: Either[ProbeRef,Set[ProbeRef]], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends HistoryServiceQuery
+case class GetStatusHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends HistoryServiceQuery
 case class GetStatusHistoryResult(op: GetStatusHistory, history: Vector[ProbeStatus])
 
-case class GetNotificationHistory(refspec: Either[ProbeRef,Set[ProbeRef]], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends HistoryServiceQuery
+case class GetNotificationHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends HistoryServiceQuery
 case class GetNotificationHistoryResult(op: GetNotificationHistory, history: Vector[ProbeNotification])
 
 case class DeleteAllHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime]) extends HistoryServiceCommand

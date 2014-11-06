@@ -78,21 +78,37 @@ class GetProbeSystemStatusHistoryAction(params: HttpActionParams, op: GetProbeSy
     case None => Set.empty
     case Some(paths) => paths.map(path => parser.parseProbeMatcher(op.uri.toString + path))
   }
+
+  var refs = Set.empty[ProbeRef]
+  var results = Map.empty[ProbeRef,GetStatusHistoryResult]
+
   params.services ! MatchProbeSystem(op.uri, matchers)
 
   def receive = {
     case result: MatchProbeSystemResult =>
-      params.services ! GetStatusHistory(Right(result.refs), op.from, op.to, op.limit)
+      log.debug("matched probe refs {}", result.refs.mkString(","))
+      refs = result.refs
+      refs.foreach(ref => params.services ! GetStatusHistory(ref, op.from, op.to, op.limit))
 
     case result: GetStatusHistoryResult =>
-      actionTimeout.cancel()
-      params.ctx.complete(GetProbeSystemStatusHistoryResult(op, result.history))
-      context.stop(self)
+      log.debug("got status history for {}", result.op.probeRef)
+      refs = refs - result.op.probeRef
+      results = results + (result.op.probeRef -> result)
+      if (refs.isEmpty) {
+        val history = results.values.flatMap(_.history).toVector.sortWith((s1,s2) => s1.timestamp.isBefore(s2.timestamp))
+        actionTimeout.cancel()
+        params.ctx.complete(GetProbeSystemStatusHistoryResult(op, history))
+        context.stop(self)
+      }
+
+    case failure: HistoryServiceOperationFailed =>
+      log.debug("failed to get status history for {}: {}", failure.op, failure.failure.getMessage)
 
     case ActionTimeout =>
       params.ctx.complete(new ApiException(RetryLater))
       context.stop(self)
   }
+
 }
 
 /**
@@ -107,16 +123,31 @@ class GetProbeSystemNotificationHistoryAction(params: HttpActionParams, op: GetP
     case None => Set.empty
     case Some(paths) => paths.map(path => parser.parseProbeMatcher(op.uri.toString + path))
   }
+
+  var refs = Set.empty[ProbeRef]
+  var results = Map.empty[ProbeRef,GetNotificationHistoryResult]
+
   params.services ! MatchProbeSystem(op.uri, matchers)
 
   def receive = {
     case result: MatchProbeSystemResult =>
-      params.services ! GetNotificationHistory(Right(result.refs), op.from, op.to, op.limit)
+      log.debug("matched probe refs {}", result.refs.mkString(","))
+      refs = result.refs
+      refs.foreach(ref => params.services ! GetStatusHistory(ref, op.from, op.to, op.limit))
 
     case result: GetNotificationHistoryResult =>
-      actionTimeout.cancel()
-      params.ctx.complete(GetProbeSystemNotificationHistoryResult(op, result.history))
-      context.stop(self)
+      log.debug("got notification history for {}", result.op.probeRef)
+      refs = refs - result.op.probeRef
+      results = results + (result.op.probeRef -> result)
+      if (refs.isEmpty) {
+        val history = results.values.flatMap(_.history).toVector.sortWith((s1,s2) => s1.timestamp.isBefore(s2.timestamp))
+        actionTimeout.cancel()
+        params.ctx.complete(GetProbeSystemNotificationHistoryResult(op, history))
+        context.stop(self)
+      }
+
+    case failure: HistoryServiceOperationFailed =>
+      log.debug("failed to get notification history for {}: {}", failure.op, failure.failure.getMessage)
 
     case ActionTimeout =>
       params.ctx.complete(new ApiException(RetryLater))

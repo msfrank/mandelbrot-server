@@ -452,50 +452,40 @@ trait ApiService extends HttpService {
           }}}
         }
       }
-    } ~
-    pathPrefix("history") {
-      path("search") {
-        get {
-          queryParams { query =>
-          timeseriesParams { timeseries =>
-          pagingParams { paging =>
-          complete {
-            serviceProxy.ask(QueryProbes(query.qs, None)).flatMap {
-              case Failure(failure: Throwable) =>
-                throw failure
-              case Success(result: QueryProbesResult) =>
-                serviceProxy.ask(GetStatusHistory(Right(result.refs.toSet), timeseries.from, timeseries.to, paging.limit)).map {
-                  case result: GetStatusHistoryResult =>
-                    result.history
-                  case failure: HistoryServiceOperationFailed =>
-                    throw failure.failure
-                }
-            }
-          }}}}
-        }
-      }
-    } ~
-    pathPrefix("notifications") {
-      path("search") {
-        get {
-          queryParams { query =>
-          timeseriesParams { timeseries =>
-          pagingParams { paging =>
-          complete {
-            serviceProxy.ask(QueryProbes(query.qs, None)).flatMap {
-              case Failure(failure: Throwable) =>
-                throw failure
-              case Success(result: QueryProbesResult) =>
-                serviceProxy.ask(GetNotificationHistory(Right(result.refs.toSet), timeseries.from, timeseries.to, paging.limit)).map {
-                  case result: GetNotificationHistoryResult =>
-                    result.history
-                  case failure: HistoryServiceOperationFailed =>
-                    throw failure.failure
-                }
-            }
-          }}}}
-        }
-      }
+//    } ~
+//    pathPrefix("history") {
+//      path("search") {
+//        get {
+//          queryParams { query =>
+//          timeseriesParams { timeseries =>
+//          pagingParams { paging =>
+//          complete {
+//            serviceProxy.ask(QueryProbes(query.qs, None)).flatMap {
+//              case Failure(failure: Throwable) =>
+//                throw failure
+//              case Success(result: QueryProbesResult) =>
+//                completeAction(GetProbeSystemNotificationHistory(uri, paths, timeseries.from, timeseries.to, paging.limit))
+//            }
+//          }}}}
+//        }
+//      }
+//    } ~
+//    pathPrefix("notifications") {
+//      path("search") {
+//        get {
+//          queryParams { query =>
+//          timeseriesParams { timeseries =>
+//          pagingParams { paging =>
+//          complete {
+//            serviceProxy.ask(QueryProbes(query.qs, None)).flatMap {
+//              case Failure(failure: Throwable) =>
+//                throw failure
+//              case Success(result: QueryProbesResult) =>
+//                completeAction(GetProbeSystemNotificationHistory(uri, paths, timeseries.from, timeseries.to, paging.limit))
+//            }
+//          }}}}
+//        }
+//      }
     }
   }
 
