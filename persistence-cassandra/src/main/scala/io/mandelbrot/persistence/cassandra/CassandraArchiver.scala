@@ -1,10 +1,9 @@
 package io.mandelbrot.persistence.cassandra
 
-
 import akka.actor.{Cancellable, Props, ActorLogging, Actor}
 import com.typesafe.config.Config
 import com.datastax.driver.core.{Row, BoundStatement}
-import org.joda.time.{DateTimeZone, DateTime}
+import org.joda.time.DateTime
 import scala.concurrent.duration._
 import scala.collection.JavaConversions._
 import java.util.Date

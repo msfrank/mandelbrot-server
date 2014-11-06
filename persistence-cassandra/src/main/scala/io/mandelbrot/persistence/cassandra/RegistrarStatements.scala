@@ -2,7 +2,6 @@ package io.mandelbrot.persistence.cassandra
 
 trait RegistrarStatements {
 
-  val keyspaceName: String
   val tableName: String
 
   def createRegistryTable =

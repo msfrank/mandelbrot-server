@@ -28,15 +28,13 @@ import io.mandelbrot.core.{ServerConfigException, ServiceExtension}
 /**
  *
  */
-case class SearcherSettings(plugin: String, settings: Option[Any])
+case class PersisterSettings(plugin: String, settings: Option[Any])
 
 case class StateSettings(maxSummarySize: Long,
                          maxDetailSize: Long,
                          statusHistoryAge: Duration,
                          defaultSearchLimit: Int,
-                         snapshotInitialDelay: FiniteDuration,
-                         snapshotInterval: FiniteDuration,
-                         searcher: SearcherSettings)
+                         persister: PersisterSettings)
 
 object StateSettings {
   def parse(config: Config): StateSettings = {
@@ -44,11 +42,9 @@ object StateSettings {
     val maxDetailSize = config.getBytes("max-detail-size")
     val statusHistoryAge = FiniteDuration(config.getDuration("status-history-age", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     val defaultSearchLimit = config.getInt("default-search-limit")
-    val snapshotInitialDelay = FiniteDuration(config.getDuration("snapshot-initial-delay", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
-    val snapshotInterval = FiniteDuration(config.getDuration("snapshot-interval", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     val plugin = config.getString("plugin")
-    if (!ServiceExtension.pluginImplements(plugin, classOf[Searcher]))
-      throw new ServerConfigException("%s is not recognized as a Searcher plugin".format(plugin))
+    if (!ServiceExtension.pluginImplements(plugin, classOf[Persister]))
+      throw new ServerConfigException("%s is not recognized as a Persister plugin".format(plugin))
     val service = if (config.hasPath("plugin-settings")) {
       ServiceExtension.makePluginSettings(plugin, config.getConfig("plugin-settings"))
     } else None
@@ -56,8 +52,6 @@ object StateSettings {
                   maxDetailSize,
                   statusHistoryAge,
                   defaultSearchLimit,
-                  snapshotInitialDelay,
-                  snapshotInterval,
-                  SearcherSettings(plugin, service))
+                  PersisterSettings(plugin, service))
   }
 }

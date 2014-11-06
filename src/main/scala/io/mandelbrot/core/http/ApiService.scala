@@ -438,20 +438,20 @@ trait ApiService extends HttpService {
   /**
    * Spray routes for invoking services
    */
-  val servicesRoutes = pathPrefix("services") {
-    pathPrefix("status") {
-      path("search") {
-        get {
-          queryParams { query =>
-          pagingParams { paging =>
-          complete {
-            serviceProxy.ask(SearchCurrentStatus(query.qs, paging.limit)).map {
-              case result: SearchCurrentStatusResult =>
-                result.status
-            }
-          }}}
-        }
-      }
+//  val servicesRoutes = pathPrefix("services") {
+//    pathPrefix("status") {
+//      path("search") {
+//        get {
+//          queryParams { query =>
+//          pagingParams { paging =>
+//          complete {
+//            serviceProxy.ask(SearchCurrentStatus(query.qs, paging.limit)).map {
+//              case result: SearchCurrentStatusResult =>
+//                result.status
+//            }
+//          }}}
+//        }
+//      }
 //    } ~
 //    pathPrefix("history") {
 //      path("search") {
@@ -486,10 +486,10 @@ trait ApiService extends HttpService {
 //          }}}}
 //        }
 //      }
-    }
-  }
+//    }
+//  }
 
-  val version1 = objectsRoutes ~ servicesRoutes
+  val version1 = objectsRoutes
 
   val routes =  version1
 

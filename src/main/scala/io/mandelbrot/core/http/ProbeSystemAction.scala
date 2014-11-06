@@ -48,17 +48,30 @@ class GetProbeSystemStatusAction(params: HttpActionParams, op: GetProbeSystemSta
     case None => Set.empty
     case Some(paths) => paths.map(path => parser.parseProbeMatcher(op.uri.toString + path))
   }
+
+  var refs = Set.empty[ProbeRef]
+  var results = Map.empty[ProbeRef,ProbeStatus]
+
   params.services ! MatchProbeSystem(op.uri, matchers)
 
   def receive = {
     case result: MatchProbeSystemResult =>
-      params.services ! GetCurrentStatus(Right(result.refs))
+      log.debug("matched probe refs {}", result.refs.mkString(","))
+      refs = result.refs
+      refs.foreach(ref => params.services ! GetProbeState(ref))
 
-    case result: GetCurrentStatusResult =>
-      actionTimeout.cancel()
-      val status = result.status.map(s => s.probeRef -> s).toMap
-      params.ctx.complete(GetProbeSystemStatusResult(op, status))
-      context.stop(self)
+    case result: GetProbeStateResult =>
+      log.debug("got status for {}", result.op.probeRef)
+      refs = refs - result.op.probeRef
+      results = results + (result.op.probeRef -> result.status)
+      if (refs.isEmpty) {
+        actionTimeout.cancel()
+        params.ctx.complete(GetProbeSystemStatusResult(op, results))
+        context.stop(self)
+      }
+
+    case failure: StateServiceOperationFailed =>
+      log.debug("failed to get status for {}: {}", failure.op, failure.failure.getMessage)
 
     case ActionTimeout =>
       params.ctx.complete(new ApiException(RetryLater))

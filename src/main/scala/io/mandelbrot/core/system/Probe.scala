@@ -20,6 +20,7 @@
 package io.mandelbrot.core.system
 
 import akka.actor._
+import io.mandelbrot.core.history.StatusAppends
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 import java.util.UUID
@@ -369,11 +370,13 @@ class Probe(val probeRef: ProbeRef,
         log.debug("process event: {}", state.inflight)
         setProbeStatus(status)
         parent ! status
+        services ! StatusAppends(status)
         sendNotifications(notifications)
       case Some(InflightMutation(op, CommandMutation(result, status, notifications))) =>
         log.debug("process command: {}", state.inflight)
         setProbeStatus(status)
         parent ! status
+        services ! StatusAppends(status)
         // FIXME: blegh this is ugly
         state.queued.head.asInstanceOf[QueuedCommand].caller ! result
         sendNotifications(notifications)
@@ -385,11 +388,13 @@ class Probe(val probeRef: ProbeRef,
         setProbeStatus(config.status)
         processor = behavior.makeProbeBehavior()
         parent ! config.status
+        services ! StatusAppends(config.status)
       case Some(InflightMutation(op, deletion: Deletion)) =>
         log.debug("process delete: {}", state.inflight)
         deletion.lastStatus.foreach { status =>
           setProbeStatus(status)
           parent ! status
+          services ! StatusAppends(status)
         }
         sendNotifications(deletion.notifications)
     }
