@@ -1,5 +1,7 @@
 import sbt._
 import Keys._
+import com.typesafe.sbt.SbtMultiJvm
+import com.typesafe.sbt.SbtMultiJvm.MultiJvmKeys.MultiJvm
 import sbtassembly.Plugin.assemblySettings
 import sbtassembly.Plugin.AssemblyKeys._
 
@@ -15,6 +17,7 @@ object MandelbrotServerBuild extends Build {
 
   lazy val mandelbrotCoreBuild = (project in file("."))
     .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
+    .settings(SbtMultiJvm.multiJvmSettings: _*)
     .settings(
 
       exportJars := true,
@@ -34,20 +37,36 @@ object MandelbrotServerBuild extends Build {
         "io.spray" % "spray-can" % sprayVersion,
         "io.spray" % "spray-routing" % sprayVersion,
         "io.spray" %% "spray-json" % "1.2.5",
-        "org.apache.lucene" % "lucene-core" % luceneVersion,
-        "org.apache.lucene" % "lucene-analyzers-common" % luceneVersion,
-        "org.apache.lucene" % "lucene-memory" % luceneVersion,
-        "org.apache.lucene" % "lucene-queryparser" % luceneVersion,
         "javax.mail" % "mail" % "1.4.7",
         "joda-time" % "joda-time" % "2.2",
         "org.joda" % "joda-convert" % "1.3.1",
         "org.slf4j" % "slf4j-api" % "1.7.5",
         "ch.qos.logback" % "logback-classic" % "1.1.2",
-        "org.scalatest" %% "scalatest" % "1.9.1" % "test",
+        "org.scalatest" %% "scalatest" % "1.9.2" % "test",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
+        "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion % "test",
         "io.spray" % "spray-testkit" % sprayVersion % "test"
-      )
-  )
+      ),
+
+      // make sure that MultiJvm test are compiled by the default test compilation
+      compile in MultiJvm <<= (compile in MultiJvm) triggeredBy (compile in Test),
+      // disable parallel tests
+      parallelExecution in Test := false,
+      // make sure that MultiJvm tests are executed by the default test target
+      executeTests in Test <<=
+        (executeTests in Test, executeTests in MultiJvm) map {
+          case ((testResults), (multiJvmResults)) =>
+            val overall =
+              if (testResults.overall.id < multiJvmResults.overall.id)
+                multiJvmResults.overall
+              else
+                testResults.overall
+            Tests.Output(overall,
+              testResults.events ++ multiJvmResults.events,
+              testResults.summaries ++ multiJvmResults.summaries)
+        }
+
+    ).configs(MultiJvm)
 
   lazy val mandelbrotServerCassandraBuild = (project in file("persistence-cassandra"))
     .settings(assemblySettings: _*)
@@ -61,36 +80,29 @@ object MandelbrotServerBuild extends Build {
       scalacOptions ++= Seq("-feature", "-deprecation"),
       javacOptions ++= Seq("-source", "1.7"),
 
-      resolvers += "krasserm at bintray" at "http://dl.bintray.com/krasserm/maven",
-
       libraryDependencies ++= Seq(
-        "com.typesafe.akka" %% "akka-persistence-experimental" % akkaVersion exclude("org.google.guava", "guava"),
-        "com.github.krasserm" %% "akka-persistence-cassandra" % "0.3.4"
-        //"com.datastax.cassandra" % "cassandra-driver-core" % datastaxVersion
-      ),
-
-      fork in (Test,run) := true  // for akka-persistence leveldb plugin
-
-  ).dependsOn(mandelbrotCoreBuild)
-
-  lazy val mandelbrotServerSlickBuild = (project in file("persistence-slick"))
-    .settings(assemblySettings: _*)
-    .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
-    .settings(
-
-      exportJars := true,
-      name := "mandelbrot-server-slick",
-      version := mandelbrotVersion,
-      scalaVersion := scalaLangVersion,
-      scalacOptions ++= Seq("-feature", "-deprecation"),
-      javacOptions ++= Seq("-source", "1.7"),
-
-      libraryDependencies ++= Seq(
-        "com.typesafe.akka" %% "akka-persistence-experimental" % akkaVersion,
-        "com.typesafe.slick" %% "slick" % slickVersion,
-        "com.h2database" % "h2" % "1.4.177"
+        "com.datastax.cassandra" % "cassandra-driver-core" % datastaxVersion
       )
 
   ).dependsOn(mandelbrotCoreBuild)
+
+//  lazy val mandelbrotServerSlickBuild = (project in file("persistence-slick"))
+//    .settings(assemblySettings: _*)
+//    .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
+//    .settings(
+//
+//      exportJars := true,
+//      name := "mandelbrot-server-slick",
+//      version := mandelbrotVersion,
+//      scalaVersion := scalaLangVersion,
+//      scalacOptions ++= Seq("-feature", "-deprecation"),
+//      javacOptions ++= Seq("-source", "1.7"),
+//
+//      libraryDependencies ++= Seq(
+//        "com.typesafe.slick" %% "slick" % slickVersion,
+//        "com.h2database" % "h2" % "1.4.177"
+//      )
+//
+//  ).dependsOn(mandelbrotCoreBuild)
 
 }

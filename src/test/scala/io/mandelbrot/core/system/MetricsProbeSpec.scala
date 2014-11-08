@@ -23,7 +23,7 @@ import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import org.joda.time.DateTime
 import org.scalatest.matchers.MustMatchers
-import org.scalatest.{BeforeAndAfterAll, WordSpec}
+import org.scalatest.{WordSpecLike, BeforeAndAfterAll, WordSpec}
 import scala.concurrent.duration._
 import scala.math.BigDecimal
 
@@ -34,7 +34,7 @@ import io.mandelbrot.core.state._
 import io.mandelbrot.core.{PersistenceConfig, AkkaConfig, Blackhole}
 import io.mandelbrot.core.ConfigConversions._
 
-class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpec with MustMatchers with BeforeAndAfterAll {
+class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with MustMatchers with BeforeAndAfterAll {
 
   def this() = this(ActorSystem("MetricsProbeSpec", AkkaConfig ++ PersistenceConfig))
 

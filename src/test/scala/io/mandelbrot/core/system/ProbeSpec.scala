@@ -5,7 +5,7 @@ import akka.testkit.{TestProbe, ImplicitSender, TestActorRef, TestKit}
 import io.mandelbrot.core.metrics.MetricsBus
 import org.joda.time.DateTime
 import org.scalatest.matchers.MustMatchers
-import org.scalatest.{BeforeAndAfterAll, WordSpec}
+import org.scalatest.{WordSpecLike, BeforeAndAfterAll, WordSpec}
 import scala.concurrent.duration._
 
 import io.mandelbrot.core.registry.ProbePolicy
@@ -13,7 +13,7 @@ import io.mandelbrot.core.state._
 import io.mandelbrot.core.{PersistenceConfig, AkkaConfig, Blackhole}
 import io.mandelbrot.core.ConfigConversions._
 
-class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpec with MustMatchers with BeforeAndAfterAll {
+class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with MustMatchers with BeforeAndAfterAll {
 
   def this() = this(ActorSystem("ProbeSpec", AkkaConfig ++ PersistenceConfig))
 
