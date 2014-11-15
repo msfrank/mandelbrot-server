@@ -20,7 +20,6 @@
 package io.mandelbrot.core.notification
 
 import akka.actor._
-import akka.persistence._
 import io.mandelbrot.core.history.NotificationAppends
 import io.mandelbrot.core.system.ProbeMatcher
 import org.joda.time.DateTime
@@ -35,12 +34,11 @@ import io.mandelbrot.core._
  * from Probes and routes them to the appropriate Notifier instances, depending on
  * current maintenance windows and notification rules.
  */
-class NotificationManager extends PersistentActor with ActorLogging {
+class NotificationManager extends Actor with ActorLogging {
   import NotificationManager._
   import context.dispatcher
 
   // config
-  override def persistenceId = "notification-manager"
   val settings = ServerConfig(context.system).settings.notification
   val notifiers: Map[String,ActorRef] = settings.notifiers.map { case (name, notifierSettings) =>
     val props = ServiceExtension.makePluginProps(notifierSettings.plugin, notifierSettings.settings)
@@ -51,51 +49,11 @@ class NotificationManager extends PersistentActor with ActorLogging {
 
   // state
   val windows = new mutable.HashMap[UUID,MaintenanceWindow]()
-  var windowCleaner: Option[Cancellable] = None
-  var snapshotCancellable: Option[Cancellable] = None
 
-  override def preStart(): Unit = {
-    super.preStart()
-    // schedule cleaning of expired windows
-    windowCleaner = Some(context.system.scheduler.schedule(settings.cleanerInitialDelay, settings.cleanerInterval, self, RunCleaner))
-    // schedule regular snapshots
-    snapshotCancellable = Some(context.system.scheduler.schedule(settings.snapshotInitialDelay, settings.snapshotInterval, self, TakeSnapshot))
-    log.debug("scheduling {} snapshots every {} with initial delay of {}",
-      persistenceId, settings.snapshotInterval.toString(), settings.snapshotInitialDelay.toString())
-  }
-
-  override def postStop(): Unit = {
-    for (cancellable <- windowCleaner)
-      cancellable.cancel()
-    for (cancellable <- snapshotCancellable)
-      cancellable.cancel()
-    super.postStop()
-  }
-
-  def receiveCommand = {
+  def receive = {
 
     case query: ListNotificationRules =>
       sender() ! ListNotificationRulesResult(query, settings.rules.rules)
-
-    case command: RegisterMaintenanceWindow =>
-      val id = UUID.randomUUID()
-      val window = MaintenanceWindow(id, command.affected, command.from, command.to, command.description)
-      persist(MaintenanceWindowRegisters(command, window))(updateState)
-
-    case command: ModifyMaintenanceWindow =>
-      if (windows.contains(command.id))
-        persist(MaintenanceWindowUpdates(command))(updateState)
-      else
-        sender() ! NotificationServiceOperationFailed(command, new ApiException(ResourceNotFound))
-
-    case command: UnregisterMaintenanceWindow =>
-      if (windows.contains(command.id))
-        persist(MaintenanceWindowUnregisters(command))(updateState)
-      else
-        sender() ! NotificationServiceOperationFailed(command, new ApiException(ResourceNotFound))
-
-    case query: ListMaintenanceWindows =>
-      sender() ! ListMaintenanceWindowsResult(query, windows.values.toVector)
 
     case notification: ProbeNotification =>
       if (!isSuppressed(notification)) {
@@ -108,74 +66,6 @@ class NotificationManager extends PersistentActor with ActorLogging {
         settings.rules.evaluate(notification, notifiers)
       }
 
-    /* remove all expired windows */
-    case RunCleaner =>
-      val horizon = DateTime.now().getMillis
-      windows.valuesIterator.foreach {
-        case window if (window.to.getMillis + settings.staleWindowOverlap.toMillis) < horizon =>
-          persist(MaintenanceWindowExpires(window.id))(updateState)
-        case _ =>   // do nothing
-      }
-
-    /* */
-    case TakeSnapshot =>
-      log.debug("snapshotting {}, last sequence number is {}", persistenceId, lastSequenceNr)
-      saveSnapshot(NotificationManagerSnapshot(windows.toMap))
-
-    case SaveSnapshotSuccess(metadata) =>
-      log.debug("saved snapshot successfully: {}", metadata)
-
-    case SaveSnapshotFailure(metadata, cause) =>
-      log.warning("failed to save snapshot {}: {}", metadata, cause.getMessage)
-  }
-
-  def receiveRecover = {
-
-    case event: Event =>
-      updateState(event)
-
-    /* recreate probe state from snapshot */
-    case SnapshotOffer(metadata, snapshot: NotificationManagerSnapshot) =>
-      log.debug("loading snapshot of {} using offer {}", persistenceId, metadata)
-      snapshot.windows.foreach { case (id,window) =>
-        windows.put(id, window)
-      }
-  }
-
-  def updateState(event: Event): Unit = event match {
-
-    case MaintenanceWindowRegisters(command, window) =>
-      windows.put(window.id, window)
-      log.debug("registered maintenance window {}", window)
-      if (!recoveryRunning)
-        sender() ! RegisterMaintenanceWindowResult(command, window.id)
-
-    case MaintenanceWindowUpdates(command) =>
-      var window = windows(command.id)
-      for (added <- command.modifications.added)
-        window = window.copy(affected = window.affected ++ added)
-      for (removed <- command.modifications.removed)
-        window = window.copy(affected = window.affected -- removed)
-      for (from <- command.modifications.from)
-        window = window.copy(from = from)
-      for (to <- command.modifications.to)
-        window = window.copy(to = to)
-      for (description <- command.modifications.description)
-        window = window.copy(description = Some(description))
-      windows.put(command.id, window)
-      log.debug("modified maintenance window {}", command.id)
-      if (!recoveryRunning)
-        sender() ! ModifyMaintenanceWindowResult(command, command.id)
-
-    case MaintenanceWindowUnregisters(command) =>
-      windows.remove(command.id)
-      log.debug("unregistered maintenance window {}", command.id)
-      if (!recoveryRunning)
-        sender() ! UnregisterMaintenanceWindowResult(command, command.id)
-
-    case MaintenanceWindowExpires(id) =>
-      windows.remove(id)
-      log.debug("maintenance window {} expires", id)
   }
 
   /**
