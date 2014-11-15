@@ -9,8 +9,9 @@ object MandelbrotServerBuild extends Build {
 
   val mandelbrotVersion = "0.0.8"
   val scalaLangVersion = "2.10.4"
-  val akkaVersion = "2.3.6"
-  val sprayVersion = "1.3.1"
+  val akkaVersion = "2.3.7"
+  val sprayVersion = "1.3.2"
+  val sprayJsonVersion = "1.3.1"
   val luceneVersion = "4.7.1"
   val slickVersion = "2.0.3"
   val datastaxVersion = "2.1.2"
@@ -34,9 +35,9 @@ object MandelbrotServerBuild extends Build {
         "com.typesafe.akka" %% "akka-cluster" % akkaVersion,
         "com.typesafe.akka" %% "akka-contrib" % akkaVersion,
         "com.typesafe.akka" %% "akka-slf4j" % akkaVersion,
-        "io.spray" % "spray-can" % sprayVersion,
-        "io.spray" % "spray-routing" % sprayVersion,
-        "io.spray" %% "spray-json" % "1.2.5",
+        "io.spray" %% "spray-can" % sprayVersion,
+        "io.spray" %% "spray-routing" % sprayVersion,
+        "io.spray" %% "spray-json" % sprayJsonVersion,
         "javax.mail" % "mail" % "1.4.7",
         "joda-time" % "joda-time" % "2.2",
         "org.joda" % "joda-convert" % "1.3.1",
@@ -45,7 +46,7 @@ object MandelbrotServerBuild extends Build {
         "org.scalatest" %% "scalatest" % "1.9.2" % "test",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
         "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion % "test",
-        "io.spray" % "spray-testkit" % sprayVersion % "test"
+        "io.spray" %% "spray-testkit" % sprayVersion % "test"
       ),
 
       // make sure that MultiJvm test are compiled by the default test compilation
