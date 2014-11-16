@@ -15,15 +15,21 @@ class ShardManagerSpec extends ClusterMultiNodeSpec(ClusterMultiNodeConfig) with
 
   def initialParticipants = roles.size
 
-  "A ShardManager cluster" must {
+  "A ShardManager cluster" should {
 
     "wait for all nodes to become ready" in {
       system.eventStream.subscribe(testActor, classOf[ShardManagerEvent])
-      enterBarrier("startup")
-      system.actorOf(ShardManager.props(), "shard-manager")
+      enterBarrier("startup-1")
+      system.actorOf(ShardManager.props(initialParticipants, 64), "shard-manager")
       Cluster(system).join(node(node1).address)
       expectMsg(30.seconds, ShardClusterUp)
+      enterBarrier("shutdown-1")
     }
 
+    "perform initial balancing" in {
+      enterBarrier("startup-2")
+      expectMsg(30.seconds, ShardClusterRebalances)
+      enterBarrier("shutdown-2")
+    }
   }
 }

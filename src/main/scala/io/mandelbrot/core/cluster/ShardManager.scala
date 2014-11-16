@@ -1,37 +1,53 @@
 package io.mandelbrot.core.cluster
 
 import akka.actor._
-import akka.cluster.{UniqueAddress, Member, Cluster}
+import akka.cluster.{Member, Cluster}
 import akka.cluster.ClusterEvent._
+import scala.concurrent.duration._
 
 /**
  *
  */
-class ShardManager extends LoggingFSM[ShardManagerFSMState,ShardManagerFSMData] {
+class ShardManager(minNrMembers: Int, initialShards: Int) extends LoggingFSM[ShardManagerFSMState,ShardManagerFSMData] {
+  import ShardManager._
 
   // config
-  val numBuckets = 64
-  val minNrMembers = 1
+  val timeout = 30.seconds
 
   // state
-  var shards = new ShardRing()
-  var refCache = Map.empty[Address,ActorRef]
-  var regions = Map.empty[Int,ActorRef]
-  var lastSeen = 0
+  var current: Option[ShardRing] = None
+  var proposed: Option[(ActorRef,ShardRing)] = None
+  var rebalancer: Option[ActorRef] = None
+  var lsn = 1
 
   override def preStart(): Unit = {
-    refCache = Map(Cluster(context.system).selfAddress -> self)
     Cluster(context.system).subscribe(self, InitialStateAsEvents, classOf[ClusterDomainEvent])
   }
 
   override def postStop(): Unit = {
     Cluster(context.system).unsubscribe(self)
-    refCache = Map.empty
   }
 
   startWith(Incubating, Incubating(None, Map.empty))
 
   when(Incubating) {
+
+    case Event(MemberUp(member), state: Incubating) =>
+      log.debug("member {} is UP", member)
+      val members = state.members + (member.address -> member)
+      state.leader match {
+        case Some(address) if !state.members.contains(address) =>
+          stay() using Incubating(state.leader, members)
+        case Some(address) =>
+          if (members.size >= minNrMembers) {
+            if (address == Cluster(context.system).selfAddress)
+              goto(Leader) using Leader(state.members)
+            else
+              goto(Follower) using Follower(state.members(address), state.members)
+          } else stay() using Incubating(state.leader, members)
+        case None =>
+          stay() using Incubating(state.leader, members)
+      }
 
     case Event(leaderChanged: LeaderChanged, state: Incubating) =>
       leaderChanged.leader match {
@@ -51,48 +67,51 @@ class ShardManager extends LoggingFSM[ShardManagerFSMState,ShardManagerFSMData] 
           stay() using Incubating(leaderChanged.leader, state.members)
       }
 
-    case Event(MemberUp(member), state: Incubating) =>
-      log.debug("member {} is UP", member)
-      val members = state.members + (member.address -> member)
-      state.leader match {
-        case Some(address) if !state.members.contains(address) =>
-          stay() using Incubating(state.leader, members)
-        case Some(address) =>
-          if (members.size >= minNrMembers) {
-            if (address == Cluster(context.system).selfAddress)
-              goto(Leader) using Leader(state.members)
-            else
-              goto(Follower) using Follower(state.members(address), state.members)
-          } else stay() using Incubating(state.leader, members)
-        case None =>
-          stay() using Incubating(state.leader, members)
-      }
-
     case Event(_: ClusterDomainEvent, _) =>
       stay()
   }
 
   onTransition {
     case Incubating -> Follower =>
+      lsn = lsn + 1
       context.system.eventStream.publish(ShardClusterUp)
       log.debug("shard cluster is UP, we are a follower")
-      nextStateData match {
-        case Follower(leader, members) =>
-          context.actorSelection(RootActorPath(leader.address) / self.path.elements) ! PullShards(Cluster(context.system).selfUniqueAddress)
-      }
+
     case Incubating -> Leader =>
+      lsn = lsn + 1
       context.system.eventStream.publish(ShardClusterUp)
       log.debug("shard cluster is UP, we are the leader")
+      self ! PerformRebalance
 
     case _ -> Incubating =>
+      lsn = lsn + 1
       context.system.eventStream.publish(ShardClusterDown)
       log.debug("shard cluster is DOWN, we incubate")
   }
 
   when(Leader) {
 
-    case Event(LeaderChanged(Some(address)), _) =>
+    case Event(PerformRebalance, Leader(members)) if current.isEmpty =>
+      lsn = lsn + 1
+      val shardRing = ShardRing(members.keySet, initialShards)
+      context.actorOf(ShardRebalancer.props(lsn, shardRing, Vector.empty, members.keys.toVector, members.keySet, timeout))
+      log.debug("starting initial shard balancing with lsn {}", lsn)
       stay()
+
+    case Event(RebalancingSucceeds(op), state: Leader) =>
+      if (op == lsn) {
+        context.system.eventStream.publish(ShardClusterRebalances)
+        log.debug("rebalancing {} succeeds", op)
+      }
+      stay()
+
+    case Event(RebalancingFails(op), state: Leader) =>
+      if (op == lsn)
+        log.debug("rebalancing {} fails", op)
+      stay()
+
+    case Event(LeaderChanged(Some(address)), Leader(members)) =>
+      goto(Follower) using Follower(members(address), members)
 
     case Event(MemberUp(member), Leader(members)) =>
       stay() using Leader(members + (member.address -> member))
@@ -105,6 +124,12 @@ class ShardManager extends LoggingFSM[ShardManagerFSMState,ShardManagerFSMData] 
 
     case Event(envelope: ShardEnvelope, _) =>
       stay()
+  }
+
+  onTransition {
+    case Leader -> Follower =>
+      lsn = lsn + 1
+      log.debug("we move from leader to follower")
   }
 
   when(Follower) {
@@ -122,20 +147,22 @@ class ShardManager extends LoggingFSM[ShardManagerFSMState,ShardManagerFSMData] 
       stay()
 
     case Event(envelope: ShardEnvelope, _) =>
-      shards(envelope.address) match {
-        case Some(shardAddress) if shardAddress == selfAddress =>
-      }
       stay()
   }
 
-  def selfAddress = Cluster(context.system).selfAddress
-  def selfUniqueAddress = Cluster(context.system).selfUniqueAddress
+  onTransition {
+    case Follower -> Leader =>
+      lsn = lsn + 1
+      log.debug("we move from leader to follower")
+  }
 
   initialize()
 }
 
 object ShardManager {
-  def props() = Props(classOf[ShardManager])
+  def props(minNrMembers: Int, initialShards: Int) = Props(classOf[ShardManager], minNrMembers, initialShards)
+
+  case object PerformRebalance
 }
 
 sealed trait ShardManagerFSMState
@@ -150,22 +177,9 @@ case class Follower(leader: Member, members: Map[Address,Member]) extends ShardM
 
 sealed trait ShardManagerEvent
 case object ShardClusterUp extends ShardManagerEvent
+case object ShardClusterRebalances extends ShardManagerEvent
 case object ShardClusterDown extends ShardManagerEvent
 
 case class ShardEnvelope(address: String, message: Any)
 case class DeliverMessage(address: String, message: Any)
 
-/**
- *
- */
-class ShardRing() extends Serializable {
-  private val shards = new java.util.TreeMap[Int,Address]()
-
-  def apply(key: String): Option[Address] = Option(shards.floorEntry(key.hashCode())).map(_.getValue)
-  def size = shards.size()
-  def isEmpty = shards.isEmpty
-  def nonEmpty = !isEmpty
-
-  //def split()
-  //def merge()
-}
