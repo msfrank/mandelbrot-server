@@ -2,6 +2,7 @@ package io.mandelbrot.core.cluster
 
 import java.util.UUID
 
+import akka.actor.SupervisorStrategy.Stop
 import akka.actor._
 import scala.concurrent.duration.FiniteDuration
 
@@ -136,6 +137,15 @@ extends LoggingFSM[ShardRebalancerFSMState,ShardRebalancerFSMData] {
       stop()
   }
 
+  /* on failure we notify the parent and stop the actor */
+  override val supervisorStrategy = OneForOneStrategy(0) {
+    case ex: Throwable =>
+      context.parent ! RebalancingFails(lsn)
+      log.debug("rebalancer failed: {}", ex.getMessage)
+      SupervisorStrategy.Stop
+  }
+
+  /* last step of constructor is to initialize the FSM */
   initialize()
 }
 
