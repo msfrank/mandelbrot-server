@@ -28,7 +28,7 @@ class ShardManager(minNrMembers: Int, initialShards: Int) extends LoggingFSM[Sha
     Cluster(context.system).unsubscribe(self)
   }
 
-  startWith(Incubating, Incubating(None, Map.empty))
+  startWith(Incubating, Incubating(None, Set(Cluster(context.system).selfAddress)))
 
   when(Incubating) {
 
@@ -37,16 +37,16 @@ class ShardManager(minNrMembers: Int, initialShards: Int) extends LoggingFSM[Sha
      */
     case Event(MemberUp(member), state: Incubating) =>
       log.debug("member {} is UP", member)
-      val members = state.members + (member.address -> member)
+      val members = state.members + member.address
       state.leader match {
         case Some(address) if !state.members.contains(address) =>
           stay() using Incubating(state.leader, members)
         case Some(address) =>
           if (members.size >= minNrMembers) {
             if (address == Cluster(context.system).selfAddress)
-              goto(Leader) using Leader(state.members, None)
+              goto(Leader) using Leader(members, None)
             else
-              goto(Follower) using Follower(state.members(address), state.members, None)
+              goto(Follower) using Follower(address, members, None)
           } else stay() using Incubating(state.leader, members)
         case None =>
           stay() using Incubating(state.leader, members)
@@ -55,12 +55,12 @@ class ShardManager(minNrMembers: Int, initialShards: Int) extends LoggingFSM[Sha
     case Event(leaderChanged: LeaderChanged, state: Incubating) =>
       leaderChanged.leader match {
         case Some(address) if state.members.contains(address) =>
-          log.debug("{} is now the leader", state.members(address))
+          log.debug("{} is now the leader", address)
           if (state.members.size >= minNrMembers) {
             if (address == Cluster(context.system).selfAddress)
               goto(Leader) using Leader(state.members, None)
             else
-              goto(Follower) using Follower(state.members(address), state.members, None)
+              goto(Follower) using Follower(address, state.members, None)
           } else stay() using Incubating(leaderChanged.leader, state.members)
         case Some(address) =>
           log.warning("{} is now the leader but there is no known member with that address", address)
@@ -78,6 +78,12 @@ class ShardManager(minNrMembers: Int, initialShards: Int) extends LoggingFSM[Sha
      */
     case Event(SolicitRebalancing(op, _), _) =>
       stay() replying SolicitRebalancingResult(op, accepted = false)
+
+    case Event(op: ApplyRebalancing, _) =>
+      stay()  // drop message
+
+    case Event(op: CommitRebalancing, _) =>
+      stay()  // drop message
   }
 
   onTransition {
@@ -109,16 +115,15 @@ class ShardManager(minNrMembers: Int, initialShards: Int) extends LoggingFSM[Sha
 
     case Event(PerformRebalance(op), Leader(members, _)) if current.isEmpty =>
       lsn = lsn + 1
-      val shardRing = ShardRing(members.keySet, initialShards)
-      context.actorOf(ShardRebalancer.props(lsn, shardRing, Vector.empty, members.keys.toVector, members.keySet, timeout))
+      val shardRing = ShardRing(members, initialShards)
+      context.actorOf(ShardRebalancer.props(lsn, shardRing, Vector.empty, members.toVector, members, timeout))
       log.debug("starting initial shard balancing with lsn {}", lsn)
+      log.debug("current members {}", members.mkString(", "))
       stay()
 
     case Event(RebalancingSucceeds(op), state: Leader) =>
-      if (op == lsn) {
-        context.system.eventStream.publish(ShardClusterRebalances)
+      if (op == lsn)
         log.debug("rebalancing {} succeeds", op)
-      }
       stay()
 
     case Event(RebalancingFails(op), state: Leader) =>
@@ -134,6 +139,8 @@ class ShardManager(minNrMembers: Int, initialShards: Int) extends LoggingFSM[Sha
 
     case Event(ApplyRebalancing(op), state: Leader) =>
       current = state.proposal
+      context.system.eventStream.publish(ShardClusterRebalances)
+      log.debug("applied proposal with lsn {} from {}", op, sender())
       stay() replying ApplyRebalancingResult(op)
 
     case Event(CommitRebalancing(op), state: Leader) =>
@@ -143,10 +150,10 @@ class ShardManager(minNrMembers: Int, initialShards: Int) extends LoggingFSM[Sha
      * cluster membership events
      */
     case Event(LeaderChanged(Some(address)), Leader(members, _)) =>
-      goto(Follower) using Follower(members(address), members, None)
+      goto(Follower) using Follower(address, members, None)
 
     case Event(MemberUp(member), Leader(members, _)) =>
-      stay() using Leader(members + (member.address -> member), None)
+      stay() using Leader(members + member.address, None)
 
     case Event(MemberRemoved(member, status), Leader(members, _)) =>
       stay() using Leader(members - member.address, None)
@@ -174,6 +181,8 @@ class ShardManager(minNrMembers: Int, initialShards: Int) extends LoggingFSM[Sha
 
     case Event(ApplyRebalancing(op), state: Follower) =>
       current = state.proposal
+      context.system.eventStream.publish(ShardClusterRebalances)
+      log.debug("applied proposal with lsn {} from {}", op, sender())
       stay() replying ApplyRebalancingResult(op)
 
     case Event(CommitRebalancing(op), state: Follower) =>
@@ -186,7 +195,7 @@ class ShardManager(minNrMembers: Int, initialShards: Int) extends LoggingFSM[Sha
       stay()
 
     case Event(MemberUp(member), Follower(leader, members, _)) =>
-      stay() using Follower(leader, members + (member.address -> member), None)
+      stay() using Follower(leader, members + member.address, None)
 
     case Event(MemberRemoved(member, status), Follower(leader, members, _)) =>
       stay() using Follower(leader, members - member.address, None)
@@ -219,9 +228,9 @@ case object Leader extends ShardManagerFSMState
 case object Follower extends ShardManagerFSMState
 
 sealed trait ShardManagerFSMData
-case class Incubating(leader: Option[Address], members: Map[Address,Member]) extends ShardManagerFSMData
-case class Leader(members: Map[Address,Member], proposal: Option[ShardRing]) extends ShardManagerFSMData
-case class Follower(leader: Member, members: Map[Address,Member], proposal: Option[ShardRing]) extends ShardManagerFSMData
+case class Incubating(leader: Option[Address], members: Set[Address]) extends ShardManagerFSMData
+case class Leader(members: Set[Address], proposal: Option[ShardRing]) extends ShardManagerFSMData
+case class Follower(leader: Address, members: Set[Address], proposal: Option[ShardRing]) extends ShardManagerFSMData
 
 sealed trait ShardManagerEvent
 case object ShardClusterUp extends ShardManagerEvent

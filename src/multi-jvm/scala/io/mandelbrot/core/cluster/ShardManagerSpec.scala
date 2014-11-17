@@ -17,19 +17,15 @@ class ShardManagerSpec extends ClusterMultiNodeSpec(ClusterMultiNodeConfig) with
 
   "A ShardManager cluster" should {
 
-    "wait for all nodes to become ready" in {
+    "wait for nodes to become ready and initial balancing" in {
       system.eventStream.subscribe(testActor, classOf[ShardManagerEvent])
-      enterBarrier("startup-1")
       system.actorOf(ShardManager.props(initialParticipants, 64), "shard-manager")
       Cluster(system).join(node(node1).address)
-      expectMsg(30.seconds, ShardClusterUp)
-      enterBarrier("shutdown-1")
-    }
-
-    "perform initial balancing" in {
-      enterBarrier("startup-2")
-      expectMsg(30.seconds, ShardClusterRebalances)
-      enterBarrier("shutdown-2")
+      within(10.seconds) {
+        expectMsg(ShardClusterUp)
+        expectMsg(ShardClusterRebalances)
+      }
+      enterBarrier("cluster-up")
     }
   }
 }
