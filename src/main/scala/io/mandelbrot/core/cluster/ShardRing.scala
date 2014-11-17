@@ -23,6 +23,8 @@ class ShardRing extends Serializable {
 
   //def split()
   //def merge()
+
+  override def toString = "ShardRing(%s)".format(shards.map(s => "%s:%s".format(s._1, s._2)).mkString(","))
 }
 
 object ShardRing {

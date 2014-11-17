@@ -13,7 +13,9 @@ class ShardManager(minNrMembers: Int, initialShards: Int) extends LoggingFSM[Sha
   import context.dispatcher
 
   // config
-  val timeout = 30.seconds
+  val rebalanceTimeout = 30.seconds
+  val rebalanceInterval = 60.seconds
+  val retryInterval = 3.seconds
 
   // state
   var current: Option[ShardRing] = None
@@ -110,13 +112,13 @@ class ShardManager(minNrMembers: Int, initialShards: Int) extends LoggingFSM[Sha
      * rebalance leader events
      */
     case Event(PerformRebalance(op), Leader(members, _)) if op != lsn =>
-      log.debug("ignoring PerformRebalance, lsn does not match")
+      log.debug("ignoring rebalance request, lsn does not match")
       stay()
 
     case Event(PerformRebalance(op), Leader(members, _)) if current.isEmpty =>
       lsn = lsn + 1
       val shardRing = ShardRing(members, initialShards)
-      context.actorOf(ShardRebalancer.props(lsn, shardRing, Vector.empty, members.toVector, members, timeout))
+      context.actorOf(ShardRebalancer.props(lsn, shardRing, Vector.empty, members.toVector, members, rebalanceTimeout))
       log.debug("starting initial shard balancing with lsn {}", lsn)
       log.debug("current members {}", members.mkString(", "))
       stay()
@@ -127,8 +129,10 @@ class ShardManager(minNrMembers: Int, initialShards: Int) extends LoggingFSM[Sha
       stay()
 
     case Event(RebalancingFails(op), state: Leader) =>
-      if (op == lsn)
-        log.debug("rebalancing {} fails", op)
+      if (op == lsn) {
+        log.debug("rebalancing {} fails, retrying in {}", op, retryInterval)
+        context.system.scheduler.scheduleOnce(retryInterval, self, PerformRebalance(lsn))
+      }
       stay()
 
     /*
@@ -149,13 +153,15 @@ class ShardManager(minNrMembers: Int, initialShards: Int) extends LoggingFSM[Sha
     /*
      * cluster membership events
      */
+    case Event(MemberUp(member), state: Leader) =>
+      log.debug("member {} is UP", member)
+      stay() using state.copy(members = state.members + member.address)
+
     case Event(LeaderChanged(Some(address)), Leader(members, _)) =>
       goto(Follower) using Follower(address, members, None)
 
-    case Event(MemberUp(member), Leader(members, _)) =>
-      stay() using Leader(members + member.address, None)
-
     case Event(MemberRemoved(member, status), Leader(members, _)) =>
+      log.debug("member {} was removed", member)
       stay() using Leader(members - member.address, None)
 
     case Event(_: ClusterDomainEvent, _) =>
@@ -191,14 +197,16 @@ class ShardManager(minNrMembers: Int, initialShards: Int) extends LoggingFSM[Sha
     /*
      * cluster membership events
      */
-    case Event(LeaderChanged(Some(address)), _) =>
-      stay()
+    case Event(LeaderChanged(Some(address)), state: Follower) =>
+      goto(Leader) using Leader(state.members, state.proposal)
 
-    case Event(MemberUp(member), Follower(leader, members, _)) =>
-      stay() using Follower(leader, members + member.address, None)
+    case Event(MemberUp(member), state: Follower) =>
+      log.debug("member {} is UP", member)
+      stay() using state.copy(members = state.members + member.address)
 
-    case Event(MemberRemoved(member, status), Follower(leader, members, _)) =>
-      stay() using Follower(leader, members - member.address, None)
+    case Event(MemberRemoved(member, status), state: Follower) =>
+      log.debug("member {} was removed", member)
+      stay() using state.copy(members = state.members - member.address)
 
     case Event(_: ClusterDomainEvent, _) =>
       stay()
