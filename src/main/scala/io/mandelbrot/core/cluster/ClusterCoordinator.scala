@@ -2,7 +2,7 @@ package io.mandelbrot.core.cluster
 
 import akka.actor._
 import akka.cluster.Cluster
-import akka.contrib.pattern.{ClusterSingletonManager, ClusterSharding}
+import scala.util.hashing.MurmurHash3
 
 import io.mandelbrot.core.ServerConfig
 import io.mandelbrot.core.system.{ProbeSystemOperation, ProbeOperation, ProbeSystem}
@@ -15,12 +15,26 @@ class ClusterCoordinator(registryService: ActorRef) extends Actor with ActorLogg
 
   val settings = ServerConfig(context.system).settings.cluster
 
-  val registryCoordinator = context.actorOf(ClusterSingletonManager.props(
-    singletonProps = RegistryCoordinator.props(registryService), singletonName = "command-coordinator",
-    terminationMessage = PoisonPill, role = None), name = "command-coordinator")
-  val systemEntries = ClusterSharding(context.system).start(typeName = "ProbeSystem",
-    entryProps = Some(ProbeSystem.props(self)), idExtractor = ProbeSystem.idExtractor,
-    shardResolver = ProbeSystem.shardResolver)
+  val shardResolver: EntityFunctions.ShardResolver = {
+    case op: RegistryServiceCommand => 0
+    case op: ProbeOperation => MurmurHash3.stringHash(op.probeRef.uri.toString)
+    case op: ProbeSystemOperation => MurmurHash3.stringHash(op.uri.toString)
+  }
+  val keyExtractor: EntityFunctions.KeyExtractor = {
+    case op: RegistryServiceCommand => "registry/"
+    case op: ProbeOperation => "system/" + op.probeRef.uri.toString
+    case op: ProbeSystemOperation => "system/" + op.uri.toString
+  }
+  val propsCreator: EntityFunctions.PropsCreator = {
+    case op: RegistryServiceCommand => RegistryCoordinator.props(registryService)
+    case op: ProbeOperation => ProbeSystem.props(context.parent)
+    case op: ProbeSystemOperation => ProbeSystem.props(context.parent)
+  }
+
+  val shardManager = context.actorOf(ShardManager.props(settings.minNrMembers,
+    settings.initialShardCount), "shard-manager")
+  val entityManager = context.actorOf(EntityManager.props(shardResolver, keyExtractor,
+    propsCreator), "entity-manager")
 
   log.info("server is running in cluster mode")
 
@@ -29,18 +43,18 @@ class ClusterCoordinator(registryService: ActorRef) extends Actor with ActorLogg
   }
 
   def receive = {
-   
+
+    case op: RegistryServiceCommand =>
+      entityManager forward op
+
     case op: RegistryServiceQuery =>
       registryService forward op
 
-    case op: RegistryServiceCommand =>
-      registryCoordinator forward op
-
     case op: ProbeSystemOperation =>
-      systemEntries forward op
+      entityManager forward op
 
     case op: ProbeOperation =>
-      systemEntries forward op
+      entityManager forward op
  
   }
 }

@@ -131,4 +131,3 @@ case class GetProbeSystemEntryResult(op: GetProbeSystemEntry, registration: Prob
 
 /* marker trait for Registrar implementations */
 trait Registrar
-trait ClusteredRegistrar extends Registrar

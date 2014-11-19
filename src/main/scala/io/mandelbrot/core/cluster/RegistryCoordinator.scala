@@ -5,6 +5,9 @@ import io.mandelbrot.core.registry.RegistryServiceCommand
 
 import scala.concurrent.duration.FiniteDuration
 
+/**
+ *
+ */
 class RegistryCoordinator(registryService: ActorRef) extends Actor with ActorLogging {
 
   def receive = {

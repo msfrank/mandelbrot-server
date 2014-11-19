@@ -20,22 +20,14 @@
 package io.mandelbrot.core.system
 
 import akka.actor._
-import akka.contrib.pattern.ShardRegion
-import akka.pattern.ask
-import akka.pattern.pipe
-import akka.util.Timeout
-import io.mandelbrot.core.metrics.MetricsBus
-import org.joda.time.DateTime
-import scala.concurrent.Future
-import scala.concurrent.duration._
 import scala.collection.mutable
-import java.net.{URL, URI}
-import java.util.UUID
+import java.net.URI
 
 import io.mandelbrot.core.{ServerConfig, ResourceNotFound, ApiException}
 import io.mandelbrot.core.registry._
+import io.mandelbrot.core.cluster.EntityFunctions.{ShardResolver, KeyExtractor}
+import io.mandelbrot.core.metrics.MetricsBus
 import io.mandelbrot.core.notification.{ProbeNotification, NotificationEvent}
-import io.mandelbrot.core.history._
 
 /**
  * the ProbeSystem manages a collection of Probes underneath a URI.  the ProbeSystem
@@ -360,14 +352,7 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[SystemFSMState,SystemFS
 
 object ProbeSystem {
   def props(services: ActorRef) =  Props(classOf[ProbeSystem], services)
-  val idExtractor: ShardRegion.IdExtractor = {
-    case op: ProbeSystemOperation => (op.uri.toString, op)
-    case op: ProbeOperation => (op.probeRef.uri.toString, op)
-  }
-  val shardResolver: ShardRegion.ShardResolver = {
-    case op: ProbeSystemOperation => op.uri.toString
-    case op: ProbeOperation => op.probeRef.uri.toString
-  }
+
   case class ProbeActor(spec: ProbeSpec, actor: ActorRef)
 }
 
