@@ -3,7 +3,7 @@ package io.mandelbrot.core
 import akka.actor.{Actor, ActorRef, Props}
 
 class ChildForwarder(childProps: Props, target: ActorRef) extends Actor {
-  val child = context.actorOf(childProps)
+  val child = context.actorOf(childProps, "child")
   def receive = {
     case x if sender == child => target forward x
     case x => child forward x

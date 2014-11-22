@@ -15,11 +15,6 @@ class ClusterCoordinator(registryService: ActorRef) extends Actor with ActorLogg
 
   val settings = ServerConfig(context.system).settings.cluster
 
-  val shardResolver: EntityFunctions.ShardResolver = {
-    case op: RegistryServiceCommand => 0
-    case op: ProbeOperation => MurmurHash3.stringHash(op.probeRef.uri.toString)
-    case op: ProbeSystemOperation => MurmurHash3.stringHash(op.uri.toString)
-  }
   val keyExtractor: EntityFunctions.KeyExtractor = {
     case op: RegistryServiceCommand => "registry/"
     case op: ProbeOperation => "system/" + op.probeRef.uri.toString
@@ -31,8 +26,7 @@ class ClusterCoordinator(registryService: ActorRef) extends Actor with ActorLogg
     case op: ProbeSystemOperation => ProbeSystem.props(context.parent)
   }
 
-  val entityManager = context.actorOf(EntityManager.props(shardResolver,
-    keyExtractor, propsCreator), "entity-manager")
+  val entityManager = context.actorOf(EntityManager.props(keyExtractor, propsCreator), "entity-manager")
 
   log.info("server is running in cluster mode")
 

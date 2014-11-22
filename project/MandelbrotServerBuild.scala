@@ -52,20 +52,21 @@ object MandelbrotServerBuild extends Build {
       // make sure that MultiJvm test are compiled by the default test compilation
       compile in MultiJvm <<= (compile in MultiJvm) triggeredBy (compile in Test),
       // disable parallel tests
-      parallelExecution in Test := false,
-      // make sure that MultiJvm tests are executed by the default test target
-      executeTests in Test <<=
-        (executeTests in Test, executeTests in MultiJvm) map {
-          case ((testResults), (multiJvmResults)) =>
-            val overall =
-              if (testResults.overall.id < multiJvmResults.overall.id)
-                multiJvmResults.overall
-              else
-                testResults.overall
-            Tests.Output(overall,
-              testResults.events ++ multiJvmResults.events,
-              testResults.summaries ++ multiJvmResults.summaries)
-        }
+      parallelExecution in Test := false
+
+//      // make sure that MultiJvm tests are executed by the default test target
+//      executeTests in Test <<=
+//        (executeTests in Test, executeTests in MultiJvm) map {
+//          case ((testResults), (multiJvmResults)) =>
+//            val overall =
+//              if (testResults.overall.id < multiJvmResults.overall.id)
+//                multiJvmResults.overall
+//              else
+//                testResults.overall
+//            Tests.Output(overall,
+//              testResults.events ++ multiJvmResults.events,
+//              testResults.summaries ++ multiJvmResults.summaries)
+//        }
 
     ).configs(MultiJvm)
 

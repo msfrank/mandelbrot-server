@@ -2,15 +2,16 @@ package io.mandelbrot.core.cluster
 
 import akka.cluster.Cluster
 import akka.actor.{ActorRef, Props, ActorLogging, Actor}
+import scala.util.hashing.MurmurHash3
 import java.util
 
 import io.mandelbrot.core.ServerConfig
-import io.mandelbrot.core.cluster.EntityFunctions.{PropsCreator, KeyExtractor, ShardResolver}
+import io.mandelbrot.core.cluster.EntityFunctions.{PropsCreator, KeyExtractor}
 
 /**
  *
  */
-class EntityManager(shardResolver: ShardResolver, keyExtractor: KeyExtractor, propsCreator: PropsCreator) extends Actor with ActorLogging {
+class EntityManager(keyExtractor: KeyExtractor, propsCreator: PropsCreator) extends Actor with ActorLogging {
   import EntityManager.EntityMap
 
   val settings = ServerConfig(context.system).settings.cluster
@@ -30,11 +31,11 @@ class EntityManager(shardResolver: ShardResolver, keyExtractor: KeyExtractor, pr
 
     // send message to the entity, which may be remote or local
     case message: Any if keyExtractor.isDefinedAt(message) =>
-      shardRing(shardResolver(message)) match {
+      val key = keyExtractor(message)
+      shardRing(resolveShard(key)) match {
         // shard exists and is local
         case Some((shard, address)) if address.equals(selfAddress) =>
           val entityRefs = shardEntities.get(shard)
-          val key = keyExtractor(message)
           entityRefs.get(key) match {
             // entity doesn't exist in shard, so create it
             case null =>
@@ -55,12 +56,12 @@ class EntityManager(shardResolver: ShardResolver, keyExtractor: KeyExtractor, pr
         case None =>
       }
   }
+
+  def resolveShard(key: String): Int = MurmurHash3.stringHash(key)
 }
 
 object EntityManager {
-  def props(shardResolver: ShardResolver, keyExtractor: KeyExtractor, propsCreator: PropsCreator) = {
-    Props(classOf[EntityManager], shardResolver, keyExtractor, propsCreator)
-  }
+  def props(keyExtractor: KeyExtractor, propsCreator: PropsCreator) = Props(classOf[EntityManager], keyExtractor, propsCreator)
 
   class EntityMap extends util.HashMap[String,ActorRef]
 }

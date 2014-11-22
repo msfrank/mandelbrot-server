@@ -24,7 +24,7 @@ class ShardManagerSpec extends ClusterMultiNodeSpec(ClusterMultiNodeConfig) with
       system.eventStream.subscribe(testActor, classOf[ShardManagerEvent])
       val props = ShardManager.props(initialParticipants, 64)
       val probe = TestProbe()
-      val childForwarder = system.actorOf(ChildForwarder.props(props, probe.ref))
+      val childForwarder = system.actorOf(ChildForwarder.props(props, probe.ref), "forwarder")
 
       Cluster(system).join(node(node1).address)
 
