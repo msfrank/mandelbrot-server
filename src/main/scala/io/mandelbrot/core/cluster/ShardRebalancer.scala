@@ -7,7 +7,7 @@ import scala.concurrent.duration.FiniteDuration
 /**
  *
  */
-class ShardRebalancer(lsn: Int, proposed: ShardRing, shrinks: Vector[Address], grows: Vector[Address], peers: Set[Address], timeout: FiniteDuration)
+class ShardRebalancer(lsn: Int, proposed: Vector[ShardRingMutation], shrinks: Vector[Address], grows: Vector[Address], peers: Set[Address], timeout: FiniteDuration)
 extends LoggingFSM[ShardRebalancerFSMState,ShardRebalancerFSMData] {
   import ShardRebalancer._
   import context.dispatcher
@@ -170,7 +170,7 @@ extends LoggingFSM[ShardRebalancerFSMState,ShardRebalancerFSMData] {
 object ShardRebalancer {
 
   def props(lsn: Int,
-            proposed: ShardRing,
+            proposed: Vector[ShardRingMutation],
             shrinks: Vector[Address],
             grows: Vector[Address],
             peers: Set[Address],
@@ -193,7 +193,7 @@ case class Shrinking(left: Vector[Address]) extends ShardRebalancerFSMData
 case class Growing(left: Vector[Address]) extends ShardRebalancerFSMData
 case class Committing(replies: Set[Address]) extends ShardRebalancerFSMData
 
-case class SolicitRebalancing(lsn: Int, proposed: ShardRing)
+case class SolicitRebalancing(lsn: Int, proposed: Vector[ShardRingMutation])
 case class SolicitRebalancingResult(lsn: Int, accepted: Boolean)
 
 case class ApplyRebalancing(lsn: Int)

@@ -31,10 +31,10 @@ class ClusterCoordinator(registryService: ActorRef) extends Actor with ActorLogg
     case op: ProbeSystemOperation => ProbeSystem.props(context.parent)
   }
 
-  val shardManager = context.actorOf(ShardManager.props(settings.minNrMembers,
-    settings.initialShardCount), "shard-manager")
-  val entityManager = context.actorOf(EntityManager.props(shardResolver, keyExtractor,
-    propsCreator), "entity-manager")
+  val entityManager = context.actorOf(EntityManager.props(shardResolver,
+    keyExtractor, propsCreator), "entity-manager")
+  val shardManager = context.actorOf(ShardManager.props(entityManager,
+    settings.minNrMembers, settings.initialShardCount), "shard-manager")
 
   log.info("server is running in cluster mode")
 

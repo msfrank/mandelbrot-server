@@ -11,19 +11,26 @@ import io.mandelbrot.core.cluster.EntityFunctions.{PropsCreator, KeyExtractor, S
 class EntityManager(shardResolver: ShardResolver, keyExtractor: KeyExtractor, propsCreator: PropsCreator) extends Actor with ActorLogging {
   import EntityManager.EntityMap
 
+  val shardRing = ShardRing()
   val shardEntities = new util.HashMap[Int,EntityMap]()
   val entityShards = new util.HashMap[ActorRef,Int]()
 
   def receive = {
 
+    case proposal @ RebalanceProposal(op, proposer, mutations) =>
+      // perform rebalancing
+      sender() ! AppliedProposal(proposal)
+
     case message: Any =>
       try {
         val shard = shardResolver(message)
-        val key = keyExtractor(message)
         shardEntities.get(shard) match {
+          // shard is remote, so send message to peer
           case null =>
-            // shard is not local, so send message to peer
+
+          // shard is local, so find the entity by extracting the key
           case entityRefs: EntityMap =>
+            val key = keyExtractor(message)
             entityRefs.get(key) match {
               // entity doesn't exist in shard, so create it
               case null =>
@@ -58,4 +65,5 @@ object EntityFunctions {
   type PropsCreator = PartialFunction[Any,Props]
 }
 
-case class RebalanceEntities(lsn: Int, shards: ShardRing)
+case class RebalanceProposal(lsn: Int, proposer: ActorRef, mutations: Vector[ShardRingMutation])
+case class AppliedProposal(proposal: RebalanceProposal)
