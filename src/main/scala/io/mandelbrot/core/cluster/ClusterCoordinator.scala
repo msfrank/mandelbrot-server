@@ -33,8 +33,6 @@ class ClusterCoordinator(registryService: ActorRef) extends Actor with ActorLogg
 
   val entityManager = context.actorOf(EntityManager.props(shardResolver,
     keyExtractor, propsCreator), "entity-manager")
-  val shardManager = context.actorOf(ShardManager.props(entityManager,
-    settings.minNrMembers, settings.initialShardCount), "shard-manager")
 
   log.info("server is running in cluster mode")
 
@@ -44,11 +42,11 @@ class ClusterCoordinator(registryService: ActorRef) extends Actor with ActorLogg
 
   def receive = {
 
-    case op: RegistryServiceCommand =>
-      entityManager forward op
-
     case op: RegistryServiceQuery =>
       registryService forward op
+
+    case op: RegistryServiceCommand =>
+      entityManager forward op
 
     case op: ProbeSystemOperation =>
       entityManager forward op

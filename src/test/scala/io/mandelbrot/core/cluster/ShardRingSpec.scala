@@ -26,13 +26,13 @@ class ShardRingSpec extends WordSpec with ShouldMatchers {
       shardRing.put(10, address1)
       shardRing.put(20, address2)
       shardRing.put(30, address3)
-      shardRing(0) should be === Some(address3)
-      shardRing(10) should be === Some(address1)
-      shardRing(15) should be === Some(address1)
-      shardRing(20) should be === Some(address2)
-      shardRing(25) should be === Some(address2)
-      shardRing(30) should be === Some(address3)
-      shardRing(35) should be === Some(address3)
+      shardRing(0) should be === Some((30, address3))
+      shardRing(10) should be === Some((10, address1))
+      shardRing(15) should be === Some((10, address1))
+      shardRing(20) should be === Some((20, address2))
+      shardRing(25) should be === Some((20, address2))
+      shardRing(30) should be === Some((30, address3))
+      shardRing(35) should be === Some((30, address3))
     }
 
     "not map a key to a shard if the ring is empty" in {

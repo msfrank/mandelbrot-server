@@ -108,7 +108,9 @@ extends LoggingFSM[ShardRebalancerFSMState,ShardRebalancerFSMData] {
   }
 
   onTransition {
-    case _ -> Growing =>
+    case Soliciting -> Growing =>
+      refs(grows.head) ! ApplyRebalancing(lsn)
+    case Shrinking -> Growing =>
       refs(grows.head) ! ApplyRebalancing(lsn)
   }
 

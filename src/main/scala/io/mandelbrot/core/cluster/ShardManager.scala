@@ -3,21 +3,24 @@ package io.mandelbrot.core.cluster
 import akka.actor._
 import akka.cluster.{Member, Cluster}
 import akka.cluster.ClusterEvent._
+import io.mandelbrot.core.ServerConfig
 import scala.concurrent.duration._
 
 /**
  *
  */
-class ShardManager(entityManager: ActorRef, minNrMembers: Int, initialShards: Int) extends LoggingFSM[ShardManagerFSMState,ShardManagerFSMData] {
+class ShardManager(minNrMembers: Int, initialShards: Int) extends LoggingFSM[ShardManagerFSMState,ShardManagerFSMData] {
   import ShardManager._
   import context.dispatcher
 
   // config
+  val initialDelay = 3.seconds
   val rebalanceTimeout = 30.seconds
   val rebalanceInterval = 60.seconds
   val retryInterval = 3.seconds
 
   // state
+  var hatched = false
   var rebalancer: Option[ActorRef] = None
   var nextRebalance: Option[Cancellable] = None
   var lsn = 1
@@ -79,12 +82,15 @@ class ShardManager(entityManager: ActorRef, minNrMembers: Int, initialShards: In
      * rebalance 3PC events
      */
     case Event(SolicitRebalancing(op, _), _) =>
+      log.debug("refused rebalance solicitation, we are incubating")
       stay() replying SolicitRebalancingResult(op, accepted = false)
 
     case Event(op: ApplyRebalancing, _) =>
+      log.debug("refused to apply rebalance, we are incubating")
       stay()  // drop message
 
     case Event(op: CommitRebalancing, _) =>
+      log.debug("refused to commit rebalance, we are incubating")
       stay()  // drop message
   }
 
@@ -98,7 +104,7 @@ class ShardManager(entityManager: ActorRef, minNrMembers: Int, initialShards: In
       lsn = lsn + 1
       context.system.eventStream.publish(ShardClusterUp)
       log.debug("shard cluster is UP, we are the leader")
-      nextRebalance = Some(context.system.scheduler.scheduleOnce(2.seconds, self, PerformRebalance(lsn)))
+      nextRebalance = Some(context.system.scheduler.scheduleOnce(initialDelay, self, PerformRebalance(lsn)))
 
     case _ -> Incubating =>
       lsn = lsn + 1
@@ -113,16 +119,20 @@ class ShardManager(entityManager: ActorRef, minNrMembers: Int, initialShards: In
     /*
      * rebalance leader events
      */
-    case Event(PerformRebalance(op), state: Leader) if op != lsn =>
-      log.debug("ignoring rebalance request, lsn does not match")
-      stay()
-
-    case Event(PerformRebalance(op), Leader(members, inflight)) if inflight.isEmpty =>
-      lsn = lsn + 1
-      val proposed = Vector(InitializeRing(members.toVector, initialShards))
-      context.actorOf(ShardRebalancer.props(lsn, proposed, Vector.empty, members.toVector, members, rebalanceTimeout))
-      log.debug("starting initial shard balancing with lsn {}", lsn)
-      log.debug("current members {}", members.mkString(", "))
+    case Event(op: PerformRebalance, state: Leader) =>
+      if (op.lsn == lsn) {
+        state.proposal match {
+          case Some(proposal) =>
+          case None =>
+            lsn = lsn + 1
+            val members = state.members.toVector
+            val mutations = Vector.empty[ShardRingMutation]
+            val name = "rebalancer-%d-%d".format(lsn, System.currentTimeMillis())
+            context.actorOf(ShardRebalancer.props(lsn, mutations, Vector.empty, members, state.members, rebalanceTimeout), name)
+            log.debug("began shard balancing round with lsn {}", lsn)
+            log.debug("current members {}", members.mkString(", "))
+        }
+      } else log.debug("ignoring rebalance request with lsn {}, current lsn is {}", op.lsn, lsn)
       stay()
 
     case Event(RebalancingSucceeds(op), state: Leader) =>
@@ -143,6 +153,7 @@ class ShardManager(entityManager: ActorRef, minNrMembers: Int, initialShards: In
      * rebalance 3PC events
      */
     case Event(op: SolicitRebalancing, state: Leader) =>
+      log.debug("accepted rebalance solicitation with lsn {}", op.lsn)
       val proposal = RebalanceProposal(op.lsn, sender(), op.proposed)
       stay() replying SolicitRebalancingResult(op.lsn, accepted = true) using state.copy(proposal = Some(proposal))
 
@@ -150,18 +161,19 @@ class ShardManager(entityManager: ActorRef, minNrMembers: Int, initialShards: In
       state.proposal match {
         case Some(proposal) =>
           log.debug("applying mutations {} with lsn {} from {}", proposal.mutations, proposal.lsn, proposal.proposer)
-          entityManager ! proposal
+          context.parent ! proposal
         case None =>
           log.debug("can't apply rebalancing with lsn {}, there is no proposal", op)
       }
       stay()
 
     case Event(AppliedProposal(proposal), state: Leader) =>
+      log.debug("locally applied rebalance proposal with lsn {}", proposal.lsn)
       proposal.proposer ! ApplyRebalancingResult(proposal.lsn)
       stay()
 
     case Event(CommitRebalancing(op), state: Leader) =>
-      log.debug("all members have applied mutations with lsn {}", op)
+      log.debug("all members have applied proposal with lsn {}", op)
       context.system.eventStream.publish(ShardClusterRebalances)
       stay() replying CommitRebalancingResult(op) using state.copy(proposal = None)
 
@@ -202,6 +214,7 @@ class ShardManager(entityManager: ActorRef, minNrMembers: Int, initialShards: In
      * rebalance 3PC events
      */
     case Event(op: SolicitRebalancing, state: Follower) =>
+      log.debug("accepted rebalance solicitation with lsn {}", op.lsn)
       val proposal = RebalanceProposal(op.lsn, sender(), op.proposed)
       stay() replying SolicitRebalancingResult(op.lsn, accepted = true) using state.copy(proposal = Some(proposal))
 
@@ -209,18 +222,19 @@ class ShardManager(entityManager: ActorRef, minNrMembers: Int, initialShards: In
       state.proposal match {
         case Some(proposal) =>
           log.debug("applying mutations {} with lsn {} from {}", proposal.mutations, proposal.lsn, proposal.proposer)
-          entityManager ! proposal
+          context.parent ! proposal
         case None =>
           log.debug("can't apply rebalancing with lsn {}, there is no proposal", op)
       }
       stay()
 
     case Event(AppliedProposal(proposal), state: Follower) =>
+      log.debug("locally applied rebalance proposal with lsn {}", proposal.lsn)
       proposal.proposer ! ApplyRebalancingResult(proposal.lsn)
       stay()
 
     case Event(CommitRebalancing(op), state: Follower) =>
-      log.debug("all members have applied mutations with lsn {}", op)
+      log.debug("all members have applied proposal with lsn {}", op)
       context.system.eventStream.publish(ShardClusterRebalances)
       stay() replying CommitRebalancingResult(op) using state.copy(proposal = None)
 
@@ -246,9 +260,7 @@ class ShardManager(entityManager: ActorRef, minNrMembers: Int, initialShards: In
 }
 
 object ShardManager {
-  def props(entityManager: ActorRef, minNrMembers: Int, initialShards: Int) = {
-    Props(classOf[ShardManager], entityManager, minNrMembers, initialShards)
-  }
+  def props(minNrMembers: Int, initialShards: Int) = Props(classOf[ShardManager], minNrMembers, initialShards)
 
   case class PerformRebalance(lsn: Int)
 }

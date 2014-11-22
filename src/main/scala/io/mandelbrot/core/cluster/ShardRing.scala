@@ -15,12 +15,12 @@ class ShardRing extends Serializable {
 
   def shards: Iterable[(Int,Address)] = _shards.entrySet().toIterable.map(entry => entry.getKey -> entry.getValue)
 
-  def apply(key: Int): Option[Address] = {
+  def apply(key: Int): Option[(Int,Address)] = {
     var entry = _shards.floorEntry(key)
     if (entry == null) {
       entry = _shards.lastEntry()
     }
-    if (entry == null) None else Some(entry.getValue)
+    if (entry == null) None else Some(entry.getKey -> entry.getValue)
   }
 
   def size = _shards.size()
