@@ -1,8 +1,7 @@
 package io.mandelbrot.core.cluster
 
-import akka.actor._
 import akka.cluster.Cluster
-import scala.util.hashing.MurmurHash3
+import akka.actor._
 
 import io.mandelbrot.core.ServerConfig
 import io.mandelbrot.core.system.{ProbeSystemOperation, ProbeOperation, ProbeSystem}
@@ -13,7 +12,11 @@ import io.mandelbrot.core.registry.{RegistryServiceQuery, RegistryServiceCommand
  */
 class ClusterCoordinator(registryService: ActorRef) extends Actor with ActorLogging {
 
+  // config
   val settings = ServerConfig(context.system).settings.cluster
+
+  // state
+  var running = false
 
   val keyExtractor: EntityFunctions.KeyExtractor = {
     case op: RegistryServiceCommand => "registry/"
@@ -26,6 +29,7 @@ class ClusterCoordinator(registryService: ActorRef) extends Actor with ActorLogg
     case op: ProbeSystemOperation => ProbeSystem.props(context.parent)
   }
 
+  val clusterMonitor = context.actorOf(ClusterMonitor.props(settings.minNrMembers), "cluster-monitor")
   val entityManager = context.actorOf(EntityManager.props(keyExtractor, propsCreator), "entity-manager")
 
   log.info("server is running in cluster mode")
@@ -34,7 +38,19 @@ class ClusterCoordinator(registryService: ActorRef) extends Actor with ActorLogg
     Cluster(context.system).joinSeedNodes(settings.seedNodes.map(AddressFromURIString(_)).toSeq)
   }
 
+  override def postStop(): Unit = {
+    Cluster(context.system).unsubscribe(self)
+  }
+
   def receive = {
+
+    case event: ClusterUp =>
+      running = true
+      entityManager ! event
+
+    case event: ClusterDown =>
+      running = false
+      entityManager ! event
 
     case op: RegistryServiceQuery =>
       registryService forward op

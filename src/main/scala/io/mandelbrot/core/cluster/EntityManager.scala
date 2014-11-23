@@ -1,7 +1,7 @@
 package io.mandelbrot.core.cluster
 
 import akka.cluster.Cluster
-import akka.actor.{ActorRef, Props, ActorLogging, Actor}
+import akka.actor._
 import scala.util.hashing.MurmurHash3
 import java.util
 
@@ -21,15 +21,28 @@ class EntityManager(keyExtractor: KeyExtractor, propsCreator: PropsCreator) exte
   val shardEntities = new util.HashMap[Int,EntityMap]()
   val entityShards = new util.HashMap[ActorRef,Int]()
 
-  val shardManager = context.actorOf(ShardManager.props(settings.minNrMembers, settings.initialShardCount), "shard-manager")
+  val shardManager = context.actorOf(ShardManager.props(), "shard-manager")
 
   def receive = {
 
+    // notify the shard manager that the cluster is up
+    case state: ClusterUp =>
+      shardManager ! state
+
+    // notify the shard manager that the cluster is down
+    case state: ClusterDown =>
+      shardManager ! state
+
+    // FIXME: this is an unnecessary message used for testing, we should remove this
+    case ShardsRebalanced =>
+      // do nothing
+
+    // apply the mutations specified in the rebalance proposal
     case proposal: RebalanceProposal =>
       // perform rebalancing
       sender() ! AppliedProposal(proposal)
 
-    // send message to the entity, which may be remote or local
+    // send the specified message to the entity, which may be remote or local
     case message: Any if keyExtractor.isDefinedAt(message) =>
       val key = keyExtractor(message)
       shardRing(resolveShard(key)) match {
@@ -51,12 +64,18 @@ class EntityManager(keyExtractor: KeyExtractor, propsCreator: PropsCreator) exte
           }
         // shard exists and is remote
         case Some((shard, address)) =>
+          val selection = context.system.actorSelection(RootActorPath(address) / self.path.elements)
+          selection forward message
 
         // shard doesn't exist
         case None =>
+          log.debug("dropped message {} because no shard could be found", message)
       }
   }
 
+  /**
+   *
+   */
   def resolveShard(key: String): Int = MurmurHash3.stringHash(key)
 }
 

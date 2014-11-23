@@ -21,17 +21,23 @@ class ShardManagerSpec extends ClusterMultiNodeSpec(ClusterMultiNodeConfig) with
 
     "wait for nodes to become ready and initial balancing" in {
 
-      system.eventStream.subscribe(testActor, classOf[ShardManagerEvent])
-      val props = ShardManager.props(initialParticipants, 64)
-      val probe = TestProbe()
-      val childForwarder = system.actorOf(ChildForwarder.props(props, probe.ref), "forwarder")
+      val props = ShardManager.props()
+      val managerProbe = TestProbe()
+      val shardManager = system.actorOf(ChildForwarder.props(props, managerProbe.ref), "fwd-shard-manager")
+      val monitorProbe = TestProbe()
+      val monitor = system.actorOf(ChildForwarder.props(ClusterMonitor.props(minNrMembers = 5), monitorProbe.ref), "fwd-cluster-monitor")
 
       Cluster(system).join(node(node1).address)
 
-      expectMsg(30.seconds, ShardClusterUp)
-      val proposal = probe.expectMsgClass(30.seconds, classOf[RebalanceProposal])
-      probe.reply(AppliedProposal(proposal))
-      expectMsg(30.seconds, ShardClusterRebalances)
+      monitorProbe.ignoreMsg { case event: ClusterDown => true }
+      val clusterEvent = monitorProbe.expectMsgClass(30.seconds, classOf[ClusterUp])
+
+      shardManager ! clusterEvent
+
+      val proposal = managerProbe.expectMsgClass(30.seconds, classOf[RebalanceProposal])
+      managerProbe.reply(AppliedProposal(proposal))
+
+      managerProbe.expectMsg(30.seconds, ShardsRebalanced)
 
       enterBarrier("cluster-up")
     }
