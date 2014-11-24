@@ -20,16 +20,9 @@
 package io.mandelbrot.core.state
 
 import akka.actor._
-import akka.pattern.ask
-import akka.pattern.pipe
-import akka.persistence._
-import akka.util.{ByteString, Timeout}
-import io.mandelbrot.core.history.StatusAppends
+import akka.util.ByteString
 import io.mandelbrot.core.system.ProbeRef
 import org.joda.time.DateTime
-import scala.concurrent.duration._
-import scala.collection.mutable
-import scala.util.{Try, Success, Failure}
 
 import io.mandelbrot.core._
 import io.mandelbrot.core.system._

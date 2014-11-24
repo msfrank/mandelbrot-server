@@ -79,10 +79,7 @@ trait StatusEntriesComponent { this: ArchiverProfile =>
   }
 
   def query(query: GetStatusHistory)(implicit session: Session): Vector[ProbeStatus] = {
-    var q = query.refspec match {
-      case Left(base) => statusEntries.filter(_.probeRef.startsWith(base.toString))
-      case Right(refset) => statusEntries.filter(_.probeRef.inSet(refset.map(_.toString)))
-    }
+    var q =  statusEntries.filter(_.probeRef == query.probeRef)
     for (millis <- query.from.map(_.getMillis))
       q = q.filter(_.timestamp > millis)
     for (millis <- query.to.map(_.getMillis))
@@ -152,10 +149,7 @@ trait NotificationEntriesComponent { this: ArchiverProfile =>
   }
 
   def query(query: GetNotificationHistory)(implicit session: Session): Vector[ProbeNotification] = {
-    var q = query.refspec match {
-      case Left(base) => notificationEntries.filter(_.probeRef.startsWith(base.toString))
-      case Right(refset) => notificationEntries.filter(_.probeRef.inSet(refset.map(_.toString)))
-    }
+    var q = notificationEntries.filter(_.probeRef == query.probeRef)
     for (millis <- query.from.map(_.getMillis))
       q = q.filter(_.timestamp > millis)
     for (millis <- query.to.map(_.getMillis))

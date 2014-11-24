@@ -33,7 +33,6 @@ object MandelbrotServerBuild extends Build {
         "com.typesafe.akka" %% "akka-actor" % akkaVersion,
         "com.typesafe.akka" %% "akka-remote" % akkaVersion,
         "com.typesafe.akka" %% "akka-cluster" % akkaVersion,
-        "com.typesafe.akka" %% "akka-contrib" % akkaVersion,
         "com.typesafe.akka" %% "akka-slf4j" % akkaVersion,
         "io.spray" %% "spray-can" % sprayVersion,
         "io.spray" %% "spray-routing" % sprayVersion,
@@ -88,23 +87,23 @@ object MandelbrotServerBuild extends Build {
 
   ).dependsOn(mandelbrotCoreBuild)
 
-//  lazy val mandelbrotServerSlickBuild = (project in file("persistence-slick"))
-//    .settings(assemblySettings: _*)
-//    .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
-//    .settings(
-//
-//      exportJars := true,
-//      name := "mandelbrot-server-slick",
-//      version := mandelbrotVersion,
-//      scalaVersion := scalaLangVersion,
-//      scalacOptions ++= Seq("-feature", "-deprecation"),
-//      javacOptions ++= Seq("-source", "1.7"),
-//
-//      libraryDependencies ++= Seq(
-//        "com.typesafe.slick" %% "slick" % slickVersion,
-//        "com.h2database" % "h2" % "1.4.177"
-//      )
-//
-//  ).dependsOn(mandelbrotCoreBuild)
+  lazy val mandelbrotServerSlickBuild = (project in file("persistence-slick"))
+    .settings(assemblySettings: _*)
+    .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
+    .settings(
+
+      exportJars := true,
+      name := "mandelbrot-server-slick",
+      version := mandelbrotVersion,
+      scalaVersion := scalaLangVersion,
+      scalacOptions ++= Seq("-feature", "-deprecation"),
+      javacOptions ++= Seq("-source", "1.7"),
+
+      libraryDependencies ++= Seq(
+        "com.typesafe.slick" %% "slick" % slickVersion,
+        "com.h2database" % "h2" % "1.4.177"
+      )
+
+  ).dependsOn(mandelbrotCoreBuild)
 
 }
