@@ -44,8 +44,9 @@ class ServiceProxy extends Actor with ActorLogging {
   val stateService = context.actorOf(StateManager.props(), "state-service")
 
   val coordinator = if (settings.cluster.enabled)
-    context.actorOf(ClusterCoordinator.props(registryService))
-  else context.actorOf(StandaloneCoordinator.props(registryService))
+    context.actorOf(ClusterCoordinator.props(registryService), "cluster-coordinator")
+  else
+    context.actorOf(StandaloneCoordinator.props(registryService), "standalone-coordinator")
 
   def receive = {
 

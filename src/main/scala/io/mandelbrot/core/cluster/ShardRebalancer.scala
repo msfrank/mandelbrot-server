@@ -32,7 +32,7 @@ extends LoggingFSM[ShardRebalancerFSMState,ShardRebalancerFSMData] {
   /* on failure we notify the parent and stop the actor */
   override val supervisorStrategy = OneForOneStrategy(0) {
     case ex: Throwable =>
-      context.parent ! RebalancingFails(lsn)
+      context.parent ! RebalanceResult(succeeded = false, lsn)
       log.debug("rebalancer failed: {}", ex.getMessage)
       SupervisorStrategy.Stop
   }
@@ -68,13 +68,13 @@ extends LoggingFSM[ShardRebalancerFSMState,ShardRebalancerFSMData] {
         } else stay() using Soliciting(replies)
       } else {
         log.debug("peer {} refuses solicitation for rebalance id {}", sender(), lsn)
-        context.parent ! RebalancingFails(lsn)
+        context.parent ! RebalanceResult(succeeded = false, lsn)
         stop()
       }
 
     case Event(RebalancingTimeout, _) =>
       log.debug("rebalancing timed out")
-      context.parent ! RebalancingFails(lsn)
+      context.parent ! RebalanceResult(succeeded = false, lsn)
       stop()
   }
 
@@ -103,7 +103,7 @@ extends LoggingFSM[ShardRebalancerFSMState,ShardRebalancerFSMData] {
 
     case Event(RebalancingTimeout, _) =>
       log.debug("rebalancing timed out")
-      context.parent ! RebalancingFails(lsn)
+      context.parent ! RebalanceResult(succeeded = false, lsn)
       stop()
   }
 
@@ -131,7 +131,7 @@ extends LoggingFSM[ShardRebalancerFSMState,ShardRebalancerFSMData] {
 
     case Event(RebalancingTimeout, _) =>
       log.debug("rebalancing timed out")
-      context.parent ! RebalancingFails(lsn)
+      context.parent ! RebalanceResult(succeeded = false, lsn)
       stop()
   }
 
@@ -150,13 +150,13 @@ extends LoggingFSM[ShardRebalancerFSMState,ShardRebalancerFSMData] {
       val replies = data.replies + sender().path.address
       if (replies.size == peers.size) {
         log.debug("rebalancing complete for id {}", lsn)
-        context.parent ! RebalancingSucceeds(lsn)
+        context.parent ! RebalanceResult(succeeded = true, lsn)
         stop()
       } else stay() using Committing(replies)
 
     case Event(RebalancingTimeout, _) =>
       log.debug("rebalancing timed out")
-      context.parent ! RebalancingFails(lsn)
+      context.parent ! RebalanceResult(succeeded = false, lsn)
       stop()
   }
 
@@ -204,5 +204,4 @@ case class ApplyRebalancingResult(lsn: Int)
 case class CommitRebalancing(lsn: Int)
 case class CommitRebalancingResult(lsn: Int)
 
-case class RebalancingSucceeds(lsn: Int)
-case class RebalancingFails(lsn: Int)
+case class RebalanceResult(succeeded: Boolean, lsn: Int)

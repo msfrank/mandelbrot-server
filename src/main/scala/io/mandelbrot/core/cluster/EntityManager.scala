@@ -11,12 +11,14 @@ import io.mandelbrot.core.cluster.EntityFunctions.{PropsCreator, KeyExtractor}
 /**
  *
  */
-class EntityManager(keyExtractor: KeyExtractor, propsCreator: PropsCreator) extends Actor with ActorLogging {
+class EntityManager(keyExtractor: KeyExtractor, propsCreator: PropsCreator, totalShards: Int) extends Actor with ActorLogging {
   import EntityManager.EntityMap
 
+  // config
   val settings = ServerConfig(context.system).settings.cluster
   val selfAddress = Cluster(context.system).selfAddress
 
+  // state
   val shardRing = ShardRing()
   val shardEntities = new util.HashMap[Int,EntityMap]()
   val entityShards = new util.HashMap[ActorRef,Int]()
@@ -26,21 +28,24 @@ class EntityManager(keyExtractor: KeyExtractor, propsCreator: PropsCreator) exte
   def receive = {
 
     // notify the shard manager that the cluster is up
-    case state: ClusterUp =>
-      shardManager ! state
+    case event: ClusterUp =>
+      shardManager ! event
 
     // notify the shard manager that the cluster is down
-    case state: ClusterDown =>
-      shardManager ! state
+    case event: ClusterDown =>
+      shardManager ! event
+
+    case op: RequestProposal =>
+
+
+    // apply the mutations specified in the rebalance proposal
+    case op: ApplyProposal =>
+      // FIXME: perform rebalancing
+      sender() ! ApplyProposalResult(op)
 
     // FIXME: this is an unnecessary message used for testing, we should remove this
     case ShardsRebalanced =>
       // do nothing
-
-    // apply the mutations specified in the rebalance proposal
-    case proposal: RebalanceProposal =>
-      // perform rebalancing
-      sender() ! AppliedProposal(proposal)
 
     // send the specified message to the entity, which may be remote or local
     case message: Any if keyExtractor.isDefinedAt(message) =>
@@ -86,13 +91,13 @@ object EntityManager {
 }
 
 object EntityFunctions {
-  type ShardResolver = PartialFunction[Any,Int]
   type KeyExtractor = PartialFunction[Any,String]
+  type ShardResolver = PartialFunction[Any,Int]
   type PropsCreator = PartialFunction[Any,Props]
 }
 
-case class RebalanceProposal(lsn: Int, proposer: ActorRef, mutations: Vector[ShardRingMutation])
-case class AppliedProposal(proposal: RebalanceProposal)
+case class RequestProposal(lsn: Int, hatched: Boolean)
+case class RequestProposalResult(op: RequestProposal, mutations: Vector[ShardRingMutation])
 
-case class GetEntityShards()
-case class GetEntityShardsResult(shardCosts: Map[Int,Int])
+case class ApplyProposal(lsn: Int, proposer: ActorRef, mutations: Vector[ShardRingMutation])
+case class ApplyProposalResult(proposal: ApplyProposal)

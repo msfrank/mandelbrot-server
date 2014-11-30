@@ -34,8 +34,8 @@ class ShardManagerSpec extends ClusterMultiNodeSpec(ClusterMultiNodeConfig) with
 
       shardManager ! clusterEvent
 
-      val proposal = managerProbe.expectMsgClass(30.seconds, classOf[RebalanceProposal])
-      managerProbe.reply(AppliedProposal(proposal))
+      val proposal = managerProbe.expectMsgClass(30.seconds, classOf[ApplyProposal])
+      managerProbe.reply(ApplyProposalResult(proposal))
 
       managerProbe.expectMsg(30.seconds, ShardsRebalanced)
 

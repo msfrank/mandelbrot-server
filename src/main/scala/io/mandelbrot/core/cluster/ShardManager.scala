@@ -2,7 +2,6 @@ package io.mandelbrot.core.cluster
 
 import akka.actor._
 import akka.cluster.{MemberStatus, Cluster}
-import akka.cluster.ClusterEvent._
 import scala.concurrent.duration._
 
 /**
@@ -15,7 +14,7 @@ class ShardManager extends LoggingFSM[ShardManagerFSMState,ShardManagerFSMData] 
   // config
   val initialDelay = 3.seconds
   val rebalanceTimeout = 30.seconds
-  val rebalanceInterval = 60.seconds
+  val rebalanceInterval = 95.seconds
   val retryInterval = 3.seconds
   val selfUniqueAddress = Cluster(context.system).selfUniqueAddress
   val selfAddress = Cluster(context.system).selfAddress
@@ -77,6 +76,7 @@ class ShardManager extends LoggingFSM[ShardManagerFSMState,ShardManagerFSMData] 
       lsn = lsn + 1
       nextRebalance.foreach(_.cancel())
       nextRebalance = None
+      hatched = false
       log.debug("shard cluster is DOWN, we incubate")
   }
 
@@ -89,29 +89,28 @@ class ShardManager extends LoggingFSM[ShardManagerFSMState,ShardManagerFSMData] 
       if (op.lsn == lsn) {
         state.proposal match {
           case Some(proposal) =>
-          case None =>
+            log.debug("ignoring rebalance request, proposal {} is in-flight", proposal)
+          case None if !hatched =>
+            // FIXME: implement shard migrations
+          case None if hatched =>
             lsn = lsn + 1
             val members = state.members.toVector
             val mutations = Vector.empty[ShardRingMutation]
             val name = "rebalancer-%d-%d".format(lsn, System.currentTimeMillis())
             context.actorOf(ShardRebalancer.props(lsn, mutations, Vector.empty, members, state.members, rebalanceTimeout), name)
-            log.debug("began shard balancing round with lsn {}", lsn)
-            log.debug("current members {}", members.mkString(", "))
         }
       } else log.debug("ignoring rebalance request with lsn {}, current lsn is {}", op.lsn, lsn)
       stay()
 
-    case Event(RebalancingSucceeds(op), state: Leader) =>
+    case Event(RebalanceResult(succeeded, op), state: Leader) =>
       if (op == lsn) {
-        log.debug("rebalancing {} succeeds, next rebalance in {}", op, rebalanceInterval)
-        nextRebalance = Some(context.system.scheduler.scheduleOnce(rebalanceInterval, self, PerformRebalance(lsn)))
-      }
-      stay()
-
-    case Event(RebalancingFails(op), state: Leader) =>
-      if (op == lsn) {
-        log.debug("rebalancing {} fails, retrying in {}", op, retryInterval)
-        nextRebalance = Some(context.system.scheduler.scheduleOnce(retryInterval, self, PerformRebalance(lsn)))
+        if (succeeded) {
+          log.debug("rebalance {} succeeds, next rebalance in {}", op, rebalanceInterval)
+          nextRebalance = Some(context.system.scheduler.scheduleOnce(rebalanceInterval, self, PerformRebalance(lsn)))
+        } else {
+          log.debug("rebalance {} fails, retrying in {}", op, retryInterval)
+          nextRebalance = Some(context.system.scheduler.scheduleOnce(retryInterval, self, PerformRebalance(lsn)))
+        }
       }
       stay()
 
@@ -120,7 +119,7 @@ class ShardManager extends LoggingFSM[ShardManagerFSMState,ShardManagerFSMData] 
      */
     case Event(op: SolicitRebalancing, state: Leader) =>
       log.debug("accepted rebalance solicitation with lsn {}", op.lsn)
-      val proposal = RebalanceProposal(op.lsn, sender(), op.proposed)
+      val proposal = ApplyProposal(op.lsn, sender(), op.proposed)
       stay() replying SolicitRebalancingResult(op.lsn, accepted = true) using state.copy(proposal = Some(proposal))
 
     case Event(ApplyRebalancing(op), state: Leader) =>
@@ -133,7 +132,8 @@ class ShardManager extends LoggingFSM[ShardManagerFSMState,ShardManagerFSMData] 
       }
       stay()
 
-    case Event(AppliedProposal(proposal), state: Leader) =>
+    case Event(ApplyProposalResult(proposal), state: Leader) =>
+      hatched = true
       log.debug("locally applied rebalance proposal with lsn {}", proposal.lsn)
       proposal.proposer ! ApplyRebalancingResult(proposal.lsn)
       stay()
@@ -178,7 +178,7 @@ class ShardManager extends LoggingFSM[ShardManagerFSMState,ShardManagerFSMData] 
      */
     case Event(op: SolicitRebalancing, state: Follower) =>
       log.debug("accepted rebalance solicitation with lsn {}", op.lsn)
-      val proposal = RebalanceProposal(op.lsn, sender(), op.proposed)
+      val proposal = ApplyProposal(op.lsn, sender(), op.proposed)
       stay() replying SolicitRebalancingResult(op.lsn, accepted = true) using state.copy(proposal = Some(proposal))
 
     case Event(ApplyRebalancing(op), state: Follower) =>
@@ -191,7 +191,7 @@ class ShardManager extends LoggingFSM[ShardManagerFSMState,ShardManagerFSMData] 
       }
       stay()
 
-    case Event(AppliedProposal(proposal), state: Follower) =>
+    case Event(ApplyProposalResult(proposal), state: Follower) =>
       log.debug("locally applied rebalance proposal with lsn {}", proposal.lsn)
       proposal.proposer ! ApplyRebalancingResult(proposal.lsn)
       stay()
@@ -232,7 +232,7 @@ case object Follower extends ShardManagerFSMState
 
 sealed trait ShardManagerFSMData
 case class Incubating(leader: Option[Address], members: Set[Address]) extends ShardManagerFSMData
-case class Leader(members: Set[Address], proposal: Option[RebalanceProposal]) extends ShardManagerFSMData
-case class Follower(leader: Address, members: Set[Address], proposal: Option[RebalanceProposal]) extends ShardManagerFSMData
+case class Leader(members: Set[Address], proposal: Option[ApplyProposal]) extends ShardManagerFSMData
+case class Follower(leader: Address, members: Set[Address], proposal: Option[ApplyProposal]) extends ShardManagerFSMData
 
 case object ShardsRebalanced
