@@ -24,27 +24,27 @@ class ClusterMonitor(minNrMembers: Int) extends Actor with ActorLogging {
 
     case MemberUp(member) =>
       log.debug("cluster member {} is now UP", member)
-      context.parent ! currentState
+      sendCurrentState(currentState)
 
     case MemberExited(member) =>
       log.debug("cluster member {} exits", member)
-      context.parent ! currentState
+      sendCurrentState(currentState)
 
     case MemberRemoved(member, previous) =>
       log.debug("cluster member {} has been removed", member)
-      context.parent ! currentState
+      sendCurrentState(currentState)
 
     case LeaderChanged(leader) =>
       log.debug("cluster leader changes to {}", leader)
-      context.parent ! currentState
+      sendCurrentState(currentState)
 
     case ReachableMember(member) =>
       log.debug("cluster member {} becomes reachable", member)
-      context.parent ! currentState
+      sendCurrentState(currentState)
 
     case UnreachableMember(member) =>
       log.debug("cluster member {} becomes unreachable", member)
-      context.parent ! currentState
+      sendCurrentState(currentState)
 
     case event: ClusterDomainEvent =>
       log.debug("ignoring cluster domain event {}", event)
@@ -60,6 +60,11 @@ class ClusterMonitor(minNrMembers: Int) extends Actor with ActorLogging {
     else
       ClusterUp(state.leader.get, state)
   }
+
+  def sendCurrentState(currentState: ClusterMonitorEvent): Unit = {
+    context.parent ! currentState
+    context.system.eventStream.publish(currentState)
+  }
 }
 
 object ClusterMonitor {
@@ -69,3 +74,4 @@ object ClusterMonitor {
 sealed trait ClusterMonitorEvent
 case class ClusterUp(leader: Address, state: CurrentClusterState) extends ClusterMonitorEvent
 case class ClusterDown(state: CurrentClusterState) extends ClusterMonitorEvent
+case object ClusterUnknown extends ClusterMonitorEvent

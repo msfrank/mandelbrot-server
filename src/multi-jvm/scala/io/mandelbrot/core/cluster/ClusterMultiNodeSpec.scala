@@ -3,8 +3,8 @@ package io.mandelbrot.core.cluster
 import com.typesafe.config.ConfigFactory
 import akka.remote.testkit._
 import akka.util.Timeout
-import org.scalatest.{WordSpecLike, WordSpec, BeforeAndAfterAll}
-import org.scalatest.matchers.MustMatchers
+import org.scalatest.{WordSpecLike, BeforeAndAfterAll}
+import org.scalatest.matchers.ShouldMatchers
 import scala.concurrent.duration._
 
 import org.slf4j.LoggerFactory
@@ -16,7 +16,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 abstract class ClusterMultiNodeSpec(config: MultiNodeConfig) extends MultiNodeSpec(config)
   with MultiNodeSpecCallbacks
   with WordSpecLike
-  with MustMatchers
+  with ShouldMatchers
   with BeforeAndAfterAll {
 
   override def beforeAll() = multiNodeSpecBeforeAll()

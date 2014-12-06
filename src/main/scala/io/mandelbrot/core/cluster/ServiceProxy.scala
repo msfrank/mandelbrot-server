@@ -43,12 +43,27 @@ class ServiceProxy extends Actor with ActorLogging {
   val notificationService = context.actorOf(NotificationManager.props(), "notification-service")
   val stateService = context.actorOf(StateManager.props(), "state-service")
 
+  //
+  val keyExtractor: EntityFunctions.KeyExtractor = {
+    case op: RegistryServiceCommand => "registry/"
+    case op: ProbeOperation => "system/" + op.probeRef.uri.toString
+    case op: ProbeSystemOperation => "system/" + op.uri.toString
+  }
+  val propsCreator: EntityFunctions.PropsCreator = {
+    case op: RegistryServiceCommand => RegistryCoordinator.props(registryService)
+    case op: ProbeOperation => ProbeSystem.props(services = self)
+    case op: ProbeSystemOperation => ProbeSystem.props(services = self)
+  }
+
   val coordinator = if (settings.cluster.enabled)
-    context.actorOf(ClusterCoordinator.props(registryService), "cluster-coordinator")
+    context.actorOf(ClusterManager.props(settings.cluster, keyExtractor, propsCreator), "cluster-coordinator")
   else
     context.actorOf(StandaloneCoordinator.props(registryService), "standalone-coordinator")
 
   def receive = {
+
+    case op: RegistryServiceQuery =>
+      registryService forward op
 
     case op: RegistryServiceOperation =>
       coordinator forward op
