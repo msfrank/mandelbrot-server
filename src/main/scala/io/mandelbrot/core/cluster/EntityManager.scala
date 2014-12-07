@@ -2,6 +2,7 @@ package io.mandelbrot.core.cluster
 
 import akka.cluster.Cluster
 import akka.actor._
+import io.mandelbrot.core.{ResourceNotFound, BadRequest, ApiException}
 import org.joda.time.DateTime
 import scala.concurrent.duration._
 import scala.util.hashing.MurmurHash3
@@ -21,9 +22,9 @@ class EntityManager(coordinator: ActorRef,
   import context.dispatcher
 
   // config
+  val selfAddress = Cluster(context.system).selfAddress
   val statsDelay = 30.seconds
   val statsInterval = 1.minute
-  val selfAddress = Cluster(context.system).selfAddress
 
   // state
   val shardRing = ShardRing()
@@ -80,14 +81,17 @@ class EntityManager(coordinator: ActorRef,
             val entityRefs = localEntities.get(shardId)
             val entityKey = keyExtractor(envelope.message)
             entityRefs.get(entityKey) match {
-              // entity doesn't exist in shard, so create it
+              // entity doesn't exist in shard
               case null =>
-                val props = propsCreator(envelope.message)
-                val entity = context.actorOf(props)
-                context.watch(entity)
-                entityRefs.put(entityKey, entity)
-                entityShards.put(entity, shardId)
-                entity.tell(envelope.message, envelope.sender)
+                // if this message creates props, then create the actor
+                if (propsCreator.isDefinedAt(envelope.message)) {
+                  val props = propsCreator(envelope.message)
+                  val entity = context.actorOf(props)
+                  context.watch(entity)
+                  entityRefs.put(entityKey, entity)
+                  entityShards.put(entity, shardId)
+                  entity.tell(envelope.message, envelope.sender)
+                } else envelope.sender ! EntityDeliveryFailed(envelope, new ApiException(ResourceNotFound))
               // entity exists, forward the message to it
               case entity: ActorRef =>
                 entity.tell(envelope.message, envelope.sender)
@@ -98,14 +102,14 @@ class EntityManager(coordinator: ActorRef,
             if (envelope.attempts > 0) {
               val selection = context.system.actorSelection(RootActorPath(address) / self.path.elements)
               selection ! envelope.copy(attempts = envelope.attempts - 1)
-            } else log.warning("dropped message, too many attempts")
+            } else envelope.sender ! EntityDeliveryFailed(envelope, new ApiException(ResourceNotFound))
 
           // shard is remote and there is no cached location
           case None =>
             bufferedMessages = bufferedMessages :+ BufferedEnvelope(envelope, shardKey, DateTime.now())
             coordinator ! GetShard(shardKey)
         }
-      } else log.debug("dropped message {} because no key extractor could be found", envelope.message)
+      } else envelope.sender ! EntityDeliveryFailed(envelope, new ApiException(BadRequest))
   }
   
 }
@@ -128,3 +132,5 @@ object EntityFunctions {
 
 case class EntityEnvelope(sender: ActorRef, message: Any, attempts: Int)
 case class RedirectNack(message: Any, attempts: Int)
+
+case class EntityDeliveryFailed(envelope: EntityEnvelope, failure: Throwable)

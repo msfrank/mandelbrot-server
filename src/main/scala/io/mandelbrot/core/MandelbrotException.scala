@@ -27,7 +27,7 @@ class MandelbrotException(message: String, cause: Throwable) extends Exception(m
 /**
  * abstract base class for all API failures.
  */
-abstract class ApiFailure(val description: String)
+sealed abstract class ApiFailure(val description: String) extends Exception(description)
 
 /**
  * trait and companion object for API failures which indicate the operation
@@ -84,4 +84,4 @@ case object InternalError extends ApiFailure("internal error") with InternalErro
 /**
  * Exception which wraps an API failure.
  */
-class ApiException(val failure: ApiFailure) extends MandelbrotException(failure.description)
+class ApiException(val failure: ApiFailure) extends MandelbrotException(failure.description, failure)

@@ -1,7 +1,8 @@
 package io.mandelbrot.core.cluster
 
-import akka.actor.{ActorRef, Props, Actor}
+import akka.actor.{ActorLogging, ActorRef, Props, Actor}
 import akka.testkit.{TestProbe, ImplicitSender}
+import io.mandelbrot.core.{BadRequest, ApiException, ResourceNotFound}
 import scala.concurrent.duration._
 
 class ClusterManagerSpecMultiJvmNode1 extends ClusterManagerSpec
@@ -41,7 +42,7 @@ class ClusterManagerSpec extends ClusterMultiNodeSpec(ClusterMultiNodeConfig) wi
       enterBarrier("cluster-up")
     }
 
-    "send a message to a local entity" in {
+    "create a local entity" in {
       runOn(node1) {
         clusterManager ! TestEntityCreate("test1", 1, 1)
         val reply = expectMsgClass(classOf[TestCreateReply])
@@ -51,15 +52,68 @@ class ClusterManagerSpec extends ClusterMultiNodeSpec(ClusterMultiNodeConfig) wi
       enterBarrier("send-local-create")
     }
 
-    "send a message to a remote entity" in {
+    "send a message to a local entity" in {
       runOn(node1) {
-        clusterManager ! TestEntityCreate("test2", 2, 2)
+        clusterManager ! TestEntityMessage("test1", 1, 2)
+        val reply = expectMsgClass(classOf[TestMessageReply])
+        lastSender.path.address.hasLocalScope shouldEqual true
+        reply.message should be(2)
+      }
+      enterBarrier("send-local-message")
+    }
+
+    "receive delivery failure sending a message to a nonexistent local entity" in {
+      runOn(node1) {
+        clusterManager ! TestEntityMessage("missing", 1, 3)
+        val reply = expectMsgClass(classOf[EntityDeliveryFailed])
+        lastSender.path.address.hasLocalScope shouldEqual true
+        reply.failure.getCause shouldEqual ResourceNotFound
+      }
+      enterBarrier("local-delivery-failure")
+    }
+
+    "receive delivery failure sending a message of unknown type" in {
+      case object UnknownMessageType
+      runOn(node1) {
+        clusterManager ! UnknownMessageType
+        val reply = expectMsgClass(classOf[EntityDeliveryFailed])
+        lastSender.path.address.hasLocalScope shouldEqual true
+        reply.failure.getCause shouldEqual BadRequest
+      }
+      enterBarrier("unknown-message-type")
+    }
+
+    "create a remote entity" in {
+      runOn(node1) {
+        clusterManager ! TestEntityCreate("test2", 2, 4)
         val reply = expectMsgClass(classOf[TestCreateReply])
         lastSender.path.address.hasLocalScope shouldEqual false
         lastSender.path.address shouldEqual node(node2).address
-        reply.message should be(2)
+        reply.message should be(4)
       }
       enterBarrier("send-remote-create")
+    }
+
+    "send a message to a remote entity" in {
+      runOn(node1) {
+        clusterManager ! TestEntityMessage("test2", 2, 5)
+        val reply = expectMsgClass(classOf[TestMessageReply])
+        lastSender.path.address.hasLocalScope shouldEqual false
+        lastSender.path.address shouldEqual node(node2).address
+        reply.message should be(5)
+      }
+      enterBarrier("send-remote-message")
+    }
+
+    "receive delivery failure sending a message to a nonexistent remote entity" in {
+      runOn(node1) {
+        clusterManager ! TestEntityMessage("missing", 2, 6)
+        val reply = expectMsgClass(classOf[EntityDeliveryFailed])
+        lastSender.path.address.hasLocalScope shouldEqual false
+        lastSender.path.address shouldEqual node(node2).address
+        reply.failure.getCause shouldEqual ResourceNotFound
+      }
+      enterBarrier("remote-delivery-failure")
     }
 
   }
@@ -71,10 +125,15 @@ case class TestCreateReply(message: Any)
 case class TestEntityMessage(key: String, shard: Int, message: Any)
 case class TestMessageReply(message: Any)
 
-class TestEntity extends Actor {
+class TestEntity extends Actor with ActorLogging {
+  log.debug("initialized TestEntity")
   def receive = {
-    case TestEntityCreate(key, shard, message) => sender() ! TestCreateReply(message)
-    case TestEntityMessage(key, shard, message) => sender() ! TestMessageReply(message)
+    case m @ TestEntityCreate(key, shard, message) =>
+      log.debug("received {}", m)
+      sender() ! TestCreateReply(message)
+    case m @ TestEntityMessage(key, shard, message) =>
+      log.debug("received {}", m)
+      sender() ! TestMessageReply(message)
   }
 }
 
