@@ -116,6 +116,62 @@ class ClusterManagerSpec extends ClusterMultiNodeSpec(ClusterMultiNodeConfig) wi
       enterBarrier("remote-delivery-failure")
     }
 
+    "send message which is redirected" in {
+      runOn(node1) {
+        shards.put(10, 1, node(node2).address)
+        enterBarrier("setup-successful-redirect")
+      }
+      runOn(node2) {
+        shards.put(10, 1, node(node3).address)
+        enterBarrier("setup-successful-redirect")
+      }
+      runOn(node3) {
+        shards.put(10, 1, node(node3).address)
+        enterBarrier("setup-successful-redirect")
+      }
+      runOn(node4, node5) {
+        enterBarrier("setup-successful-redirect")
+      }
+      runOn(node1) {
+        clusterManager ! TestEntityCreate("redirect-succeeds", 10, 7)
+        val reply = expectMsgClass(classOf[TestCreateReply])
+        lastSender.path.address.hasLocalScope shouldEqual false
+        lastSender.path.address shouldEqual node(node3).address
+        reply.message should be(7)
+      }
+      enterBarrier("finish-successful-redirect")
+    }
+
+    "receive delivery failure sending a message which redirects too many times" in {
+      runOn(node1) {
+        shards.put(11, 1, node(node2).address)
+        enterBarrier("setup-redirect-failure")
+      }
+      runOn(node2) {
+        shards.put(11, 1, node(node3).address)
+        enterBarrier("setup-redirect-failure")
+      }
+      runOn(node3) {
+        shards.put(11, 1, node(node4).address)
+        enterBarrier("setup-redirect-failure")
+      }
+      runOn(node4) {
+        shards.put(11, 1, node(node5).address)
+        enterBarrier("setup-redirect-failure")
+      }
+      runOn(node5) {
+        shards.put(11, 1, node(node5).address)
+        enterBarrier("setup-redirect-failure")
+      }
+      runOn(node1) {
+        clusterManager ! TestEntityCreate("redirect-fails", 11, 7)
+        val reply = expectMsgClass(classOf[EntityDeliveryFailed])
+        lastSender.path.address.hasLocalScope shouldEqual false
+        lastSender.path.address shouldEqual node(node4).address
+        reply.failure.getCause shouldEqual ResourceNotFound
+      }
+      enterBarrier("finish-redirect-failure")
+    }
   }
 }
 

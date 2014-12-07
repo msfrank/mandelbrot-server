@@ -46,30 +46,6 @@ class EntityManager(coordinator: ActorRef,
   
   def receive = {
 
-    // update shard ring and flush buffered messages
-    case result: GetShardResult =>
-      log.debug("shard {}+{} exists at {}", result.shardId, result.width, result.address)
-      shardRing.put(result.shardId, result.width, result.address)
-      if (result.address.equals(selfAddress)) {
-        localEntities.put(result.shardId, new EntityMap)
-      }
-      val lowerBound = result.shardId
-      val upperBound = result.shardId + result.width
-      bufferedMessages = bufferedMessages.filter { buffered =>
-          if (shardRing.contains(buffered.shardKey)) {
-            self ! buffered.envelope
-            false
-          } else true
-      }
-
-    // update shard allocation statistics
-    case PerformUpdate =>
-      if (lastUpdate.getMillis > 0) {
-        val allocations = localEntities.entrySet().map(e => (e.getKey, e.getValue.size())).toMap
-        coordinator ! UpdateMemberShards(allocations)
-      }
-      lastUpdate = DateTime.now()
-
     // send the specified message to the entity, which may be remote or local
     case envelope: EntityEnvelope =>
       if (keyExtractor.isDefinedAt(envelope.message)) {
@@ -102,6 +78,9 @@ class EntityManager(coordinator: ActorRef,
             if (envelope.attempts > 0) {
               val selection = context.system.actorSelection(RootActorPath(address) / self.path.elements)
               selection ! envelope.copy(attempts = envelope.attempts - 1)
+              // if the sender is remote, then notify the sender entity manager about the stale shard mapping
+              if (!envelope.sender.path.address.equals(selfAddress))
+                sender() ! StaleShard(shardKey, shardId, address)
             } else envelope.sender ! EntityDeliveryFailed(envelope, new ApiException(ResourceNotFound))
 
           // shard is remote and there is no cached location
@@ -110,6 +89,35 @@ class EntityManager(coordinator: ActorRef,
             coordinator ! GetShard(shardKey)
         }
       } else envelope.sender ! EntityDeliveryFailed(envelope, new ApiException(BadRequest))
+
+    // shard mapping is stale, request updated data from the coordinator
+    case StaleShard(shardKey, shardId, address) =>
+      log.debug("{} says shardId {} is stale for shardKey {}", sender().path, shardId, shardKey)
+      coordinator ! GetShard(shardKey)
+
+    // update shard ring and flush buffered messages
+    case result: GetShardResult =>
+      log.debug("shard {}+{} exists at {}", result.shardId, result.width, result.address)
+      shardRing.put(result.shardId, result.width, result.address)
+      if (result.address.equals(selfAddress)) {
+        localEntities.put(result.shardId, new EntityMap)
+      }
+      val lowerBound = result.shardId
+      val upperBound = result.shardId + result.width
+      bufferedMessages = bufferedMessages.filter { buffered =>
+          if (shardRing.contains(buffered.shardKey)) {
+            self ! buffered.envelope
+            false
+          } else true
+      }
+
+    // update shard allocation statistics
+    case PerformUpdate =>
+      if (lastUpdate.getMillis > 0) {
+        val allocations = localEntities.entrySet().map(e => (e.getKey, e.getValue.size())).toMap
+        coordinator ! UpdateMemberShards(allocations)
+      }
+      lastUpdate = DateTime.now()
   }
   
 }
@@ -121,6 +129,7 @@ object EntityManager {
 
   class EntityMap extends util.HashMap[String,ActorRef]
   case class BufferedEnvelope(envelope: EntityEnvelope, shardKey: Int, timestamp: DateTime)
+  case class StaleShard(shardKey: Int, shardId: Int, address: Address)
   case object PerformUpdate
 }
 
@@ -131,6 +140,5 @@ object EntityFunctions {
 }
 
 case class EntityEnvelope(sender: ActorRef, message: Any, attempts: Int)
-case class RedirectNack(message: Any, attempts: Int)
 
 case class EntityDeliveryFailed(envelope: EntityEnvelope, failure: Throwable)
