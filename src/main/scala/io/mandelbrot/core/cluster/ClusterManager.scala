@@ -3,13 +3,16 @@ package io.mandelbrot.core.cluster
 import akka.cluster.Cluster
 import akka.actor._
 
-import io.mandelbrot.core.{BadRequest, ApiException, ServiceExtension, ServerConfig}
-import io.mandelbrot.core.cluster.EntityFunctions.{KeyExtractor, PropsCreator}
+import io.mandelbrot.core.{BadRequest, ApiException, ServiceExtension}
+import io.mandelbrot.core.cluster.EntityFunctions.{ShardResolver, KeyExtractor, PropsCreator}
 
 /**
  * 
  */
-class ClusterManager(settings: ClusterSettings, keyExtractor: KeyExtractor, propsCreator: PropsCreator) extends Actor with ActorLogging {
+class ClusterManager(settings: ClusterSettings,
+                     shardResolver: ShardResolver,
+                     keyExtractor: KeyExtractor,
+                     propsCreator: PropsCreator) extends Actor with ActorLogging {
 
   // state
   var incubating = true
@@ -21,7 +24,7 @@ class ClusterManager(settings: ClusterSettings, keyExtractor: KeyExtractor, prop
     log.info("loading coordinator plugin {}", settings.coordinator.plugin)
     context.actorOf(props, "coordinator")
   }
-  val entityManager = context.actorOf(EntityManager.props(coordinator, keyExtractor, propsCreator), "entity-manager")
+  val entityManager = context.actorOf(EntityManager.props(coordinator, shardResolver, keyExtractor, propsCreator), "entity-manager")
   val clusterMonitor = context.actorOf(ClusterMonitor.props(settings.minNrMembers), "cluster-monitor")
 
   log.info("initializing cluster mode")
@@ -47,17 +50,15 @@ class ClusterManager(settings: ClusterSettings, keyExtractor: KeyExtractor, prop
       } else
         sender() ! ClusterServiceOperationFailed(op, new ApiException(BadRequest))
 
-    // cluster monitor emits this message, we push down to shard balancer
+    // cluster monitor emits this message
     case event: ClusterUp =>
       running = true
       status = event
-      entityManager ! event
 
-    // cluster monitor emits this message, we push down to shard balancer
+    // cluster monitor emits this message
     case event: ClusterDown =>
       running = false
       status = event
-      entityManager ! event
 
     // return the current cluster status known by the cluster monitor
     case op: GetClusterStatus =>
@@ -70,8 +71,8 @@ class ClusterManager(settings: ClusterSettings, keyExtractor: KeyExtractor, prop
 }
 
 object ClusterManager {
-  def props(settings: ClusterSettings, keyExtractor: KeyExtractor, propsCreator: PropsCreator) = {
-    Props(classOf[ClusterManager], settings, keyExtractor, propsCreator)
+  def props(settings: ClusterSettings, shardResolver: ShardResolver, keyExtractor: KeyExtractor, propsCreator: PropsCreator) = {
+    Props(classOf[ClusterManager], settings, shardResolver, keyExtractor, propsCreator)
   }
 }
 
@@ -90,7 +91,7 @@ case class GetClusterStatus() extends ClusterServiceQuery
 case class GetClusterStatusResult(op: GetClusterStatus, status: ClusterMonitorEvent)
 
 case class GetShard(shardKey: Int) extends ClusterServiceQuery
-case class GetShardResult(op: GetShard, shardId: Int, address: Address)
+case class GetShardResult(op: GetShard, shardId: Int, width: Int, address: Address)
 
 /* marker trait for Coordinator implementations */
 trait Coordinator

@@ -1,5 +1,7 @@
 package io.mandelbrot.core.cluster
 
+import java.io.File
+
 import com.typesafe.config.ConfigFactory
 import akka.remote.testkit._
 import akka.util.Timeout
@@ -31,19 +33,27 @@ abstract class ClusterMultiNodeSpec(config: MultiNodeConfig) extends MultiNodeSp
   ple.setContext(lc)
   ple.start()
 
-  private val fileAppender = new FileAppender[ILoggingEvent]()
-  fileAppender.setFile("target/test_%s.log".format(getClass.getSimpleName))
-  fileAppender.setEncoder(ple)
-  fileAppender.setContext(lc)
-  fileAppender.start()
+  private val fileAppender = {
+    val file = new File("target/test_%s.log".format(getClass.getSimpleName))
+    if (file.exists()) {
+      file.delete()
+      println("removed log file " + file.getAbsolutePath)
+    }
+    val appender = new FileAppender[ILoggingEvent]()
+    appender.setFile(file.getAbsolutePath)
+    appender.setEncoder(ple)
+    appender.setContext(lc)
+    appender.start()
+    appender
+  }
 
   private val rootLogger = lc.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME)
   rootLogger.setLevel(Level.INFO)
   rootLogger.addAppender(fileAppender)
-  private val smrLogger = lc.getLogger("io.mandelbrot.core.cluster")
-  smrLogger.setLevel(Level.DEBUG)
-  smrLogger.setAdditive(false)
-  smrLogger.addAppender(fileAppender)
+  private val mandelbrotLogger = lc.getLogger("io.mandelbrot")
+  mandelbrotLogger.setLevel(Level.DEBUG)
+  mandelbrotLogger.setAdditive(false)
+  mandelbrotLogger.addAppender(fileAppender)
 }
 
 object ClusterMultiNodeConfig extends MultiNodeConfig {

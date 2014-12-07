@@ -18,21 +18,23 @@ class ShardRingSpec extends WordSpec with ShouldMatchers {
 
     "initialize empty" in {
       val shardRing = ShardRing()
-      shardRing.shards.toVector should be === Vector()
+      shardRing.nonEmpty should be(false)
+      shardRing.isEmpty should be(true)
     }
 
     "map keys to shards" in {
       val shardRing = ShardRing()
-      shardRing.put(10, address1)
-      shardRing.put(20, address2)
-      shardRing.put(30, address3)
-      shardRing(0) should be === Some((30, address3))
-      shardRing(10) should be === Some((10, address1))
-      shardRing(15) should be === Some((10, address1))
-      shardRing(20) should be === Some((20, address2))
-      shardRing(25) should be === Some((20, address2))
-      shardRing(30) should be === Some((30, address3))
-      shardRing(35) should be === Some((30, address3))
+      shardRing.put(10, 10, address1)
+      shardRing.put(20, 10, address2)
+      shardRing.put(30, 10, address3)
+      shardRing(0) shouldEqual None
+      shardRing(10) shouldEqual Some((10, address1))
+      shardRing(15) shouldEqual Some((10, address1))
+      shardRing(20) shouldEqual Some((20, address2))
+      shardRing(25) shouldEqual Some((20, address2))
+      shardRing(30) shouldEqual Some((30, address3))
+      shardRing(35) shouldEqual Some((30, address3))
+      shardRing(40) shouldEqual None
     }
 
     "not map a key to a shard if the ring is empty" in {

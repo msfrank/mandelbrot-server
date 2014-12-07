@@ -29,6 +29,8 @@ import io.mandelbrot.core.registry._
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.tracking._
 
+import scala.util.hashing.MurmurHash3
+
 /**
  * ServiceProxy is a router for all service operation messages, responsible for sending
  * operations to the correct service.
@@ -49,6 +51,9 @@ class ServiceProxy extends Actor with ActorLogging {
     case op: ProbeOperation => "system/" + op.probeRef.uri.toString
     case op: ProbeSystemOperation => "system/" + op.uri.toString
   }
+  val shardResolver: EntityFunctions.ShardResolver = {
+    case message => MurmurHash3.stringHash(keyExtractor(message))
+  }
   val propsCreator: EntityFunctions.PropsCreator = {
     case op: RegistryServiceCommand => RegistryCoordinator.props(registryService)
     case op: ProbeOperation => ProbeSystem.props(services = self)
@@ -56,7 +61,7 @@ class ServiceProxy extends Actor with ActorLogging {
   }
 
   val coordinator = if (settings.cluster.enabled)
-    context.actorOf(ClusterManager.props(settings.cluster, keyExtractor, propsCreator), "cluster-coordinator")
+    context.actorOf(ClusterManager.props(settings.cluster, shardResolver, keyExtractor, propsCreator), "cluster-coordinator")
   else
     context.actorOf(StandaloneCoordinator.props(registryService), "standalone-coordinator")
 

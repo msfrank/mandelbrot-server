@@ -47,7 +47,7 @@ class ClusterMonitor(minNrMembers: Int) extends Actor with ActorLogging {
       sendCurrentState(currentState)
 
     case event: ClusterDomainEvent =>
-      log.debug("ignoring cluster domain event {}", event)
+      //log.debug("ignoring cluster domain event {}", event)
   }
 
   def currentState: ClusterMonitorEvent = {
