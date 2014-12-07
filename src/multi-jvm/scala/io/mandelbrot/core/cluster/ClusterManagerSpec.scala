@@ -50,6 +50,18 @@ class ClusterManagerSpec extends ClusterMultiNodeSpec(ClusterMultiNodeConfig) wi
       }
       enterBarrier("send-local-create")
     }
+
+    "send a message to a remote entity" in {
+      runOn(node1) {
+        clusterManager ! TestEntityCreate("test2", 2, 2)
+        val reply = expectMsgClass(classOf[TestCreateReply])
+        lastSender.path.address.hasLocalScope shouldEqual false
+        lastSender.path.address shouldEqual node(node2).address
+        reply.message should be(2)
+      }
+      enterBarrier("send-remote-create")
+    }
+
   }
 }
 

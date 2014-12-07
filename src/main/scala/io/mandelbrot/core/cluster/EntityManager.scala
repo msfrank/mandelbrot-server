@@ -29,7 +29,7 @@ class EntityManager(coordinator: ActorRef,
   val shardRing = ShardRing()
   val localEntities = new util.HashMap[Int,EntityMap]()
   val entityShards = new util.HashMap[ActorRef,Int]()
-  var bufferedMessages = Vector.empty[BufferedMessage]
+  var bufferedMessages = Vector.empty[BufferedEnvelope]
   var lastUpdate = new DateTime(0)
   var updateStats: Option[Cancellable] = None
 
@@ -56,7 +56,7 @@ class EntityManager(coordinator: ActorRef,
       val upperBound = result.shardId + result.width
       bufferedMessages = bufferedMessages.filter { buffered =>
           if (shardRing.contains(buffered.shardKey)) {
-            self.tell(buffered.message, buffered.sender)
+            self ! buffered.envelope
             false
           } else true
       }
@@ -69,51 +69,45 @@ class EntityManager(coordinator: ActorRef,
       }
       lastUpdate = DateTime.now()
 
-    // a message was redirected to this member from elsewhere
-    case redirect: RedirectMessage =>
-      log.debug("dropping redirect message {}", redirect)
-
     // send the specified message to the entity, which may be remote or local
-    case message: Any =>
-      if (keyExtractor.isDefinedAt(message)) {
-        val shardKey = shardResolver(message)
+    case envelope: EntityEnvelope =>
+      if (keyExtractor.isDefinedAt(envelope.message)) {
+        val shardKey = shardResolver(envelope.message)
         shardRing(shardKey) match {
 
           // shard is local
           case Some((shardId, address)) if address.equals(selfAddress) =>
             val entityRefs = localEntities.get(shardId)
-            val entityKey = keyExtractor(message)
+            val entityKey = keyExtractor(envelope.message)
             entityRefs.get(entityKey) match {
               // entity doesn't exist in shard, so create it
               case null =>
-                val props = propsCreator(message)
+                val props = propsCreator(envelope.message)
                 val entity = context.actorOf(props)
                 context.watch(entity)
                 entityRefs.put(entityKey, entity)
                 entityShards.put(entity, shardId)
-                entity forward message
+                entity.tell(envelope.message, envelope.sender)
               // entity exists, forward the message to it
               case entity: ActorRef =>
-                entity forward message
+                entity.tell(envelope.message, envelope.sender)
             }
 
           // shard is remote and its location is cached
           case Some((shardId, address)) =>
-            val selection = context.system.actorSelection(RootActorPath(address) / self.path.elements)
-            selection ! RedirectMessage(sender(), message, attempts = 3)
+            if (envelope.attempts > 0) {
+              val selection = context.system.actorSelection(RootActorPath(address) / self.path.elements)
+              selection ! envelope.copy(attempts = envelope.attempts - 1)
+            } else log.warning("dropped message, too many attempts")
 
           // shard is remote and there is no cached location
           case None =>
-            bufferedMessages = bufferedMessages :+ BufferedMessage(sender(), message, shardKey, DateTime.now())
+            bufferedMessages = bufferedMessages :+ BufferedEnvelope(envelope, shardKey, DateTime.now())
             coordinator ! GetShard(shardKey)
         }
-      } else log.debug("dropped message {} because no key extractor could be found", message)
+      } else log.debug("dropped message {} because no key extractor could be found", envelope.message)
   }
-
-  /**
-   *
-   */
-  def resolveShard(key: String): Int = MurmurHash3.stringHash(key)
+  
 }
 
 object EntityManager {
@@ -122,7 +116,7 @@ object EntityManager {
   }
 
   class EntityMap extends util.HashMap[String,ActorRef]
-  case class BufferedMessage(sender: ActorRef, message: Any, shardKey: Int, timestamp: DateTime)
+  case class BufferedEnvelope(envelope: EntityEnvelope, shardKey: Int, timestamp: DateTime)
   case object PerformUpdate
 }
 
@@ -132,5 +126,5 @@ object EntityFunctions {
   type PropsCreator = PartialFunction[Any,Props]
 }
 
-case class RedirectMessage(sender: ActorRef, message: Any, attempts: Int)
+case class EntityEnvelope(sender: ActorRef, message: Any, attempts: Int)
 case class RedirectNack(message: Any, attempts: Int)

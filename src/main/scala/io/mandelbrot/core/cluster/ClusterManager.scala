@@ -64,9 +64,13 @@ class ClusterManager(settings: ClusterSettings,
     case op: GetClusterStatus =>
       sender() ! GetClusterStatusResult(op, status)
 
-    /* we assume any other message is for an entity */
+    // send envelopes directly to the entity manager
+    case envelope: EntityEnvelope =>
+      entityManager ! envelope
+
+    // we assume any other message is for an entity, so we wrap it in an envelope
     case message: Any =>
-      entityManager forward message
+      entityManager ! EntityEnvelope(sender(), message, attempts = 3)
   }
 }
 
