@@ -18,8 +18,8 @@ class ShardRingSpec extends WordSpec with ShouldMatchers {
 
     "initialize empty" in {
       val shardRing = ShardRing()
-      shardRing.nonEmpty should be(false)
-      shardRing.isEmpty should be(true)
+      shardRing.nonEmpty shouldEqual false
+      shardRing.isEmpty shouldEqual true
     }
 
     "map keys to shards" in {
@@ -40,6 +40,49 @@ class ShardRingSpec extends WordSpec with ShouldMatchers {
     "not map a key to a shard if the ring is empty" in {
       val shardRing = ShardRing()
       shardRing(10) should be(None)
+    }
+
+    "detect if it is full" in {
+      val shardRing = ShardRing()
+      val ORDER0 = ShardRing.ORDER1 * 16
+      shardRing.put(ORDER0 * 0, ORDER0, address1)
+      shardRing.put(ORDER0 * 1, ORDER0, address2)
+      shardRing.put(ORDER0 * 2, ORDER0, address3)
+      shardRing.put(ORDER0 * 3, ORDER0, address4)
+      shardRing.nonFull shouldEqual false
+      shardRing.isFull shouldEqual true
+    }
+
+    "detect if it is not full when empty" in {
+      val shardRing = ShardRing()
+      shardRing.nonFull shouldEqual true
+      shardRing.isFull shouldEqual false
+    }
+
+    "detect if it is not full when missing leading entry" in {
+      val shardRing = ShardRing()
+      shardRing.put((Int.MaxValue / 4) * 1, Int.MaxValue / 4, address2)
+      shardRing.put((Int.MaxValue / 4) * 2, Int.MaxValue / 4, address3)
+      shardRing.put((Int.MaxValue / 4) * 3, Int.MaxValue / 4, address4)
+      shardRing.nonFull shouldEqual true
+      shardRing.isFull shouldEqual false
+    }
+
+    "detect if it is not full when missing trailing entry" in {
+      val shardRing = ShardRing()
+      shardRing.put((Int.MaxValue / 4) * 0, Int.MaxValue / 4, address1)
+      shardRing.put((Int.MaxValue / 4) * 1, Int.MaxValue / 4, address2)
+      shardRing.put((Int.MaxValue / 4) * 2, Int.MaxValue / 4, address3)
+      shardRing.nonFull shouldEqual true
+      shardRing.isFull shouldEqual false
+    }
+
+    "detect if it is not full when missing middle entry" in {
+      val shardRing = ShardRing()
+      shardRing.put((Int.MaxValue / 4) * 0, Int.MaxValue / 4, address1)
+      shardRing.put((Int.MaxValue / 4) * 3, Int.MaxValue / 4, address3)
+      shardRing.nonFull shouldEqual true
+      shardRing.isFull shouldEqual false
     }
   }
 }

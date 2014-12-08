@@ -13,9 +13,11 @@ class TestCoordinator(shards: ShardRing) extends Actor with ActorLogging with Co
   def receive = {
 
     case op: ClusterUp =>
-      running = true
-      unstashAll()
-      log.debug("unstashing messages")
+      if (!running) {
+        running = true
+        unstashAll()
+        log.debug("unstashing messages")
+      }
 
     case any if !running =>
       stash()
