@@ -24,7 +24,7 @@ class ClusterManager(settings: ClusterSettings,
     log.info("loading coordinator plugin {}", settings.coordinator.plugin)
     context.actorOf(props, "coordinator")
   }
-  val entityManager = context.actorOf(EntityManager.props(coordinator, shardResolver, keyExtractor, propsCreator), "entity-manager")
+  val entityManager = context.actorOf(EntityManager.props(coordinator, shardResolver, keyExtractor, propsCreator, settings), "entity-manager")
   val clusterMonitor = context.actorOf(ClusterMonitor.props(settings.minNrMembers), "cluster-monitor")
 
   log.info("initializing cluster mode")
@@ -95,7 +95,10 @@ case class GetClusterStatus() extends ClusterServiceQuery
 case class GetClusterStatusResult(op: GetClusterStatus, status: ClusterMonitorEvent)
 
 case class GetShard(shardKey: Int) extends ClusterServiceQuery
-case class GetShardResult(op: GetShard, shardId: Int, width: Int, address: Address)
+case class GetShardResult(op: GetShard, shardId: Int, address: Address)
+
+case class GetAllShards()
+case class GetAllShardsResult(op: GetAllShards, shards: Vector[(Int,Int,Address)], finished: Boolean)
 
 /* marker trait for Coordinator implementations */
 trait Coordinator

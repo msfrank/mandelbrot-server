@@ -3,7 +3,7 @@ package io.mandelbrot.core.cluster
 import akka.actor._
 import com.typesafe.config.Config
 
-class TestCoordinator(shards: ShardRing) extends Actor with ActorLogging with Coordinator with Stash {
+class TestCoordinator(shards: ShardMap) extends Actor with ActorLogging with Coordinator with Stash {
 
   // state
   var running = false
@@ -26,8 +26,7 @@ class TestCoordinator(shards: ShardRing) extends Actor with ActorLogging with Co
       log.debug("{} requests shard {}", sender().path, op.shardKey)
       shards(op.shardKey) match {
         case Some((shardId, address)) =>
-          val (width,_) = shards.get(shardId).get
-          sender() ! GetShardResult(op, shardId, width, address)
+          sender() ! GetShardResult(op, shardId, address)
         case None =>
       }
 
@@ -37,6 +36,6 @@ class TestCoordinator(shards: ShardRing) extends Actor with ActorLogging with Co
 }
 
 object TestCoordinator {
-  def props(shards: ShardRing) = Props(classOf[TestCoordinator], shards)
+  def props(shards: ShardMap) = Props(classOf[TestCoordinator], shards)
   def settings(config: Config): Option[Any] = None
 }

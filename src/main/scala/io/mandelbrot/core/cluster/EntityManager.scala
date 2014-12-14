@@ -17,7 +17,8 @@ import io.mandelbrot.core.cluster.EntityFunctions.{ShardResolver, PropsCreator, 
 class EntityManager(coordinator: ActorRef,
                     shardResolver: ShardResolver,
                     keyExtractor: KeyExtractor,
-                    propsCreator: PropsCreator) extends Actor with ActorLogging {
+                    propsCreator: PropsCreator,
+                    settings: ClusterSettings) extends Actor with ActorLogging {
   import EntityManager._
   import context.dispatcher
 
@@ -27,7 +28,7 @@ class EntityManager(coordinator: ActorRef,
   val statsInterval = 1.minute
 
   // state
-  val shardRing = ShardRing()
+  val shardMap = ShardMap(settings.totalShards, settings.initialWidth)
   val localEntities = new util.HashMap[Int,EntityMap]()
   val entityShards = new util.HashMap[ActorRef,Int]()
   var bufferedMessages = Vector.empty[BufferedEnvelope]
@@ -50,7 +51,7 @@ class EntityManager(coordinator: ActorRef,
     case envelope: EntityEnvelope =>
       if (keyExtractor.isDefinedAt(envelope.message)) {
         val shardKey = shardResolver(envelope.message)
-        shardRing(shardKey) match {
+        shardMap(shardKey) match {
 
           // shard is local
           case Some((shardId, address)) if address.equals(selfAddress) =>
@@ -85,6 +86,7 @@ class EntityManager(coordinator: ActorRef,
 
           // shard is remote and there is no cached location
           case None =>
+            log.debug("shard not known for entity {}, buffering {}", shardKey, envelope.message)
             bufferedMessages = bufferedMessages :+ BufferedEnvelope(envelope, shardKey, DateTime.now())
             coordinator ! GetShard(shardKey)
         }
@@ -97,15 +99,13 @@ class EntityManager(coordinator: ActorRef,
 
     // update shard ring and flush buffered messages
     case result: GetShardResult =>
-      log.debug("shard {}+{} exists at {}", result.shardId, result.width, result.address)
-      shardRing.put(result.shardId, result.width, result.address)
+      log.debug("shard {} exists at {}", result.shardId, result.address)
+      shardMap.put(result.shardId, result.address)
       if (result.address.equals(selfAddress)) {
         localEntities.put(result.shardId, new EntityMap)
       }
-      val lowerBound = result.shardId
-      val upperBound = result.shardId + result.width
       bufferedMessages = bufferedMessages.filter { buffered =>
-          if (shardRing.contains(buffered.shardKey)) {
+          if (shardMap.contains(buffered.shardKey)) {
             self ! buffered.envelope
             false
           } else true
@@ -123,8 +123,8 @@ class EntityManager(coordinator: ActorRef,
 }
 
 object EntityManager {
-  def props(coordinator: ActorRef, shardResolver: ShardResolver, keyExtractor: KeyExtractor, propsCreator: PropsCreator) = {
-    Props(classOf[EntityManager], coordinator, shardResolver, keyExtractor, propsCreator)
+  def props(coordinator: ActorRef, shardResolver: ShardResolver, keyExtractor: KeyExtractor, propsCreator: PropsCreator, settings: ClusterSettings) = {
+    Props(classOf[EntityManager], coordinator, shardResolver, keyExtractor, propsCreator, settings)
   }
 
   class EntityMap extends util.HashMap[String,ActorRef]

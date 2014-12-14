@@ -9,7 +9,8 @@ case class CoordinatorSettings(plugin: String, settings: Option[Any])
 class ClusterSettings(val enabled: Boolean,
                       val seedNodes: Vector[String],
                       val minNrMembers: Int,
-                      val shardCount: Int,
+                      val totalShards: Int,
+                      val initialWidth: Int,
                       val coordinator: CoordinatorSettings)
 
 object ClusterSettings {
@@ -17,13 +18,14 @@ object ClusterSettings {
     val enabled = config.getBoolean("enabled")
     val seedNodes = config.getStringList("seed-nodes")
     val minNrMembers = config.getInt("min-nr-members")
-    val shardCount = config.getInt("shard-count")
+    val totalShards = config.getInt("total-shards")
+    val initialWidth = config.getInt("initial-width")
     val plugin = config.getString("plugin")
     if (!ServiceExtension.pluginImplements(plugin, classOf[Coordinator]))
       throw new ServerConfigException("%s is not recognized as an Coordinator plugin".format(plugin))
     val service = if (config.hasPath("plugin-settings")) {
       ServiceExtension.makePluginSettings(plugin, config.getConfig("plugin-settings"))
     } else None
-    new ClusterSettings(enabled, seedNodes.toVector, minNrMembers, shardCount, CoordinatorSettings(plugin, service))
+    new ClusterSettings(enabled, seedNodes.toVector, minNrMembers, totalShards, initialWidth, CoordinatorSettings(plugin, service))
   }
 }
