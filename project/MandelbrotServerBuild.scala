@@ -2,8 +2,7 @@ import sbt._
 import Keys._
 import com.typesafe.sbt.SbtMultiJvm
 import com.typesafe.sbt.SbtMultiJvm.MultiJvmKeys.MultiJvm
-import sbtassembly.Plugin.assemblySettings
-import sbtassembly.Plugin.AssemblyKeys._
+import sbtassembly.AssemblyPlugin.assemblySettings
 
 object MandelbrotServerBuild extends Build {
 
