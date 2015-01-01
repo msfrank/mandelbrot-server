@@ -9,14 +9,14 @@ import ShardBalancer.{State, Data}
 /**
  *
  */
-class ShardBalancer(coordinator: ActorRef, settings: ClusterSettings, nodes: Map[Address,ActorPath]) extends LoggingFSM[State,Data] {
+class ShardBalancer(coordinator: ActorRef, monitor: ActorRef, nodes: Map[Address,ActorPath], totalShards: Int, initialWidth: Int) extends LoggingFSM[State,Data] {
   import ShardBalancer._
 
   // config
   val timeout = 5.seconds
 
   // state
-  val shardMap = ShardMap(settings.totalShards, settings.initialWidth)
+  val shardMap = ShardMap(totalShards, initialWidth)
   val shardDensity = new mutable.HashMap[Address,Int]()
   var missingShards = Set.empty[Int]
   var addedNodes = Set.empty[Address]
@@ -94,7 +94,10 @@ class ShardBalancer(coordinator: ActorRef, settings: ClusterSettings, nodes: Map
       // put the first operation in flight
       val inflight = context.actorOf(PutShardTask.props(ops.head, coordinator, self, timeout))
       goto(Repairing) using Repairing(inflight, ops.tail)
-    } else stop()
+    } else {
+      monitor ! ShardBalancerResult(shardMap)
+      stop()
+    }
   }
 
   /**
@@ -112,7 +115,9 @@ class ShardBalancer(coordinator: ActorRef, settings: ClusterSettings, nodes: Map
 }
 
 object ShardBalancer {
-  def props(coordinator: ActorRef, settings: ClusterSettings) = Props(classOf[ShardBalancer], coordinator, settings)
+  def props(coordinator: ActorRef, monitor: ActorRef, nodes: Map[Address,ActorPath], totalShards: Int, initialWidth: Int) = {
+    Props(classOf[ShardBalancer], coordinator, monitor, nodes, totalShards, initialWidth)
+  }
 
   val ordering = Ordering.by[(Address,Int),Int](_._2).reverse
 
@@ -130,3 +135,5 @@ object ShardBalancer {
 }
 
 case object ShardTaskTimeout
+
+case class ShardBalancerResult(shardMap: ShardMap)

@@ -52,6 +52,15 @@ class ShardMap(val totalShards: Int, val initialWidth: Int) {
   }
 
   /**
+   * return the sequence of all shards which are assigned to an Address.
+   */
+  def assigned: Vector[(Int,Address)] = {
+    0.until(shards.size).filter(shards(_).address.nonEmpty).map {
+      i => i -> shards(i).address.get
+    }.toVector
+  }
+
+  /**
    * return the set of all shardIds which have no associated Address.
    */
   def missing: Set[Int] = 0.until(shards.size).filter(shards(_).address.isEmpty).toSet

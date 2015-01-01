@@ -18,7 +18,8 @@ class EntityManager(coordinator: ActorRef,
                     shardResolver: ShardResolver,
                     keyExtractor: KeyExtractor,
                     propsCreator: PropsCreator,
-                    settings: ClusterSettings) extends Actor with ActorLogging {
+                    totalShards: Int,
+                    initialWidth: Int) extends Actor with ActorLogging {
   import EntityManager._
   import context.dispatcher
 
@@ -26,7 +27,7 @@ class EntityManager(coordinator: ActorRef,
   val selfAddress = Cluster(context.system).selfAddress
 
   // state
-  val shardMap = ShardMap(settings.totalShards, settings.initialWidth)
+  val shardMap = ShardMap(totalShards, initialWidth)
   val localEntities = new util.HashMap[Int,EntityMap]()
   val entityShards = new util.HashMap[ActorRef,Int]()
   var bufferedMessages = Vector.empty[BufferedEnvelope]
@@ -103,8 +104,13 @@ class EntityManager(coordinator: ActorRef,
 }
 
 object EntityManager {
-  def props(coordinator: ActorRef, shardResolver: ShardResolver, keyExtractor: KeyExtractor, propsCreator: PropsCreator, settings: ClusterSettings) = {
-    Props(classOf[EntityManager], coordinator, shardResolver, keyExtractor, propsCreator, settings)
+  def props(coordinator: ActorRef,
+            shardResolver: ShardResolver,
+            keyExtractor: KeyExtractor,
+            propsCreator: PropsCreator,
+            totalShards: Int,
+            initialWidth: Int) = {
+    Props(classOf[EntityManager], coordinator, shardResolver, keyExtractor, propsCreator, totalShards, initialWidth)
   }
 
   class EntityMap extends util.HashMap[String,ActorRef]

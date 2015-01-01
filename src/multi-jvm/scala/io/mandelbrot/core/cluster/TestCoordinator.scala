@@ -22,6 +22,10 @@ class TestCoordinator(shards: ShardMap) extends Actor with ActorLogging with Coo
     case any if !running =>
       stash()
 
+    case op: GetAllShards =>
+      log.debug("{} requests all shards", sender().path)
+      sender() ! GetAllShardsResult(op, shards.assigned)
+
     case op: GetShard =>
       log.debug("{} requests shard {}", sender().path, op.shardKey)
       shards(op.shardKey) match {

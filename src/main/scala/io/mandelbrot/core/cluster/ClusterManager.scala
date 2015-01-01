@@ -31,7 +31,8 @@ class ClusterManager(settings: ClusterSettings,
   }
 
   val clusterMonitor = context.actorOf(ClusterMonitor.props(settings.minNrMembers), "cluster-monitor")
-  val entityManager = context.actorOf(EntityManager.props(coordinator, shardResolver, keyExtractor, propsCreator, settings), "entity-manager")
+  val entityManager = context.actorOf(EntityManager.props(coordinator,
+    shardResolver, keyExtractor, propsCreator, settings.totalShards, settings.initialWidth), "entity-manager")
 
   log.info("initializing cluster mode")
 
