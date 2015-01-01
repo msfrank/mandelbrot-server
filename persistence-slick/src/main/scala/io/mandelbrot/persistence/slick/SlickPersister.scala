@@ -48,7 +48,8 @@ trait StateEntriesComponent { this: PersisterProfile =>
 
   val stateEntries = TableQuery[StateEntries]
 
-  def get(probeRef: ProbeRef)(implicit session: Session): Option[ProbeState] = {
+  def get(ref: ProbeRef)(implicit session: Session): Option[ProbeState] = {
+    val probeRef = ref.toString
     stateEntries.filter(_.probeRef == probeRef).firstOption.map(stateEntry2ProbeState)
   }
 
@@ -66,7 +67,7 @@ trait StateEntriesComponent { this: PersisterProfile =>
     stateEntries += ((probeRef, lsn, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlation, acknowledged, squelched, ""))
   }
 
-  def delete(probeRef: ProbeRef)(implicit session: Session): Unit = {
+  def delete(ref: ProbeRef)(implicit session: Session): Unit = {
 
   }
 

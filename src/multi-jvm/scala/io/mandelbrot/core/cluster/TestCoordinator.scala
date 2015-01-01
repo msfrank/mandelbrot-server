@@ -29,9 +29,6 @@ class TestCoordinator(shards: ShardMap) extends Actor with ActorLogging with Coo
           sender() ! GetShardResult(op, shardId, address)
         case None =>
       }
-
-    case op: UpdateMemberShards =>
-      log.debug("{} updates shards", sender().path)
   }
 }
 

@@ -24,8 +24,6 @@ class EntityManager(coordinator: ActorRef,
 
   // config
   val selfAddress = Cluster(context.system).selfAddress
-  val statsDelay = 30.seconds
-  val statsInterval = 1.minute
 
   // state
   val shardMap = ShardMap(settings.totalShards, settings.initialWidth)
@@ -35,16 +33,6 @@ class EntityManager(coordinator: ActorRef,
   var lastUpdate = new DateTime(0)
   var updateStats: Option[Cancellable] = None
 
-  override def preStart(): Unit = {
-    lastUpdate = new DateTime(0)
-    updateStats = Some(context.system.scheduler.schedule(statsDelay, statsInterval, self, PerformUpdate))
-  }
-  
-  override def postStop(): Unit = {
-    updateStats.foreach(_.cancel())
-    updateStats = None
-  }
-  
   def receive = {
 
     // send the specified message to the entity, which may be remote or local
@@ -111,15 +99,7 @@ class EntityManager(coordinator: ActorRef,
           } else true
       }
 
-    // update shard allocation statistics
-    case PerformUpdate =>
-      if (lastUpdate.getMillis > 0) {
-        val allocations = localEntities.entrySet().map(e => (e.getKey, e.getValue.size())).toMap
-        coordinator ! UpdateMemberShards(allocations)
-      }
-      lastUpdate = DateTime.now()
   }
-  
 }
 
 object EntityManager {
@@ -140,5 +120,7 @@ object EntityFunctions {
 }
 
 case class EntityEnvelope(sender: ActorRef, message: Any, attempts: Int)
-
 case class EntityDeliveryFailed(envelope: EntityEnvelope, failure: Throwable)
+
+case class PrepareShard(shardId: Int)
+case class PrepareShardResult(shardId: Int, accepted: Boolean)

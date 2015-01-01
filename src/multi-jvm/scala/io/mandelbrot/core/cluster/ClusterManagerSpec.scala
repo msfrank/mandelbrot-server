@@ -2,8 +2,9 @@ package io.mandelbrot.core.cluster
 
 import akka.actor.{ActorLogging, ActorRef, Props, Actor}
 import akka.testkit.{TestProbe, ImplicitSender}
-import io.mandelbrot.core.{BadRequest, ResourceNotFound}
 import scala.concurrent.duration._
+
+import io.mandelbrot.core.{BadRequest, ResourceNotFound}
 
 class ClusterManagerSpecMultiJvmNode1 extends ClusterManagerSpec
 class ClusterManagerSpecMultiJvmNode2 extends ClusterManagerSpec
