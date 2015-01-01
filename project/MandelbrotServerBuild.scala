@@ -7,8 +7,9 @@ import sbtassembly.AssemblyPlugin.assemblySettings
 object MandelbrotServerBuild extends Build {
 
   val mandelbrotVersion = "0.0.8"
+
   val scalaLangVersion = "2.10.4"
-  val akkaVersion = "2.3.7"
+  val akkaVersion = "2.3.8"
   val sprayVersion = "1.3.2"
   val sprayJsonVersion = "1.3.1"
   val luceneVersion = "4.7.1"
