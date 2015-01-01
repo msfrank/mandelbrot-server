@@ -116,6 +116,8 @@ trait ArchiverStatements {
        |LIMIT ?
      """.stripMargin
 
+  import scala.language.implicitConversions
+
   implicit def row2ProbeStatus(row: Row): ProbeStatus = {
     val probeRef = ProbeRef(row.getString(0))
     val timestamp = new DateTime(row.getDate(1))

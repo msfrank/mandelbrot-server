@@ -50,7 +50,7 @@ trait StateEntriesComponent { this: PersisterProfile =>
 
   def get(ref: ProbeRef)(implicit session: Session): Option[ProbeState] = {
     val probeRef = ref.toString
-    stateEntries.filter(_.probeRef == probeRef).firstOption.map(stateEntry2ProbeState)
+    stateEntries.filter(_.probeRef === probeRef).firstOption.map(stateEntry2ProbeState)
   }
 
   def update(status: ProbeStatus, lsn: Long)(implicit session: Session): Unit = {

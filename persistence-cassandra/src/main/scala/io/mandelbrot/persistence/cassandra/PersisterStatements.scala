@@ -47,6 +47,8 @@ trait PersisterStatements {
        |DELETE FROM $tableName WHERE probe_ref = ?
      """.stripMargin
 
+  import scala.language.implicitConversions
+
   implicit def row2ProbeState(row: Row): ProbeState = {
     val probeRef = ProbeRef(row.getString(0))
     val generation = row.getLong(1)

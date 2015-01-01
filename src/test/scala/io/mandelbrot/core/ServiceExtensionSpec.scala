@@ -1,20 +1,20 @@
 package io.mandelbrot.core
 
 import org.scalatest.WordSpec
-import org.scalatest.matchers.MustMatchers
+import org.scalatest.matchers.ShouldMatchers
 import akka.actor.{Props, Actor}
 
-class ServiceExtensionSpec extends WordSpec with MustMatchers {
+class ServiceExtensionSpec extends WordSpec with ShouldMatchers {
 
-  "A ServiceExtension class" must {
+  "A ServiceExtension class" should {
 
     "return true if the class implements a specified interface" in {
-      ServiceExtension.pluginImplements("io.mandelbrot.core.TestExtension", classOf[TestInterface]) must be(true)
+      ServiceExtension.pluginImplements("io.mandelbrot.core.TestExtension", classOf[TestInterface]) should be(true)
     }
 
     "return a Props instance from applying the props() method of a compatible implementation" in {
       val props = ServiceExtension.makePluginProps("io.mandelbrot.core.TestExtension", None)
-      props.clazz must be === classOf[TestExtension]
+      props.clazz shouldEqual classOf[TestExtension]
     }
   }
 }

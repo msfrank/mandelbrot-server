@@ -2,16 +2,16 @@ package io.mandelbrot.core.system
 
 import org.scalatest.Inside._
 import org.scalatest.WordSpec
-import org.scalatest.matchers.MustMatchers
+import org.scalatest.matchers.ShouldMatchers
 
-class ProbeMatcherParserSpec extends WordSpec with MustMatchers {
+class ProbeMatcherParserSpec extends WordSpec with ShouldMatchers {
 
-  "ProbeMatcherParser" must {
+  "ProbeMatcherParser" should {
 
     "parse '*'" in {
       val matcher = new ProbeMatcherParser().parseProbeMatcher("*")
       println(matcher)
-      matcher.getClass must be === MatchesAll.getClass
+      matcher.getClass shouldEqual MatchesAll.getClass
     }
 
     "parse '*:*'" in {
@@ -19,9 +19,9 @@ class ProbeMatcherParserSpec extends WordSpec with MustMatchers {
       println(matcher)
       inside(matcher) {
         case ProbeMatcher(scheme, location, path) =>
-          scheme must be === Some(MatchAny)
-          location must be === Some(MatchAny)
-          path must be === None
+          scheme shouldEqual Some(MatchAny)
+          location shouldEqual Some(MatchAny)
+          path shouldEqual None
       }
     }
 
@@ -30,7 +30,7 @@ class ProbeMatcherParserSpec extends WordSpec with MustMatchers {
       println(matcher)
       inside(matcher) {
         case ProbeMatcher(Some(MatchAny), Some(location: MatchExact), None) =>
-          location.string must be === "example.com"
+          location.string shouldEqual "example.com"
       }
     }
 
@@ -39,8 +39,8 @@ class ProbeMatcherParserSpec extends WordSpec with MustMatchers {
       println(matcher)
       inside(matcher) {
         case ProbeMatcher(Some(scheme: MatchExact), Some(location: MatchGlob), None) =>
-          scheme.string must be === "fqdn"
-          location.regex.toString must be === """.*\Q.com\E"""
+          scheme.string shouldEqual "fqdn"
+          location.regex.toString shouldEqual """.*\Q.com\E"""
       }
     }
 
@@ -49,8 +49,8 @@ class ProbeMatcherParserSpec extends WordSpec with MustMatchers {
       println(matcher)
       inside(matcher) {
         case ProbeMatcher(Some(scheme: MatchExact), Some(location: MatchExact), None) =>
-          scheme.string must be === "fqdn"
-          location.string must be === "example.com"
+          scheme.string shouldEqual "fqdn"
+          location.string shouldEqual "example.com"
       }
     }
 
@@ -59,9 +59,9 @@ class ProbeMatcherParserSpec extends WordSpec with MustMatchers {
       println(matcher)
       inside(matcher) {
         case ProbeMatcher(Some(scheme: MatchExact), Some(location: MatchExact), Some(path: PathMatcher)) =>
-          scheme.string must be === "fqdn"
-          location.string must be === "example.com"
-          path.segments must be === Vector(MatchExact("foo"))
+          scheme.string shouldEqual "fqdn"
+          location.string shouldEqual "example.com"
+          path.segments shouldEqual Vector(MatchExact("foo"))
       }
     }
 
@@ -70,9 +70,9 @@ class ProbeMatcherParserSpec extends WordSpec with MustMatchers {
       println(matcher)
       inside(matcher) {
         case ProbeMatcher(Some(scheme: MatchExact), Some(location: MatchExact), Some(path: PathMatcher)) =>
-          scheme.string must be === "fqdn"
-          location.string must be === "example.com"
-          path.segments must be === Vector(MatchExact("foo"), MatchExact("bar"), MatchExact("baz"))
+          scheme.string shouldEqual "fqdn"
+          location.string shouldEqual "example.com"
+          path.segments shouldEqual Vector(MatchExact("foo"), MatchExact("bar"), MatchExact("baz"))
       }
     }
 
@@ -81,9 +81,9 @@ class ProbeMatcherParserSpec extends WordSpec with MustMatchers {
       println(matcher)
       inside(matcher) {
         case ProbeMatcher(Some(scheme: MatchExact), Some(location: MatchExact), Some(path: PathMatcher)) =>
-          scheme.string must be === "fqdn"
-          location.string must be === "example.com"
-          path.segments must be === Vector(MatchExact("foo"), MatchAny)
+          scheme.string shouldEqual "fqdn"
+          location.string shouldEqual "example.com"
+          path.segments shouldEqual Vector(MatchExact("foo"), MatchAny)
       }
     }
 

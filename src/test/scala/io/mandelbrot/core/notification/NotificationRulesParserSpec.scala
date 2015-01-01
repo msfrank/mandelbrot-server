@@ -2,12 +2,12 @@ package io.mandelbrot.core.notification
 
 import io.mandelbrot.core.system.{MatchAny, PathMatcher, MatchExact, ProbeMatcher}
 import org.scalatest.WordSpec
-import org.scalatest.matchers.MustMatchers
+import org.scalatest.matchers.ShouldMatchers
 import java.io.StringReader
 
 import io.mandelbrot.core.system._
 
-class NotificationRulesParserSpec extends WordSpec with MustMatchers {
+class NotificationRulesParserSpec extends WordSpec with ShouldMatchers {
 
   val user1 = Contact("user1", "User One", Map.empty)
   val user2 = Contact("user2", "User Two", Map.empty)
@@ -21,7 +21,7 @@ class NotificationRulesParserSpec extends WordSpec with MustMatchers {
     "group1" -> ContactGroup("group1", "Group One", Map.empty, Set(user4, user5))
   )
 
-  "NotificationRulesParser" must {
+  "NotificationRulesParser" should {
 
     "parse a ruleset with multiple rules" in {
       val reader = new StringReader(
@@ -31,73 +31,73 @@ class NotificationRulesParserSpec extends WordSpec with MustMatchers {
           |when probe(*:*/*)    : drop()
         """.stripMargin)
       val rules = NotificationRules.parse(reader, contacts, groups)
-      rules.rules.length must be === 3
-      rules.rules(0).matcher must be === ProbeRuleMatcher(ProbeMatcher(Some(MatchAny),Some(MatchAny),Some(PathMatcher(Vector(MatchExact("load"))))))
-      rules.rules(0).action must be === NotifyContacts(Set(user4, user5))
-      rules.rules(1).matcher must be === ProbeRuleMatcher(ProbeMatcher(Some(MatchAny),Some(MatchAny),Some(PathMatcher(Vector(MatchExact("cpu"))))))
-      rules.rules(1).action must be === NotifyContacts(Set(user2, user3))
-      rules.rules(2).matcher must be === ProbeRuleMatcher(ProbeMatcher(Some(MatchAny),Some(MatchAny),Some(PathMatcher(Vector(MatchAny)))))
-      rules.rules(2).action must be === DropNotification
+      rules.rules.length shouldEqual 3
+      rules.rules(0).matcher shouldEqual ProbeRuleMatcher(ProbeMatcher(Some(MatchAny),Some(MatchAny),Some(PathMatcher(Vector(MatchExact("load"))))))
+      rules.rules(0).action shouldEqual NotifyContacts(Set(user4, user5))
+      rules.rules(1).matcher shouldEqual ProbeRuleMatcher(ProbeMatcher(Some(MatchAny),Some(MatchAny),Some(PathMatcher(Vector(MatchExact("cpu"))))))
+      rules.rules(1).action shouldEqual NotifyContacts(Set(user2, user3))
+      rules.rules(2).matcher shouldEqual ProbeRuleMatcher(ProbeMatcher(Some(MatchAny),Some(MatchAny),Some(PathMatcher(Vector(MatchAny)))))
+      rules.rules(2).action shouldEqual DropNotification
     }
 
     "parse any matcher" in {
       val parser = new NotificationRuleParser(contacts, groups)
       val matcher = parser.parseAll(parser.anyMatcher, "any()")
-      matcher.get must be(AnyMatcher)
+      matcher.get should be(AnyMatcher)
     }
 
     "parse probe matcher" in {
       val parser = new NotificationRuleParser(contacts, groups)
       val matcher = parser.parseAll(parser.probeMatcher, "probe(*)")
-      matcher.get must be === ProbeRuleMatcher(ProbeMatcher(None, None, None))
+      matcher.get shouldEqual ProbeRuleMatcher(ProbeMatcher(None, None, None))
     }
 
     "parse type matcher" in {
       val parser = new NotificationRuleParser(contacts, groups)
       val matcher = parser.parseAll(parser.typeMatcher, "type(probe-acknowledged)")
-      matcher.get must be === TypeRuleMatcher("probe-acknowledged")
+      matcher.get shouldEqual TypeRuleMatcher("probe-acknowledged")
     }
 
     "parse lifecycle matcher" in {
       val parser = new NotificationRuleParser(contacts, groups)
       val matcher = parser.parseAll(parser.lifecycleMatcher, "lifecycle(joining)")
-      matcher.get must be === LifecycleRuleMatcher(ProbeJoining)
+      matcher.get shouldEqual LifecycleRuleMatcher(ProbeJoining)
     }
 
     "parse health matcher" in {
       val parser = new NotificationRuleParser(contacts, groups)
       val matcher = parser.parseAll(parser.healthMatcher, "health(healthy)")
-      matcher.get must be === HealthRuleMatcher(ProbeHealthy)
+      matcher.get shouldEqual HealthRuleMatcher(ProbeHealthy)
     }
 
     "parse alert matcher" in {
       val parser = new NotificationRuleParser(contacts, groups)
       val matcher = parser.parseAll(parser.alertMatcher, "alert(failed)")
-      matcher.get must be === AlertRuleMatcher(ProbeFailed)
+      matcher.get shouldEqual AlertRuleMatcher(ProbeFailed)
     }
 
     "parse and operator expression" in {
       val parser = new NotificationRuleParser(contacts, groups)
       val matcher = parser.parseAll(parser.ruleExpression, "alert(failed) and lifecycle(known)")
-      matcher.get must be === AndOperator(Vector(AlertRuleMatcher(ProbeFailed), LifecycleRuleMatcher(ProbeKnown)))
+      matcher.get shouldEqual AndOperator(Vector(AlertRuleMatcher(ProbeFailed), LifecycleRuleMatcher(ProbeKnown)))
     }
 
     "parse or operator expression" in {
       val parser = new NotificationRuleParser(contacts, groups)
       val matcher = parser.parseAll(parser.ruleExpression, "alert(failed) or lifecycle(known)")
-      matcher.get must be === OrOperator(Vector(AlertRuleMatcher(ProbeFailed), LifecycleRuleMatcher(ProbeKnown)))
+      matcher.get shouldEqual OrOperator(Vector(AlertRuleMatcher(ProbeFailed), LifecycleRuleMatcher(ProbeKnown)))
     }
 
     "parse not operator expression" in {
       val parser = new NotificationRuleParser(contacts, groups)
       val matcher = parser.parseAll(parser.ruleExpression, "alert(failed) and not lifecycle(known)")
-      matcher.get must be === AndOperator(Vector(AlertRuleMatcher(ProbeFailed), NotOperator(LifecycleRuleMatcher(ProbeKnown))))
+      matcher.get shouldEqual AndOperator(Vector(AlertRuleMatcher(ProbeFailed), NotOperator(LifecycleRuleMatcher(ProbeKnown))))
     }
 
     "parse group operator expression" in {
       val parser = new NotificationRuleParser(contacts, groups)
       val matcher = parser.parseAll(parser.ruleExpression, "(alert(failed) or alert(degraded)) and (lifecycle(known) or lifecycle(joining))")
-      matcher.get must be === AndOperator(Vector(
+      matcher.get shouldEqual AndOperator(Vector(
         OrOperator(Vector(AlertRuleMatcher(ProbeFailed), AlertRuleMatcher(ProbeDegraded))),
         OrOperator(Vector(LifecycleRuleMatcher(ProbeKnown), LifecycleRuleMatcher(ProbeJoining)))
       ))

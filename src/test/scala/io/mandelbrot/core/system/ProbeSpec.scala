@@ -4,8 +4,8 @@ import akka.actor.{ActorSystem, Terminated}
 import akka.testkit.{TestProbe, ImplicitSender, TestActorRef, TestKit}
 import io.mandelbrot.core.metrics.MetricsBus
 import org.joda.time.DateTime
-import org.scalatest.matchers.MustMatchers
-import org.scalatest.{WordSpecLike, BeforeAndAfterAll, WordSpec}
+import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.{WordSpecLike, BeforeAndAfterAll}
 import scala.concurrent.duration._
 
 import io.mandelbrot.core.registry.ProbePolicy
@@ -13,7 +13,7 @@ import io.mandelbrot.core.state._
 import io.mandelbrot.core.{PersistenceConfig, AkkaConfig, Blackhole}
 import io.mandelbrot.core.ConfigConversions._
 
-class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with MustMatchers with BeforeAndAfterAll {
+class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
 
   def this() = this(ActorSystem("ProbeSpec", AkkaConfig ++ PersistenceConfig))
 
@@ -24,7 +24,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
   val blackhole = system.actorOf(Blackhole.props())
 
-  "A Probe" must {
+  "A Probe" should {
 
     "have an initial state" in {
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
@@ -33,14 +33,14 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val metricsBus = new MetricsBus()
       val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val probe = actor.underlyingActor
-      probe.lifecycle must be(ProbeInitializing)
-      probe.health must be(ProbeUnknown)
-      probe.summary must be(None)
-      probe.lastChange must be(None)
-      probe.lastUpdate must be(None)
-      probe.correlationId must be(None)
-      probe.acknowledgementId must be(None)
-      probe.squelch must be(false)
+      probe.lifecycle should be(ProbeInitializing)
+      probe.health should be(ProbeUnknown)
+      probe.summary should be(None)
+      probe.lastChange should be(None)
+      probe.lastUpdate should be(None)
+      probe.correlationId should be(None)
+      probe.acknowledgementId should be(None)
+      probe.squelch should be(false)
     }
 
     "initialize and transition to running behavior" in {
@@ -56,12 +56,12 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       stateService.reply(InitializeProbeStateResult(initialize, status, 0))
       actor ! GetProbeStatus(ref)
       val result = expectMsgClass(classOf[GetProbeStatusResult])
-      result.state.lifecycle must be(ProbeKnown)
-      result.state.health must be(ProbeHealthy)
-      result.state.summary must be(None)
-      result.state.correlation must be(None)
-      result.state.acknowledged must be(None)
-      result.state.squelched must be(false)
+      result.state.lifecycle should be(ProbeKnown)
+      result.state.health should be(ProbeHealthy)
+      result.state.summary should be(None)
+      result.state.correlation should be(None)
+      result.state.acknowledged should be(None)
+      result.state.squelched should be(false)
     }
 
     "update behavior" in {
@@ -80,7 +80,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       stateService.reply(UpdateProbeStateResult(update))
       actor ! GetProbeConfig(ref)
       val result = expectMsgClass(classOf[GetProbeConfigResult])
-      result.behavior must be === TestUpdateBehavior(2)
+      result.behavior shouldEqual TestUpdateBehavior(2)
     }
 
     "change behaviors" in {
@@ -103,9 +103,9 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       stateService.reply(UpdateProbeStateResult(update))
       actor ! GetProbeConfig(ref)
       val result = expectMsgClass(classOf[GetProbeConfigResult])
-      result.children must be === children
-      result.policy must be === policy
-      result.behavior must be === TestChangeBehavior()
+      result.children shouldEqual children
+      result.policy shouldEqual policy
+      result.behavior shouldEqual TestChangeBehavior()
     }
 
     "transition to retired behavior" in {
@@ -124,7 +124,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val retire = stateService.expectMsgClass(classOf[DeleteProbeState])
       stateService.reply(DeleteProbeStateResult(retire))
       val result = expectMsgClass(classOf[Terminated])
-      result.actor must be(actor)
+      result.actor should be(actor)
     }
   }
 }
