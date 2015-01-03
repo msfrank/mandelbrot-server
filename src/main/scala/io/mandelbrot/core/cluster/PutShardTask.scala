@@ -16,20 +16,33 @@ class PutShardTask(op: PutShard, coordinator: ActorRef, monitor: ActorRef, timeo
   // state
   val cancellable = context.system.scheduler.scheduleOnce(timeout, self, ShardTaskTimeout)
 
-  // prepare targetNode to receive shard
-  context.actorSelection(targetNode) ! PrepareShard(shardId)
+  coordinator ! GetShard(shardId)
 
   def receive = {
 
+    case result: GetShardResult =>
+      // prepare targetNode to receive shard
+      context.actorSelection(targetNode) ! PrepareShard(shardId)
+
     case result: PrepareShardResult =>
-      if (result.accepted) {
-      } else {
-        monitor ! PutShardFailed(op, new Exception("%s did not accept shard %d".format(sender().path, shardId)))
-        context.stop(self)
-      }
+      // write new shard owner
+      coordinator ! CommitShard(shardId, targetNode.address)
+
+    case result: CommitShardResult =>
+      // tell targetNode to recover shard
+      context.actorSelection(targetNode) ! RecoverShard(shardId)
+
+    case result: RecoverShardResult =>
+      monitor ! PutShardComplete(op)
+      context.stop(self)
+
+    case failure: ClusterServiceOperationFailed =>
+      monitor ! PutShardFailed(op, failure.failure)
+      context.stop(self)
 
     case ShardTaskTimeout =>
       monitor ! PutShardFailed(op, new Exception("timed out while performing task %s".format(op)))
+      context.stop(self)
   }
 
   override def postStop(): Unit = cancellable.cancel()

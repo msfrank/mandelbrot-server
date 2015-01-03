@@ -66,11 +66,16 @@ class ShardMap(val totalShards: Int, val initialWidth: Int) {
   def missing: Set[Int] = 0.until(shards.size).filter(shards(_).address.isEmpty).toSet
 
   /**
+   *
+   */
+  def findShardId(shardKey: Int): Int = (scala.math.abs(shardKey) % totalShards) / initialWidth
+
+  /**
    * given the specified shardKey, return the associated shardId and address if it
    * exists, otherwise None.
    */
   def apply(shardKey: Int): Option[(Int,Address)] = {
-    val shardId = scala.math.abs(shardKey) % totalShards / initialWidth
+    val shardId = (scala.math.abs(shardKey) % totalShards) / initialWidth
     shards(shardId).address.map((shardId, _))
   }
 

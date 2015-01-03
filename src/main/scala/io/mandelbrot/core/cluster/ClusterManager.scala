@@ -104,7 +104,19 @@ case class GetAllShards() extends ClusterServiceQuery
 case class GetAllShardsResult(op: GetAllShards, shards: Vector[(Int,Address)])
 
 case class GetShard(shardKey: Int) extends ClusterServiceQuery
-case class GetShardResult(op: GetShard, shardId: Int, address: Address)
+case class GetShardResult(op: GetShard, shardId: Int, address: Option[Address])
+
+case class PrepareShard(shardId: Int) extends ClusterServiceCommand
+case class PrepareShardResult(op: PrepareShard)
+
+case class ProposeShard(shardId: Int, target: Address) extends ClusterServiceCommand
+case class ProposeShardResult(op: ProposeShard)
+
+case class CommitShard(shardId: Int, target: Address) extends ClusterServiceCommand
+case class CommitShardResult(op: CommitShard)
+
+case class RecoverShard(shardId: Int) extends ClusterServiceCommand
+case class RecoverShardResult(op: RecoverShard)
 
 /* marker trait for Coordinator implementations */
 trait Coordinator

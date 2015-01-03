@@ -43,6 +43,7 @@ class ShardBalancer(coordinator: ActorRef, monitor: ActorRef, nodes: Map[Address
 
       // find shards which are not mapped to any address
       missingShards = shardMap.missing
+      log.debug("missing shards {}", missingShards)
 
       // find nodes which have been added or removed since the last balancing
       addedNodes = nodes.keySet diff shardDensity.keySet

@@ -4,9 +4,6 @@ import akka.cluster.Cluster
 import akka.actor._
 import io.mandelbrot.core.{ResourceNotFound, BadRequest, ApiException}
 import org.joda.time.DateTime
-import scala.concurrent.duration._
-import scala.util.hashing.MurmurHash3
-import scala.collection.JavaConversions._
 import java.util
 
 import io.mandelbrot.core.cluster.EntityFunctions.{ShardResolver, PropsCreator, KeyExtractor}
@@ -30,7 +27,9 @@ class EntityManager(coordinator: ActorRef,
   val shardMap = ShardMap(totalShards, initialWidth)
   val localEntities = new util.HashMap[Int,EntityMap]()
   val entityShards = new util.HashMap[ActorRef,Int]()
-  var bufferedMessages = Vector.empty[BufferedEnvelope]
+  val proposedShards = new util.HashMap[Int,util.ArrayList[BufferedEnvelope]]()
+  val bufferedMessages = new util.ArrayList[BufferedEnvelope]()
+  val bufferedShards = new util.HashSet[Int]()
   var lastUpdate = new DateTime(0)
   var updateStats: Option[Cancellable] = None
 
@@ -76,30 +75,47 @@ class EntityManager(coordinator: ActorRef,
           // shard is remote and there is no cached location
           case None =>
             log.debug("shard not known for entity {}, buffering {}", shardKey, envelope.message)
-            bufferedMessages = bufferedMessages :+ BufferedEnvelope(envelope, shardKey, DateTime.now())
+            bufferedMessages.add(BufferedEnvelope(envelope, shardKey, DateTime.now()))
+            // FIXME: don't pound the crap out of the coordinator
             coordinator ! GetShard(shardKey)
         }
       } else envelope.sender ! EntityDeliveryFailed(envelope, new ApiException(BadRequest))
+
+    // start buffering messages in preparation to own shard
+    case PrepareShard(shardId) =>
+      log.debug("{} says prepare shardId {}", sender().path, shardId)
+
+    // change proposed shard to owned
+    case RecoverShard(shardId) =>
+      log.debug("{} says recover shardId {}", sender().path, shardId)
+      coordinator ! GetShard(shardId)
 
     // shard mapping is stale, request updated data from the coordinator
     case StaleShard(shardKey, shardId, address) =>
       log.debug("{} says shardId {} is stale for shardKey {}", sender().path, shardId, shardKey)
       coordinator ! GetShard(shardKey)
 
-    // update shard ring and flush buffered messages
+    // update shard map and flush buffered messages
     case result: GetShardResult =>
-      log.debug("shard {} exists at {}", result.shardId, result.address)
-      shardMap.put(result.shardId, result.address)
-      if (result.address.equals(selfAddress)) {
-        localEntities.put(result.shardId, new EntityMap)
+      result.address match {
+        case Some(address) =>
+          log.debug("shard {} exists at {}", result.shardId, result.address)
+          shardMap.put(result.shardId, address)
+          // if shard is local and entity map doesn't exist, create a new entity map
+          if (address.equals(selfAddress) && !localEntities.containsKey(result.shardId))
+            localEntities.put(result.shardId, new EntityMap)
+          // flush any buffered messages for the shard
+          val iterator = bufferedMessages.listIterator()
+          while (iterator.hasNext) {
+            val envelope = iterator.next()
+            if (shardMap.contains(envelope.shardKey)) {
+              iterator.remove()
+              self ! envelope.envelope
+            }
+          }
+        case None =>
+          log.debug("shard {} is undefined", result.shardId)
       }
-      bufferedMessages = bufferedMessages.filter { buffered =>
-          if (shardMap.contains(buffered.shardKey)) {
-            self ! buffered.envelope
-            false
-          } else true
-      }
-
   }
 }
 
@@ -128,5 +144,3 @@ object EntityFunctions {
 case class EntityEnvelope(sender: ActorRef, message: Any, attempts: Int)
 case class EntityDeliveryFailed(envelope: EntityEnvelope, failure: Throwable)
 
-case class PrepareShard(shardId: Int)
-case class PrepareShardResult(shardId: Int, accepted: Boolean)
