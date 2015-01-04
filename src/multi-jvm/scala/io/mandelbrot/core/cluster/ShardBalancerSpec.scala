@@ -27,7 +27,7 @@ class ShardBalancerSpec extends MultiNodeSpec(RemoteMultiNodeConfig) with Implic
       shards.assign(3, node(node4).address)
       shards.assign(4, node(node5).address)
 
-      val coordinator = system.actorOf(TestCoordinator.props(shards), "coordinator_1")
+      val coordinator = system.actorOf(TestCoordinator.props(shards, node(node1).address, myAddress), "coordinator_1")
       val entityManager = system.actorOf(EntityManager.props(coordinator,
         TestEntity.shardResolver, TestEntity.keyExtractor, TestEntity.propsCreator, myAddress, totalShards, initialWidth),
         "entities_1")
@@ -44,7 +44,13 @@ class ShardBalancerSpec extends MultiNodeSpec(RemoteMultiNodeConfig) with Implic
         )
         val monitor = TestProbe()
         system.actorOf(ShardBalancer.props(coordinator, monitor.ref, nodes, totalShards, initialWidth), "balancer_1")
-        monitor.expectMsgClass(classOf[ShardBalancerResult])
+        val result = monitor.expectMsgClass(classOf[ShardBalancerResult])
+
+        result.shardMap.get(0) shouldEqual AssignedShardEntry(0, 1, node(node1).address)
+        result.shardMap.get(1) shouldEqual AssignedShardEntry(1, 1, node(node2).address)
+        result.shardMap.get(2) shouldEqual AssignedShardEntry(2, 1, node(node3).address)
+        result.shardMap.get(3) shouldEqual AssignedShardEntry(3, 1, node(node4).address)
+        result.shardMap.get(4) shouldEqual AssignedShardEntry(4, 1, node(node5).address)
       }
 
       enterBarrier("end-balancer-no-ops")
@@ -56,18 +62,16 @@ class ShardBalancerSpec extends MultiNodeSpec(RemoteMultiNodeConfig) with Implic
       val initialWidth = 1
       val shards = ShardMap(totalShards, initialWidth)
       shards.assign(0, node(node1).address)
-      //shards.assign(1, node(node2).address)
       shards.assign(2, node(node3).address)
       shards.assign(3, node(node4).address)
       shards.assign(4, node(node5).address)
 
-      val coordinator = system.actorOf(TestCoordinator.props(shards), "coordinator_2")
+      val coordinator = system.actorOf(TestCoordinator.props(shards, node(node1).address, myAddress), "coordinator_2")
       val entityManager = system.actorOf(EntityManager.props(coordinator,
         TestEntity.shardResolver, TestEntity.keyExtractor, TestEntity.propsCreator, myAddress, totalShards, initialWidth),
         "entities_2")
 
       enterBarrier("start-balancer-repair-shard")
-      log.debug("passed barrier")
 
       runOn(node1) {
         val nodes = Map(
@@ -80,11 +84,13 @@ class ShardBalancerSpec extends MultiNodeSpec(RemoteMultiNodeConfig) with Implic
 
         val monitor = TestProbe()
         system.actorOf(ShardBalancer.props(coordinator, monitor.ref, nodes, totalShards, initialWidth), "balancer_2")
-        monitor.expectMsgClass(classOf[ShardBalancerResult])
-      }
+        val result = monitor.expectMsgClass(classOf[ShardBalancerResult])
 
-      runOn(node2, node3, node4, node5) {
-        expectNoMsg(10.seconds)
+        result.shardMap.get(0) shouldEqual AssignedShardEntry(0, 1, node(node1).address)
+        result.shardMap.get(1) shouldEqual AssignedShardEntry(1, 1, node(node2).address)
+        result.shardMap.get(2) shouldEqual AssignedShardEntry(2, 1, node(node3).address)
+        result.shardMap.get(3) shouldEqual AssignedShardEntry(3, 1, node(node4).address)
+        result.shardMap.get(4) shouldEqual AssignedShardEntry(4, 1, node(node5).address)
       }
 
       enterBarrier("end-balancer-repair-shard")

@@ -42,8 +42,11 @@ class ShardBalancer(coordinator: ActorRef, monitor: ActorRef, nodes: Map[Address
       }
       // find shards which are not mapped to any address
       missingShards = shardMap.missing.map(missing => missing.shardId -> missing).toMap
-      // find nodes which have been added or removed since the last balancing
+      // find nodes which have been added since the last balancing and add to densities map
       addedNodes = nodes.keySet diff shardDensity.keySet
+      addedNodes.foreach(shardDensity.put(_, 0))
+      // find nodes which have been added since the last balancing
+      // TODO: handle rebalancing for node removals
       removedNodes = shardDensity.keySet.toSet diff nodes.keySet
       log.debug("shard assignments {}", shardMap)
       log.debug("missing shards {}", missingShards)

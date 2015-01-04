@@ -16,8 +16,6 @@ class PutShardTask(op: PutShard, coordinator: ActorRef, monitor: ActorRef, timeo
   // state
   val cancellable = context.system.scheduler.scheduleOnce(timeout, self, ShardTaskTimeout)
 
-  context.actorSelection(targetNode) ! Identify(shardId)
-
   coordinator ! GetShard(shardId)
 
   def receive = {

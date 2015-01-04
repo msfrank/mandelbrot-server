@@ -3,9 +3,14 @@ package io.mandelbrot.core.cluster
 import akka.actor._
 import com.typesafe.config.Config
 
-class TestCoordinator(shardMap: ShardMap) extends Actor with ActorLogging with Coordinator {
+class TestCoordinator(shardMap: ShardMap, masterAddress: Address, selfAddress: Address) extends Actor with ActorLogging with Coordinator {
 
   def receive = {
+
+    case message if !selfAddress.equals(masterAddress) =>
+      val actorPath = RootActorPath(masterAddress) / self.path.elements
+      log.debug("forwarding message {} to master {}", message, actorPath)
+      context.actorSelection(actorPath) forward message
 
     case op: GetAllShards =>
       log.debug("{} requests all shards", sender().path)
@@ -29,14 +34,8 @@ class TestCoordinator(shardMap: ShardMap) extends Actor with ActorLogging with C
 }
 
 object TestCoordinator {
-  def props(shards: ShardMap) = Props(classOf[TestCoordinator], shards)
-  def settings(config: Config): Option[Any] = None
-}
-
-class ClusterTestCoordinator(master: Address, props: Props) extends Actor with ActorLogging with Coordinator {
-
-  def receive = {
-    case message =>
-
+  def props(shards: ShardMap, masterAddress: Address, selfAddress: Address) = {
+    Props(classOf[TestCoordinator], shards, masterAddress, selfAddress)
   }
+  def settings(config: Config): Option[Any] = None
 }
