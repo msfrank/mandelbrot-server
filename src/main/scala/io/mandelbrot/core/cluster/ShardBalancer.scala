@@ -18,7 +18,7 @@ class ShardBalancer(coordinator: ActorRef, monitor: ActorRef, nodes: Map[Address
   // state
   val shardMap = ShardMap(totalShards, initialWidth)
   val shardDensity = new mutable.HashMap[Address,Int]()
-  var missingShards = Set.empty[Int]
+  var missingShards = Map.empty[Int,MissingShardEntry]
   var addedNodes = Set.empty[Address]
   var removedNodes = Set.empty[Address]
 
@@ -35,20 +35,21 @@ class ShardBalancer(coordinator: ActorRef, monitor: ActorRef, nodes: Map[Address
     case Event(result: GetAllShardsResult, NoData) =>
 
       // build shardMap and shardDensity from coordinator data
-      result.shards.foreach { case (shardId, address) =>
-        shardMap.put(shardId, address)
+      result.shards.foreach { case Shard(shardId, width, address) =>
+        shardMap.assign(shardId, address)
         val numShards = shardDensity.getOrElse(address, 0)
         shardDensity.put(address, numShards + 1)
       }
-
       // find shards which are not mapped to any address
-      missingShards = shardMap.missing
-      log.debug("missing shards {}", missingShards)
-
+      missingShards = shardMap.missing.map(missing => missing.shardId -> missing).toMap
       // find nodes which have been added or removed since the last balancing
       addedNodes = nodes.keySet diff shardDensity.keySet
       removedNodes = shardDensity.keySet.toSet diff nodes.keySet
-
+      log.debug("shard assignments {}", shardMap)
+      log.debug("missing shards {}", missingShards)
+      log.debug("shard densities {}", shardDensity)
+      log.debug("added nodes {}", addedNodes)
+      log.debug("removed nodes {}", removedNodes)
       // transition to the next State
       balance()
   }
@@ -59,7 +60,7 @@ class ShardBalancer(coordinator: ActorRef, monitor: ActorRef, nodes: Map[Address
     case Event(result: PutShardComplete, state: Repairing) =>
       val PutShard(shardId, actorPath) = result.op
       val address = actorPath.address
-      shardMap.put(shardId, address)
+      shardMap.assign(shardId, address)
       val numShards = shardDensity.getOrElse(address, 0)
       shardDensity.put(address, numShards + 1)
       missingShards = missingShards - shardId
@@ -87,10 +88,10 @@ class ShardBalancer(coordinator: ActorRef, monitor: ActorRef, nodes: Map[Address
       val addressesSortedByDensity = mutable.PriorityQueue()(ordering)
       shardDensity.foreach(addressesSortedByDensity.enqueue(_))
       // create PutShard operations for any missing shards
-      val ops = shardMap.missing.map { missingShardId =>
+      val ops = shardMap.missing.map { missingShard =>
         val (address,numShards) = addressesSortedByDensity.dequeue()
         addressesSortedByDensity.enqueue((address, numShards + 1))
-        PutShard(missingShardId, nodes(address))
+        PutShard(missingShard.shardId, nodes(address))
       }.toVector
       // put the first operation in flight
       val inflight = context.actorOf(PutShardTask.props(ops.head, coordinator, self, timeout))

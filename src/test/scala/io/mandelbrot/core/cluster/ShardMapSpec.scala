@@ -24,10 +24,10 @@ class ShardMapSpec extends WordSpec with ShouldMatchers {
 
     "map keys to shards" in {
       val shardMap = ShardMap(8, 2)
-      shardMap.put(0, address1)
-      shardMap.put(2, address2)
-      shardMap.put(4, address3)
-      shardMap.put(6, address4)
+      shardMap.assign(0, address1)
+      shardMap.assign(2, address2)
+      shardMap.assign(4, address3)
+      shardMap.assign(6, address4)
       shardMap(0) shouldEqual Some((0, address1))
       shardMap(1) shouldEqual Some((0, address1))
       shardMap(2) shouldEqual Some((1, address2))
@@ -45,7 +45,7 @@ class ShardMapSpec extends WordSpec with ShouldMatchers {
 
     "detect if it is full" in {
       val shardMap = ShardMap(4, 1)
-      0.until(4).foreach(shardMap.put(_, address1))
+      0.until(4).foreach(shardMap.assign(_, address1))
       shardMap.nonFull shouldEqual false
       shardMap.isFull shouldEqual true
     }
@@ -58,7 +58,7 @@ class ShardMapSpec extends WordSpec with ShouldMatchers {
 
     "detect if it is not full when missing an entry" in {
       val shardMap = ShardMap(2, 1)
-      shardMap.put(0, address1)
+      shardMap.assign(0, address1)
       shardMap.nonFull shouldEqual true
       shardMap.isFull shouldEqual false
     }
@@ -66,8 +66,8 @@ class ShardMapSpec extends WordSpec with ShouldMatchers {
     "iterate missing shards in an empty map" in {
       val shardMap = ShardMap(4, 1)
       shardMap.missing shouldEqual Set(0, 1, 2, 3)
-      shardMap.put(0, address1)
-      shardMap.put(2, address2)
+      shardMap.assign(0, address1)
+      shardMap.assign(2, address2)
       shardMap.missing shouldEqual Set(1, 3)
     }
   }

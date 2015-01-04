@@ -1,21 +1,19 @@
 package io.mandelbrot.core.cluster
 
-import java.io.File
-
-import com.typesafe.config.ConfigFactory
 import akka.remote.testkit._
 import akka.util.Timeout
-import org.scalatest.{WordSpecLike, BeforeAndAfterAll}
-import org.scalatest.matchers.ShouldMatchers
-import scala.concurrent.duration._
-
-import org.slf4j.LoggerFactory
-import ch.qos.logback.classic.{LoggerContext, Level}
+import ch.qos.logback.classic.{Level, LoggerContext}
 import ch.qos.logback.classic.encoder.PatternLayoutEncoder
-import ch.qos.logback.core.FileAppender
 import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.FileAppender
+import com.typesafe.config.ConfigFactory
+import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
+import org.scalatest.matchers.ShouldMatchers
+import org.slf4j.LoggerFactory
+import scala.concurrent.duration._
+import java.io.File
 
-abstract class ClusterMultiNodeSpec(config: MultiNodeConfig) extends MultiNodeSpec(config)
+abstract class MultiNodeSpec(config: MultiNodeConfig) extends akka.remote.testkit.MultiNodeSpec(config)
   with MultiNodeSpecCallbacks
   with WordSpecLike
   with ShouldMatchers
@@ -56,8 +54,17 @@ abstract class ClusterMultiNodeSpec(config: MultiNodeConfig) extends MultiNodeSp
   mandelbrotLogger.addAppender(fileAppender)
 }
 
+object RemoteMultiNodeConfig extends MultiNodeConfig {
+  commonConfig(ConfigFactory.load("multi-jvm-remote.conf"))
+  val node1 = role("node1")
+  val node2 = role("node2")
+  val node3 = role("node3")
+  val node4 = role("node4")
+  val node5 = role("node5")
+}
+
 object ClusterMultiNodeConfig extends MultiNodeConfig {
-  commonConfig(ConfigFactory.load("multi-jvm.conf"))
+  commonConfig(ConfigFactory.load("multi-jvm-cluster.conf"))
   val node1 = role("node1")
   val node2 = role("node2")
   val node3 = role("node3")

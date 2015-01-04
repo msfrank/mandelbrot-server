@@ -15,23 +15,19 @@ class EntityManager(coordinator: ActorRef,
                     shardResolver: ShardResolver,
                     keyExtractor: KeyExtractor,
                     propsCreator: PropsCreator,
+                    selfAddress: Address,
                     totalShards: Int,
                     initialWidth: Int) extends Actor with ActorLogging {
   import EntityManager._
   import context.dispatcher
 
-  // config
-  val selfAddress = Cluster(context.system).selfAddress
-
   // state
   val shardMap = ShardMap(totalShards, initialWidth)
   val localEntities = new util.HashMap[Int,EntityMap]()
   val entityShards = new util.HashMap[ActorRef,Int]()
-  val proposedShards = new util.HashMap[Int,util.ArrayList[BufferedEnvelope]]()
   val bufferedMessages = new util.ArrayList[BufferedEnvelope]()
-  val bufferedShards = new util.HashSet[Int]()
-  var lastUpdate = new DateTime(0)
-  var updateStats: Option[Cancellable] = None
+  val resolvingShards = new util.HashSet[Int]()
+  val cachedNacks = new util.HashMap[Int,DateTime]()
 
   def receive = {
 
@@ -41,9 +37,9 @@ class EntityManager(coordinator: ActorRef,
         val shardKey = shardResolver(envelope.message)
         shardMap(shardKey) match {
 
-          // shard is local
-          case Some((shardId, address)) if address.equals(selfAddress) =>
-            val entityRefs = localEntities.get(shardId)
+          // shard is assigned to this node
+          case shard: AssignedShardEntry if shard.address.equals(selfAddress) =>
+            val entityRefs = localEntities.get(shard.shardId)
             val entityKey = keyExtractor(envelope.message)
             entityRefs.get(entityKey) match {
               // entity doesn't exist in shard
@@ -54,7 +50,7 @@ class EntityManager(coordinator: ActorRef,
                   val entity = context.actorOf(props)
                   context.watch(entity)
                   entityRefs.put(entityKey, entity)
-                  entityShards.put(entity, shardId)
+                  entityShards.put(entity, shard.shardId)
                   entity.tell(envelope.message, envelope.sender)
                 } else envelope.sender ! EntityDeliveryFailed(envelope, new ApiException(ResourceNotFound))
               // entity exists, forward the message to it
@@ -62,18 +58,33 @@ class EntityManager(coordinator: ActorRef,
                 entity.tell(envelope.message, envelope.sender)
             }
 
-          // shard is remote and its location is cached
-          case Some((shardId, address)) =>
+          // shard is assigned to a remote node
+          case shard: AssignedShardEntry =>
             if (envelope.attempts > 0) {
-              val selection = context.system.actorSelection(RootActorPath(address) / self.path.elements)
+              val selection = context.system.actorSelection(RootActorPath(shard.address) / self.path.elements)
               selection ! envelope.copy(attempts = envelope.attempts - 1)
               // if the sender is remote, then notify the sender entity manager about the stale shard mapping
               if (!envelope.sender.path.address.equals(selfAddress))
-                sender() ! StaleShard(shardKey, shardId, address)
+                sender() ! StaleShard(shardKey, shard.shardId, shard.address)
             } else envelope.sender ! EntityDeliveryFailed(envelope, new ApiException(ResourceNotFound))
 
-          // shard is remote and there is no cached location
-          case None =>
+          // shard is in the process of being assigned to this node
+          case shard: PreparingShardEntry =>
+            log.debug("shard {} is preparing, buffering {}", shard.shardId, envelope.message)
+            bufferedMessages.add(BufferedEnvelope(envelope, shardKey, DateTime.now()))
+
+          // shard is in the process of being migrated from this node
+          case shard: MigratingShardEntry =>
+            if (envelope.attempts > 0) {
+              val selection = context.system.actorSelection(RootActorPath(shard.address) / self.path.elements)
+              selection ! envelope.copy(attempts = envelope.attempts - 1)
+              // if the sender is remote, then notify the sender entity manager about the stale shard mapping
+              if (!envelope.sender.path.address.equals(selfAddress))
+                sender() ! StaleShard(shardKey, shard.shardId, shard.address)
+            } else envelope.sender ! EntityDeliveryFailed(envelope, new ApiException(ResourceNotFound))
+
+          // shard is missing from the shard map
+          case shard: MissingShardEntry =>
             log.debug("shard not known for entity {}, buffering {}", shardKey, envelope.message)
             bufferedMessages.add(BufferedEnvelope(envelope, shardKey, DateTime.now()))
             // FIXME: don't pound the crap out of the coordinator
@@ -82,13 +93,16 @@ class EntityManager(coordinator: ActorRef,
       } else envelope.sender ! EntityDeliveryFailed(envelope, new ApiException(BadRequest))
 
     // start buffering messages in preparation to own shard
-    case PrepareShard(shardId) =>
+    case op @ PrepareShard(shardId) =>
       log.debug("{} says prepare shardId {}", sender().path, shardId)
+      shardMap.prepare(shardId, selfAddress)
+      sender() ! PrepareShardResult(op)
 
     // change proposed shard to owned
-    case RecoverShard(shardId) =>
+    case op @ RecoverShard(shardId) =>
       log.debug("{} says recover shardId {}", sender().path, shardId)
       coordinator ! GetShard(shardId)
+      sender() ! RecoverShardResult(op)
 
     // shard mapping is stale, request updated data from the coordinator
     case StaleShard(shardKey, shardId, address) =>
@@ -100,7 +114,7 @@ class EntityManager(coordinator: ActorRef,
       result.address match {
         case Some(address) =>
           log.debug("shard {} exists at {}", result.shardId, result.address)
-          shardMap.put(result.shardId, address)
+          shardMap.assign(result.shardId, address)
           // if shard is local and entity map doesn't exist, create a new entity map
           if (address.equals(selfAddress) && !localEntities.containsKey(result.shardId))
             localEntities.put(result.shardId, new EntityMap)
@@ -114,8 +128,13 @@ class EntityManager(coordinator: ActorRef,
             }
           }
         case None =>
-          log.debug("shard {} is undefined", result.shardId)
+          log.debug("shard {} is missing, retrying", result.shardId)
+          coordinator ! GetShard(result.shardId)
       }
+
+    // cluster service operation failed
+    case failure: ClusterServiceOperationFailed =>
+      log.debug("operation {} failed: {}", failure.op, failure.failure)
   }
 }
 
@@ -124,15 +143,15 @@ object EntityManager {
             shardResolver: ShardResolver,
             keyExtractor: KeyExtractor,
             propsCreator: PropsCreator,
+            selfAddress: Address,
             totalShards: Int,
             initialWidth: Int) = {
-    Props(classOf[EntityManager], coordinator, shardResolver, keyExtractor, propsCreator, totalShards, initialWidth)
+    Props(classOf[EntityManager], coordinator, shardResolver, keyExtractor, propsCreator, selfAddress, totalShards, initialWidth)
   }
 
   class EntityMap extends util.HashMap[String,ActorRef]
   case class BufferedEnvelope(envelope: EntityEnvelope, shardKey: Int, timestamp: DateTime)
   case class StaleShard(shardKey: Int, shardId: Int, address: Address)
-  case object PerformUpdate
 }
 
 object EntityFunctions {

@@ -3,26 +3,27 @@ package io.mandelbrot.core.cluster
 import akka.actor._
 import com.typesafe.config.Config
 
-class TestCoordinator(shards: ShardMap) extends Actor with ActorLogging with Coordinator with Stash {
+class TestCoordinator(shardMap: ShardMap) extends Actor with ActorLogging with Coordinator {
 
   def receive = {
 
     case op: GetAllShards =>
       log.debug("{} requests all shards", sender().path)
-      sender() ! GetAllShardsResult(op, shards.assigned)
+      val shards = shardMap.assigned.map(entry => Shard(entry.shardId, entry.width, entry.address))
+      sender() ! GetAllShardsResult(op, shards)
 
     case op: GetShard =>
       log.debug("{} requests shard for key {}", sender().path, op.shardKey)
-      shards(op.shardKey) match {
-        case Some((shardId, address)) =>
-          sender() ! GetShardResult(op, shardId, Some(address))
-        case None =>
-          sender() ! GetShardResult(op, op.shardKey, None)
+      shardMap(op.shardKey) match {
+        case shard: AssignedShardEntry =>
+          sender() ! GetShardResult(op, shard.shardId, shard.width, Some(shard.address))
+        case shard: ShardEntry =>
+          sender() ! GetShardResult(op, shard.shardId, shard.width, None)
       }
 
     case op: CommitShard =>
       log.debug("{} commits {} to shard {}", sender().path, op.target, op.shardId)
-      shards.put(op.shardId, op.target)
+      shardMap.assign(op.shardId, op.target)
       sender() ! CommitShardResult(op)
   }
 }
@@ -30,4 +31,12 @@ class TestCoordinator(shards: ShardMap) extends Actor with ActorLogging with Coo
 object TestCoordinator {
   def props(shards: ShardMap) = Props(classOf[TestCoordinator], shards)
   def settings(config: Config): Option[Any] = None
+}
+
+class ClusterTestCoordinator(master: Address, props: Props) extends Actor with ActorLogging with Coordinator {
+
+  def receive = {
+    case message =>
+
+  }
 }

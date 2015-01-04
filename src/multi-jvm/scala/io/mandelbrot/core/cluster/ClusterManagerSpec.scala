@@ -1,6 +1,6 @@
 package io.mandelbrot.core.cluster
 
-import akka.actor.{ActorLogging, ActorRef, Props, Actor}
+import akka.actor.ActorRef
 import akka.testkit.{TestProbe, ImplicitSender}
 import scala.concurrent.duration._
 
@@ -12,7 +12,7 @@ class ClusterManagerSpecMultiJvmNode3 extends ClusterManagerSpec
 class ClusterManagerSpecMultiJvmNode4 extends ClusterManagerSpec
 class ClusterManagerSpecMultiJvmNode5 extends ClusterManagerSpec
 
-class ClusterManagerSpec extends ClusterMultiNodeSpec(ClusterMultiNodeConfig) with ImplicitSender {
+class ClusterManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with ImplicitSender {
   import ClusterMultiNodeConfig._
 
   // config
@@ -21,11 +21,11 @@ class ClusterManagerSpec extends ClusterMultiNodeSpec(ClusterMultiNodeConfig) wi
   val initialWidth = 1
 
   val shards = ShardMap(totalShards, initialWidth)
-  shards.put(0, node(node1).address)
-  shards.put(1, node(node2).address)
-  shards.put(2, node(node3).address)
-  shards.put(3, node(node4).address)
-  shards.put(4, node(node5).address)
+  shards.assign(0, node(node1).address)
+  shards.assign(1, node(node2).address)
+  shards.assign(2, node(node3).address)
+  shards.assign(3, node(node4).address)
+  shards.assign(4, node(node5).address)
 
   val clusterSettings = new ClusterSettings(enabled = true,
                                             seedNodes = Vector.empty,
@@ -123,15 +123,15 @@ class ClusterManagerSpec extends ClusterMultiNodeSpec(ClusterMultiNodeConfig) wi
 
     "send message which is redirected" in {
       runOn(node1) {
-        shards.put(6, node(node2).address)
+        shards.assign(6, node(node2).address)
         enterBarrier("setup-successful-redirect")
       }
       runOn(node2) {
-        shards.put(6, node(node3).address)
+        shards.assign(6, node(node3).address)
         enterBarrier("setup-successful-redirect")
       }
       runOn(node3) {
-        shards.put(6, node(node3).address)
+        shards.assign(6, node(node3).address)
         enterBarrier("setup-successful-redirect")
       }
       runOn(node4, node5) {
@@ -149,23 +149,23 @@ class ClusterManagerSpec extends ClusterMultiNodeSpec(ClusterMultiNodeConfig) wi
 
     "receive delivery failure sending a message which redirects too many times" in {
       runOn(node1) {
-        shards.put(7, node(node2).address)
+        shards.assign(7, node(node2).address)
         enterBarrier("setup-redirect-failure")
       }
       runOn(node2) {
-        shards.put(7, node(node3).address)
+        shards.assign(7, node(node3).address)
         enterBarrier("setup-redirect-failure")
       }
       runOn(node3) {
-        shards.put(7, node(node4).address)
+        shards.assign(7, node(node4).address)
         enterBarrier("setup-redirect-failure")
       }
       runOn(node4) {
-        shards.put(7, node(node5).address)
+        shards.assign(7, node(node5).address)
         enterBarrier("setup-redirect-failure")
       }
       runOn(node5) {
-        shards.put(7, node(node5).address)
+        shards.assign(7, node(node5).address)
         enterBarrier("setup-redirect-failure")
       }
       runOn(node1) {

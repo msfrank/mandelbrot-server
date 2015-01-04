@@ -1,9 +1,6 @@
 package io.mandelbrot.core.cluster
 
-import akka.actor.RootActorPath
-import akka.cluster.Cluster
 import akka.testkit.{TestProbe, ImplicitSender}
-import org.scalatest.BeforeAndAfterAll
 import scala.concurrent.duration._
 
 class ShardBalancerSpecMultiJvmNode1 extends ShardBalancerSpec
@@ -12,18 +9,10 @@ class ShardBalancerSpecMultiJvmNode3 extends ShardBalancerSpec
 class ShardBalancerSpecMultiJvmNode4 extends ShardBalancerSpec
 class ShardBalancerSpecMultiJvmNode5 extends ShardBalancerSpec
 
-class ShardBalancerSpec extends ClusterMultiNodeSpec(ClusterMultiNodeConfig) with ImplicitSender with BeforeAndAfterAll {
+class ShardBalancerSpec extends MultiNodeSpec(RemoteMultiNodeConfig) with ImplicitSender {
   import ClusterMultiNodeConfig._
 
   def initialParticipants = roles.size
-
-  override def beforeAll(): Unit = {
-    val eventStream = TestProbe()
-    system.eventStream.subscribe(eventStream.ref, classOf[ClusterUp])
-    val clusterMonitor = system.actorOf(ClusterMonitor.props(initialParticipants), "cluster-monitor")
-    Cluster(system).join(node(node1).address)
-    eventStream.expectMsgClass(30.seconds, classOf[ClusterUp])
-  }
 
   "A ShardBalancer" should {
 
@@ -32,30 +21,30 @@ class ShardBalancerSpec extends ClusterMultiNodeSpec(ClusterMultiNodeConfig) wit
       val totalShards = 5
       val initialWidth = 1
       val shards = ShardMap(totalShards, initialWidth)
-      shards.put(0, node(node1).address)
-      shards.put(1, node(node2).address)
-      shards.put(2, node(node3).address)
-      shards.put(3, node(node4).address)
-      shards.put(4, node(node5).address)
+      shards.assign(0, node(node1).address)
+      shards.assign(1, node(node2).address)
+      shards.assign(2, node(node3).address)
+      shards.assign(3, node(node4).address)
+      shards.assign(4, node(node5).address)
 
       val coordinator = system.actorOf(TestCoordinator.props(shards), "coordinator_1")
       val entityManager = system.actorOf(EntityManager.props(coordinator,
-        TestEntity.shardResolver, TestEntity.keyExtractor, TestEntity.propsCreator, totalShards, initialWidth),
+        TestEntity.shardResolver, TestEntity.keyExtractor, TestEntity.propsCreator, myAddress, totalShards, initialWidth),
         "entities_1")
 
       enterBarrier("start-balancer-no-ops")
 
       runOn(node1) {
         val nodes = Map(
-          node(node1).address -> RootActorPath(node(node1).address, "/entities_1"),
-          node(node2).address -> RootActorPath(node(node2).address, "/entities_1"),
-          node(node3).address -> RootActorPath(node(node3).address, "/entities_1"),
-          node(node4).address -> RootActorPath(node(node4).address, "/entities_1"),
-          node(node5).address -> RootActorPath(node(node5).address, "/entities_1")
+          node(node1).address -> node(node1) / entityManager.path.elements,
+          node(node2).address -> node(node2) / entityManager.path.elements,
+          node(node3).address -> node(node3) / entityManager.path.elements,
+          node(node4).address -> node(node4) / entityManager.path.elements,
+          node(node5).address -> node(node5) / entityManager.path.elements
         )
         val monitor = TestProbe()
         system.actorOf(ShardBalancer.props(coordinator, monitor.ref, nodes, totalShards, initialWidth), "balancer_1")
-        val result = monitor.expectMsgClass(classOf[ShardBalancerResult])
+        monitor.expectMsgClass(classOf[ShardBalancerResult])
       }
 
       enterBarrier("end-balancer-no-ops")
@@ -66,30 +55,36 @@ class ShardBalancerSpec extends ClusterMultiNodeSpec(ClusterMultiNodeConfig) wit
       val totalShards = 5
       val initialWidth = 1
       val shards = ShardMap(totalShards, initialWidth)
-      shards.put(0, node(node1).address)
-      //shards.put(1, node(node2).address)
-      shards.put(2, node(node3).address)
-      shards.put(3, node(node4).address)
-      shards.put(4, node(node5).address)
+      shards.assign(0, node(node1).address)
+      //shards.assign(1, node(node2).address)
+      shards.assign(2, node(node3).address)
+      shards.assign(3, node(node4).address)
+      shards.assign(4, node(node5).address)
 
       val coordinator = system.actorOf(TestCoordinator.props(shards), "coordinator_2")
       val entityManager = system.actorOf(EntityManager.props(coordinator,
-        TestEntity.shardResolver, TestEntity.keyExtractor, TestEntity.propsCreator, totalShards, initialWidth),
+        TestEntity.shardResolver, TestEntity.keyExtractor, TestEntity.propsCreator, myAddress, totalShards, initialWidth),
         "entities_2")
 
       enterBarrier("start-balancer-repair-shard")
+      log.debug("passed barrier")
 
       runOn(node1) {
         val nodes = Map(
-          node(node1).address -> RootActorPath(node(node1).address, "/entities_2"),
-          node(node2).address -> RootActorPath(node(node2).address, "/entities_2"),
-          node(node3).address -> RootActorPath(node(node3).address, "/entities_2"),
-          node(node4).address -> RootActorPath(node(node4).address, "/entities_2"),
-          node(node5).address -> RootActorPath(node(node5).address, "/entities_2")
+          node(node1).address -> node(node1) / entityManager.path.elements,
+          node(node2).address -> node(node2) / entityManager.path.elements,
+          node(node3).address -> node(node3) / entityManager.path.elements,
+          node(node4).address -> node(node4) / entityManager.path.elements,
+          node(node5).address -> node(node5) / entityManager.path.elements
         )
+
         val monitor = TestProbe()
         system.actorOf(ShardBalancer.props(coordinator, monitor.ref, nodes, totalShards, initialWidth), "balancer_2")
-        val result = monitor.expectMsgClass(classOf[ShardBalancerResult])
+        monitor.expectMsgClass(classOf[ShardBalancerResult])
+      }
+
+      runOn(node2, node3, node4, node5) {
+        expectNoMsg(10.seconds)
       }
 
       enterBarrier("end-balancer-repair-shard")

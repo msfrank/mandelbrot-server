@@ -32,7 +32,8 @@ class ClusterManager(settings: ClusterSettings,
 
   val clusterMonitor = context.actorOf(ClusterMonitor.props(settings.minNrMembers), "cluster-monitor")
   val entityManager = context.actorOf(EntityManager.props(coordinator,
-    shardResolver, keyExtractor, propsCreator, settings.totalShards, settings.initialWidth), "entity-manager")
+    shardResolver, keyExtractor, propsCreator, selfAddress, settings.totalShards, settings.initialWidth),
+    "entity-manager")
 
   log.info("initializing cluster mode")
 
@@ -58,6 +59,7 @@ class ClusterManager(settings: ClusterSettings,
 
     // cluster monitor emits this message
     case event: ClusterUp =>
+      log.debug("cluster is up")
       running = true
       status = event
       if (event.leader.equals(selfAddress) && shardBalancer.isEmpty) {
@@ -66,6 +68,7 @@ class ClusterManager(settings: ClusterSettings,
 
     // cluster monitor emits this message
     case event: ClusterDown =>
+      log.debug("cluster is down")
       running = false
       status = event
       if (shardBalancer.nonEmpty) {
@@ -89,22 +92,18 @@ object ClusterManager {
 
 case class JoinCluster(seedNodes: Vector[String])
 
+case class Shard(shardId: Int, width: Int, address: Address)
+
 sealed trait ClusterServiceOperation
 sealed trait ClusterServiceCommand extends ClusterServiceOperation
 sealed trait ClusterServiceQuery extends ClusterServiceOperation
 case class ClusterServiceOperationFailed(op: ClusterServiceOperation, failure: Throwable)
 
-//case class UpdateMemberShards(allocations: Map[Int,Int]) extends ClusterServiceCommand
-//case class UpdateMemberShardsResult(op: UpdateMemberShards)
-//
-//case class GetClusterStatus() extends ClusterServiceQuery
-//case class GetClusterStatusResult(op: GetClusterStatus, status: ClusterMonitorEvent)
-
 case class GetAllShards() extends ClusterServiceQuery
-case class GetAllShardsResult(op: GetAllShards, shards: Vector[(Int,Address)])
+case class GetAllShardsResult(op: GetAllShards, shards: Vector[Shard])
 
 case class GetShard(shardKey: Int) extends ClusterServiceQuery
-case class GetShardResult(op: GetShard, shardId: Int, address: Option[Address])
+case class GetShardResult(op: GetShard, shardId: Int, width: Int, address: Option[Address])
 
 case class PrepareShard(shardId: Int) extends ClusterServiceCommand
 case class PrepareShardResult(op: PrepareShard)
