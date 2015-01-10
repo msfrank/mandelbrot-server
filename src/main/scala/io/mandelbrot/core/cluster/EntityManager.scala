@@ -61,6 +61,7 @@ class EntityManager(coordinator: ActorRef,
         case entry: PreparingShardEntry =>
           log.debug("{} says recover shardId {}", sender().path, op.shardId)
           shardMap.assign(op.shardId, selfAddress)
+          localEntities.put(op.shardId, new EntityMap)
           taskTimeouts.remove(op.shardId).cancel()
           sender() ! RecoverShardResult(op)
         case entry: ShardEntry =>
