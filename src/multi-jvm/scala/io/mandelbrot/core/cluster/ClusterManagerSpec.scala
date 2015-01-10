@@ -27,12 +27,14 @@ class ClusterManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Impl
   shards.assign(3, node(node4).address)
   shards.assign(4, node(node5).address)
 
+  val coordinatorSettings = TestCoordinatorSettings(shards, node(node1).address, myAddress)
+
   val clusterSettings = new ClusterSettings(enabled = true,
                                             seedNodes = Vector.empty,
                                             minNrMembers = 5,
                                             totalShards,
                                             initialWidth,
-                                            CoordinatorSettings("io.mandelbrot.core.cluster.TestCoordinator", Some(shards)))
+                                            CoordinatorSettings("io.mandelbrot.core.cluster.TestCoordinator", Some(coordinatorSettings)))
   var clusterManager = ActorRef.noSender
 
   "A ClusterManager" should {

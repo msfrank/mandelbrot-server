@@ -139,6 +139,4 @@ object ShardBalancer {
   case class Repairing(inflight: ActorRef, queued: Vector[PutShard]) extends Data
 }
 
-case object ShardTaskTimeout
-
 case class ShardBalancerResult(shardMap: ShardMap)

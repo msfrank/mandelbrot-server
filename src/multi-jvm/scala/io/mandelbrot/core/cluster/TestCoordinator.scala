@@ -3,7 +3,13 @@ package io.mandelbrot.core.cluster
 import akka.actor._
 import com.typesafe.config.Config
 
-class TestCoordinator(shardMap: ShardMap, masterAddress: Address, selfAddress: Address) extends Actor with ActorLogging with Coordinator {
+case class TestCoordinatorSettings(shardMap: ShardMap, masterAddress: Address, selfAddress: Address)
+
+class TestCoordinator(settings: TestCoordinatorSettings) extends Actor with ActorLogging with Coordinator {
+
+  val shardMap = settings.shardMap
+  val masterAddress = settings.masterAddress
+  val selfAddress = settings.selfAddress
 
   def receive = {
 
@@ -34,8 +40,8 @@ class TestCoordinator(shardMap: ShardMap, masterAddress: Address, selfAddress: A
 }
 
 object TestCoordinator {
-  def props(shards: ShardMap, masterAddress: Address, selfAddress: Address) = {
-    Props(classOf[TestCoordinator], shards, masterAddress, selfAddress)
+  def props(settings: TestCoordinatorSettings) = {
+    Props(classOf[TestCoordinator], settings)
   }
   def settings(config: Config): Option[Any] = None
 }

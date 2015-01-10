@@ -7,6 +7,7 @@ import scala.concurrent.duration.FiniteDuration
  *
  */
 class PutShardTask(op: PutShard, coordinator: ActorRef, monitor: ActorRef, timeout: FiniteDuration) extends Actor with ActorLogging {
+  import PutShardTask.TaskTimeout
   import context.dispatcher
 
   // config
@@ -14,7 +15,7 @@ class PutShardTask(op: PutShard, coordinator: ActorRef, monitor: ActorRef, timeo
   val targetNode = op.targetNode
 
   // state
-  val cancellable = context.system.scheduler.scheduleOnce(timeout, self, ShardTaskTimeout)
+  val cancellable = context.system.scheduler.scheduleOnce(timeout, self, TaskTimeout)
 
   coordinator ! GetShard(shardId)
 
@@ -45,7 +46,7 @@ class PutShardTask(op: PutShard, coordinator: ActorRef, monitor: ActorRef, timeo
       monitor ! PutShardFailed(op, failure.failure)
       context.stop(self)
 
-    case ShardTaskTimeout =>
+    case TaskTimeout =>
       monitor ! PutShardFailed(op, new Exception("timed out while performing task %s".format(op)))
       context.stop(self)
   }
@@ -57,6 +58,7 @@ object PutShardTask {
   def props(op: PutShard, coordinator: ActorRef, monitor: ActorRef, timeout: FiniteDuration) = {
     Props(classOf[PutShardTask], op, coordinator, monitor, timeout)
   }
+  case object TaskTimeout
 }
 
 case class PutShard(shardId: Int, targetNode: ActorPath)
