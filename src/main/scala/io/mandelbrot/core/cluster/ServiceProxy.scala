@@ -60,10 +60,8 @@ class ServiceProxy extends Actor with ActorLogging {
     case op: ProbeSystemOperation => ProbeSystem.props(services = self)
   }
 
-  val coordinator = if (settings.cluster.enabled)
-    context.actorOf(ClusterManager.props(settings.cluster, shardResolver, keyExtractor, propsCreator), "cluster-coordinator")
-  else
-    context.actorOf(StandaloneCoordinator.props(registryService), "standalone-coordinator")
+  val clusterService = context.actorOf(ClusterManager.props(settings.cluster,
+    shardResolver, keyExtractor, propsCreator), "cluster-service")
 
   def receive = {
 
@@ -71,16 +69,16 @@ class ServiceProxy extends Actor with ActorLogging {
       registryService forward op
 
     case op: RegistryServiceOperation =>
-      coordinator forward op
+      clusterService forward op
 
     case op: ProbeSystemOperation =>
-      coordinator forward op
+      clusterService forward op
 
     case op: ProbeOperation =>
-      coordinator forward op
+      clusterService forward op
 
     case op: ClusterServiceOperation =>
-      coordinator forward op
+      clusterService forward op
 
     case op: StateServiceOperation =>
       stateService forward op

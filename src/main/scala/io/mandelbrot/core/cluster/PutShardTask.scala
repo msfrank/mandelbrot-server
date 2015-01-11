@@ -20,6 +20,7 @@
 package io.mandelbrot.core.cluster
 
 import akka.actor._
+import io.mandelbrot.core.{RetryLater, ApiException}
 import scala.concurrent.duration.FiniteDuration
 
 /**
@@ -61,13 +62,18 @@ class PutShardTask(op: PutShard, services: ActorRef, monitor: ActorRef, timeout:
       monitor ! PutShardComplete(op)
       context.stop(self)
 
+    case failure: ShardBalancerOperationFailed =>
+      log.debug("failed to put shard {}: {}", shardId, failure)
+      monitor ! PutShardFailed(op, failure.failure)
+      context.stop(self)
+
     case failure: ClusterServiceOperationFailed =>
       log.debug("failed to put shard {}: {}", shardId, failure)
       monitor ! PutShardFailed(op, failure.failure)
       context.stop(self)
 
     case TaskTimeout =>
-      monitor ! PutShardFailed(op, new Exception("timed out while performing task %s".format(op)))
+      monitor ! PutShardFailed(op, new ApiException(RetryLater))
       context.stop(self)
   }
 

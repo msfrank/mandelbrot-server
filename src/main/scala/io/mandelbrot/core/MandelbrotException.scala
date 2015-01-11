@@ -84,4 +84,4 @@ case object InternalError extends ApiFailure("internal error") with InternalErro
 /**
  * Exception which wraps an API failure.
  */
-class ApiException(val failure: ApiFailure) extends MandelbrotException(failure.description, failure)
+case class ApiException(failure: ApiFailure) extends MandelbrotException(failure.description, failure)

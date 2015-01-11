@@ -20,6 +20,7 @@
 package io.mandelbrot.core.cluster
 
 import akka.actor._
+import akka.pattern._
 import io.mandelbrot.core.{RetryLater, ResourceNotFound, BadRequest, ApiException}
 import org.joda.time.DateTime
 import scala.concurrent.duration._
@@ -51,8 +52,10 @@ class EntityManager(services: ActorRef,
   import context.dispatcher
 
   // config
-  val shardTimeout = 5.seconds
-  
+  val servicesTimeout = 5.seconds
+  val taskTimeout = 5.seconds
+  val lookupTimeout = 5.seconds
+
   // state
   val shardMap = ShardMap(totalShards, initialWidth)
   val localEntities = new util.HashMap[Int,ActorRef]()
@@ -61,7 +64,52 @@ class EntityManager(services: ActorRef,
   val staleShards = new util.HashSet[StaleShard]()
   val missingShards = new util.HashMap[Int,ActorRef]
 
-  def receive = {
+  override def preStart(): Unit = self ! Retry
+  
+  def initializing: Receive = {
+
+    case Retry =>
+      services.ask(ListShards())(servicesTimeout).pipeTo(self)
+
+    case ListShardsResult(op, shards) =>
+      // update the shard map and create any local shard entities
+      shards.foreach { case Shard(shardId, width, address) =>
+        shardMap.assign(shardId, address)
+        // if shard is local and entity map doesn't exist, create a new entity map
+        if (address.equals(selfAddress)) {
+          val shardEntities = context.actorOf(ShardEntities.props(services, keyExtractor, propsCreator))
+          localEntities.put(shardId, shardEntities)
+        }
+      }
+      log.debug("initialized shard map with {} shards, {} missing", shardMap.size, shardMap.numMissing)
+      // start lookup tasks for any missing shards
+      shardMap.missing.foreach { case entry: MissingShardEntry =>
+        val op = LookupShard(entry.shardId)
+        val actor = context.actorOf(LookupShardTask.props(op, services, self, lookupTimeout))
+        missingShards.put(entry.shardId, actor)
+      }
+      context.become(running)
+      // flush any envelopes which were received while initializing
+      flushBuffered()
+
+    case failure: ClusterServiceOperationFailed =>
+      log.debug("failed to list shards: {}", failure.failure.getCause)
+      context.system.scheduler.scheduleOnce(servicesTimeout, self, Retry)
+
+    case failure: AskTimeoutException =>
+      log.debug("failed to list shards: timed out")
+      context.system.scheduler.scheduleOnce(servicesTimeout, self, Retry)
+
+    case op: ShardBalancerOperation =>
+      sender() ! ShardBalancerOperationFailed(op, new ApiException(RetryLater))
+
+    case envelope: EntityEnvelope =>
+      deliverEnvelope(envelope)
+  }
+  
+  def receive = initializing
+  
+  def running: Receive = {
 
     // send the specified message to the entity, which may be remote or local
     case envelope: EntityEnvelope =>
@@ -77,7 +125,7 @@ class EntityManager(services: ActorRef,
         case entry: ShardEntry =>
           log.debug("{} says prepare shardId {}", sender().path, op.shardId)
           shardMap.prepare(op.shardId, selfAddress)
-          taskTimeouts.put(op.shardId, context.system.scheduler.scheduleOnce(shardTimeout, self, TaskTimeout(op.shardId)))
+          taskTimeouts.put(op.shardId, context.system.scheduler.scheduleOnce(taskTimeout, self, TaskTimeout(op.shardId)))
           sender() ! PrepareShardResult(op)
       }
 
@@ -103,7 +151,7 @@ class EntityManager(services: ActorRef,
       taskTimeouts.remove(shardId)
       if (!missingShards.containsKey(shardId)) {
         val op = LookupShard(shardId)
-        val actor = context.actorOf(LookupShardTask.props(op, services, self, shardTimeout))
+        val actor = context.actorOf(LookupShardTask.props(op, services, self, lookupTimeout))
         missingShards.put(shardId, actor)
       }
 
@@ -115,10 +163,8 @@ class EntityManager(services: ActorRef,
         shardMap.assign(result.shardId, result.address)
         // if shard is local and entity map doesn't exist, create a new entity map
         if (result.address.equals(selfAddress) && !localEntities.containsKey(result.shardId)) {
-          if (!localEntities.containsKey(result.shardId)) {
-            val shardEntities = context.actorOf(ShardEntities.props(services, keyExtractor, propsCreator))
-            localEntities.put(result.shardId, shardEntities)
-          }
+          val shardEntities = context.actorOf(ShardEntities.props(services, keyExtractor, propsCreator))
+          localEntities.put(result.shardId, shardEntities)
         }
         // flush any buffered messages for newly assigned shards
         flushBuffered()
@@ -186,7 +232,7 @@ class EntityManager(services: ActorRef,
           if (!missingShards.containsKey(shard.shardId)) {
             /// then try to repair the shard map
             val op = LookupShard(shard.shardId)
-            val actor = context.actorOf(LookupShardTask.props(op, services, self, shardTimeout))
+            val actor = context.actorOf(LookupShardTask.props(op, services, self, lookupTimeout))
             missingShards.put(shard.shardId, actor)
           }
         }
@@ -221,6 +267,7 @@ object EntityManager {
     Props(classOf[EntityManager], services, shardResolver, keyExtractor, propsCreator, selfAddress, totalShards, initialWidth)
   }
 
+  case object Retry
   case class StaleShard(shardId: Int, address: Address)
   case class TaskTimeout(shardId: Int)
 }

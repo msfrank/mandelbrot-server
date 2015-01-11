@@ -20,6 +20,7 @@
 package io.mandelbrot.core.cluster
 
 import akka.actor._
+import io.mandelbrot.core.{RetryLater, ApiException}
 import scala.concurrent.duration._
 import scala.collection.mutable
 
@@ -91,18 +92,26 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
       val numShards = shardDensity.getOrElse(address, 0)
       shardDensity.put(address, numShards + 1)
       missingShards = missingShards - shardId
-      if (state.queued.nonEmpty) {
-        val inflight = context.actorOf(PutShardTask.props(state.queued.head, services, self, timeout))
-        stay() using Repairing(inflight, state.queued.tail)
+      val remaining = state.queued.tail
+      if (remaining.nonEmpty) {
+        val inflight = context.actorOf(PutShardTask.props(remaining.head, services, self, timeout))
+        stay() using Repairing(inflight, remaining)
       } else balance()
 
-    // the operation failed for some reason
+    // the operation failed but we should retry later
+    case Event(PutShardFailed(op, ApiException(RetryLater)), state: Repairing) =>
+      log.debug("failed to put shard {} at {}: retrying", op.shardId, op.targetNode.address)
+      val inflight = context.actorOf(PutShardTask.props(state.queued.head, services, self, timeout))
+      stay() using Repairing(inflight, state.queued)
+
+    // the operation failed definitively, don't bother retrying
     case Event(result: PutShardFailed, state: Repairing) =>
       val PutShard(shardId, actorPath) = result.op
       log.debug("failed to put shard {} at {}: {}", shardId, actorPath.address, result.ex)
-      if (state.queued.nonEmpty) {
-        val inflight = context.actorOf(PutShardTask.props(state.queued.head, services, self, timeout))
-        stay() using Repairing(inflight, state.queued.tail)
+      val remaining = state.queued.tail
+      if (remaining.nonEmpty) {
+        val inflight = context.actorOf(PutShardTask.props(remaining.head, services, self, timeout))
+        stay() using Repairing(inflight, remaining)
       } else balance()
   }
 
@@ -122,7 +131,7 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
       }.toVector
       // put the first operation in flight
       val inflight = context.actorOf(PutShardTask.props(ops.head, services, self, timeout))
-      goto(Repairing) using Repairing(inflight, ops.tail)
+      goto(Repairing) using Repairing(inflight, ops)
     } else {
       monitor ! ShardBalancerResult(shardMap)
       stop()

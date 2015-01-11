@@ -47,7 +47,7 @@ class ShardMap(val totalShards: Int, val initialWidth: Int) {
     entries(n) = new MapEntry(MissingShardEntry(shardId, width))
   }
 
-  private var numMissing = entries.length
+  private var _numMissing = entries.length
 
   /**
    * get the shard entry for the specified shardId.
@@ -81,7 +81,7 @@ class ShardMap(val totalShards: Int, val initialWidth: Int) {
     val prev = entry.shard
     entry.shard = AssignedShardEntry(prev.shardId, prev.width, address)
     if (prev.isEmpty)
-      numMissing = numMissing - 1
+      _numMissing = _numMissing - 1
     prev
   }
 
@@ -93,7 +93,7 @@ class ShardMap(val totalShards: Int, val initialWidth: Int) {
     val prev = entry.shard
     entry.shard = PreparingShardEntry(prev.shardId, prev.width, address)
     if (prev.isEmpty)
-      numMissing = numMissing - 1
+      _numMissing = _numMissing - 1
     prev
   }
 
@@ -105,7 +105,7 @@ class ShardMap(val totalShards: Int, val initialWidth: Int) {
     val prev = entry.shard
     entry.shard = MigratingShardEntry(prev.shardId, prev.width, address)
     if (prev.isEmpty)
-      numMissing = numMissing - 1
+      _numMissing = _numMissing - 1
     prev
   }
 
@@ -117,7 +117,7 @@ class ShardMap(val totalShards: Int, val initialWidth: Int) {
     val prev = entry.shard
     entry.shard = MissingShardEntry(prev.shardId, prev.width)
     if (prev.isDefined)
-      numMissing = numMissing + 1
+      _numMissing = _numMissing + 1
     prev
   }
 
@@ -160,15 +160,25 @@ class ShardMap(val totalShards: Int, val initialWidth: Int) {
   def contains(shardKey: Int): Boolean = apply(shardKey).isDefined
 
   /**
+   * returns the total number of shards.
+   */
+  def size: Int = entries.length
+
+  /**
+   * returns the number of shards which are missing.
+   */
+  def numMissing: Int = _numMissing
+
+  /**
    * returns the number of shards which have an address (assigned, preparing, or migrating).
    */
-  def size: Int = entries.length - numMissing
+  def numAssigned: Int = entries.length - _numMissing
 
-  def isEmpty: Boolean = numMissing == entries.length
+  def isEmpty: Boolean = _numMissing == entries.length
 
   def nonEmpty: Boolean = !isEmpty
 
-  def isFull: Boolean = numMissing == 0
+  def isFull: Boolean = _numMissing == 0
 
   def nonFull: Boolean = !isFull
 
@@ -191,17 +201,17 @@ abstract class ShardEntry(_address: Option[Address]) {
 }
 
 case class AssignedShardEntry(shardId: Int, width: Int, address: Address) extends ShardEntry(Some(address)) {
-  override def toString = "<%d+%d assigned to %s>".format(shardId, width, address)
+  override def toString = "Shard(%d+%d assigned to %s)".format(shardId, width, address)
 }
 
 case class PreparingShardEntry(shardId: Int, width: Int, address: Address) extends ShardEntry(Some(address)) {
-  override def toString = "<%d+%d preparing for %s>".format(shardId, width, address)
+  override def toString = "Shard(%d+%d preparing for %s)".format(shardId, width, address)
 }
 
 case class MigratingShardEntry(shardId: Int, width: Int, address: Address) extends ShardEntry(Some(address)) {
-  override def toString = "<%d+%d migrating to %s>".format(shardId, width, address)
+  override def toString = "Shard(%d+%d migrating to %s)".format(shardId, width, address)
 }
 
 case class MissingShardEntry(shardId: Int, width: Int) extends ShardEntry(None) {
-  override def toString = "<%d+%d missing>".format(shardId, width)
+  override def toString = "Shard(%d+%d missing)".format(shardId, width)
 }
