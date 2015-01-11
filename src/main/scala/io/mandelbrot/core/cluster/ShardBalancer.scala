@@ -1,3 +1,22 @@
+/**
+ * Copyright 2014 Michael Frank <msfrank@syntaxjockey.com>
+ *
+ * This file is part of Mandelbrot.
+ *
+ * Mandelbrot is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Mandelbrot is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package io.mandelbrot.core.cluster
 
 import akka.actor._
@@ -7,7 +26,12 @@ import scala.collection.mutable
 import ShardBalancer.{State, Data}
 
 /**
- *
+ * The ShardBalancer is responsible for keeping the shard map healthy.  this consists
+ * of multiple interrelated tasks:
+ *   1) ensure that all shards are assigned to an address.
+ *   2) ensure that shards are equally balanced across the cluster when members join the cluster.
+ *   3) ensure that shards are equally balanced across the cluster when members leave the cluster.
+ *   4) ensure that shards are redistributed when members get too hot or cold.
  */
 class ShardBalancer(coordinator: ActorRef, monitor: ActorRef, nodes: Map[Address,ActorPath], totalShards: Int, initialWidth: Int) extends LoggingFSM[State,Data] {
   import ShardBalancer._

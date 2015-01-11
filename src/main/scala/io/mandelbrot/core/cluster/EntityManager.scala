@@ -1,3 +1,22 @@
+/**
+ * Copyright 2014 Michael Frank <msfrank@syntaxjockey.com>
+ *
+ * This file is part of Mandelbrot.
+ *
+ * Mandelbrot is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Mandelbrot is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package io.mandelbrot.core.cluster
 
 import akka.actor._
@@ -9,7 +28,17 @@ import java.util
 import io.mandelbrot.core.cluster.EntityFunctions.{ShardResolver, PropsCreator, KeyExtractor}
 
 /**
+ * The EntityManager receives EntityEnvelope messages and delivers them to the
+ * appropriate shard, which may be local or remote.  The shard may also be in a
+ * non-assigned state, in which case the envelope will be buffered until the
+ * delivery can be completed.
  *
+ * In order to deliver envelopes to the correct destination, the EntityManager
+ * must maintain a cached copy of the shard map.  if a StaleShard message is
+ * received, then the EntityManager must invalidate the current mapping and query
+ * the coordinator for the up-to-date mapping.  The EntityManager also interacts
+ * with the ShardBalancer to acquire and release shards as needed to keep shards
+ * balanced across the cluster.
  */
 class EntityManager(coordinator: ActorRef,
                     shardResolver: ShardResolver,
