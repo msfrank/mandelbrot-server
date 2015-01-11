@@ -34,6 +34,7 @@ object MandelbrotServerBuild extends Build {
         "com.typesafe.akka" %% "akka-remote" % akkaVersion,
         "com.typesafe.akka" %% "akka-cluster" % akkaVersion,
         "com.typesafe.akka" %% "akka-slf4j" % akkaVersion,
+        "com.typesafe.akka" %% "akka-contrib" % akkaVersion,
         "io.spray" %% "spray-can" % sprayVersion,
         "io.spray" %% "spray-routing" % sprayVersion,
         "io.spray" %% "spray-json" % sprayJsonVersion,
