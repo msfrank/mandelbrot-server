@@ -4,7 +4,7 @@ import akka.actor.ActorRef
 import akka.testkit.{TestProbe, ImplicitSender}
 import scala.concurrent.duration._
 
-import io.mandelbrot.core.{BadRequest, ResourceNotFound}
+import io.mandelbrot.core.{ProxyForwarder, BadRequest, ResourceNotFound}
 
 class ClusterManagerSpecMultiJvmNode1 extends ClusterManagerSpec
 class ClusterManagerSpecMultiJvmNode2 extends ClusterManagerSpec
@@ -43,7 +43,7 @@ class ClusterManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Impl
       val eventStream = TestProbe()
       system.eventStream.subscribe(eventStream.ref, classOf[ClusterUp])
       val props = ClusterManager.props(clusterSettings, TestEntity.shardResolver, TestEntity.keyExtractor, TestEntity.propsCreator)
-      clusterManager = system.actorOf(props, "cluster-manager")
+      clusterManager = system.actorOf(ProxyForwarder.props(props, self, classOf[ClusterServiceOperation]), "cluster-manager")
       clusterManager ! JoinCluster(Vector(node(node1).address.toString))
       eventStream.expectMsgClass(30.seconds, classOf[ClusterUp])
       enterBarrier("cluster-up")

@@ -50,7 +50,7 @@ class ClusterManager(settings: ClusterSettings,
   }
 
   val clusterMonitor = context.actorOf(ClusterMonitor.props(settings.minNrMembers), "cluster-monitor")
-  val entityManager = context.actorOf(EntityManager.props(coordinator,
+  val entityManager = context.actorOf(EntityManager.props(context.parent,
     shardResolver, keyExtractor, propsCreator, selfAddress, settings.totalShards, settings.initialWidth),
     "entity-manager")
 
@@ -93,6 +93,10 @@ class ClusterManager(settings: ClusterSettings,
       if (shardBalancer.nonEmpty) {
       }
 
+    // forward any messages for the coordinator
+    case op: ClusterServiceOperation =>
+      coordinator forward op
+
     // send envelopes directly to the entity manager
     case envelope: EntityEnvelope =>
       entityManager ! envelope
@@ -118,23 +122,14 @@ sealed trait ClusterServiceCommand extends ClusterServiceOperation
 sealed trait ClusterServiceQuery extends ClusterServiceOperation
 case class ClusterServiceOperationFailed(op: ClusterServiceOperation, failure: Throwable)
 
-case class GetAllShards() extends ClusterServiceQuery
-case class GetAllShardsResult(op: GetAllShards, shards: Vector[Shard])
+case class ListShards() extends ClusterServiceQuery
+case class ListShardsResult(op: ListShards, shards: Vector[Shard])
 
 case class GetShard(shardKey: Int) extends ClusterServiceQuery
 case class GetShardResult(op: GetShard, shardId: Int, width: Int, address: Option[Address])
 
-case class PrepareShard(shardId: Int) extends ClusterServiceCommand
-case class PrepareShardResult(op: PrepareShard)
-
-case class ProposeShard(shardId: Int, target: Address) extends ClusterServiceCommand
-case class ProposeShardResult(op: ProposeShard)
-
-case class CommitShard(shardId: Int, target: Address) extends ClusterServiceCommand
-case class CommitShardResult(op: CommitShard)
-
-case class RecoverShard(shardId: Int) extends ClusterServiceCommand
-case class RecoverShardResult(op: RecoverShard)
+case class UpdateShard(shardId: Int, target: Address) extends ClusterServiceCommand
+case class UpdateShardResult(op: UpdateShard)
 
 /* marker trait for Coordinator implementations */
 trait Coordinator

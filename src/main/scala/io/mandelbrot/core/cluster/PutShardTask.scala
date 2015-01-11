@@ -26,7 +26,7 @@ import scala.concurrent.duration.FiniteDuration
  * The PutShardTask is invoked by the ShardBalancer to place a shard at the specified
  * address.
  */
-class PutShardTask(op: PutShard, coordinator: ActorRef, monitor: ActorRef, timeout: FiniteDuration) extends Actor with ActorLogging {
+class PutShardTask(op: PutShard, services: ActorRef, monitor: ActorRef, timeout: FiniteDuration) extends Actor with ActorLogging {
   import PutShardTask.TaskTimeout
   import context.dispatcher
 
@@ -37,7 +37,7 @@ class PutShardTask(op: PutShard, coordinator: ActorRef, monitor: ActorRef, timeo
   // state
   val cancellable = context.system.scheduler.scheduleOnce(timeout, self, TaskTimeout)
 
-  coordinator ! GetShard(shardId)
+  services ! GetShard(shardId)
 
   def receive = {
 
@@ -49,9 +49,9 @@ class PutShardTask(op: PutShard, coordinator: ActorRef, monitor: ActorRef, timeo
     case result: PrepareShardResult =>
       // write new shard owner
       log.debug("shard {} now assigned to {}", result.op.shardId, sender().path)
-      coordinator ! CommitShard(shardId, targetNode.address)
+      services ! UpdateShard(shardId, targetNode.address)
 
-    case result: CommitShardResult =>
+    case result: UpdateShardResult =>
       // tell targetNode to recover shard
       log.debug("notifying {} to recover shard {}", targetNode, result.op.shardId)
       context.actorSelection(targetNode) ! RecoverShard(shardId)
@@ -75,8 +75,8 @@ class PutShardTask(op: PutShard, coordinator: ActorRef, monitor: ActorRef, timeo
 }
 
 object PutShardTask {
-  def props(op: PutShard, coordinator: ActorRef, monitor: ActorRef, timeout: FiniteDuration) = {
-    Props(classOf[PutShardTask], op, coordinator, monitor, timeout)
+  def props(op: PutShard, services: ActorRef, monitor: ActorRef, timeout: FiniteDuration) = {
+    Props(classOf[PutShardTask], op, services, monitor, timeout)
   }
   case object TaskTimeout
 }

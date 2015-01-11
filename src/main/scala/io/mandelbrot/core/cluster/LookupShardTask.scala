@@ -29,7 +29,7 @@ import scala.concurrent.duration._
  * querying at regular intervals until the shard has been assigned.
  */
 class LookupShardTask(op: LookupShard,
-                      coordinator: ActorRef,
+                      services: ActorRef,
                       monitor: ActorRef,
                       timeout: FiniteDuration) extends Actor with ActorLogging {
   import LookupShardTask.PerformQuery
@@ -45,7 +45,7 @@ class LookupShardTask(op: LookupShard,
   def receive = {
 
     case PerformQuery =>
-      coordinator.ask(GetShard(op.shardKey))(timeout).pipeTo(self)
+      services.ask(GetShard(op.shardKey))(timeout).pipeTo(self)
 
     case result: GetShardResult if result.address.isEmpty =>
       context.system.scheduler.scheduleOnce(delay, self, PerformQuery)
@@ -63,8 +63,8 @@ class LookupShardTask(op: LookupShard,
 }
 
 object LookupShardTask {
-  def props(op: LookupShard, coordinator: ActorRef, monitor: ActorRef, timeout: FiniteDuration) = {
-    Props(classOf[LookupShardTask], op, coordinator, monitor, timeout)
+  def props(op: LookupShard, services: ActorRef, monitor: ActorRef, timeout: FiniteDuration) = {
+    Props(classOf[LookupShardTask], op, services, monitor, timeout)
   }
   case object PerformQuery
 }

@@ -40,7 +40,7 @@ import io.mandelbrot.core.cluster.EntityFunctions.{ShardResolver, PropsCreator, 
  * with the ShardBalancer to acquire and release shards as needed to keep shards
  * balanced across the cluster.
  */
-class EntityManager(coordinator: ActorRef,
+class EntityManager(services: ActorRef,
                     shardResolver: ShardResolver,
                     keyExtractor: KeyExtractor,
                     propsCreator: PropsCreator,
@@ -71,9 +71,9 @@ class EntityManager(coordinator: ActorRef,
     case op: PrepareShard =>
       shardMap.get(op.shardId) match {
         case entry: AssignedShardEntry =>
-          sender() ! ClusterServiceOperationFailed(op, new ApiException(BadRequest))
+          sender() ! ShardBalancerOperationFailed(op, new ApiException(BadRequest))
         case entry: ShardEntry if taskTimeouts.containsKey(op.shardId) =>
-          sender() ! ClusterServiceOperationFailed(op, new ApiException(RetryLater))
+          sender() ! ShardBalancerOperationFailed(op, new ApiException(RetryLater))
         case entry: ShardEntry =>
           log.debug("{} says prepare shardId {}", sender().path, op.shardId)
           shardMap.prepare(op.shardId, selfAddress)
@@ -85,16 +85,16 @@ class EntityManager(coordinator: ActorRef,
     case op: RecoverShard =>
       shardMap.get(op.shardId) match {
         case entry: PreparingShardEntry if !taskTimeouts.containsKey(op.shardId) =>
-          sender() ! ClusterServiceOperationFailed(op, new ApiException(RetryLater))
+          sender() ! ShardBalancerOperationFailed(op, new ApiException(RetryLater))
         case entry: PreparingShardEntry =>
           log.debug("{} says recover shardId {}", sender().path, op.shardId)
           shardMap.assign(op.shardId, selfAddress)
-          val shardEntities = context.actorOf(ShardEntities.props(keyExtractor, propsCreator))
+          val shardEntities = context.actorOf(ShardEntities.props(services, keyExtractor, propsCreator))
           localEntities.put(op.shardId, shardEntities)
           taskTimeouts.remove(op.shardId).cancel()
           sender() ! RecoverShardResult(op)
         case entry: ShardEntry =>
-          sender() ! ClusterServiceOperationFailed(op, new ApiException(BadRequest))
+          sender() ! ShardBalancerOperationFailed(op, new ApiException(BadRequest))
       }
 
     // the Put or Migrate task did not complete
@@ -103,7 +103,7 @@ class EntityManager(coordinator: ActorRef,
       taskTimeouts.remove(shardId)
       if (!missingShards.containsKey(shardId)) {
         val op = LookupShard(shardId)
-        val actor = context.actorOf(LookupShardTask.props(op, coordinator, self, shardTimeout))
+        val actor = context.actorOf(LookupShardTask.props(op, services, self, shardTimeout))
         missingShards.put(shardId, actor)
       }
 
@@ -116,7 +116,7 @@ class EntityManager(coordinator: ActorRef,
         // if shard is local and entity map doesn't exist, create a new entity map
         if (result.address.equals(selfAddress) && !localEntities.containsKey(result.shardId)) {
           if (!localEntities.containsKey(result.shardId)) {
-            val shardEntities = context.actorOf(ShardEntities.props(keyExtractor, propsCreator))
+            val shardEntities = context.actorOf(ShardEntities.props(services, keyExtractor, propsCreator))
             localEntities.put(result.shardId, shardEntities)
           }
         }
@@ -186,7 +186,7 @@ class EntityManager(coordinator: ActorRef,
           if (!missingShards.containsKey(shard.shardId)) {
             /// then try to repair the shard map
             val op = LookupShard(shard.shardId)
-            val actor = context.actorOf(LookupShardTask.props(op, coordinator, self, shardTimeout))
+            val actor = context.actorOf(LookupShardTask.props(op, services, self, shardTimeout))
             missingShards.put(shard.shardId, actor)
           }
         }
@@ -211,14 +211,14 @@ class EntityManager(coordinator: ActorRef,
 }
 
 object EntityManager {
-  def props(coordinator: ActorRef,
+  def props(services: ActorRef,
             shardResolver: ShardResolver,
             keyExtractor: KeyExtractor,
             propsCreator: PropsCreator,
             selfAddress: Address,
             totalShards: Int,
             initialWidth: Int) = {
-    Props(classOf[EntityManager], coordinator, shardResolver, keyExtractor, propsCreator, selfAddress, totalShards, initialWidth)
+    Props(classOf[EntityManager], services, shardResolver, keyExtractor, propsCreator, selfAddress, totalShards, initialWidth)
   }
 
   case class StaleShard(shardId: Int, address: Address)

@@ -18,10 +18,10 @@ class TestCoordinator(settings: TestCoordinatorSettings) extends Actor with Acto
       log.debug("forwarding message {} to master {}", message, actorPath)
       context.actorSelection(actorPath) forward message
 
-    case op: GetAllShards =>
+    case op: ListShards =>
       log.debug("{} requests all shards", sender().path)
       val shards = shardMap.assigned.map(entry => Shard(entry.shardId, entry.width, entry.address))
-      sender() ! GetAllShardsResult(op, shards)
+      sender() ! ListShardsResult(op, shards)
 
     case op: GetShard =>
       log.debug("{} requests shard for key {}", sender().path, op.shardKey)
@@ -32,10 +32,10 @@ class TestCoordinator(settings: TestCoordinatorSettings) extends Actor with Acto
           sender() ! GetShardResult(op, shard.shardId, shard.width, None)
       }
 
-    case op: CommitShard =>
+    case op: UpdateShard =>
       log.debug("{} commits {} to shard {}", sender().path, op.target, op.shardId)
       shardMap.assign(op.shardId, op.target)
-      sender() ! CommitShardResult(op)
+      sender() ! UpdateShardResult(op)
   }
 }
 

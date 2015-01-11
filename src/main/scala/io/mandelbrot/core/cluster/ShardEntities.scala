@@ -33,7 +33,7 @@ import io.mandelbrot.core.cluster.EntityFunctions.{PropsCreator, KeyExtractor}
  * from the propsCreator; otherwise, an EntityDeliveryFailed message will be returned
  * to the sender, with failure specified as ApiException(ResourceNotFound).
  */
-class ShardEntities(keyExtractor: KeyExtractor, propsCreator: PropsCreator) extends Actor with ActorLogging {
+class ShardEntities(services: ActorRef, keyExtractor: KeyExtractor, propsCreator: PropsCreator) extends Actor with ActorLogging {
 
   val refsByKey = new util.HashMap[String,ActorRef]()
   val keysByRef = new util.HashMap[ActorRef,String]()
@@ -66,7 +66,7 @@ class ShardEntities(keyExtractor: KeyExtractor, propsCreator: PropsCreator) exte
 }
 
 object ShardEntities {
-  def props(keyExtractor: KeyExtractor, propsCreator: PropsCreator) = {
-    Props(classOf[ShardEntities], keyExtractor, propsCreator)
+  def props(services: ActorRef, keyExtractor: KeyExtractor, propsCreator: PropsCreator) = {
+    Props(classOf[ShardEntities], services, keyExtractor, propsCreator)
   }
 }

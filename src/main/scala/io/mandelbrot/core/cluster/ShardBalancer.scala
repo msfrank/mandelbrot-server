@@ -33,7 +33,7 @@ import ShardBalancer.{State, Data}
  *   3) ensure that shards are equally balanced across the cluster when members leave the cluster.
  *   4) ensure that shards are redistributed when members get too hot or cold.
  */
-class ShardBalancer(coordinator: ActorRef, monitor: ActorRef, nodes: Map[Address,ActorPath], totalShards: Int, initialWidth: Int) extends LoggingFSM[State,Data] {
+class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,ActorPath], totalShards: Int, initialWidth: Int) extends LoggingFSM[State,Data] {
   import ShardBalancer._
 
   // config
@@ -48,7 +48,7 @@ class ShardBalancer(coordinator: ActorRef, monitor: ActorRef, nodes: Map[Address
 
   override def preStart(): Unit = {
     // get the current location of all shards
-    coordinator ! GetAllShards()
+    services ! ListShards()
   }
 
   startWith(Initializing, NoData)
@@ -56,7 +56,7 @@ class ShardBalancer(coordinator: ActorRef, monitor: ActorRef, nodes: Map[Address
   when(Initializing) {
 
     // gather the current state of all shards
-    case Event(result: GetAllShardsResult, NoData) =>
+    case Event(result: ListShardsResult, NoData) =>
 
       // build shardMap and shardDensity from coordinator data
       result.shards.foreach { case Shard(shardId, width, address) =>
@@ -92,7 +92,7 @@ class ShardBalancer(coordinator: ActorRef, monitor: ActorRef, nodes: Map[Address
       shardDensity.put(address, numShards + 1)
       missingShards = missingShards - shardId
       if (state.queued.nonEmpty) {
-        val inflight = context.actorOf(PutShardTask.props(state.queued.head, coordinator, self, timeout))
+        val inflight = context.actorOf(PutShardTask.props(state.queued.head, services, self, timeout))
         stay() using Repairing(inflight, state.queued.tail)
       } else balance()
 
@@ -101,7 +101,7 @@ class ShardBalancer(coordinator: ActorRef, monitor: ActorRef, nodes: Map[Address
       val PutShard(shardId, actorPath) = result.op
       log.debug("failed to put shard {} at {}: {}", shardId, actorPath.address, result.ex)
       if (state.queued.nonEmpty) {
-        val inflight = context.actorOf(PutShardTask.props(state.queued.head, coordinator, self, timeout))
+        val inflight = context.actorOf(PutShardTask.props(state.queued.head, services, self, timeout))
         stay() using Repairing(inflight, state.queued.tail)
       } else balance()
   }
@@ -121,7 +121,7 @@ class ShardBalancer(coordinator: ActorRef, monitor: ActorRef, nodes: Map[Address
         PutShard(missingShard.shardId, nodes(address))
       }.toVector
       // put the first operation in flight
-      val inflight = context.actorOf(PutShardTask.props(ops.head, coordinator, self, timeout))
+      val inflight = context.actorOf(PutShardTask.props(ops.head, services, self, timeout))
       goto(Repairing) using Repairing(inflight, ops.tail)
     } else {
       monitor ! ShardBalancerResult(shardMap)
@@ -144,8 +144,8 @@ class ShardBalancer(coordinator: ActorRef, monitor: ActorRef, nodes: Map[Address
 }
 
 object ShardBalancer {
-  def props(coordinator: ActorRef, monitor: ActorRef, nodes: Map[Address,ActorPath], totalShards: Int, initialWidth: Int) = {
-    Props(classOf[ShardBalancer], coordinator, monitor, nodes, totalShards, initialWidth)
+  def props(services: ActorRef, monitor: ActorRef, nodes: Map[Address,ActorPath], totalShards: Int, initialWidth: Int) = {
+    Props(classOf[ShardBalancer], services, monitor, nodes, totalShards, initialWidth)
   }
 
   val ordering = Ordering.by[(Address,Int),Int](_._2).reverse
@@ -162,5 +162,19 @@ object ShardBalancer {
   case class Migrating(inflight: ActorRef, queued: Vector[MoveShard]) extends Data
   case class Repairing(inflight: ActorRef, queued: Vector[PutShard]) extends Data
 }
+
+sealed trait ShardBalancerOperation
+sealed trait ShardBalancerCommand extends ShardBalancerOperation
+sealed trait ShardBalancerQuery extends ShardBalancerOperation
+case class ShardBalancerOperationFailed(op: ShardBalancerOperation, failure: Throwable)
+
+case class PrepareShard(shardId: Int) extends ShardBalancerCommand
+case class PrepareShardResult(op: PrepareShard)
+
+case class ProposeShard(shardId: Int, target: Address) extends ShardBalancerCommand
+case class ProposeShardResult(op: ProposeShard)
+
+case class RecoverShard(shardId: Int) extends ShardBalancerCommand
+case class RecoverShardResult(op: RecoverShard)
 
 case class ShardBalancerResult(shardMap: ShardMap)

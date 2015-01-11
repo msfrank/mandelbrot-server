@@ -79,6 +79,9 @@ class ServiceProxy extends Actor with ActorLogging {
     case op: ProbeOperation =>
       coordinator forward op
 
+    case op: ClusterServiceOperation =>
+      coordinator forward op
+
     case op: StateServiceOperation =>
       stateService forward op
 
