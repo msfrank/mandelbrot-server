@@ -125,10 +125,16 @@ case class ClusterServiceOperationFailed(op: ClusterServiceOperation, failure: T
 case class ListShards() extends ClusterServiceQuery
 case class ListShardsResult(op: ListShards, shards: Vector[Shard])
 
-case class GetShard(shardKey: Int) extends ClusterServiceQuery
+case class GetShard(shardId: Int) extends ClusterServiceQuery
 case class GetShardResult(op: GetShard, shardId: Int, width: Int, address: Option[Address])
 
-case class UpdateShard(shardId: Int, target: Address) extends ClusterServiceCommand
+case class FindShard(shardKey: Int, totalShards: Int, initialWidth: Int) extends ClusterServiceQuery
+case class FindShardResult(op: FindShard, shardId: Int, width: Int, address: Option[Address])
+
+case class CreateShard(shardId: Int, width: Int, address: Address) extends ClusterServiceCommand
+case class CreateShardResult(op: CreateShard)
+
+case class UpdateShard(shardId: Int, width: Int, address: Address, prev: Address) extends ClusterServiceCommand
 case class UpdateShardResult(op: UpdateShard)
 
 /* marker trait for Coordinator implementations */

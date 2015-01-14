@@ -31,6 +31,8 @@ import scala.concurrent.duration._
 class LookupShardTask(op: LookupShard,
                       services: ActorRef,
                       monitor: ActorRef,
+                      totalShards: Int,
+                      initialWidth: Int,
                       timeout: FiniteDuration) extends Actor with ActorLogging {
   import LookupShardTask.PerformQuery
   import context.dispatcher
@@ -45,12 +47,12 @@ class LookupShardTask(op: LookupShard,
   def receive = {
 
     case PerformQuery =>
-      services.ask(GetShard(op.shardKey))(timeout).pipeTo(self)
+      services.ask(FindShard(op.shardKey, totalShards, initialWidth))(timeout).pipeTo(self)
 
-    case result: GetShardResult if result.address.isEmpty =>
+    case result: FindShardResult if result.address.isEmpty =>
       context.system.scheduler.scheduleOnce(delay, self, PerformQuery)
       
-    case GetShardResult(_, shardId, width, Some(address)) =>
+    case FindShardResult(_, shardId, width, Some(address)) =>
       context.stop(self)
       monitor ! LookupShardResult(op, shardId, width, address)
       
@@ -63,8 +65,8 @@ class LookupShardTask(op: LookupShard,
 }
 
 object LookupShardTask {
-  def props(op: LookupShard, services: ActorRef, monitor: ActorRef, timeout: FiniteDuration) = {
-    Props(classOf[LookupShardTask], op, services, monitor, timeout)
+  def props(op: LookupShard, services: ActorRef, monitor: ActorRef, totalShards: Int, initialWidth: Int, timeout: FiniteDuration) = {
+    Props(classOf[LookupShardTask], op, services, monitor, totalShards, initialWidth, timeout)
   }
   case object PerformQuery
 }

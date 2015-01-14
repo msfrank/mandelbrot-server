@@ -27,32 +27,33 @@ import scala.concurrent.duration.FiniteDuration
  * The PutShardTask is invoked by the ShardBalancer to place a shard at the specified
  * address.
  */
-class PutShardTask(op: PutShard, services: ActorRef, monitor: ActorRef, timeout: FiniteDuration) extends Actor with ActorLogging {
+class PutShardTask(op: PutShard,
+                   services: ActorRef,
+                   monitor: ActorRef,
+                   timeout: FiniteDuration) extends Actor with ActorLogging {
   import PutShardTask.TaskTimeout
   import context.dispatcher
 
   // config
   val shardId = op.shardId
+  val width = op.width
   val targetNode = op.targetNode
 
   // state
   val cancellable = context.system.scheduler.scheduleOnce(timeout, self, TaskTimeout)
 
-  services ! GetShard(shardId)
+  // prepare targetNode to receive shard
+  log.debug("preparing {} to receive shard {}", targetNode, op.shardId)
+  context.actorSelection(targetNode) ! PrepareShard(shardId)
 
   def receive = {
-
-    case result: GetShardResult =>
-      // prepare targetNode to receive shard
-      log.debug("preparing {} to receive shard {}", targetNode, result.shardId)
-      context.actorSelection(targetNode) ! PrepareShard(shardId)
 
     case result: PrepareShardResult =>
       // write new shard owner
       log.debug("shard {} now assigned to {}", result.op.shardId, sender().path)
-      services ! UpdateShard(shardId, targetNode.address)
+      services ! CreateShard(shardId, width, targetNode.address)
 
-    case result: UpdateShardResult =>
+    case result: CreateShardResult =>
       // tell targetNode to recover shard
       log.debug("notifying {} to recover shard {}", targetNode, result.op.shardId)
       context.actorSelection(targetNode) ! RecoverShard(shardId)
@@ -87,6 +88,6 @@ object PutShardTask {
   case object TaskTimeout
 }
 
-case class PutShard(shardId: Int, targetNode: ActorPath)
+case class PutShard(shardId: Int, width: Int, targetNode: ActorPath)
 case class PutShardComplete(op: PutShard)
 case class PutShardFailed(op: PutShard, ex: Throwable)

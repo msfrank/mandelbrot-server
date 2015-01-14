@@ -86,7 +86,7 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
 
     // update state and process the next operation, if any
     case Event(result: PutShardComplete, state: Repairing) =>
-      val PutShard(shardId, actorPath) = result.op
+      val PutShard(shardId, width, actorPath) = result.op
       val address = actorPath.address
       shardMap.assign(shardId, address)
       val numShards = shardDensity.getOrElse(address, 0)
@@ -100,14 +100,15 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
 
     // the operation failed but we should retry later
     case Event(PutShardFailed(op, ApiException(RetryLater)), state: Repairing) =>
-      log.debug("failed to put shard {} at {}: retrying", op.shardId, op.targetNode.address)
+      val PutShard(shardId, width, actorPath) = op
+      log.debug("failed to put shard {}:{} at {}: retrying", shardId, width, actorPath.address)
       val inflight = context.actorOf(PutShardTask.props(state.queued.head, services, self, timeout))
       stay() using Repairing(inflight, state.queued)
 
     // the operation failed definitively, don't bother retrying
     case Event(result: PutShardFailed, state: Repairing) =>
-      val PutShard(shardId, actorPath) = result.op
-      log.debug("failed to put shard {} at {}: {}", shardId, actorPath.address, result.ex)
+      val PutShard(shardId, width, actorPath) = result.op
+      log.debug("failed to put shard {}:{} at {}: {}", shardId, width, actorPath.address, result.ex)
       val remaining = state.queued.tail
       if (remaining.nonEmpty) {
         val inflight = context.actorOf(PutShardTask.props(remaining.head, services, self, timeout))
@@ -127,7 +128,7 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
       val ops = shardMap.missing.map { missingShard =>
         val (address,numShards) = addressesSortedByDensity.dequeue()
         addressesSortedByDensity.enqueue((address, numShards + 1))
-        PutShard(missingShard.shardId, nodes(address))
+        PutShard(missingShard.shardId, missingShard.width, nodes(address))
       }.toVector
       // put the first operation in flight
       val inflight = context.actorOf(PutShardTask.props(ops.head, services, self, timeout))

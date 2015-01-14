@@ -85,7 +85,7 @@ class EntityManager(services: ActorRef,
       // start lookup tasks for any missing shards
       shardMap.missing.foreach { case entry: MissingShardEntry =>
         val op = LookupShard(entry.shardId)
-        val actor = context.actorOf(LookupShardTask.props(op, services, self, lookupTimeout))
+        val actor = context.actorOf(LookupShardTask.props(op, services, self, totalShards, initialWidth, lookupTimeout))
         missingShards.put(entry.shardId, actor)
       }
       context.become(running)
@@ -151,7 +151,7 @@ class EntityManager(services: ActorRef,
       taskTimeouts.remove(shardId)
       if (!missingShards.containsKey(shardId)) {
         val op = LookupShard(shardId)
-        val actor = context.actorOf(LookupShardTask.props(op, services, self, lookupTimeout))
+        val actor = context.actorOf(LookupShardTask.props(op, services, self, totalShards, initialWidth, lookupTimeout))
         missingShards.put(shardId, actor)
       }
 
@@ -232,7 +232,7 @@ class EntityManager(services: ActorRef,
           if (!missingShards.containsKey(shard.shardId)) {
             /// then try to repair the shard map
             val op = LookupShard(shard.shardId)
-            val actor = context.actorOf(LookupShardTask.props(op, services, self, lookupTimeout))
+            val actor = context.actorOf(LookupShardTask.props(op, services, self, totalShards, initialWidth, lookupTimeout))
             missingShards.put(shard.shardId, actor)
           }
         }
