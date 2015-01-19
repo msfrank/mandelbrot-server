@@ -125,7 +125,7 @@ case class ClusterServiceOperationFailed(op: ClusterServiceOperation, failure: T
 case class ListShards() extends ClusterServiceQuery
 case class ListShardsResult(op: ListShards, shards: Vector[Shard])
 
-case class GetShard(shardId: Int) extends ClusterServiceQuery
+case class GetShard(shardId: Int, width: Int) extends ClusterServiceQuery
 case class GetShardResult(op: GetShard, shardId: Int, width: Int, address: Option[Address])
 
 case class FindShard(shardKey: Int, totalShards: Int, initialWidth: Int) extends ClusterServiceQuery

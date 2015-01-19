@@ -68,7 +68,7 @@ class ServiceProxy extends Actor with ActorLogging {
     case op: RegistryServiceQuery =>
       registryService forward op
 
-    case op: RegistryServiceOperation =>
+    case op: RegistryServiceCommand =>
       clusterService forward op
 
     case op: ProbeSystemOperation =>
