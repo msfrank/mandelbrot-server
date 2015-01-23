@@ -77,7 +77,7 @@ class EntityManager(services: ActorRef,
         shardMap.assign(shardId, address)
         // if shard is local and entity map doesn't exist, create a new entity map
         if (address.equals(selfAddress)) {
-          val shardEntities = context.actorOf(ShardEntities.props(services, keyExtractor, propsCreator, shardId, width))
+          val shardEntities = context.actorOf(ShardEntities.props(services, shardResolver, keyExtractor, propsCreator, shardId, width))
           localEntities.put(shardId, shardEntities)
           log.debug("created entity map for shard {}:{}", shardId, width)
         }
@@ -138,7 +138,7 @@ class EntityManager(services: ActorRef,
         case entry: PreparingShardEntry =>
           log.debug("{} says recover shardId {}", sender().path, op.shardId)
           shardMap.assign(op.shardId, selfAddress)
-          val shardEntities = context.actorOf(ShardEntities.props(services, keyExtractor, propsCreator, entry.shardId, entry.width))
+          val shardEntities = context.actorOf(ShardEntities.props(services, shardResolver, keyExtractor, propsCreator, entry.shardId, entry.width))
           localEntities.put(op.shardId, shardEntities)
           log.debug("created entity map for shard {}:{}", entry.shardId, entry.width)
           taskTimeouts.remove(op.shardId).cancel()
@@ -165,7 +165,7 @@ class EntityManager(services: ActorRef,
         shardMap.assign(result.shardId, result.address)
         // if shard is local and entity map doesn't exist, create a new entity map
         if (result.address.equals(selfAddress) && !localEntities.containsKey(result.shardId)) {
-          val shardEntities = context.actorOf(ShardEntities.props(services, keyExtractor, propsCreator, result.shardId, result.width))
+          val shardEntities = context.actorOf(ShardEntities.props(services, shardResolver, keyExtractor, propsCreator, result.shardId, result.width))
           localEntities.put(result.shardId, shardEntities)
           log.debug("created entity map for shard {}:{}", result.shardId, result.width)
         }

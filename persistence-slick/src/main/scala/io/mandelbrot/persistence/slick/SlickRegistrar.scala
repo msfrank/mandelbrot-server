@@ -149,11 +149,11 @@ trait SlickRegistrar extends Actor with ActorLogging {
 
   def receive = {
 
-    case command: RegisterProbeSystem =>
+    case command: CreateProbeSystemEntry =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       db.withSession { implicit session =>
         dal.insert(command.uri, command.registration, timestamp) match {
-          case Success(lsn) => sender() ! RegisterProbeSystemResult(command, 1)
+          case Success(lsn) => sender() ! CreateProbeSystemEntryResult(command, 1)
           case Failure(ex) => sender() ! RegistryServiceOperationFailed(command, ex)
         }
       }

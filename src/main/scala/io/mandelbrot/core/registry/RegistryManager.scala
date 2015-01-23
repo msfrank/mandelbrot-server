@@ -36,10 +36,7 @@ import io.mandelbrot.core.system._
  * manager is responsible for accepting registration, update, and unregistration requests and
  * applying them to the appropriate probe system.
  */
-class RegistryManager extends Actor with ActorLogging {
-
-  // config
-  val settings = ServerConfig(context.system).settings.registry
+class RegistryManager(settings: RegistrySettings) extends Actor with ActorLogging {
 
   // state
   val registrar: ActorRef = {
@@ -49,7 +46,7 @@ class RegistryManager extends Actor with ActorLogging {
   }
 
   def receive = {
-    case op: RegisterProbeSystem =>
+    case op: CreateProbeSystemEntry =>
       if (!registrationValid(op.registration))
         sender() ! RegistryServiceOperationFailed(op, new ApiException(BadRequest))
       else registrar forward op
@@ -74,7 +71,7 @@ class RegistryManager extends Actor with ActorLogging {
 }
 
 object RegistryManager {
-  def props() = Props(classOf[RegistryManager])
+  def props(settings: RegistrySettings) = Props(classOf[RegistryManager], settings)
   def settings(config: Config): Option[Any] = None
 }
 
@@ -114,8 +111,8 @@ sealed trait RegistryServiceQuery extends RegistryServiceOperation
 sealed trait RegistryServiceCommand extends RegistryServiceOperation
 case class RegistryServiceOperationFailed(op: RegistryServiceOperation, failure: Throwable)
 
-case class RegisterProbeSystem(uri: URI, registration: ProbeRegistration) extends RegistryServiceCommand
-case class RegisterProbeSystemResult(op: RegisterProbeSystem, lsn: Long)
+case class CreateProbeSystemEntry(uri: URI, registration: ProbeRegistration) extends RegistryServiceCommand
+case class CreateProbeSystemEntryResult(op: CreateProbeSystemEntry, lsn: Long)
 
 case class UpdateProbeSystemEntry(uri: URI, registration: ProbeRegistration, lsn: Long) extends RegistryServiceCommand
 case class UpdateProbeSystemEntryResult(op: UpdateProbeSystemEntry, lsn: Long)

@@ -29,10 +29,9 @@ import io.mandelbrot.core.{ServiceExtension, ServerConfig}
 /**
  *
  */
-class TrackingManager extends Actor with ActorLogging {
+class TrackingManager(settings: TrackingSettings) extends Actor with ActorLogging {
 
   // config
-  val settings = ServerConfig(context.system).settings.tracking
 //  val tracker: ActorRef = {
 //    val props = ServiceExtension.makePluginProps(settings.tracker.plugin, settings.tracker.settings)
 //    log.info("loading tracker plugin {}", settings.tracker.plugin)
@@ -56,7 +55,7 @@ class TrackingManager extends Actor with ActorLogging {
 }
 
 object TrackingManager {
-  def props() = Props(classOf[TrackingManager])
+  def props(settings: TrackingSettings) = Props(classOf[TrackingManager], settings)
 }
 
 /**

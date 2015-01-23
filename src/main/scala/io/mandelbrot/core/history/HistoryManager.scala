@@ -30,19 +30,16 @@ import io.mandelbrot.core.system.ProbeStatus
 /**
  *
  */
-class HistoryManager extends Actor with ActorLogging {
+class HistoryManager(settings: HistorySettings) extends Actor with ActorLogging {
   import HistoryManager._
   import context.dispatcher
 
-  // config
-  val settings = ServerConfig(context.system).settings.history
+  // state
   val archiver: ActorRef = {
     val props = ServiceExtension.makePluginProps(settings.archiver.plugin, settings.archiver.settings)
     log.info("loading archiver plugin {}", settings.archiver.plugin)
     context.actorOf(props, "archiver")
   }
-
-  // state
   var historyCleaner: Option[Cancellable] = None
 
   override def preStart(): Unit = {
@@ -80,7 +77,7 @@ class HistoryManager extends Actor with ActorLogging {
 }
 
 object HistoryManager {
-  def props() = Props(classOf[HistoryManager])
+  def props(settings: HistorySettings) = Props(classOf[HistoryManager], settings)
   case object RunCleaner
 }
 

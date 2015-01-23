@@ -30,10 +30,9 @@ import io.mandelbrot.core.system._
 /**
  *
  */
-class StateManager extends Actor with ActorLogging {
+class StateManager(settings: StateSettings) extends Actor with ActorLogging {
 
   // config
-  val settings = ServerConfig(context.system).settings.state
   val persister: ActorRef = {
     val props = ServiceExtension.makePluginProps(settings.persister.plugin, settings.persister.settings)
     log.info("loading persister plugin {}", settings.persister.plugin)
@@ -58,7 +57,7 @@ class StateManager extends Actor with ActorLogging {
 }
 
 object StateManager {
-  def props() = Props(classOf[StateManager])
+  def props(settings: StateSettings) = Props(classOf[StateManager], settings)
 }
 
 case class ProbeState(status: ProbeStatus, lsn: Long, context: Option[ByteString])

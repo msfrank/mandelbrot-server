@@ -20,6 +20,7 @@
 package io.mandelbrot.core.system
 
 import akka.actor._
+import io.mandelbrot.core.cluster.Entity
 import scala.collection.mutable
 import java.net.URI
 
@@ -54,32 +55,34 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[SystemFSMState,SystemFS
   }
 
   when(SystemIncubating) {
-    case Event(op: ProbeSystemOperation, _) =>
-      stash()
-      goto(SystemInitializing) using SystemInitializing(op.uri)
-      
-    case Event(op: ProbeOperation, _) =>
-      stash()
-      goto(SystemInitializing) using SystemInitializing(op.probeRef.uri)
 
+    case Event(op: RegisterProbeSystem, _) =>
+      services ! CreateProbeSystemEntry(op.uri, op.registration)
+      goto(SystemInitializing) using SystemInitializing(op.uri)
+
+    case Event(entity: Entity, _) =>
+      val uri = new URI(entity.entityKey)
+      services ! GetProbeSystemEntry(uri)
+      goto(SystemInitializing) using SystemInitializing(uri)
+      
     case _: Event => stop()
   }
   
-  onTransition {
-    case SystemIncubating -> SystemInitializing => nextStateData match {
-      case state: SystemInitializing => services ! GetProbeSystemEntry(state.uri)
-      case _ =>
-    }
-  }
-  
   when(SystemInitializing) {
+
+    case Event(result: CreateProbeSystemEntryResult, state: SystemInitializing) =>
+      goto(SystemRunning) using SystemRunning(state.uri, result.op.registration, 0)
+
     case Event(result: GetProbeSystemEntryResult, state: SystemInitializing) =>
       goto(SystemRunning) using SystemRunning(state.uri, result.registration, 0)
+
     case Event(failure: RegistryServiceOperationFailed, state: SystemInitializing) =>
       goto(SystemFailed) using SystemError(failure.failure)
+
     case Event(op: ProbeSystemOperation, _) =>
       stash()
       stay()
+
     case Event(op: ProbeOperation, _) =>
       stash()
       stay()
@@ -351,7 +354,7 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[SystemFSMState,SystemFS
 }
 
 object ProbeSystem {
-  def props(services: ActorRef) =  Props(classOf[ProbeSystem], services)
+  def props(services: ActorRef) = Props(classOf[ProbeSystem], services)
 
   case class ProbeActor(spec: ProbeSpec, actor: ActorRef)
 }
@@ -388,6 +391,9 @@ sealed trait ProbeSystemOperation { val uri: URI }
 sealed trait ProbeSystemCommand extends ProbeSystemOperation
 sealed trait ProbeSystemQuery extends ProbeSystemOperation
 case class ProbeSystemOperationFailed(op: ProbeSystemOperation, failure: Throwable)
+
+case class RegisterProbeSystem(uri: URI, registration: ProbeRegistration) extends ProbeSystemCommand
+case class RegisterProbeSystemResult(op: UpdateProbeSystem, lsn: Long)
 
 case class UpdateProbeSystem(uri: URI, registration: ProbeRegistration) extends ProbeSystemCommand
 case class UpdateProbeSystemResult(op: UpdateProbeSystem, lsn: Long)

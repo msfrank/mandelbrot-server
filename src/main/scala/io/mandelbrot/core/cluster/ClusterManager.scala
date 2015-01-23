@@ -116,6 +116,7 @@ object ClusterManager {
 case class JoinCluster(seedNodes: Vector[String])
 
 case class Shard(shardId: Int, width: Int, address: Address)
+case class Entity(shardKey: Int, entityKey: String)
 
 sealed trait ClusterServiceOperation
 sealed trait ClusterServiceCommand extends ClusterServiceOperation
@@ -136,6 +137,15 @@ case class CreateShardResult(op: CreateShard)
 
 case class UpdateShard(shardId: Int, width: Int, address: Address, prev: Address) extends ClusterServiceCommand
 case class UpdateShardResult(op: UpdateShard)
+
+case class CreateEntity(shardKey: Int, entityKey: String) extends ClusterServiceCommand
+case class CreateEntityResult(op: CreateEntity)
+
+case class DeleteEntity(shardKey: Int, entityKey: String) extends ClusterServiceCommand
+case class DeleteEntityResult(op: DeleteEntity)
+
+case class ListEntities(shardId: Int, width: Int, last: Option[String]) extends ClusterServiceQuery
+case class ListEntitiesResult(op: ListEntities, entities: Vector[Entity], next: Option[String])
 
 /* marker trait for Coordinator implementations */
 trait Coordinator

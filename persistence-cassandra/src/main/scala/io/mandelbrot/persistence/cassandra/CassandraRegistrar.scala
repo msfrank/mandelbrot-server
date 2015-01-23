@@ -29,11 +29,11 @@ class CassandraRegistrar(settings: CassandraRegistrarSettings) extends Actor wit
 
   def receive = {
 
-    case op: RegisterProbeSystem =>
+    case op: CreateProbeSystemEntry =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       try {
         session.execute(bindRegisterProbeSystem(op.uri, op.registration, timestamp))
-        sender() ! RegisterProbeSystemResult(op, 1)
+        sender() ! CreateProbeSystemEntryResult(op, 1)
       } catch {
         case ex: Throwable => sender() ! RegistryServiceOperationFailed(op, ex)
       }

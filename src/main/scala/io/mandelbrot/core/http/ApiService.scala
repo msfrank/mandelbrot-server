@@ -75,7 +75,7 @@ trait ApiService extends HttpService {
                 HttpResponse(StatusCodes.Accepted,
                              headers = List(Location("/objects/systems/" + registerProbeSystem.uri.toString)),
                              entity = JsonBody(result.op.uri.toJson))
-              case failure: RegistryServiceOperationFailed =>
+              case failure: ProbeSystemOperationFailed =>
                 throw failure.failure
             }
           }
@@ -103,7 +103,7 @@ trait ApiService extends HttpService {
             serviceProxy.ask(GetProbeSystemEntry(uri)).map {
               case result: GetProbeSystemEntryResult =>
                 result.registration
-              case failure: ProbeSystemOperationFailed =>
+              case failure: RegistryServiceOperationFailed =>
                 throw failure.failure
             }
           }

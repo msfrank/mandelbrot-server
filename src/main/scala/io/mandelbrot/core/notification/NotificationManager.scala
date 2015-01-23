@@ -34,12 +34,11 @@ import io.mandelbrot.core._
  * from Probes and routes them to the appropriate Notifier instances, depending on
  * current maintenance windows and notification rules.
  */
-class NotificationManager extends Actor with ActorLogging {
+class NotificationManager(settings: NotificationSettings) extends Actor with ActorLogging {
   import NotificationManager._
   import context.dispatcher
 
   // config
-  val settings = ServerConfig(context.system).settings.notification
   val notifiers: Map[String,ActorRef] = settings.notifiers.map { case (name, notifierSettings) =>
     val props = ServiceExtension.makePluginProps(notifierSettings.plugin, notifierSettings.settings)
     log.info("loading notifier plugin {}", name)
@@ -84,7 +83,7 @@ class NotificationManager extends Actor with ActorLogging {
 }
 
 object NotificationManager {
-  def props() = Props(classOf[NotificationManager])
+  def props(settings: NotificationSettings) = Props(classOf[NotificationManager], settings)
 
   sealed trait Event
   case class MaintenanceWindowRegisters(command: RegisterMaintenanceWindow, window: MaintenanceWindow) extends Event

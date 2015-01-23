@@ -39,37 +39,30 @@ class ServiceProxy extends Actor with ActorLogging {
 
   val settings = ServerConfig(context.system).settings
 
-  val registryService = context.actorOf(RegistryManager.props(), "registry-service")
-  val trackingService = context.actorOf(TrackingManager.props(), "tracking-service")
-  val historyService = context.actorOf(HistoryManager.props(), "history-service")
-  val notificationService = context.actorOf(NotificationManager.props(), "notification-service")
-  val stateService = context.actorOf(StateManager.props(), "state-service")
+  val registryService = context.actorOf(RegistryManager.props(settings.registry), "registry-service")
+  val trackingService = context.actorOf(TrackingManager.props(settings.tracking), "tracking-service")
+  val historyService = context.actorOf(HistoryManager.props(settings.history), "history-service")
+  val notificationService = context.actorOf(NotificationManager.props(settings.notification), "notification-service")
+  val stateService = context.actorOf(StateManager.props(settings.state), "state-service")
 
   //
   val keyExtractor: EntityFunctions.KeyExtractor = {
-    case op: RegistryServiceCommand => "registry/"
-    case op: ProbeOperation => "system/" + op.probeRef.uri.toString
-    case op: ProbeSystemOperation => "system/" + op.uri.toString
+    case op: ProbeOperation => op.probeRef.uri.toString
+    case op: ProbeSystemOperation => op.uri.toString
   }
   val shardResolver: EntityFunctions.ShardResolver = {
     case message => MurmurHash3.stringHash(keyExtractor(message))
   }
   val propsCreator: EntityFunctions.PropsCreator = {
-    case op: RegistryServiceCommand => RegistryCoordinator.props(registryService)
-    case op: ProbeOperation => ProbeSystem.props(services = self)
-    case op: ProbeSystemOperation => ProbeSystem.props(services = self)
+    case op: ProbeOperation => ProbeSystem.props(self)
+    case op: ProbeSystemOperation => ProbeSystem.props(self)
+    case entity: Entity => ProbeSystem.props(self)
   }
 
   val clusterService = context.actorOf(ClusterManager.props(settings.cluster,
     shardResolver, keyExtractor, propsCreator), "cluster-service")
 
   def receive = {
-
-    case op: RegistryServiceQuery =>
-      registryService forward op
-
-    case op: RegistryServiceCommand =>
-      clusterService forward op
 
     case op: ProbeSystemOperation =>
       clusterService forward op
@@ -79,6 +72,9 @@ class ServiceProxy extends Actor with ActorLogging {
 
     case op: ClusterServiceOperation =>
       clusterService forward op
+
+    case op: RegistryServiceOperation =>
+      registryService forward op
 
     case op: StateServiceOperation =>
       stateService forward op
