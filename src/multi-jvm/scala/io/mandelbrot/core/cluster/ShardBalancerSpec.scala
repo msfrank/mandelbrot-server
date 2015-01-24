@@ -29,7 +29,7 @@ class ShardBalancerSpec extends MultiNodeSpec(RemoteMultiNodeConfig) with Implic
 
       val coordinatorSettings = TestCoordinatorSettings(shards, node(node1).address, myAddress)
       val coordinator = system.actorOf(TestCoordinator.props(coordinatorSettings), "coordinator_1")
-      val entityManager = system.actorOf(EntityManager.props(coordinator,
+      val entityManager = system.actorOf(ShardManager.props(coordinator,
         TestEntity.shardResolver, TestEntity.keyExtractor, TestEntity.propsCreator, myAddress, totalShards, initialWidth),
         "entities_1")
 
@@ -69,7 +69,7 @@ class ShardBalancerSpec extends MultiNodeSpec(RemoteMultiNodeConfig) with Implic
 
       val coordinatorSettings = TestCoordinatorSettings(shards, node(node1).address, myAddress)
       val coordinator = system.actorOf(TestCoordinator.props(coordinatorSettings), "coordinator_2")
-      val entityManager = system.actorOf(EntityManager.props(coordinator,
+      val entityManager = system.actorOf(ShardManager.props(coordinator,
         TestEntity.shardResolver, TestEntity.keyExtractor, TestEntity.propsCreator, myAddress, totalShards, initialWidth),
         "entities_2")
 

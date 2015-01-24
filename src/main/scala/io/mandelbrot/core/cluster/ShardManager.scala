@@ -29,26 +29,26 @@ import java.util
 import io.mandelbrot.core.cluster.EntityFunctions.{ShardResolver, PropsCreator, KeyExtractor}
 
 /**
- * The EntityManager receives EntityEnvelope messages and delivers them to the
+ * The ShardManager receives EntityEnvelope messages and delivers them to the
  * appropriate shard, which may be local or remote.  The shard may also be in a
  * non-assigned state, in which case the envelope will be buffered until the
  * delivery can be completed.
  *
- * In order to deliver envelopes to the correct destination, the EntityManager
+ * In order to deliver envelopes to the correct destination, the ShardManager
  * must maintain a cached copy of the shard map.  if a StaleShard message is
- * received, then the EntityManager must invalidate the current mapping and query
- * the coordinator for the up-to-date mapping.  The EntityManager also interacts
+ * received, then the ShardManager must invalidate the current mapping and query
+ * the coordinator for the up-to-date mapping.  The ShardManager also interacts
  * with the ShardBalancer to acquire and release shards as needed to keep shards
  * balanced across the cluster.
  */
-class EntityManager(services: ActorRef,
-                    shardResolver: ShardResolver,
-                    keyExtractor: KeyExtractor,
-                    propsCreator: PropsCreator,
-                    selfAddress: Address,
-                    totalShards: Int,
-                    initialWidth: Int) extends Actor with ActorLogging {
-  import EntityManager._
+class ShardManager(services: ActorRef,
+                   shardResolver: ShardResolver,
+                   keyExtractor: KeyExtractor,
+                   propsCreator: PropsCreator,
+                   selfAddress: Address,
+                   totalShards: Int,
+                   initialWidth: Int) extends Actor with ActorLogging {
+  import ShardManager._
   import context.dispatcher
 
   // config
@@ -259,7 +259,7 @@ class EntityManager(services: ActorRef,
   }
 }
 
-object EntityManager {
+object ShardManager {
   def props(services: ActorRef,
             shardResolver: ShardResolver,
             keyExtractor: KeyExtractor,
@@ -267,7 +267,7 @@ object EntityManager {
             selfAddress: Address,
             totalShards: Int,
             initialWidth: Int) = {
-    Props(classOf[EntityManager], services, shardResolver, keyExtractor, propsCreator, selfAddress, totalShards, initialWidth)
+    Props(classOf[ShardManager], services, shardResolver, keyExtractor, propsCreator, selfAddress, totalShards, initialWidth)
   }
 
   case object Retry

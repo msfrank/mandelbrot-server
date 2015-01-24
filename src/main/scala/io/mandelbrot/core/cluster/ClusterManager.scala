@@ -50,7 +50,7 @@ class ClusterManager(settings: ClusterSettings,
   }
 
   val clusterMonitor = context.actorOf(ClusterMonitor.props(settings.minNrMembers), "cluster-monitor")
-  val entityManager = context.actorOf(EntityManager.props(context.parent,
+  val shardManager = context.actorOf(ShardManager.props(context.parent,
     shardResolver, keyExtractor, propsCreator, selfAddress, settings.totalShards, settings.initialWidth),
     "entity-manager")
 
@@ -99,11 +99,11 @@ class ClusterManager(settings: ClusterSettings,
 
     // send envelopes directly to the entity manager
     case envelope: EntityEnvelope =>
-      entityManager ! envelope
+      shardManager ! envelope
 
     // we assume any other message is for an entity, so we wrap it in an envelope
     case message: Any =>
-      entityManager ! EntityEnvelope(sender(), message, attempts = defaultAttempts)
+      shardManager ! EntityEnvelope(sender(), message, attempts = defaultAttempts)
   }
 }
 

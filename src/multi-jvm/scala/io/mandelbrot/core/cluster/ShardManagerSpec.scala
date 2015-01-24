@@ -6,13 +6,13 @@ import scala.concurrent.duration._
 
 import io.mandelbrot.core.{BadRequest, ResourceNotFound}
 
-class EntityManagerSpecMultiJvmNode1 extends EntityManagerSpec
-class EntityManagerSpecMultiJvmNode2 extends EntityManagerSpec
-class EntityManagerSpecMultiJvmNode3 extends EntityManagerSpec
-class EntityManagerSpecMultiJvmNode4 extends EntityManagerSpec
-class EntityManagerSpecMultiJvmNode5 extends EntityManagerSpec
+class ShardManagerSpecMultiJvmNode1 extends ShardManagerSpec
+class ShardManagerSpecMultiJvmNode2 extends ShardManagerSpec
+class ShardManagerSpecMultiJvmNode3 extends ShardManagerSpec
+class ShardManagerSpecMultiJvmNode4 extends ShardManagerSpec
+class ShardManagerSpecMultiJvmNode5 extends ShardManagerSpec
 
-class EntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with ImplicitSender {
+class ShardManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with ImplicitSender {
   import ClusterMultiNodeConfig._
 
   // config
@@ -29,16 +29,16 @@ class EntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Impli
 
   val coordinatorSettings = TestCoordinatorSettings(shardMap, node(node1).address, myAddress)
   val coordinator = system.actorOf(TestCoordinator.props(coordinatorSettings), "coordinator")
-  val entityManager = TestActorRef[EntityManager](EntityManager.props(coordinator,
+  val shardManager = TestActorRef[ShardManager](ShardManager.props(coordinator,
     TestEntity.shardResolver, TestEntity.keyExtractor, TestEntity.propsCreator, myAddress, totalShards, initialWidth),
     "entities")
 
-  "An EntityManager" should {
+  "A ShardManager" should {
 
     "create a local entity" in {
       enterBarrier("")
       runOn(node1) {
-        entityManager ! EntityEnvelope(self, TestEntityCreate("test1", 0, 1), attempts = 3)
+        shardManager ! EntityEnvelope(self, TestEntityCreate("test1", 0, 1), attempts = 3)
         val reply = expectMsgClass(classOf[TestCreateReply])
         lastSender.path.address.hasLocalScope shouldEqual true
         reply.message should be(1)
@@ -48,7 +48,7 @@ class EntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Impli
 
     "send a message to a local entity" in {
       runOn(node1) {
-        entityManager ! EntityEnvelope(self, TestEntityMessage("test1", 0, 2), attempts = 3)
+        shardManager ! EntityEnvelope(self, TestEntityMessage("test1", 0, 2), attempts = 3)
         val reply = expectMsgClass(classOf[TestMessageReply])
         lastSender.path.address.hasLocalScope shouldEqual true
         reply.message should be(2)
@@ -58,7 +58,7 @@ class EntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Impli
 
     "receive delivery failure sending a message to a nonexistent local entity" in {
       runOn(node1) {
-        entityManager ! EntityEnvelope(self, TestEntityMessage("missing", 0, 3), attempts = 3)
+        shardManager ! EntityEnvelope(self, TestEntityMessage("missing", 0, 3), attempts = 3)
         val reply = expectMsgClass(classOf[EntityDeliveryFailed])
         lastSender.path.address.hasLocalScope shouldEqual true
         reply.failure.getCause shouldEqual ResourceNotFound
@@ -69,7 +69,7 @@ class EntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Impli
     "receive delivery failure sending a message of unknown type" in {
       case object UnknownMessageType
       runOn(node1) {
-        entityManager ! EntityEnvelope(self, UnknownMessageType, attempts = 3)
+        shardManager ! EntityEnvelope(self, UnknownMessageType, attempts = 3)
         val reply = expectMsgClass(classOf[EntityDeliveryFailed])
         lastSender.path.address.hasLocalScope shouldEqual true
         reply.failure.getCause shouldEqual BadRequest
@@ -79,7 +79,7 @@ class EntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Impli
 
     "create a remote entity" in {
       runOn(node1) {
-        entityManager ! EntityEnvelope(self, TestEntityCreate("test2", 1, 4), attempts = 3)
+        shardManager ! EntityEnvelope(self, TestEntityCreate("test2", 1, 4), attempts = 3)
         val reply = expectMsgClass(classOf[TestCreateReply])
         lastSender.path.address.hasLocalScope shouldEqual false
         lastSender.path.address shouldEqual node(node2).address
@@ -90,7 +90,7 @@ class EntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Impli
 
     "send a message to a remote entity" in {
       runOn(node1) {
-        entityManager ! EntityEnvelope(self, TestEntityMessage("test2", 1, 5), attempts = 3)
+        shardManager ! EntityEnvelope(self, TestEntityMessage("test2", 1, 5), attempts = 3)
         val reply = expectMsgClass(classOf[TestMessageReply])
         lastSender.path.address.hasLocalScope shouldEqual false
         lastSender.path.address shouldEqual node(node2).address
@@ -101,7 +101,7 @@ class EntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Impli
 
     "receive delivery failure sending a message to a nonexistent remote entity" in {
       runOn(node1) {
-        entityManager ! EntityEnvelope(self, TestEntityMessage("missing", 1, 6), attempts = 3)
+        shardManager ! EntityEnvelope(self, TestEntityMessage("missing", 1, 6), attempts = 3)
         val reply = expectMsgClass(classOf[EntityDeliveryFailed])
         lastSender.path.address.hasLocalScope shouldEqual false
         lastSender.path.address shouldEqual node(node2).address
@@ -112,17 +112,17 @@ class EntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Impli
 
     "send message which is redirected" in {
       runOn(node1) {
-        entityManager.underlyingActor.shardMap.assign(6, node(node2).address)
+        shardManager.underlyingActor.shardMap.assign(6, node(node2).address)
         enterBarrier("setup-successful-redirect")
       }
       runOn(node2) {
-        entityManager.underlyingActor.shardMap.assign(6, node(node3).address)
+        shardManager.underlyingActor.shardMap.assign(6, node(node3).address)
         enterBarrier("setup-successful-redirect")
       }
       runOn(node3) {
-        entityManager ! PrepareShard(6)
+        shardManager ! PrepareShard(6)
         expectMsgClass(classOf[PrepareShardResult])
-        entityManager ! RecoverShard(6)
+        shardManager ! RecoverShard(6)
         expectMsgClass(classOf[RecoverShardResult])
         enterBarrier("setup-successful-redirect")
       }
@@ -130,7 +130,7 @@ class EntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Impli
         enterBarrier("setup-successful-redirect")
       }
       runOn(node1) {
-        entityManager ! EntityEnvelope(self, TestEntityCreate("redirect-succeeds", 6, 7), attempts = 3)
+        shardManager ! EntityEnvelope(self, TestEntityCreate("redirect-succeeds", 6, 7), attempts = 3)
         val reply = expectMsgClass(classOf[TestCreateReply])
         lastSender.path.address.hasLocalScope shouldEqual false
         lastSender.path.address shouldEqual node(node3).address
@@ -141,27 +141,27 @@ class EntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Impli
 
     "receive delivery failure sending a message which redirects too many times" in {
       runOn(node1) {
-        entityManager.underlyingActor.shardMap.assign(7, node(node2).address)
+        shardManager.underlyingActor.shardMap.assign(7, node(node2).address)
         enterBarrier("setup-redirect-failure")
       }
       runOn(node2) {
-        entityManager.underlyingActor.shardMap.assign(7, node(node3).address)
+        shardManager.underlyingActor.shardMap.assign(7, node(node3).address)
         enterBarrier("setup-redirect-failure")
       }
       runOn(node3) {
-        entityManager.underlyingActor.shardMap.assign(7, node(node4).address)
+        shardManager.underlyingActor.shardMap.assign(7, node(node4).address)
         enterBarrier("setup-redirect-failure")
       }
       runOn(node4) {
-        entityManager.underlyingActor.shardMap.assign(7, node(node5).address)
+        shardManager.underlyingActor.shardMap.assign(7, node(node5).address)
         enterBarrier("setup-redirect-failure")
       }
       runOn(node5) {
-        entityManager.underlyingActor.shardMap.assign(7, node(node5).address)
+        shardManager.underlyingActor.shardMap.assign(7, node(node5).address)
         enterBarrier("setup-redirect-failure")
       }
       runOn(node1) {
-        entityManager ! EntityEnvelope(self, TestEntityCreate("redirect-fails", 7, 8), attempts = 3)
+        shardManager ! EntityEnvelope(self, TestEntityCreate("redirect-fails", 7, 8), attempts = 3)
         val reply = expectMsgClass(classOf[EntityDeliveryFailed])
         lastSender.path.address.hasLocalScope shouldEqual false
         lastSender.path.address shouldEqual node(node4).address
