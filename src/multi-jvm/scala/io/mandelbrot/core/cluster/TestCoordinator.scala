@@ -1,16 +1,33 @@
 package io.mandelbrot.core.cluster
 
+
 import akka.actor._
 import com.typesafe.config.Config
+import scala.collection.JavaConversions._
+import java.util
+
 import io.mandelbrot.core.{Conflict, ResourceNotFound, ApiException}
 
-case class TestCoordinatorSettings(shardMap: ShardMap, masterAddress: Address, selfAddress: Address)
+case class TestCoordinatorSettings(shardMap: ShardMap, initialEntities: Vector[Entity], masterAddress: Address, selfAddress: Address)
 
 class TestCoordinator(settings: TestCoordinatorSettings) extends Actor with ActorLogging with Coordinator {
 
+  object EntityOrdering extends Ordering[Entity] {
+    override def compare(x: Entity, y: Entity): Int = {
+      x.shardKey.compare(y.shardKey) match {
+        case result if result != 0 => result
+        case otherwise => x.entityKey.compare(y.entityKey)
+      }
+    }
+  }
+
   val shardMap = settings.shardMap
+  val shardEntities = new util.TreeSet[Entity](EntityOrdering)
   val masterAddress = settings.masterAddress
   val selfAddress = settings.selfAddress
+
+  // initialize state
+  settings.initialEntities.foreach(shardEntities.add)
 
   def receive = {
 
@@ -61,6 +78,27 @@ class TestCoordinator(settings: TestCoordinatorSettings) extends Actor with Acto
           shardMap.assign(op.shardId, op.address)
           sender() ! UpdateShardResult(op)
       }
+
+    case op: CreateEntity =>
+      val entity = Entity(op.shardKey, op.entityKey)
+      if (!shardEntities.contains(entity)) {
+        log.debug("{} creates entity {}:{}", sender().path, op.shardKey, op.entityKey)
+        shardEntities.add(entity)
+        sender() ! CreateEntityResult(op)
+      } else sender() ! ClusterServiceOperationFailed(op, ApiException(Conflict))
+
+    case op: DeleteEntity =>
+      val entity = Entity(op.shardKey, op.entityKey)
+      if (shardEntities.contains(entity)) {
+        log.debug("{} deletes entity {}:{}", sender().path, op.shardKey, op.entityKey)
+        shardEntities.remove(entity)
+        sender() ! DeleteEntityResult(op)
+      } else sender() ! ClusterServiceOperationFailed(op, ApiException(ResourceNotFound))
+
+    case op: ListEntities =>
+      log.debug("{} requests entities for shard {}:{}", sender().path, op.shardId, op.width)
+      val subset = shardEntities.subSet(Entity(op.shardId, ""), Entity(op.shardId + op.width, ""))
+      sender() ! ListEntitiesResult(op, subset.toVector, None)
   }
 }
 

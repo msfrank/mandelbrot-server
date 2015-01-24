@@ -38,7 +38,7 @@ class ShardEntities(services: ActorRef,
                     keyExtractor: KeyExtractor,
                     propsCreator: PropsCreator,
                     shardId: Int,
-                    width: Int) extends Actor with ActorLogging {
+                    width: Int) extends Actor with ActorLogging with Stash {
 
   // state
   val refsByKey = new util.HashMap[String,ActorRef]()
@@ -52,7 +52,11 @@ class ShardEntities(services: ActorRef,
 
   def initializing: Receive = {
 
+    case envelope: EntityEnvelope =>
+      stash()
+
     case result: ListEntitiesResult =>
+      log.debug("received entities for shard {}:{}: {}", result.op.shardId, result.op.width, result.entities.mkString(","))
       result.entities.foreach { entity =>
         val props = propsCreator(entity)
         val actor = context.actorOf(props)
@@ -63,7 +67,10 @@ class ShardEntities(services: ActorRef,
         actor ! entity
       }
       result.next match {
-        case None => context.become(running)
+        case None =>
+          log.debug("finished initializing entities for shard {}:{}", shardId, width)
+          unstashAll()
+          context.become(running)
         case next => services ! ListEntities(shardId, width, next)
       }
 

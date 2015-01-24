@@ -27,7 +27,9 @@ class ClusterManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Impl
   shards.assign(3, node(node4).address)
   shards.assign(4, node(node5).address)
 
-  val coordinatorSettings = TestCoordinatorSettings(shards, node(node1).address, myAddress)
+  val initialEntities = Vector.empty[Entity]
+
+  val coordinatorSettings = TestCoordinatorSettings(shards, initialEntities, node(node1).address, myAddress)
 
   val clusterSettings = new ClusterSettings(enabled = true,
                                             seedNodes = Vector.empty,

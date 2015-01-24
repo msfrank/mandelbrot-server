@@ -247,11 +247,14 @@ class ShardManager(services: ActorRef,
    */
   def flushBuffered(): Unit = {
     val iterator = bufferedMessages.listIterator()
+    if (iterator.hasNext)
+      log.debug("flushing buffered messages")
     while (iterator.hasNext) {
       val envelope = iterator.next()
       shardMap(shardResolver(envelope.message)) match {
         case entry: AssignedShardEntry =>
           iterator.remove()
+          log.debug("delivering buffered message {}", envelope.message)
           deliverEnvelope(envelope)
         case entry => // do nothing
       }

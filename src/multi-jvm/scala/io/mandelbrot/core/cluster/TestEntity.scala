@@ -11,6 +11,7 @@ class TestEntity extends Actor with ActorLogging {
     case m @ TestEntityMessage(key, shard, message) =>
       log.debug("received {}", m)
       sender() ! TestMessageReply(message)
+    case unknown => log.error("received unknown message: {}", unknown)
   }
 }
 
