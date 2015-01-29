@@ -39,6 +39,7 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
 
   // config
   val timeout = 5.seconds
+  val limit = 100
 
   // state
   val shardMap = ShardMap(totalShards, initialWidth)
@@ -49,7 +50,7 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
 
   override def preStart(): Unit = {
     // get the current location of all shards
-    services ! ListShards()
+    services ! ListShards(limit, None)
   }
 
   startWith(Initializing, NoData)
@@ -65,6 +66,7 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
         val numShards = shardDensity.getOrElse(address, 0)
         shardDensity.put(address, numShards + 1)
       }
+
       // find shards which are not mapped to any address
       missingShards = shardMap.missing.map(missing => missing.shardId -> missing).toMap
       // find nodes which have been added since the last balancing and add to densities map
@@ -73,6 +75,7 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
       // find nodes which have been added since the last balancing
       // TODO: handle rebalancing for node removals
       removedNodes = shardDensity.keySet.toSet diff nodes.keySet
+
       log.debug("shard assignments {}", shardMap)
       log.debug("missing shards {}", missingShards)
       log.debug("shard densities {}", shardDensity)

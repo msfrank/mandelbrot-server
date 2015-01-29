@@ -14,7 +14,7 @@ object MandelbrotServerBuild extends Build {
   val sprayJsonVersion = "1.3.1"
   val luceneVersion = "4.7.1"
   val slickVersion = "2.0.3"
-  val datastaxVersion = "2.1.2"
+  val datastaxVersion = "2.1.4"
 
   lazy val mandelbrotCoreBuild = (project in file("."))
     .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
@@ -83,7 +83,9 @@ object MandelbrotServerBuild extends Build {
       javacOptions ++= Seq("-source", "1.7"),
 
       libraryDependencies ++= Seq(
-        "com.datastax.cassandra" % "cassandra-driver-core" % datastaxVersion
+        "com.datastax.cassandra" % "cassandra-driver-core" % datastaxVersion,
+        "org.scalatest" %% "scalatest" % "1.9.2" % "test",
+        "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
       )
 
   ).dependsOn(mandelbrotCoreBuild)
@@ -102,7 +104,9 @@ object MandelbrotServerBuild extends Build {
 
       libraryDependencies ++= Seq(
         "com.typesafe.slick" %% "slick" % slickVersion,
-        "com.h2database" % "h2" % "1.4.177"
+        "com.h2database" % "h2" % "1.4.177",
+        "org.scalatest" %% "scalatest" % "1.9.2" % "test",
+        "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
       )
 
   ).dependsOn(mandelbrotCoreBuild)

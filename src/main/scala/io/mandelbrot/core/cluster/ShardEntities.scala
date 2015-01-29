@@ -40,6 +40,9 @@ class ShardEntities(services: ActorRef,
                     shardId: Int,
                     width: Int) extends Actor with ActorLogging with Stash {
 
+  // config
+  val limit = 100
+
   // state
   val refsByKey = new util.HashMap[String,ActorRef]()
   val entitiesByRef = new util.HashMap[ActorRef,Entity]()
@@ -47,7 +50,7 @@ class ShardEntities(services: ActorRef,
   val deletingEntities = new util.HashSet[Entity]()
 
   override def preStart(): Unit = {
-    services ! ListEntities(shardId, width, None)
+    services ! ListEntities(shardId, width, limit, None)
   }
 
   def initializing: Receive = {
@@ -66,12 +69,12 @@ class ShardEntities(services: ActorRef,
         // send the envelope message to the entity
         actor ! entity
       }
-      result.next match {
+      result.token match {
         case None =>
           log.debug("finished initializing entities for shard {}:{}", shardId, width)
           unstashAll()
           context.become(running)
-        case next => services ! ListEntities(shardId, width, next)
+        case next => services ! ListEntities(shardId, width, limit, next)
       }
 
     case ClusterServiceOperationFailed(op, failure) =>

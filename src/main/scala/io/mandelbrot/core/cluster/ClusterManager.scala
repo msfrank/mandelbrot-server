@@ -123,8 +123,8 @@ sealed trait ClusterServiceCommand extends ClusterServiceOperation
 sealed trait ClusterServiceQuery extends ClusterServiceOperation
 case class ClusterServiceOperationFailed(op: ClusterServiceOperation, failure: Throwable)
 
-case class ListShards() extends ClusterServiceQuery
-case class ListShardsResult(op: ListShards, shards: Vector[Shard])
+case class ListShards(limit: Int, token: Option[Shard]) extends ClusterServiceQuery
+case class ListShardsResult(op: ListShards, shards: Vector[Shard], token: Option[Shard])
 
 case class GetShard(shardId: Int, width: Int) extends ClusterServiceQuery
 case class GetShardResult(op: GetShard, shardId: Int, width: Int, address: Option[Address])
@@ -138,14 +138,14 @@ case class CreateShardResult(op: CreateShard)
 case class UpdateShard(shardId: Int, width: Int, address: Address, prev: Address) extends ClusterServiceCommand
 case class UpdateShardResult(op: UpdateShard)
 
+case class ListEntities(shardId: Int, width: Int, limit: Int, token: Option[Entity]) extends ClusterServiceQuery
+case class ListEntitiesResult(op: ListEntities, entities: Vector[Entity], token: Option[Entity])
+
 case class CreateEntity(shardKey: Int, entityKey: String) extends ClusterServiceCommand
 case class CreateEntityResult(op: CreateEntity)
 
 case class DeleteEntity(shardKey: Int, entityKey: String) extends ClusterServiceCommand
 case class DeleteEntityResult(op: DeleteEntity)
-
-case class ListEntities(shardId: Int, width: Int, last: Option[String]) extends ClusterServiceQuery
-case class ListEntitiesResult(op: ListEntities, entities: Vector[Entity], next: Option[String])
 
 /* marker trait for Coordinator implementations */
 trait Coordinator

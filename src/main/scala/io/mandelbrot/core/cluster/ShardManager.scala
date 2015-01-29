@@ -52,6 +52,7 @@ class ShardManager(services: ActorRef,
   import context.dispatcher
 
   // config
+  val limit = 100
   val servicesTimeout = 5.seconds
   val taskTimeout = 5.seconds
   val lookupTimeout = 5.seconds
@@ -69,9 +70,9 @@ class ShardManager(services: ActorRef,
   def initializing: Receive = {
 
     case Retry =>
-      services.ask(ListShards())(servicesTimeout).pipeTo(self)
+      services.ask(ListShards(limit, None))(servicesTimeout).pipeTo(self)
 
-    case ListShardsResult(op, shards) =>
+    case ListShardsResult(op, shards, token) =>
       // update the shard map and create any local shard entities
       shards.foreach { case Shard(shardId, width, address) =>
         shardMap.assign(shardId, address)
