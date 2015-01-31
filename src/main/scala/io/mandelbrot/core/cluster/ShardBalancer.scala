@@ -34,7 +34,7 @@ import ShardBalancer.{State, Data}
  *   3) ensure that shards are equally balanced across the cluster when members leave the cluster.
  *   4) ensure that shards are redistributed when members get too hot or cold.
  */
-class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,ActorPath], totalShards: Int, initialWidth: Int) extends LoggingFSM[State,Data] {
+class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,ActorPath], totalShards: Int) extends LoggingFSM[State,Data] {
   import ShardBalancer._
 
   // config
@@ -42,7 +42,7 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
   val limit = 100
 
   // state
-  val shardMap = ShardMap(totalShards, initialWidth)
+  val shardMap = ShardMap(totalShards)
   val shardDensity = new mutable.HashMap[Address,Int]()
   var missingShards = Map.empty[Int,MissingShardEntry]
   var addedNodes = Set.empty[Address]
@@ -61,7 +61,7 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
     case Event(result: ListShardsResult, NoData) =>
 
       // build shardMap and shardDensity from coordinator data
-      result.shards.foreach { case Shard(shardId, width, address) =>
+      result.shards.foreach { case Shard(shardId, address) =>
         shardMap.assign(shardId, address)
         val numShards = shardDensity.getOrElse(address, 0)
         shardDensity.put(address, numShards + 1)
@@ -89,7 +89,7 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
 
     // update state and process the next operation, if any
     case Event(result: PutShardComplete, state: Repairing) =>
-      val PutShard(shardId, width, actorPath) = result.op
+      val PutShard(shardId, actorPath) = result.op
       val address = actorPath.address
       shardMap.assign(shardId, address)
       val numShards = shardDensity.getOrElse(address, 0)
@@ -103,15 +103,15 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
 
     // the operation failed but we should retry later
     case Event(PutShardFailed(op, ApiException(RetryLater)), state: Repairing) =>
-      val PutShard(shardId, width, actorPath) = op
-      log.debug("failed to put shard {}:{} at {}: retrying", shardId, width, actorPath.address)
+      val PutShard(shardId, actorPath) = op
+      log.debug("failed to put shard {} at {}: retrying", shardId, actorPath.address)
       val inflight = context.actorOf(PutShardTask.props(state.queued.head, services, self, timeout))
       stay() using Repairing(inflight, state.queued)
 
     // the operation failed definitively, don't bother retrying
     case Event(result: PutShardFailed, state: Repairing) =>
-      val PutShard(shardId, width, actorPath) = result.op
-      log.debug("failed to put shard {}:{} at {}: {}", shardId, width, actorPath.address, result.ex)
+      val PutShard(shardId, actorPath) = result.op
+      log.debug("failed to put shard {} at {}: {}", shardId, actorPath.address, result.ex)
       val remaining = state.queued.tail
       if (remaining.nonEmpty) {
         val inflight = context.actorOf(PutShardTask.props(remaining.head, services, self, timeout))
@@ -131,7 +131,7 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
       val ops = shardMap.missing.map { missingShard =>
         val (address,numShards) = addressesSortedByDensity.dequeue()
         addressesSortedByDensity.enqueue((address, numShards + 1))
-        PutShard(missingShard.shardId, missingShard.width, nodes(address))
+        PutShard(missingShard.shardId, nodes(address))
       }.toVector
       // put the first operation in flight
       val inflight = context.actorOf(PutShardTask.props(ops.head, services, self, timeout))
@@ -157,8 +157,8 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
 }
 
 object ShardBalancer {
-  def props(services: ActorRef, monitor: ActorRef, nodes: Map[Address,ActorPath], totalShards: Int, initialWidth: Int) = {
-    Props(classOf[ShardBalancer], services, monitor, nodes, totalShards, initialWidth)
+  def props(services: ActorRef, monitor: ActorRef, nodes: Map[Address,ActorPath], totalShards: Int) = {
+    Props(classOf[ShardBalancer], services, monitor, nodes, totalShards)
   }
 
   val ordering = Ordering.by[(Address,Int),Int](_._2).reverse

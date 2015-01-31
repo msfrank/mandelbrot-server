@@ -51,7 +51,7 @@ class ClusterManager(settings: ClusterSettings,
 
   val clusterMonitor = context.actorOf(ClusterMonitor.props(settings.minNrMembers), "cluster-monitor")
   val shardManager = context.actorOf(ShardManager.props(context.parent,
-    shardResolver, keyExtractor, propsCreator, selfAddress, settings.totalShards, settings.initialWidth),
+    shardResolver, keyExtractor, propsCreator, selfAddress, settings.totalShards),
     "entity-manager")
 
   log.info("initializing cluster mode")
@@ -115,8 +115,8 @@ object ClusterManager {
 
 case class JoinCluster(seedNodes: Vector[String])
 
-case class Shard(shardId: Int, width: Int, address: Address)
-case class Entity(shardKey: Int, entityKey: String)
+case class Shard(shardId: Int, address: Address)
+case class Entity(shardId: Int, entityKey: String)
 
 sealed trait ClusterServiceOperation
 sealed trait ClusterServiceCommand extends ClusterServiceOperation
@@ -126,25 +126,22 @@ case class ClusterServiceOperationFailed(op: ClusterServiceOperation, failure: T
 case class ListShards(limit: Int, token: Option[Shard]) extends ClusterServiceQuery
 case class ListShardsResult(op: ListShards, shards: Vector[Shard], token: Option[Shard])
 
-case class GetShard(shardId: Int, width: Int) extends ClusterServiceQuery
-case class GetShardResult(op: GetShard, shardId: Int, width: Int, address: Option[Address])
+case class GetShard(shardId: Int) extends ClusterServiceQuery
+case class GetShardResult(op: GetShard, shardId: Int, address: Address)
 
-case class FindShard(shardKey: Int, totalShards: Int, initialWidth: Int) extends ClusterServiceQuery
-case class FindShardResult(op: FindShard, shardId: Int, width: Int, address: Option[Address])
-
-case class CreateShard(shardId: Int, width: Int, address: Address) extends ClusterServiceCommand
+case class CreateShard(shardId: Int, address: Address) extends ClusterServiceCommand
 case class CreateShardResult(op: CreateShard)
 
-case class UpdateShard(shardId: Int, width: Int, address: Address, prev: Address) extends ClusterServiceCommand
+case class UpdateShard(shardId: Int, address: Address, prev: Address) extends ClusterServiceCommand
 case class UpdateShardResult(op: UpdateShard)
 
-case class ListEntities(shardId: Int, width: Int, limit: Int, token: Option[Entity]) extends ClusterServiceQuery
+case class ListEntities(shardId: Int, limit: Int, token: Option[Entity]) extends ClusterServiceQuery
 case class ListEntitiesResult(op: ListEntities, entities: Vector[Entity], token: Option[Entity])
 
-case class CreateEntity(shardKey: Int, entityKey: String) extends ClusterServiceCommand
+case class CreateEntity(shardId: Int, entityKey: String) extends ClusterServiceCommand
 case class CreateEntityResult(op: CreateEntity)
 
-case class DeleteEntity(shardKey: Int, entityKey: String) extends ClusterServiceCommand
+case class DeleteEntity(shardId: Int, entityKey: String) extends ClusterServiceCommand
 case class DeleteEntityResult(op: DeleteEntity)
 
 /* marker trait for Coordinator implementations */

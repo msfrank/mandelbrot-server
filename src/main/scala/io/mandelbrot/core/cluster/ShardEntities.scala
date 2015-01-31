@@ -37,8 +37,7 @@ class ShardEntities(services: ActorRef,
                     shardResolver: ShardResolver,
                     keyExtractor: KeyExtractor,
                     propsCreator: PropsCreator,
-                    shardId: Int,
-                    width: Int) extends Actor with ActorLogging with Stash {
+                    shardId: Int) extends Actor with ActorLogging with Stash {
 
   // config
   val limit = 100
@@ -50,7 +49,7 @@ class ShardEntities(services: ActorRef,
   val deletingEntities = new util.HashSet[Entity]()
 
   override def preStart(): Unit = {
-    services ! ListEntities(shardId, width, limit, None)
+    services ! ListEntities(shardId, limit, None)
   }
 
   def initializing: Receive = {
@@ -59,7 +58,7 @@ class ShardEntities(services: ActorRef,
       stash()
 
     case result: ListEntitiesResult =>
-      log.debug("received entities for shard {}:{}: {}", result.op.shardId, result.op.width, result.entities.mkString(","))
+      log.debug("received entities for shard {}: {}", result.op.shardId, result.entities.mkString(","))
       result.entities.foreach { entity =>
         val props = propsCreator(entity)
         val actor = context.actorOf(props)
@@ -71,10 +70,10 @@ class ShardEntities(services: ActorRef,
       }
       result.token match {
         case None =>
-          log.debug("finished initializing entities for shard {}:{}", shardId, width)
+          log.debug("finished initializing entities for shard {}", shardId)
           unstashAll()
           context.become(running)
-        case next => services ! ListEntities(shardId, width, limit, next)
+        case next => services ! ListEntities(shardId, limit, next)
       }
 
     case ClusterServiceOperationFailed(op, failure) =>
@@ -149,9 +148,8 @@ object ShardEntities {
             shardResolver: ShardResolver,
             keyExtractor: KeyExtractor,
             propsCreator: PropsCreator,
-            shardId: Int,
-            width: Int) = {
-    Props(classOf[ShardEntities], services, shardResolver, keyExtractor, propsCreator, shardId, width)
+            shardId: Int) = {
+    Props(classOf[ShardEntities], services, shardResolver, keyExtractor, propsCreator, shardId)
   }
 }
 

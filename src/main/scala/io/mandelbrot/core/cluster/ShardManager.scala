@@ -46,8 +46,7 @@ class ShardManager(services: ActorRef,
                    keyExtractor: KeyExtractor,
                    propsCreator: PropsCreator,
                    selfAddress: Address,
-                   totalShards: Int,
-                   initialWidth: Int) extends Actor with ActorLogging {
+                   totalShards: Int) extends Actor with ActorLogging {
   import ShardManager._
   import context.dispatcher
 
@@ -58,7 +57,7 @@ class ShardManager(services: ActorRef,
   val lookupTimeout = 5.seconds
 
   // state
-  val shardMap = ShardMap(totalShards, initialWidth)
+  val shardMap = ShardMap(totalShards)
   val localEntities = new util.HashMap[Int,ActorRef]()
   val bufferedMessages = new util.ArrayList[EntityEnvelope]()
   val taskTimeouts = new util.HashMap[Int,Cancellable]()
@@ -74,20 +73,20 @@ class ShardManager(services: ActorRef,
 
     case ListShardsResult(op, shards, token) =>
       // update the shard map and create any local shard entities
-      shards.foreach { case Shard(shardId, width, address) =>
+      shards.foreach { case Shard(shardId, address) =>
         shardMap.assign(shardId, address)
         // if shard is local and entity map doesn't exist, create a new entity map
         if (address.equals(selfAddress)) {
-          val shardEntities = context.actorOf(ShardEntities.props(services, shardResolver, keyExtractor, propsCreator, shardId, width))
+          val shardEntities = context.actorOf(ShardEntities.props(services, shardResolver, keyExtractor, propsCreator, shardId))
           localEntities.put(shardId, shardEntities)
-          log.debug("created entity map for shard {}:{}", shardId, width)
+          log.debug("created entity map for shard {}", shardId)
         }
       }
       log.debug("initialized shard map with {} shards, {} missing", shardMap.size, shardMap.numMissing)
       // start lookup tasks for any missing shards
       shardMap.missing.foreach { case entry: MissingShardEntry =>
         val op = LookupShard(entry.shardId)
-        val actor = context.actorOf(LookupShardTask.props(op, services, self, totalShards, initialWidth, lookupTimeout))
+        val actor = context.actorOf(LookupShardTask.props(op, services, self, lookupTimeout))
         missingShards.put(entry.shardId, actor)
       }
       context.become(running)
@@ -139,9 +138,9 @@ class ShardManager(services: ActorRef,
         case entry: PreparingShardEntry =>
           log.debug("{} says recover shardId {}", sender().path, op.shardId)
           shardMap.assign(op.shardId, selfAddress)
-          val shardEntities = context.actorOf(ShardEntities.props(services, shardResolver, keyExtractor, propsCreator, entry.shardId, entry.width))
+          val shardEntities = context.actorOf(ShardEntities.props(services, shardResolver, keyExtractor, propsCreator, entry.shardId))
           localEntities.put(op.shardId, shardEntities)
-          log.debug("created entity map for shard {}:{}", entry.shardId, entry.width)
+          log.debug("created entity map for shard {}", entry.shardId)
           taskTimeouts.remove(op.shardId).cancel()
           sender() ! RecoverShardResult(op)
         case entry: ShardEntry =>
@@ -154,7 +153,7 @@ class ShardManager(services: ActorRef,
       taskTimeouts.remove(shardId)
       if (!missingShards.containsKey(shardId)) {
         val op = LookupShard(shardId)
-        val actor = context.actorOf(LookupShardTask.props(op, services, self, totalShards, initialWidth, lookupTimeout))
+        val actor = context.actorOf(LookupShardTask.props(op, services, self, lookupTimeout))
         missingShards.put(shardId, actor)
       }
 
@@ -166,9 +165,9 @@ class ShardManager(services: ActorRef,
         shardMap.assign(result.shardId, result.address)
         // if shard is local and entity map doesn't exist, create a new entity map
         if (result.address.equals(selfAddress) && !localEntities.containsKey(result.shardId)) {
-          val shardEntities = context.actorOf(ShardEntities.props(services, shardResolver, keyExtractor, propsCreator, result.shardId, result.width))
+          val shardEntities = context.actorOf(ShardEntities.props(services, shardResolver, keyExtractor, propsCreator, result.shardId))
           localEntities.put(result.shardId, shardEntities)
-          log.debug("created entity map for shard {}:{}", result.shardId, result.width)
+          log.debug("created entity map for shard {}", result.shardId)
         }
         // flush any buffered messages for newly assigned shards
         flushBuffered()
@@ -236,7 +235,7 @@ class ShardManager(services: ActorRef,
           if (!missingShards.containsKey(shard.shardId)) {
             /// then try to repair the shard map
             val op = LookupShard(shard.shardId)
-            val actor = context.actorOf(LookupShardTask.props(op, services, self, totalShards, initialWidth, lookupTimeout))
+            val actor = context.actorOf(LookupShardTask.props(op, services, self, lookupTimeout))
             missingShards.put(shard.shardId, actor)
           }
         }
@@ -269,9 +268,8 @@ object ShardManager {
             keyExtractor: KeyExtractor,
             propsCreator: PropsCreator,
             selfAddress: Address,
-            totalShards: Int,
-            initialWidth: Int) = {
-    Props(classOf[ShardManager], services, shardResolver, keyExtractor, propsCreator, selfAddress, totalShards, initialWidth)
+            totalShards: Int) = {
+    Props(classOf[ShardManager], services, shardResolver, keyExtractor, propsCreator, selfAddress, totalShards)
   }
 
   case object Retry

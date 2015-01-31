@@ -21,6 +21,7 @@ package io.mandelbrot.core.cluster
 
 import akka.actor._
 import akka.pattern._
+import io.mandelbrot.core.{ApiException, ResourceNotFound}
 import scala.concurrent.duration._
 
 /**
@@ -31,8 +32,6 @@ import scala.concurrent.duration._
 class LookupShardTask(op: LookupShard,
                       services: ActorRef,
                       monitor: ActorRef,
-                      totalShards: Int,
-                      initialWidth: Int,
                       timeout: FiniteDuration) extends Actor with ActorLogging {
   import LookupShardTask.PerformQuery
   import context.dispatcher
@@ -40,23 +39,21 @@ class LookupShardTask(op: LookupShard,
   // config
   val delay = 5.seconds
 
-  log.debug("attempting to resolve shard for key {}", op.shardKey)
+  log.debug("attempting to get address for shard {}", op.shardId)
 
   override def preStart(): Unit = self ! PerformQuery
   
   def receive = {
 
     case PerformQuery =>
-      services.ask(FindShard(op.shardKey, totalShards, initialWidth))(timeout).pipeTo(self)
+      services.ask(GetShard(op.shardId))(timeout).pipeTo(self)
 
-    case result: FindShardResult if result.address.isEmpty =>
-      context.system.scheduler.scheduleOnce(delay, self, PerformQuery)
-      
-    case FindShardResult(_, shardId, width, Some(address)) =>
+    case result: GetShardResult =>
       context.stop(self)
-      monitor ! LookupShardResult(op, shardId, width, address)
-      
+      monitor ! LookupShardResult(op, result.shardId, result.address)
+
     case failure: ClusterServiceOperationFailed =>
+      log.debug("failed to get address for shard {}: {}", op.shardId, failure.failure)
       context.system.scheduler.scheduleOnce(delay, self, PerformQuery)
 
     case failure: AskTimeoutException =>
@@ -65,11 +62,11 @@ class LookupShardTask(op: LookupShard,
 }
 
 object LookupShardTask {
-  def props(op: LookupShard, services: ActorRef, monitor: ActorRef, totalShards: Int, initialWidth: Int, timeout: FiniteDuration) = {
-    Props(classOf[LookupShardTask], op, services, monitor, totalShards, initialWidth, timeout)
+  def props(op: LookupShard, services: ActorRef, monitor: ActorRef, timeout: FiniteDuration) = {
+    Props(classOf[LookupShardTask], op, services, monitor, timeout)
   }
   case object PerformQuery
 }
 
-case class LookupShard(shardKey: Int)
-case class LookupShardResult(op: LookupShard, shardId: Int, width: Int, address: Address)
+case class LookupShard(shardId: Int)
+case class LookupShardResult(op: LookupShard, shardId: Int, address: Address)

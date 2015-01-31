@@ -17,58 +17,54 @@ class ShardMapSpec extends WordSpec with ShouldMatchers {
     val addresses = Set(address1, address2, address3, address4, address5)
 
     "initialize empty" in {
-      val shardMap = ShardMap(4, 1)
+      val shardMap = ShardMap(4)
       shardMap.nonEmpty shouldEqual false
       shardMap.isEmpty shouldEqual true
     }
 
     "map keys to shards" in {
-      val shardMap = ShardMap(8, 2)
+      val shardMap = ShardMap(4)
       shardMap.assign(0, address1)
-      shardMap.assign(2, address2)
-      shardMap.assign(4, address3)
-      shardMap.assign(6, address4)
-      shardMap(0) shouldEqual Some((0, address1))
-      shardMap(1) shouldEqual Some((0, address1))
-      shardMap(2) shouldEqual Some((1, address2))
-      shardMap(3) shouldEqual Some((1, address2))
-      shardMap(4) shouldEqual Some((2, address3))
-      shardMap(5) shouldEqual Some((2, address3))
-      shardMap(6) shouldEqual Some((3, address4))
-      shardMap(7) shouldEqual Some((3, address4))
+      shardMap.assign(1, address2)
+      shardMap.assign(2, address3)
+      shardMap.assign(3, address4)
+      shardMap(0) shouldEqual AssignedShardEntry(0, address1)
+      shardMap(1) shouldEqual AssignedShardEntry(1, address2)
+      shardMap(2) shouldEqual AssignedShardEntry(2, address3)
+      shardMap(3) shouldEqual AssignedShardEntry(3, address4)
     }
 
     "not map a key to a shard if the ring is empty" in {
-      val shardMap = ShardMap(4, 1)
-      shardMap(10) should be(None)
+      val shardMap = ShardMap(4)
+      shardMap(10) shouldEqual MissingShardEntry(2)
     }
 
     "detect if it is full" in {
-      val shardMap = ShardMap(4, 1)
+      val shardMap = ShardMap(4)
       0.until(4).foreach(shardMap.assign(_, address1))
       shardMap.nonFull shouldEqual false
       shardMap.isFull shouldEqual true
     }
 
     "detect if it is not full when empty" in {
-      val shardMap = ShardMap(4, 1)
+      val shardMap = ShardMap(4)
       shardMap.nonFull shouldEqual true
       shardMap.isFull shouldEqual false
     }
 
     "detect if it is not full when missing an entry" in {
-      val shardMap = ShardMap(2, 1)
+      val shardMap = ShardMap(2)
       shardMap.assign(0, address1)
       shardMap.nonFull shouldEqual true
       shardMap.isFull shouldEqual false
     }
 
     "iterate missing shards in an empty map" in {
-      val shardMap = ShardMap(4, 1)
-      shardMap.missing shouldEqual Set(0, 1, 2, 3)
+      val shardMap = ShardMap(4)
+      shardMap.missing.toSet shouldEqual Set(MissingShardEntry(0), MissingShardEntry(1), MissingShardEntry(2), MissingShardEntry(3))
       shardMap.assign(0, address1)
       shardMap.assign(2, address2)
-      shardMap.missing shouldEqual Set(1, 3)
+      shardMap.missing.toSet shouldEqual Set(MissingShardEntry(1), MissingShardEntry(3))
     }
   }
 }

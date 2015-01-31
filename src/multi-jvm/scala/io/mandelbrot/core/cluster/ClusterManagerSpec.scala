@@ -18,9 +18,8 @@ class ClusterManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Impl
   // config
   def initialParticipants = roles.size
   val totalShards = 10
-  val initialWidth = 1
 
-  val shards = ShardMap(totalShards, initialWidth)
+  val shards = ShardMap(totalShards)
   shards.assign(0, node(node1).address)
   shards.assign(1, node(node2).address)
   shards.assign(2, node(node3).address)
@@ -35,7 +34,6 @@ class ClusterManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Impl
                                             seedNodes = Vector.empty,
                                             minNrMembers = 5,
                                             totalShards,
-                                            initialWidth,
                                             CoordinatorSettings("io.mandelbrot.core.cluster.TestCoordinator", Some(coordinatorSettings)))
   var clusterManager = ActorRef.noSender
 

@@ -29,7 +29,7 @@ import akka.actor.Address
  *   3) migrating: the shard is moving to another address.
  *   4) missing: the shard has no address, or the address is not known.
  */
-class ShardMap(val totalShards: Int, val initialWidth: Int) {
+class ShardMap(totalShards: Int) {
 
   // FIXME: assert invariants
 
@@ -40,11 +40,9 @@ class ShardMap(val totalShards: Int, val initialWidth: Int) {
   }
 
   // initialize the shard map with missing entries
-  private val entries = new Array[MapEntry](totalShards / initialWidth)
-  0.until(entries.length).foreach { n =>
-    val shardId = initialWidth * n
-    val width = initialWidth
-    entries(n) = new MapEntry(MissingShardEntry(shardId, width))
+  private val entries = new Array[MapEntry](totalShards)
+  0.until(entries.length).foreach { shardId =>
+    entries(shardId) = new MapEntry(MissingShardEntry(shardId))
   }
 
   private var _numMissing = entries.length
@@ -55,7 +53,7 @@ class ShardMap(val totalShards: Int, val initialWidth: Int) {
   private def getShardEntry(shardId: Int): MapEntry = {
     if (shardId < 0 || shardId >= totalShards)
       throw new IllegalArgumentException("shardId %d is out of range".format(shardId))
-    entries(shardId / initialWidth)
+    entries(shardId)
   }
 
   /**
@@ -66,7 +64,7 @@ class ShardMap(val totalShards: Int, val initialWidth: Int) {
   /**
    * convert the specified shardKey into a shardId.
    */
-  def getShardId(shardKey: Int): Int = (scala.math.abs(shardKey) % totalShards) / initialWidth
+  def getShardId(shardKey: Int): Int = scala.math.abs(shardKey) % totalShards
 
   /**
    * given the specified shardKey, return the associated shard.
@@ -79,7 +77,7 @@ class ShardMap(val totalShards: Int, val initialWidth: Int) {
   def assign(shardId: Int, address: Address): ShardEntry = {
     val entry = getShardEntry(shardId)
     val prev = entry.shard
-    entry.shard = AssignedShardEntry(prev.shardId, prev.width, address)
+    entry.shard = AssignedShardEntry(prev.shardId, address)
     if (prev.isEmpty)
       _numMissing = _numMissing - 1
     prev
@@ -91,7 +89,7 @@ class ShardMap(val totalShards: Int, val initialWidth: Int) {
   def prepare(shardId: Int, address: Address): ShardEntry = {
     val entry = getShardEntry(shardId)
     val prev = entry.shard
-    entry.shard = PreparingShardEntry(prev.shardId, prev.width, address)
+    entry.shard = PreparingShardEntry(prev.shardId, address)
     if (prev.isEmpty)
       _numMissing = _numMissing - 1
     prev
@@ -103,7 +101,7 @@ class ShardMap(val totalShards: Int, val initialWidth: Int) {
   def migrate(shardId: Int, address: Address): ShardEntry = {
     val entry = getShardEntry(shardId)
     val prev = entry.shard
-    entry.shard = MigratingShardEntry(prev.shardId, prev.width, address)
+    entry.shard = MigratingShardEntry(prev.shardId, address)
     if (prev.isEmpty)
       _numMissing = _numMissing - 1
     prev
@@ -115,7 +113,7 @@ class ShardMap(val totalShards: Int, val initialWidth: Int) {
   def remove(shardId: Int): ShardEntry = {
     val entry = getShardEntry(shardId)
     val prev = entry.shard
-    entry.shard = MissingShardEntry(prev.shardId, prev.width)
+    entry.shard = MissingShardEntry(prev.shardId)
     if (prev.isDefined)
       _numMissing = _numMissing + 1
     prev
@@ -186,7 +184,7 @@ class ShardMap(val totalShards: Int, val initialWidth: Int) {
 }
 
 object ShardMap {
-  def apply(totalShards: Int, initialWidth: Int) = new ShardMap(totalShards, initialWidth)
+  def apply(totalShards: Int) = new ShardMap(totalShards)
 }
 
 /**
@@ -194,24 +192,22 @@ object ShardMap {
  */
 abstract class ShardEntry(_address: Option[Address]) {
   val shardId: Int
-  val width: Int
-  def contains(shardKey: Int) = shardKey >= shardId && shardKey < shardId + width
   def isEmpty = _address.isEmpty
   def isDefined = _address.isDefined
 }
 
-case class AssignedShardEntry(shardId: Int, width: Int, address: Address) extends ShardEntry(Some(address)) {
-  override def toString = "Shard(%d+%d assigned to %s)".format(shardId, width, address)
+case class AssignedShardEntry(shardId: Int, address: Address) extends ShardEntry(Some(address)) {
+  override def toString = "Shard(%d assigned to %s)".format(shardId, address)
 }
 
-case class PreparingShardEntry(shardId: Int, width: Int, address: Address) extends ShardEntry(Some(address)) {
-  override def toString = "Shard(%d+%d preparing for %s)".format(shardId, width, address)
+case class PreparingShardEntry(shardId: Int, address: Address) extends ShardEntry(Some(address)) {
+  override def toString = "Shard(%d preparing for %s)".format(shardId, address)
 }
 
-case class MigratingShardEntry(shardId: Int, width: Int, address: Address) extends ShardEntry(Some(address)) {
-  override def toString = "Shard(%d+%d migrating to %s)".format(shardId, width, address)
+case class MigratingShardEntry(shardId: Int, address: Address) extends ShardEntry(Some(address)) {
+  override def toString = "Shard(%d migrating to %s)".format(shardId, address)
 }
 
-case class MissingShardEntry(shardId: Int, width: Int) extends ShardEntry(None) {
-  override def toString = "Shard(%d+%d missing)".format(shardId, width)
+case class MissingShardEntry(shardId: Int) extends ShardEntry(None) {
+  override def toString = "Shard(%d missing)".format(shardId)
 }

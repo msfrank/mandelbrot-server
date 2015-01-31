@@ -18,9 +18,8 @@ class ShardManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Implic
   // config
   def initialParticipants = roles.size
   val totalShards = 10
-  val initialWidth = 1
 
-  val shardMap = ShardMap(totalShards, initialWidth)
+  val shardMap = ShardMap(totalShards)
   shardMap.assign(0, node(node1).address)
   shardMap.assign(1, node(node2).address)
   shardMap.assign(2, node(node3).address)
@@ -32,7 +31,7 @@ class ShardManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Implic
   val coordinatorSettings = TestCoordinatorSettings(shardMap, initialEntities, node(node1).address, myAddress)
   val coordinator = system.actorOf(TestCoordinator.props(coordinatorSettings), "coordinator")
   val shardManager = TestActorRef[ShardManager](ShardManager.props(coordinator,
-    TestEntity.shardResolver, TestEntity.keyExtractor, TestEntity.propsCreator, myAddress, totalShards, initialWidth),
+    TestEntity.shardResolver, TestEntity.keyExtractor, TestEntity.propsCreator, myAddress, totalShards),
     "entities")
 
   "A ShardManager" should {

@@ -36,7 +36,6 @@ class PutShardTask(op: PutShard,
 
   // config
   val shardId = op.shardId
-  val width = op.width
   val targetNode = op.targetNode
 
   // state
@@ -51,7 +50,7 @@ class PutShardTask(op: PutShard,
     case result: PrepareShardResult =>
       // write new shard owner
       log.debug("shard {} now assigned to {}", result.op.shardId, sender().path)
-      services ! CreateShard(shardId, width, targetNode.address)
+      services ! CreateShard(shardId, targetNode.address)
 
     case result: CreateShardResult =>
       // tell targetNode to recover shard
@@ -88,6 +87,6 @@ object PutShardTask {
   case object TaskTimeout
 }
 
-case class PutShard(shardId: Int, width: Int, targetNode: ActorPath)
+case class PutShard(shardId: Int, targetNode: ActorPath)
 case class PutShardComplete(op: PutShard)
 case class PutShardFailed(op: PutShard, ex: Throwable)
