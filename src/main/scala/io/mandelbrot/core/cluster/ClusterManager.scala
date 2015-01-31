@@ -138,6 +138,9 @@ case class UpdateShardResult(op: UpdateShard)
 case class ListEntities(shardId: Int, limit: Int, token: Option[Entity]) extends ClusterServiceQuery
 case class ListEntitiesResult(op: ListEntities, entities: Vector[Entity], token: Option[Entity])
 
+case class GetEntity(shardId: Int, entityKey: String) extends ClusterServiceQuery
+case class GetEntityResult(op: GetEntity, shardId: Int, entityKey: String)
+
 case class CreateEntity(shardId: Int, entityKey: String) extends ClusterServiceCommand
 case class CreateEntityResult(op: CreateEntity)
 
