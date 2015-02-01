@@ -75,8 +75,11 @@ class ShardManager(services: ActorRef,
       // update the shard map and create any local shard entities
       shards.foreach { case Shard(shardId, address) =>
         shardMap.assign(shardId, address)
+        if (selfAddress.equals(StandaloneAddress) && !address.equals(selfAddress)) {
+          log.warning("ignoring shard {} with address {}", shardId, address)
+        }
         // if shard is local and entity map doesn't exist, create a new entity map
-        if (address.equals(selfAddress)) {
+        else if (selfAddress.equals(StandaloneAddress) || address.equals(selfAddress)) {
           val shardEntities = context.actorOf(ShardEntities.props(services, shardResolver, keyExtractor, propsCreator, shardId))
           localEntities.put(shardId, shardEntities)
           log.debug("created entity map for shard {}", shardId)
@@ -263,6 +266,9 @@ class ShardManager(services: ActorRef,
 }
 
 object ShardManager {
+
+  val StandaloneAddress = Address("local","mandelbrot", "localhost", 0)
+
   def props(services: ActorRef,
             shardResolver: ShardResolver,
             keyExtractor: KeyExtractor,
@@ -276,6 +282,7 @@ object ShardManager {
   case class StaleShard(shardId: Int, address: Address)
   case class TaskTimeout(shardId: Int)
 }
+
 
 object EntityFunctions {
   type KeyExtractor = PartialFunction[Any,String]

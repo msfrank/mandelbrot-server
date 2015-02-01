@@ -28,7 +28,7 @@ import scala.concurrent.Await
 /**
  * application entry point
  */
-object MandelbrotApp extends App {
+abstract class MandelbrotApp extends App {
 
   val log = LoggerFactory.getLogger("io.mandelbrot.core.MandelbrotApp")
 
@@ -59,3 +59,5 @@ object MandelbrotApp extends App {
       sys.exit(1)
   }
 }
+
+object CoreApplication extends MandelbrotApp

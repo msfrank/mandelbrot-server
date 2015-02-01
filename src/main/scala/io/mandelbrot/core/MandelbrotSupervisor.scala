@@ -21,7 +21,6 @@ package io.mandelbrot.core
 
 import akka.actor._
 
-import io.mandelbrot.core.registry.RegistryReviver
 import io.mandelbrot.core.http.HttpServer
 
 /**
@@ -43,10 +42,6 @@ class MandelbrotSupervisor extends Actor with ActorLogging {
 
   // monitor lifecycle for all specified actors
   alive.foreach(context.watch)
-
-  override def preStart(): Unit = {
-    val reviver = context.actorOf(RegistryReviver.props(serviceProxy))
-  }
 
   def receive = {
 

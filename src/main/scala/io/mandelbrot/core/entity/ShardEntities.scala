@@ -48,6 +48,8 @@ class ShardEntities(services: ActorRef,
   val creatingEntities = new util.HashSet[Entity]()
   val deletingEntities = new util.HashSet[Entity]()
 
+  log.debug("managing entities for shard {}", shardId)
+
   override def preStart(): Unit = {
     services ! ListEntities(shardId, limit, None)
   }

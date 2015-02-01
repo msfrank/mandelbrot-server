@@ -69,10 +69,12 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
 
       // find shards which are not mapped to any address
       missingShards = shardMap.missing.map(missing => missing.shardId -> missing).toMap
+
       // find nodes which have been added since the last balancing and add to densities map
       addedNodes = nodes.keySet diff shardDensity.keySet
       addedNodes.foreach(shardDensity.put(_, 0))
-      // find nodes which have been added since the last balancing
+
+      // find nodes which have been removed since the last balancing
       // TODO: handle rebalancing for node removals
       removedNodes = shardDensity.keySet.toSet diff nodes.keySet
 
@@ -89,8 +91,7 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
 
     // update state and process the next operation, if any
     case Event(result: PutShardComplete, state: Repairing) =>
-      val PutShard(shardId, actorPath) = result.op
-      val address = actorPath.address
+      val PutShard(shardId, address, _) = result.op
       shardMap.assign(shardId, address)
       val numShards = shardDensity.getOrElse(address, 0)
       shardDensity.put(address, numShards + 1)
@@ -103,15 +104,15 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
 
     // the operation failed but we should retry later
     case Event(PutShardFailed(op, ApiException(RetryLater)), state: Repairing) =>
-      val PutShard(shardId, actorPath) = op
-      log.debug("failed to put shard {} at {}: retrying", shardId, actorPath.address)
+      val PutShard(shardId, address, _) = op
+      log.debug("failed to put shard {} at {}: retrying", shardId, address)
       val inflight = context.actorOf(PutShardTask.props(state.queued.head, services, self, timeout))
       stay() using Repairing(inflight, state.queued)
 
     // the operation failed definitively, don't bother retrying
     case Event(result: PutShardFailed, state: Repairing) =>
-      val PutShard(shardId, actorPath) = result.op
-      log.debug("failed to put shard {} at {}: {}", shardId, actorPath.address, result.ex)
+      val PutShard(shardId, address, _) = result.op
+      log.debug("failed to put shard {} at {}: {}", shardId, address, result.ex)
       val remaining = state.queued.tail
       if (remaining.nonEmpty) {
         val inflight = context.actorOf(PutShardTask.props(remaining.head, services, self, timeout))
@@ -131,7 +132,7 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
       val ops = shardMap.missing.map { missingShard =>
         val (address,numShards) = addressesSortedByDensity.dequeue()
         addressesSortedByDensity.enqueue((address, numShards + 1))
-        PutShard(missingShard.shardId, nodes(address))
+        PutShard(missingShard.shardId, address, nodes(address))
       }.toVector
       // put the first operation in flight
       val inflight = context.actorOf(PutShardTask.props(ops.head, services, self, timeout))
@@ -147,7 +148,7 @@ class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Ac
    */
   def calculateDensityDeviation(densities: Iterable[Int]): Double = {
     val cardinality = densities.size
-    val mean = densities.reduce(_ + _) / cardinality
+    val mean = densities.sum / cardinality
     val variance = densities.foldLeft(0.toDouble) { case (acc,n) => math.pow(n - mean, 2) + acc } / cardinality
     math.sqrt(variance)
   }

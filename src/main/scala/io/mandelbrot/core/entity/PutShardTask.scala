@@ -36,26 +36,27 @@ class PutShardTask(op: PutShard,
 
   // config
   val shardId = op.shardId
-  val targetNode = op.targetNode
+  val address = op.address
+  val path = op.path
 
   // state
   val cancellable = context.system.scheduler.scheduleOnce(timeout, self, TaskTimeout)
 
   // prepare targetNode to receive shard
-  log.debug("preparing {} to receive shard {}", targetNode, op.shardId)
-  context.actorSelection(targetNode) ! PrepareShard(shardId)
+  log.debug("preparing {} to receive shard {}", path, op.shardId)
+  context.actorSelection(path) ! PrepareShard(shardId)
 
   def receive = {
 
     case result: PrepareShardResult =>
       // write new shard owner
       log.debug("shard {} now assigned to {}", result.op.shardId, sender().path)
-      services ! CreateShard(shardId, targetNode.address)
+      services ! CreateShard(shardId, address)
 
     case result: CreateShardResult =>
       // tell targetNode to recover shard
-      log.debug("notifying {} to recover shard {}", targetNode, result.op.shardId)
-      context.actorSelection(targetNode) ! RecoverShard(shardId)
+      log.debug("notifying {} to recover shard {}", path, result.op.shardId)
+      context.actorSelection(path) ! RecoverShard(shardId)
 
     case result: RecoverShardResult =>
       log.debug("{} acknowledges receipt of shard {}", sender().path, result.op.shardId)
@@ -87,6 +88,6 @@ object PutShardTask {
   case object TaskTimeout
 }
 
-case class PutShard(shardId: Int, targetNode: ActorPath)
+case class PutShard(shardId: Int, address: Address, path: ActorPath)
 case class PutShardComplete(op: PutShard)
 case class PutShardFailed(op: PutShard, ex: Throwable)

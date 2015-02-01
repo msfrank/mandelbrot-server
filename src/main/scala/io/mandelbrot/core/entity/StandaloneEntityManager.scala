@@ -20,6 +20,8 @@
 package io.mandelbrot.core.entity
 
 import akka.actor._
+import io.mandelbrot.core.ServiceExtension
+import io.mandelbrot.core.entity.EntityFunctions.{ShardResolver, KeyExtractor, PropsCreator}
 import scala.collection.mutable
 import java.net.URI
 
@@ -29,46 +31,48 @@ import io.mandelbrot.core.system.{ProbeSystem, ProbeSystemOperation, ProbeOperat
 /**
  *
  */
-class StandaloneEntityManager(registryService: ActorRef) extends Actor with ActorLogging {
-  
-  val systemEntries = new mutable.HashMap[URI,ActorRef]()
-  val entryUris = new mutable.HashMap[ActorRef, URI]()
+class StandaloneEntityManager(settings: ClusterSettings,
+                              shardResolver: ShardResolver,
+                              keyExtractor: KeyExtractor,
+                              propsCreator: PropsCreator) extends Actor with ActorLogging {
 
-  log.info("server is running in standalone mode")
+  // config
+  val defaultAttempts = 3
+
+  val coordinator = {
+    val props = ServiceExtension.makePluginProps(settings.coordinator.plugin, settings.coordinator.settings)
+    log.info("loading coordinator plugin {}", settings.coordinator.plugin)
+    context.actorOf(props, "coordinator")
+  }
+
+  val shardManager = context.actorOf(ShardManager.props(context.parent,
+    shardResolver, keyExtractor, propsCreator, ShardManager.StandaloneAddress, settings.totalShards),
+    "entity-manager")
+
+  log.info("initializing standalone mode")
+
+  override def preStart(): Unit = {
+    context.actorOf(ShardBalancer.props(context.parent, self,
+      Map(ShardManager.StandaloneAddress -> shardManager.path), settings.totalShards),
+      "shard-balancer")
+  }
 
   def receive = {
-    
-    case op: RegistryServiceOperation =>
-      registryService forward op
 
-    case op: ProbeSystemOperation =>
-      val entry = systemEntries.get(op.uri) match {
-        case Some(actorRef) => actorRef
-        case None =>
-          val actorRef = context.actorOf(ProbeSystem.props(context.parent))
-          context.watch(actorRef)
-          systemEntries.put(op.uri, actorRef)
-          entryUris.put(actorRef, op.uri)
-          actorRef
-      }
-      entry forward op
+    case result: ShardBalancerResult =>
+      log.debug("shard balancer completed")
 
-    case op: ProbeOperation =>
-      val entry = systemEntries.get(op.probeRef.uri) match {
-        case Some(actorRef) => actorRef
-        case None =>
-          val actorRef = context.actorOf(ProbeSystem.props(context.parent))
-          context.watch(actorRef)
-          systemEntries.put(op.probeRef.uri, actorRef)
-          entryUris.put(actorRef, op.probeRef.uri)
-          actorRef
-      }
-      entry forward op
+    // forward any messages for the coordinator
+    case op: EntityServiceOperation =>
+      coordinator forward op
 
-    case Terminated(actorRef) =>
-      entryUris.remove(actorRef) match {
-        case Some(uri) => systemEntries.remove(uri)
-        case None =>
-      }
+    // send envelopes directly to the shard manager
+    case envelope: EntityEnvelope =>
+      shardManager ! envelope
+
+    // we assume any other message is for an entity, so we wrap it in an envelope
+    case message: Any =>
+      shardManager ! EntityEnvelope(sender(), message, attempts = defaultAttempts)
+
   }
 }

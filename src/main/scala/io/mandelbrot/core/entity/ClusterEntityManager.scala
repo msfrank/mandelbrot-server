@@ -81,6 +81,7 @@ class ClusterEntityManager(settings: ClusterSettings,
       log.debug("cluster is up")
       running = true
       status = event
+      // FIXME: handle cluster up and cluster down
       if (event.leader.equals(selfAddress) && shardBalancer.isEmpty) {
       } else if (!event.leader.equals(selfAddress) && shardBalancer.nonEmpty) {
       }
@@ -90,6 +91,7 @@ class ClusterEntityManager(settings: ClusterSettings,
       log.debug("cluster is down")
       running = false
       status = event
+      // FIXME: handle cluster up and cluster down
       if (shardBalancer.nonEmpty) {
       }
 
@@ -97,7 +99,7 @@ class ClusterEntityManager(settings: ClusterSettings,
     case op: EntityServiceOperation =>
       coordinator forward op
 
-    // send envelopes directly to the entity manager
+    // send envelopes directly to the shard manager
     case envelope: EntityEnvelope =>
       shardManager ! envelope
 
