@@ -1,4 +1,4 @@
-package io.mandelbrot.core.cluster
+package io.mandelbrot.core.entity
 
 import akka.actor.ActorRef
 import akka.testkit.{TestActorRef, TestProbe, ImplicitSender}

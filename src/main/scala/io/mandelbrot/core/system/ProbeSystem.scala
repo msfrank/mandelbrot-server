@@ -20,13 +20,13 @@
 package io.mandelbrot.core.system
 
 import akka.actor._
-import io.mandelbrot.core.cluster.Entity
+import io.mandelbrot.core.entity.Entity
 import scala.collection.mutable
 import java.net.URI
 
 import io.mandelbrot.core.{ServerConfig, ResourceNotFound, ApiException}
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.cluster.EntityFunctions.{ShardResolver, KeyExtractor}
+import io.mandelbrot.core.entity.EntityFunctions.{ShardResolver, KeyExtractor}
 import io.mandelbrot.core.metrics.MetricsBus
 import io.mandelbrot.core.notification.{ProbeNotification, NotificationEvent}
 

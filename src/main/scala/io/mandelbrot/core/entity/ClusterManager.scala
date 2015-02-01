@@ -17,13 +17,13 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.cluster
+package io.mandelbrot.core.entity
 
 import akka.cluster.Cluster
 import akka.actor._
 
 import io.mandelbrot.core.{BadRequest, ApiException, ServiceExtension}
-import io.mandelbrot.core.cluster.EntityFunctions.{ShardResolver, KeyExtractor, PropsCreator}
+import io.mandelbrot.core.entity.EntityFunctions.{ShardResolver, KeyExtractor, PropsCreator}
 
 /**
  * 

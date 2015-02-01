@@ -5,7 +5,7 @@ import akka.pattern.pipe
 import com.typesafe.config.Config
 import org.joda.time.{DateTimeZone, DateTime}
 
-import io.mandelbrot.core.cluster._
+import io.mandelbrot.core.entity._
 import io.mandelbrot.persistence.cassandra.CassandraCoordinator.CassandraCoordinatorSettings
 
 /**

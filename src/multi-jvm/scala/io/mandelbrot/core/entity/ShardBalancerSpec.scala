@@ -1,4 +1,4 @@
-package io.mandelbrot.core.cluster
+package io.mandelbrot.core.entity
 
 import akka.testkit.{TestProbe, ImplicitSender}
 import scala.concurrent.duration._

@@ -22,7 +22,7 @@ package io.mandelbrot.core
 import akka.actor._
 import com.typesafe.config._
 import com.typesafe.config.ConfigException.WrongType
-import io.mandelbrot.core.cluster.ClusterSettings
+import io.mandelbrot.core.entity.ClusterSettings
 import org.slf4j.LoggerFactory
 import scala.collection.JavaConversions._
 import scala.concurrent.duration.FiniteDuration

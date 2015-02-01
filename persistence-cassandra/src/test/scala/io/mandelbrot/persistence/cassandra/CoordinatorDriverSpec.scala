@@ -10,7 +10,7 @@ import scala.concurrent.duration._
 
 import io.mandelbrot.core.{ResourceNotFound, Conflict, ApiException, AkkaConfig}
 import io.mandelbrot.core.ConfigConversions._
-import io.mandelbrot.core.cluster._
+import io.mandelbrot.core.entity._
 import io.mandelbrot.persistence.cassandra.CassandraCoordinator.CassandraCoordinatorSettings
 
 import scala.concurrent.{Future, Await}

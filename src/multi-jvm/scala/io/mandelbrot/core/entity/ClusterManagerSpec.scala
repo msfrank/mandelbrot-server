@@ -1,4 +1,4 @@
-package io.mandelbrot.core.cluster
+package io.mandelbrot.core.entity
 
 import akka.actor.ActorRef
 import akka.testkit.{TestProbe, ImplicitSender}
@@ -34,7 +34,7 @@ class ClusterManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Impl
                                             seedNodes = Vector.empty,
                                             minNrMembers = 5,
                                             totalShards,
-                                            CoordinatorSettings("io.mandelbrot.core.cluster.TestCoordinator", Some(coordinatorSettings)))
+                                            CoordinatorSettings("io.mandelbrot.core.entity.TestCoordinator", Some(coordinatorSettings)))
   var clusterManager = ActorRef.noSender
 
   "A ClusterManager" should {

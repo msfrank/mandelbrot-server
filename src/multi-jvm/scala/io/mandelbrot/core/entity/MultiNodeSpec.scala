@@ -1,4 +1,4 @@
-package io.mandelbrot.core.cluster
+package io.mandelbrot.core.entity
 
 import akka.remote.testkit._
 import akka.util.Timeout
