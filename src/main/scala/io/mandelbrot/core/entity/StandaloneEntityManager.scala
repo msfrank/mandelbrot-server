@@ -29,7 +29,7 @@ import io.mandelbrot.core.system.{ProbeSystem, ProbeSystemOperation, ProbeOperat
 /**
  *
  */
-class StandaloneManager(registryService: ActorRef) extends Actor with ActorLogging {
+class StandaloneEntityManager(registryService: ActorRef) extends Actor with ActorLogging {
   
   val systemEntries = new mutable.HashMap[URI,ActorRef]()
   val entryUris = new mutable.HashMap[ActorRef, URI]()
@@ -71,8 +71,4 @@ class StandaloneManager(registryService: ActorRef) extends Actor with ActorLoggi
         case None =>
       }
   }
-}
-
-object StandaloneManager {
-  def props(registryService: ActorRef) = Props(classOf[StandaloneManager], registryService)
 }

@@ -28,10 +28,10 @@ import io.mandelbrot.core.entity.EntityFunctions.{ShardResolver, KeyExtractor, P
 /**
  * 
  */
-class ClusterManager(settings: ClusterSettings,
-                     shardResolver: ShardResolver,
-                     keyExtractor: KeyExtractor,
-                     propsCreator: PropsCreator) extends Actor with ActorLogging {
+class ClusterEntityManager(settings: ClusterSettings,
+                           shardResolver: ShardResolver,
+                           keyExtractor: KeyExtractor,
+                           propsCreator: PropsCreator) extends Actor with ActorLogging {
 
   // config
   val selfAddress = Cluster(context.system).selfAddress
@@ -94,7 +94,7 @@ class ClusterManager(settings: ClusterSettings,
       }
 
     // forward any messages for the coordinator
-    case op: ClusterServiceOperation =>
+    case op: EntityServiceOperation =>
       coordinator forward op
 
     // send envelopes directly to the entity manager
@@ -106,46 +106,3 @@ class ClusterManager(settings: ClusterSettings,
       shardManager ! EntityEnvelope(sender(), message, attempts = defaultAttempts)
   }
 }
-
-object ClusterManager {
-  def props(settings: ClusterSettings, shardResolver: ShardResolver, keyExtractor: KeyExtractor, propsCreator: PropsCreator) = {
-    Props(classOf[ClusterManager], settings, shardResolver, keyExtractor, propsCreator)
-  }
-}
-
-case class JoinCluster(seedNodes: Vector[String])
-
-case class Shard(shardId: Int, address: Address)
-case class Entity(shardId: Int, entityKey: String)
-
-sealed trait ClusterServiceOperation
-sealed trait ClusterServiceCommand extends ClusterServiceOperation
-sealed trait ClusterServiceQuery extends ClusterServiceOperation
-case class ClusterServiceOperationFailed(op: ClusterServiceOperation, failure: Throwable)
-
-case class ListShards(limit: Int, token: Option[Shard]) extends ClusterServiceQuery
-case class ListShardsResult(op: ListShards, shards: Vector[Shard], token: Option[Shard])
-
-case class GetShard(shardId: Int) extends ClusterServiceQuery
-case class GetShardResult(op: GetShard, shardId: Int, address: Address)
-
-case class CreateShard(shardId: Int, address: Address) extends ClusterServiceCommand
-case class CreateShardResult(op: CreateShard)
-
-case class UpdateShard(shardId: Int, address: Address, prev: Address) extends ClusterServiceCommand
-case class UpdateShardResult(op: UpdateShard)
-
-case class ListEntities(shardId: Int, limit: Int, token: Option[Entity]) extends ClusterServiceQuery
-case class ListEntitiesResult(op: ListEntities, entities: Vector[Entity], token: Option[Entity])
-
-case class GetEntity(shardId: Int, entityKey: String) extends ClusterServiceQuery
-case class GetEntityResult(op: GetEntity, shardId: Int, entityKey: String)
-
-case class CreateEntity(shardId: Int, entityKey: String) extends ClusterServiceCommand
-case class CreateEntityResult(op: CreateEntity)
-
-case class DeleteEntity(shardId: Int, entityKey: String) extends ClusterServiceCommand
-case class DeleteEntityResult(op: DeleteEntity)
-
-/* marker trait for Coordinator implementations */
-trait Coordinator

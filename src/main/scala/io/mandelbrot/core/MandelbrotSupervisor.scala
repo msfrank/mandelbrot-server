@@ -21,9 +21,8 @@ package io.mandelbrot.core
 
 import akka.actor._
 
-import io.mandelbrot.core.entity.ServiceProxy
-import io.mandelbrot.core.http.HttpServer
 import io.mandelbrot.core.registry.RegistryReviver
+import io.mandelbrot.core.http.HttpServer
 
 /**
  *

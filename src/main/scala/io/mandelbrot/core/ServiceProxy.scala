@@ -17,16 +17,15 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.entity
+package io.mandelbrot.core
 
 import akka.actor._
-
-import io.mandelbrot.core.ServerConfig
-import io.mandelbrot.core.system._
+import io.mandelbrot.core.entity._
 import io.mandelbrot.core.history._
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.state._
+import io.mandelbrot.core.system._
 import io.mandelbrot.core.tracking._
 
 import scala.util.hashing.MurmurHash3
@@ -59,19 +58,19 @@ class ServiceProxy extends Actor with ActorLogging {
     case entity: Entity => ProbeSystem.props(self)
   }
 
-  val clusterService = context.actorOf(ClusterManager.props(settings.cluster,
+  val entityService = context.actorOf(EntityManager.props(settings.cluster,
     shardResolver, keyExtractor, propsCreator), "entity-service")
 
   def receive = {
 
     case op: ProbeSystemOperation =>
-      clusterService forward op
+      entityService forward op
 
     case op: ProbeOperation =>
-      clusterService forward op
+      entityService forward op
 
-    case op: ClusterServiceOperation =>
-      clusterService forward op
+    case op: EntityServiceOperation =>
+      entityService forward op
 
     case op: RegistryServiceOperation =>
       registryService forward op

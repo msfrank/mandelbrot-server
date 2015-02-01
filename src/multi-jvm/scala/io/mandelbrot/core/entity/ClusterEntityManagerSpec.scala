@@ -6,13 +6,13 @@ import scala.concurrent.duration._
 
 import io.mandelbrot.core.{ProxyForwarder, BadRequest, ResourceNotFound}
 
-class ClusterManagerSpecMultiJvmNode1 extends ClusterManagerSpec
-class ClusterManagerSpecMultiJvmNode2 extends ClusterManagerSpec
-class ClusterManagerSpecMultiJvmNode3 extends ClusterManagerSpec
-class ClusterManagerSpecMultiJvmNode4 extends ClusterManagerSpec
-class ClusterManagerSpecMultiJvmNode5 extends ClusterManagerSpec
+class ClusterEntityManagerSpecMultiJvmNode1 extends ClusterEntityManagerSpec
+class ClusterEntityManagerSpecMultiJvmNode2 extends ClusterEntityManagerSpec
+class ClusterEntityManagerSpecMultiJvmNode3 extends ClusterEntityManagerSpec
+class ClusterEntityManagerSpecMultiJvmNode4 extends ClusterEntityManagerSpec
+class ClusterEntityManagerSpecMultiJvmNode5 extends ClusterEntityManagerSpec
 
-class ClusterManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with ImplicitSender {
+class ClusterEntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with ImplicitSender {
   import ClusterMultiNodeConfig._
 
   // config
@@ -37,13 +37,13 @@ class ClusterManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Impl
                                             CoordinatorSettings("io.mandelbrot.core.entity.TestCoordinator", Some(coordinatorSettings)))
   var clusterManager = ActorRef.noSender
 
-  "A ClusterManager" should {
+  "A ClusterEntityManager" should {
 
     "wait for nodes to become ready" in {
       val eventStream = TestProbe()
       system.eventStream.subscribe(eventStream.ref, classOf[ClusterUp])
-      val props = ClusterManager.props(clusterSettings, TestEntity.shardResolver, TestEntity.keyExtractor, TestEntity.propsCreator)
-      clusterManager = system.actorOf(ProxyForwarder.props(props, self, classOf[ClusterServiceOperation]), "cluster-manager")
+      val props = EntityManager.props(clusterSettings, TestEntity.shardResolver, TestEntity.keyExtractor, TestEntity.propsCreator)
+      clusterManager = system.actorOf(ProxyForwarder.props(props, self, classOf[EntityServiceOperation]), "cluster-manager")
       clusterManager ! JoinCluster(Vector(node(node1).address.toString))
       eventStream.expectMsgClass(30.seconds, classOf[ClusterUp])
       enterBarrier("cluster-up")
