@@ -20,6 +20,9 @@
 package io.mandelbrot.core.entity
 
 import akka.actor._
+import akka.pattern.ask
+import akka.pattern.pipe
+import scala.concurrent.Future
 import java.util
 
 import io.mandelbrot.core.{ResourceNotFound, ApiException}
@@ -34,8 +37,6 @@ import io.mandelbrot.core.entity.EntityFunctions.{ShardResolver, PropsCreator, K
  * to the sender, with failure specified as ApiException(ResourceNotFound).
  */
 class ShardEntities(services: ActorRef,
-                    shardResolver: ShardResolver,
-                    keyExtractor: KeyExtractor,
                     propsCreator: PropsCreator,
                     shardId: Int) extends Actor with ActorLogging with Stash {
 
@@ -43,16 +44,13 @@ class ShardEntities(services: ActorRef,
   val limit = 100
 
   // state
+  val pendingEntities = new util.HashMap[Entity,EntityEnvelope]()
   val refsByKey = new util.HashMap[String,ActorRef]()
   val entitiesByRef = new util.HashMap[ActorRef,Entity]()
-  val creatingEntities = new util.HashSet[Entity]()
-  val deletingEntities = new util.HashSet[Entity]()
 
   log.debug("managing entities for shard {}", shardId)
 
-  override def preStart(): Unit = {
-    services ! ListEntities(shardId, limit, None)
-  }
+  override def preStart(): Unit = services ! ListEntities(shardId, limit, None)
 
   def initializing: Receive = {
 
@@ -60,7 +58,7 @@ class ShardEntities(services: ActorRef,
       stash()
 
     case result: ListEntitiesResult =>
-      log.debug("received entities for shard {}: {}", result.op.shardId, result.entities.mkString(","))
+      log.debug("received {} entities for shard {}", result.entities.length, result.op.shardId)
       result.entities.foreach { entity =>
         val props = propsCreator(entity)
         val actor = context.actorOf(props)
@@ -78,43 +76,41 @@ class ShardEntities(services: ActorRef,
         case next => services ! ListEntities(shardId, limit, next)
       }
 
-    case ClusterServiceOperationFailed(op, failure) =>
+    // FIXME: use a backoff strategy
+    case EntityServiceOperationFailed(op: ListEntitiesResult, failure) =>
       log.debug("operation {} failed: {}", op, failure)
-      // FIXME: use a backoff strategy
-      services ! op
 
     case Terminated(entityRef) =>
-      val entity @ Entity(shardKey,entityKey) = entitiesByRef.remove(entityRef)
-      refsByKey.remove(entityKey)
-      services ! DeleteEntity(shardKey, entityKey)
-      deletingEntities.add(entity)
+      val entity: Entity = entitiesByRef.remove(entityRef)
+      refsByKey.remove(entity.entityKey)
+      services ! DeleteEntity(entity.shardId, entity.entityKey)
 
     case result: DeleteEntityResult =>
-      val DeleteEntity(shardKey, entityKey) = result.op
-      deletingEntities.remove(Entity(shardKey, entityKey))
+      // do nothing
+
+    // FIXME: use a backoff strategy
+    case EntityServiceOperationFailed(op: DeleteEntityResult, failure) =>
+      log.debug("operation {} failed: {}", op, failure)
   }
 
   def running: Receive = {
 
     case envelope: EntityEnvelope =>
-      val entityKey = keyExtractor(envelope.message)
-      refsByKey.get(entityKey) match {
+      refsByKey.get(envelope.entityKey) match {
         // entity doesn't exist in shard
         case null =>
           // if this message creates props, then create the actor
           if (propsCreator.isDefinedAt(envelope.message)) {
             val props = propsCreator(envelope.message)
-            val shardKey = shardResolver(envelope.message)
-            val entity = Entity(shardKey, entityKey)
+            val entity = Entity(shardId, envelope.entityKey)
             val actor = context.actorOf(props)
             context.watch(actor)
-            refsByKey.put(entityKey, actor)
+            refsByKey.put(envelope.entityKey, actor)
             entitiesByRef.put(actor, entity)
-            // send the envelope message to the entity
-            actor.tell(envelope.message, envelope.sender)
+            // save the envelope message to the entity
+            pendingEntities.put(entity, envelope)
             // create the entity entry
-            services ! CreateEntity(shardKey, entityKey)
-            creatingEntities.add(entity)
+            services ! CreateEntity(entity.shardId, entity.entityKey)
           } else envelope.sender ! EntityDeliveryFailed(envelope, new ApiException(ResourceNotFound))
         // entity exists, forward the message to it
         case entity: ActorRef =>
@@ -122,23 +118,23 @@ class ShardEntities(services: ActorRef,
       }
 
     case result: CreateEntityResult =>
-      val CreateEntity(shardKey, entityKey) = result.op
-      creatingEntities.remove(Entity(shardKey, entityKey)) 
-      val entity = refsByKey.get(entityKey)
-      entity ! StartEntity
-      
+      val entity = Entity(result.op.shardId, result.op.entityKey)
+      val envelope = pendingEntities.remove(entity)
+      refsByKey.get(entity.entityKey).tell(envelope.message, envelope.sender)
+
+    case EntityServiceOperationFailed(op: CreateEntity, failure) =>
+      log.debug("operation {} failed: {}", op, failure)
+
     case Terminated(entityRef) =>
-      val entity @ Entity(shardKey,entityKey) = entitiesByRef.remove(entityRef)
-      refsByKey.remove(entityKey)
-      services ! DeleteEntity(shardKey, entityKey)
-      deletingEntities.add(entity)
+      val entity: Entity = entitiesByRef.remove(entityRef)
+      refsByKey.remove(entity.entityKey)
+      services ! DeleteEntity(entity.shardId, entity.entityKey)
 
     case result: DeleteEntityResult =>
-      val DeleteEntity(shardKey, entityKey) = result.op
-      deletingEntities.remove(Entity(shardKey, entityKey))
+      // do nothing
 
-    case ClusterServiceOperationFailed(op, failure) =>
-      // TODO: what do we do here?
+    // FIXME: use a backoff strategy
+    case EntityServiceOperationFailed(op: DeleteEntityResult, failure) =>
       log.debug("operation {} failed: {}", op, failure)
   }
 
@@ -147,11 +143,9 @@ class ShardEntities(services: ActorRef,
 
 object ShardEntities {
   def props(services: ActorRef,
-            shardResolver: ShardResolver,
-            keyExtractor: KeyExtractor,
             propsCreator: PropsCreator,
             shardId: Int) = {
-    Props(classOf[ShardEntities], services, shardResolver, keyExtractor, propsCreator, shardId)
+    Props(classOf[ShardEntities], services, propsCreator, shardId)
   }
 }
 

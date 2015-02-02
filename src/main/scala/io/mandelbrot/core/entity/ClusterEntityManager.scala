@@ -50,8 +50,7 @@ class ClusterEntityManager(settings: ClusterSettings,
   }
 
   val clusterMonitor = context.actorOf(ClusterMonitor.props(settings.minNrMembers), "cluster-monitor")
-  val shardManager = context.actorOf(ShardManager.props(context.parent,
-    shardResolver, keyExtractor, propsCreator, selfAddress, settings.totalShards),
+  val shardManager = context.actorOf(ShardManager.props(context.parent, propsCreator, selfAddress, settings.totalShards),
     "entity-manager")
 
   log.info("initializing cluster mode")
@@ -105,6 +104,13 @@ class ClusterEntityManager(settings: ClusterSettings,
 
     // we assume any other message is for an entity, so we wrap it in an envelope
     case message: Any =>
-      shardManager ! EntityEnvelope(sender(), message, attempts = defaultAttempts)
+      try {
+        val shardKey = shardResolver(message)
+        val entityKey = keyExtractor(message)
+        shardManager ! EntityEnvelope(sender(), message, shardKey, entityKey, attempts = defaultAttempts)
+      } catch {
+        case ex: Throwable =>
+          sender() ! EntityDeliveryFailed(message, new ApiException(BadRequest))
+      }
   }
 }

@@ -68,7 +68,7 @@ class PutShardTask(op: PutShard,
       monitor ! PutShardFailed(op, failure.failure)
       context.stop(self)
 
-    case failure: ClusterServiceOperationFailed =>
+    case failure: EntityServiceOperationFailed =>
       log.debug("failed to put shard {}: {}", shardId, failure)
       monitor ! PutShardFailed(op, failure.failure)
       context.stop(self)

@@ -20,7 +20,7 @@
 package io.mandelbrot.core.entity
 
 import akka.actor._
-import io.mandelbrot.core.ServiceExtension
+import io.mandelbrot.core.{BadRequest, ApiException, ServiceExtension}
 import io.mandelbrot.core.entity.EntityFunctions.{ShardResolver, KeyExtractor, PropsCreator}
 import scala.collection.mutable
 import java.net.URI
@@ -45,9 +45,8 @@ class StandaloneEntityManager(settings: ClusterSettings,
     context.actorOf(props, "coordinator")
   }
 
-  val shardManager = context.actorOf(ShardManager.props(context.parent,
-    shardResolver, keyExtractor, propsCreator, ShardManager.StandaloneAddress, settings.totalShards),
-    "entity-manager")
+  val shardManager = context.actorOf(ShardManager.props(context.parent, propsCreator,
+    ShardManager.StandaloneAddress, settings.totalShards), "entity-manager")
 
   log.info("initializing standalone mode")
 
@@ -72,7 +71,14 @@ class StandaloneEntityManager(settings: ClusterSettings,
 
     // we assume any other message is for an entity, so we wrap it in an envelope
     case message: Any =>
-      shardManager ! EntityEnvelope(sender(), message, attempts = defaultAttempts)
+      try {
+        val shardKey = shardResolver(message)
+        val entityKey = keyExtractor(message)
+        shardManager ! EntityEnvelope(sender(), message, shardKey, entityKey, attempts = defaultAttempts)
+      } catch {
+        case ex: Throwable =>
+          sender() ! EntityDeliveryFailed(message, new ApiException(BadRequest))
+      }
 
   }
 }

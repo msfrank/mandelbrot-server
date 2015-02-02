@@ -47,7 +47,7 @@ class TestCoordinator(settings: TestCoordinatorSettings) extends Actor with Acto
         case shard: AssignedShardEntry =>
           sender() ! GetShardResult(op, shard.shardId, shard.address)
         case shard: ShardEntry =>
-          sender() ! ClusterServiceOperationFailed(op, ApiException(ResourceNotFound))
+          sender() ! EntityServiceOperationFailed(op, ApiException(ResourceNotFound))
       }
 
     case op: CreateShard =>
@@ -57,13 +57,13 @@ class TestCoordinator(settings: TestCoordinatorSettings) extends Actor with Acto
           shardMap.assign(op.shardId, op.address)
           sender() ! CreateShardResult(op)
         case entry: ShardEntry =>
-          sender() ! ClusterServiceOperationFailed(op, ApiException(Conflict))
+          sender() ! EntityServiceOperationFailed(op, ApiException(Conflict))
       }
 
     case op: UpdateShard =>
       shardMap.get(op.shardId) match {
         case entry: MissingShardEntry =>
-          sender() ! ClusterServiceOperationFailed(op, ApiException(ResourceNotFound))
+          sender() ! EntityServiceOperationFailed(op, ApiException(ResourceNotFound))
         case entry: ShardEntry =>
           log.debug("{} updates shard {} from {} to {}", sender().path, op.shardId, op.address, op.prev)
           shardMap.assign(op.shardId, op.address)
@@ -76,7 +76,7 @@ class TestCoordinator(settings: TestCoordinatorSettings) extends Actor with Acto
         log.debug("{} creates entity {}:{}", sender().path, op.shardId, op.entityKey)
         shardEntities.add(entity)
         sender() ! CreateEntityResult(op)
-      } else sender() ! ClusterServiceOperationFailed(op, ApiException(Conflict))
+      } else sender() ! EntityServiceOperationFailed(op, ApiException(Conflict))
 
     case op: DeleteEntity =>
       val entity = Entity(op.shardId, op.entityKey)
@@ -84,7 +84,7 @@ class TestCoordinator(settings: TestCoordinatorSettings) extends Actor with Acto
         log.debug("{} deletes entity {}:{}", sender().path, op.shardId, op.entityKey)
         shardEntities.remove(entity)
         sender() ! DeleteEntityResult(op)
-      } else sender() ! ClusterServiceOperationFailed(op, ApiException(ResourceNotFound))
+      } else sender() ! EntityServiceOperationFailed(op, ApiException(ResourceNotFound))
 
     case op: ListEntities =>
       log.debug("{} requests entities for shard {}", sender().path, op.shardId)

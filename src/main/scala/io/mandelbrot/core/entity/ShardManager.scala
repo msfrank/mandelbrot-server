@@ -42,8 +42,6 @@ import io.mandelbrot.core.entity.EntityFunctions.{ShardResolver, PropsCreator, K
  * balanced across the cluster.
  */
 class ShardManager(services: ActorRef,
-                   shardResolver: ShardResolver,
-                   keyExtractor: KeyExtractor,
                    propsCreator: PropsCreator,
                    selfAddress: Address,
                    totalShards: Int) extends Actor with ActorLogging {
@@ -80,7 +78,7 @@ class ShardManager(services: ActorRef,
         }
         // if shard is local and entity map doesn't exist, create a new entity map
         else if (selfAddress.equals(StandaloneAddress) || address.equals(selfAddress)) {
-          val shardEntities = context.actorOf(ShardEntities.props(services, shardResolver, keyExtractor, propsCreator, shardId))
+          val shardEntities = context.actorOf(ShardEntities.props(services, propsCreator, shardId))
           localEntities.put(shardId, shardEntities)
           log.debug("created entity map for shard {}", shardId)
         }
@@ -96,7 +94,7 @@ class ShardManager(services: ActorRef,
       // flush any envelopes which were received while initializing
       flushBuffered()
 
-    case failure: ClusterServiceOperationFailed =>
+    case failure: EntityServiceOperationFailed =>
       log.debug("failed to list shards: {}", failure.failure.getCause)
       context.system.scheduler.scheduleOnce(servicesTimeout, self, Retry)
 
@@ -141,7 +139,7 @@ class ShardManager(services: ActorRef,
         case entry: PreparingShardEntry =>
           log.debug("{} says recover shardId {}", sender().path, op.shardId)
           shardMap.assign(op.shardId, selfAddress)
-          val shardEntities = context.actorOf(ShardEntities.props(services, shardResolver, keyExtractor, propsCreator, entry.shardId))
+          val shardEntities = context.actorOf(ShardEntities.props(services, propsCreator, entry.shardId))
           localEntities.put(op.shardId, shardEntities)
           log.debug("created entity map for shard {}", entry.shardId)
           taskTimeouts.remove(op.shardId).cancel()
@@ -168,7 +166,7 @@ class ShardManager(services: ActorRef,
         shardMap.assign(result.shardId, result.address)
         // if shard is local and entity map doesn't exist, create a new entity map
         if (result.address.equals(selfAddress) && !localEntities.containsKey(result.shardId)) {
-          val shardEntities = context.actorOf(ShardEntities.props(services, shardResolver, keyExtractor, propsCreator, result.shardId))
+          val shardEntities = context.actorOf(ShardEntities.props(services, propsCreator, result.shardId))
           localEntities.put(result.shardId, shardEntities)
           log.debug("created entity map for shard {}", result.shardId)
         }
@@ -177,7 +175,7 @@ class ShardManager(services: ActorRef,
       }
 
     // cluster service operation failed
-    case failure: ClusterServiceOperationFailed =>
+    case failure: EntityServiceOperationFailed =>
       log.debug("operation {} failed: {}", failure.op, failure.failure)
 
     // a shard terminated
@@ -188,9 +186,8 @@ class ShardManager(services: ActorRef,
   /**
    *
    */
-  def deliverEnvelope(envelope: EntityEnvelope): Unit = if (keyExtractor.isDefinedAt(envelope.message)) {
-    val shardKey = shardResolver(envelope.message)
-    shardMap(shardKey) match {
+  def deliverEnvelope(envelope: EntityEnvelope): Unit = {
+    shardMap(envelope.shardKey) match {
 
       // shard is assigned to this node
       case shard: AssignedShardEntry if shard.address.equals(selfAddress) =>
@@ -230,7 +227,7 @@ class ShardManager(services: ActorRef,
 
       // shard is missing from the shard map
       case shard: MissingShardEntry =>
-        log.debug("shard not known for entity {}, buffering {}", shardKey, envelope.message)
+        log.debug("shard {} is missing, buffering {}", shard.shardId, envelope.message)
         bufferedMessages.add(envelope)
         // if we are not performing a task on the shard...
         if (!taskTimeouts.containsKey(shard.shardId)) {
@@ -243,7 +240,7 @@ class ShardManager(services: ActorRef,
           }
         }
     }
-  } else envelope.sender ! EntityDeliveryFailed(envelope, new ApiException(BadRequest))
+  }
 
   /**
    *
@@ -254,7 +251,7 @@ class ShardManager(services: ActorRef,
       log.debug("flushing buffered messages")
     while (iterator.hasNext) {
       val envelope = iterator.next()
-      shardMap(shardResolver(envelope.message)) match {
+      shardMap(envelope.shardKey) match {
         case entry: AssignedShardEntry =>
           iterator.remove()
           log.debug("delivering buffered message {}", envelope.message)
@@ -270,12 +267,10 @@ object ShardManager {
   val StandaloneAddress = Address("local","mandelbrot", "localhost", 0)
 
   def props(services: ActorRef,
-            shardResolver: ShardResolver,
-            keyExtractor: KeyExtractor,
             propsCreator: PropsCreator,
             selfAddress: Address,
             totalShards: Int) = {
-    Props(classOf[ShardManager], services, shardResolver, keyExtractor, propsCreator, selfAddress, totalShards)
+    Props(classOf[ShardManager], services, propsCreator, selfAddress, totalShards)
   }
 
   case object Retry
@@ -290,6 +285,6 @@ object EntityFunctions {
   type PropsCreator = PartialFunction[Any,Props]
 }
 
-case class EntityEnvelope(sender: ActorRef, message: Any, attempts: Int)
-case class EntityDeliveryFailed(envelope: EntityEnvelope, failure: Throwable)
+case class EntityEnvelope(sender: ActorRef, message: Any, shardKey: Int, entityKey: String, attempts: Int)
+case class EntityDeliveryFailed(message: Any, failure: Throwable)
 

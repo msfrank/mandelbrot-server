@@ -52,7 +52,7 @@ class LookupShardTask(op: LookupShard,
       context.stop(self)
       monitor ! LookupShardResult(op, result.shardId, result.address)
 
-    case failure: ClusterServiceOperationFailed =>
+    case failure: EntityServiceOperationFailed =>
       log.debug("failed to get address for shard {}: {}", op.shardId, failure.failure)
       context.system.scheduler.scheduleOnce(delay, self, PerformQuery)
 

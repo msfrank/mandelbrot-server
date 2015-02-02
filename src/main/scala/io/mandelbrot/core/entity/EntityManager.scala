@@ -24,7 +24,7 @@ case class Entity(shardId: Int, entityKey: String)
 sealed trait EntityServiceOperation
 sealed trait EntityServiceCommand extends EntityServiceOperation
 sealed trait EntityServiceQuery extends EntityServiceOperation
-case class ClusterServiceOperationFailed(op: EntityServiceOperation, failure: Throwable)
+case class EntityServiceOperationFailed(op: EntityServiceOperation, failure: Throwable)
 
 case class ListShards(limit: Int, token: Option[Shard]) extends EntityServiceQuery
 case class ListShardsResult(op: ListShards, shards: Vector[Shard], token: Option[Shard])

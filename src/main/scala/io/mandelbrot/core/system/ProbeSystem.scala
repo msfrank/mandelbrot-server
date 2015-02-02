@@ -24,9 +24,8 @@ import io.mandelbrot.core.entity.Entity
 import scala.collection.mutable
 import java.net.URI
 
-import io.mandelbrot.core.{ServerConfig, ResourceNotFound, ApiException}
+import io.mandelbrot.core.{Conflict, ServerConfig, ResourceNotFound, ApiException}
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.entity.EntityFunctions.{ShardResolver, KeyExtractor}
 import io.mandelbrot.core.metrics.MetricsBus
 import io.mandelbrot.core.notification.{ProbeNotification, NotificationEvent}
 
@@ -58,7 +57,7 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[SystemFSMState,SystemFS
 
     case Event(op: RegisterProbeSystem, _) =>
       services ! CreateProbeSystemEntry(op.uri, op.registration)
-      goto(SystemInitializing) using SystemInitializing(op.uri)
+      goto(SystemRegistering) using SystemRegistering(op, sender())
 
     case Event(entity: Entity, _) =>
       val uri = new URI(entity.entityKey)
@@ -67,11 +66,27 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[SystemFSMState,SystemFS
       
     case _: Event => stop()
   }
-  
-  when(SystemInitializing) {
 
-    case Event(result: CreateProbeSystemEntryResult, state: SystemInitializing) =>
-      goto(SystemRunning) using SystemRunning(state.uri, result.op.registration, 0)
+  when(SystemRegistering) {
+
+    case Event(result: CreateProbeSystemEntryResult, state: SystemRegistering) =>
+      state.sender ! RegisterProbeSystemResult(state.op, result.lsn)
+      goto(SystemRunning) using SystemRunning(state.op.uri, result.op.registration, 0)
+
+    case Event(failure: RegistryServiceOperationFailed, state: SystemRegistering) =>
+      state.sender ! failure
+      goto(SystemFailed) using SystemError(failure.failure)
+
+    case Event(op: ProbeSystemOperation, _) =>
+      stash()
+      stay()
+
+    case Event(op: ProbeOperation, _) =>
+      stash()
+      stay()
+  }
+
+  when(SystemInitializing) {
 
     case Event(result: GetProbeSystemEntryResult, state: SystemInitializing) =>
       goto(SystemRunning) using SystemRunning(state.uri, result.registration, 0)
@@ -115,6 +130,9 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[SystemFSMState,SystemFS
         }.toSet
         stay() replying MatchProbeSystemResult(query, matchingRefs)
       }
+
+    case Event(op: RegisterProbeSystem, state: SystemRunning) =>
+      stay() replying ProbeSystemOperationFailed(op, ApiException(Conflict))
 
     /* update probes */
     case Event(op: UpdateProbeSystem, state: SystemRunning) =>
@@ -361,6 +379,7 @@ object ProbeSystem {
 
 sealed trait SystemFSMState
 case object SystemIncubating extends SystemFSMState
+case object SystemRegistering extends SystemFSMState
 case object SystemInitializing extends SystemFSMState
 case object SystemRunning extends SystemFSMState
 case object SystemUpdating extends SystemFSMState
@@ -371,6 +390,7 @@ case object SystemFailed extends SystemFSMState
 sealed trait SystemFSMData
 case object SystemWaiting extends SystemFSMData
 case class SystemInitializing(uri: URI) extends SystemFSMData
+case class SystemRegistering(op: RegisterProbeSystem, sender: ActorRef) extends SystemFSMData
 case class SystemRunning(uri: URI, registration: ProbeRegistration, lsn: Long) extends SystemFSMData
 case class SystemUpdating(op: UpdateProbeSystem, sender: ActorRef, prev: SystemRunning) extends SystemFSMData
 case class SystemRetiring(op: RetireProbeSystem, sender: ActorRef, prev: SystemRunning) extends SystemFSMData
@@ -393,7 +413,7 @@ sealed trait ProbeSystemQuery extends ProbeSystemOperation
 case class ProbeSystemOperationFailed(op: ProbeSystemOperation, failure: Throwable)
 
 case class RegisterProbeSystem(uri: URI, registration: ProbeRegistration) extends ProbeSystemCommand
-case class RegisterProbeSystemResult(op: UpdateProbeSystem, lsn: Long)
+case class RegisterProbeSystemResult(op: RegisterProbeSystem, lsn: Long)
 
 case class UpdateProbeSystem(uri: URI, registration: ProbeRegistration) extends ProbeSystemCommand
 case class UpdateProbeSystemResult(op: UpdateProbeSystem, lsn: Long)
