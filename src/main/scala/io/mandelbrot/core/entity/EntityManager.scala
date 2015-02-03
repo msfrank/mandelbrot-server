@@ -2,6 +2,7 @@ package io.mandelbrot.core.entity
 
 import akka.actor.{Address, Props}
 
+import io.mandelbrot.core.{ServiceQuery, ServiceCommand, ServiceOperationFailed, ServiceOperation}
 import io.mandelbrot.core.entity.EntityFunctions.{PropsCreator, KeyExtractor, ShardResolver}
 
 /**
@@ -21,10 +22,10 @@ case class JoinCluster(seedNodes: Vector[String])
 case class Shard(shardId: Int, address: Address)
 case class Entity(shardId: Int, entityKey: String)
 
-sealed trait EntityServiceOperation
-sealed trait EntityServiceCommand extends EntityServiceOperation
-sealed trait EntityServiceQuery extends EntityServiceOperation
-case class EntityServiceOperationFailed(op: EntityServiceOperation, failure: Throwable)
+sealed trait EntityServiceOperation extends ServiceOperation
+sealed trait EntityServiceCommand extends ServiceCommand with EntityServiceOperation
+sealed trait EntityServiceQuery extends ServiceQuery with EntityServiceOperation
+case class EntityServiceOperationFailed(op: EntityServiceOperation, failure: Throwable) extends ServiceOperationFailed
 
 case class ListShards(limit: Int, token: Option[Shard]) extends EntityServiceQuery
 case class ListShardsResult(op: ListShards, shards: Vector[Shard], token: Option[Shard])

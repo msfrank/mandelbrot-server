@@ -33,7 +33,7 @@ import io.mandelbrot.core.system._
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.history._
-import io.mandelbrot.core.{RetryLater, ApiException}
+import io.mandelbrot.core.{ServiceOperationFailed, RetryLater, ApiException}
 import JsonProtocol._
 
 /**
@@ -70,13 +70,16 @@ class GetProbeSystemStatusAction(params: HttpActionParams, op: GetProbeSystemSta
         context.stop(self)
       }
 
-    case failure: StateServiceOperationFailed =>
-      log.debug("failed to get status for {}: {}", failure.op, failure.failure.getMessage)
+    case failure: ServiceOperationFailed =>
+      params.ctx.complete(failure.failure)
+      context.stop(self)
 
     case ActionTimeout =>
       params.ctx.complete(new ApiException(RetryLater))
       context.stop(self)
   }
+
+  override def postStop(): Unit = actionTimeout.cancel()
 }
 
 /**
@@ -114,14 +117,16 @@ class GetProbeSystemStatusHistoryAction(params: HttpActionParams, op: GetProbeSy
         context.stop(self)
       }
 
-    case failure: HistoryServiceOperationFailed =>
-      log.debug("failed to get status history for {}: {}", failure.op, failure.failure.getMessage)
+    case failure: ServiceOperationFailed =>
+      params.ctx.complete(failure.failure)
+      context.stop(self)
 
     case ActionTimeout =>
       params.ctx.complete(new ApiException(RetryLater))
       context.stop(self)
   }
 
+  override def postStop(): Unit = actionTimeout.cancel()
 }
 
 /**
@@ -159,13 +164,16 @@ class GetProbeSystemNotificationHistoryAction(params: HttpActionParams, op: GetP
         context.stop(self)
       }
 
-    case failure: HistoryServiceOperationFailed =>
-      log.debug("failed to get notification history for {}: {}", failure.op, failure.failure.getMessage)
+    case failure: ServiceOperationFailed =>
+      params.ctx.complete(failure.failure)
+      context.stop(self)
 
     case ActionTimeout =>
       params.ctx.complete(new ApiException(RetryLater))
       context.stop(self)
   }
+
+  override def postStop(): Unit = actionTimeout.cancel()
 }
 
 case class HttpActionParams(ctx: RequestContext, timeout: Timeout, services: ActorRef)

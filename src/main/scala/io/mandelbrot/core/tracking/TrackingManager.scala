@@ -24,7 +24,7 @@ import io.mandelbrot.core.system.ProbeRef
 import org.joda.time.DateTime
 import java.util.UUID
 
-import io.mandelbrot.core.{ServiceExtension, ServerConfig}
+import io.mandelbrot.core._
 
 /**
  *
@@ -61,10 +61,10 @@ object TrackingManager {
 /**
  *
  */
-sealed trait TrackingServiceOperation
-sealed trait TrackingServiceCommand extends TrackingServiceOperation
-sealed trait TrackingServiceQuery extends TrackingServiceOperation
-case class TrackingServiceOperationFailed(op: TrackingServiceOperation, failure: Throwable)
+sealed trait TrackingServiceOperation extends ServiceOperation
+sealed trait TrackingServiceCommand extends ServiceCommand with TrackingServiceOperation
+sealed trait TrackingServiceQuery extends ServiceQuery with TrackingServiceOperation
+case class TrackingServiceOperationFailed(op: TrackingServiceOperation, failure: Throwable) extends ServiceOperationFailed
 
 case class ListTrackingTickets(last: Option[String], limit: Option[Int]) extends TrackingServiceQuery
 case class ListTrackingTicketsResult(op: ListTrackingTickets, tickets: Vector[UUID], last: Option[String])

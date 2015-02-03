@@ -21,7 +21,7 @@ package io.mandelbrot.core.entity
 
 import akka.actor._
 import akka.pattern._
-import io.mandelbrot.core.{RetryLater, ResourceNotFound, BadRequest, ApiException}
+import io.mandelbrot.core._
 import org.joda.time.DateTime
 import scala.concurrent.duration._
 import java.util
@@ -194,7 +194,7 @@ class ShardManager(services: ActorRef,
         localEntities.get(shard.shardId) match {
           // entity doesn't exist in shard
           case null =>
-            envelope.sender ! EntityDeliveryFailed(envelope, new ApiException(RetryLater))
+            envelope.sender ! EntityDeliveryFailed(envelope.op, new ApiException(RetryLater))
           // entity exists, forward the message to it
           case entity: ActorRef =>
             entity forward envelope
@@ -208,11 +208,11 @@ class ShardManager(services: ActorRef,
           // if the sender is remote, then note the stale shard mapping
           if (!envelope.sender.path.address.equals(selfAddress))
             staleShards.add(StaleShard(shard.shardId, shard.address))
-        } else envelope.sender ! EntityDeliveryFailed(envelope, new ApiException(ResourceNotFound))
+        } else envelope.sender ! EntityDeliveryFailed(envelope.op, new ApiException(ResourceNotFound))
 
       // shard is in the process of being assigned to this node
       case shard: PreparingShardEntry =>
-        log.debug("shard {} is preparing, buffering {}", shard.shardId, envelope.message)
+        log.debug("shard {} is preparing, buffering {}", shard.shardId, envelope.op)
         bufferedMessages.add(envelope)
 
       // shard is in the process of being migrated from this node
@@ -223,11 +223,11 @@ class ShardManager(services: ActorRef,
           // if the sender is remote, then note the stale shard mapping
           if (!envelope.sender.path.address.equals(selfAddress))
             staleShards.add(StaleShard(shard.shardId, shard.address))
-        } else envelope.sender ! EntityDeliveryFailed(envelope, new ApiException(ResourceNotFound))
+        } else envelope.sender ! EntityDeliveryFailed(envelope.op, new ApiException(ResourceNotFound))
 
       // shard is missing from the shard map
       case shard: MissingShardEntry =>
-        log.debug("shard {} is missing, buffering {}", shard.shardId, envelope.message)
+        log.debug("shard {} is missing, buffering {}", shard.shardId, envelope.op)
         bufferedMessages.add(envelope)
         // if we are not performing a task on the shard...
         if (!taskTimeouts.containsKey(shard.shardId)) {
@@ -254,7 +254,7 @@ class ShardManager(services: ActorRef,
       shardMap(envelope.shardKey) match {
         case entry: AssignedShardEntry =>
           iterator.remove()
-          log.debug("delivering buffered message {}", envelope.message)
+          log.debug("delivering buffered message {}", envelope.op)
           deliverEnvelope(envelope)
         case entry => // do nothing
       }
@@ -285,6 +285,6 @@ object EntityFunctions {
   type PropsCreator = PartialFunction[Any,Props]
 }
 
-case class EntityEnvelope(sender: ActorRef, message: Any, shardKey: Int, entityKey: String, attempts: Int)
-case class EntityDeliveryFailed(message: Any, failure: Throwable)
+case class EntityEnvelope(sender: ActorRef, op: ServiceOperation, shardKey: Int, entityKey: String, attempts: Int)
+case class EntityDeliveryFailed(op: ServiceOperation, failure: Throwable) extends ServiceOperationFailed
 

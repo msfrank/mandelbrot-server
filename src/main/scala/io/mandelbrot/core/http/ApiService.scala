@@ -28,7 +28,7 @@ import spray.http._
 import spray.http.HttpHeaders.Location
 import spray.util.LoggingContext
 import org.joda.time.format.ISODateTimeFormat
-import scala.util.{Failure, Success}
+import scala.concurrent.ExecutionContext
 import java.net.URI
 import java.util.UUID
 
@@ -55,7 +55,7 @@ trait ApiService extends HttpService {
 
   implicit def log: LoggingAdapter
   implicit val system: ActorSystem
-  implicit def executionContext = actorRefFactory.dispatcher
+  implicit def executionContext: ExecutionContext = actorRefFactory.dispatcher
   implicit val timeout: Timeout
   implicit val serviceProxy: ActorRef
 
@@ -75,7 +75,7 @@ trait ApiService extends HttpService {
                 HttpResponse(StatusCodes.Accepted,
                              headers = List(Location("/objects/systems/" + registerProbeSystem.uri.toString)),
                              entity = JsonBody(result.op.uri.toJson))
-              case failure: ProbeSystemOperationFailed =>
+              case failure: ServiceOperationFailed =>
                 throw failure.failure
             }
           }
@@ -88,7 +88,7 @@ trait ApiService extends HttpService {
             serviceProxy.ask(ListProbeSystems(paging.last, paging.limit)).map {
               case result: ListProbeSystemsResult =>
                 result.systems
-              case failure: RegistryServiceOperationFailed =>
+              case failure: ServiceOperationFailed =>
                 throw failure.failure
             }
           }
@@ -103,7 +103,7 @@ trait ApiService extends HttpService {
             serviceProxy.ask(GetProbeSystemEntry(uri)).map {
               case result: GetProbeSystemEntryResult =>
                 result.registration
-              case failure: RegistryServiceOperationFailed =>
+              case failure: ServiceOperationFailed =>
                 throw failure.failure
             }
           }
@@ -117,7 +117,7 @@ trait ApiService extends HttpService {
                   HttpResponse(StatusCodes.Accepted,
                                headers = List(Location("/objects/systems/" + updateProbeSystem.uri.toString)),
                                entity = JsonBody(result.op.uri.toJson))
-                case failure: ProbeSystemOperationFailed =>
+                case failure: ServiceOperationFailed =>
                   throw failure.failure
               }
             }
@@ -129,7 +129,7 @@ trait ApiService extends HttpService {
             serviceProxy.ask(RetireProbeSystem(uri)).map {
               case result: RetireProbeSystemResult =>
                 HttpResponse(StatusCodes.Accepted)
-              case failure: ProbeSystemOperationFailed =>
+              case failure: ServiceOperationFailed =>
                 throw failure.failure
             }
           }
@@ -152,7 +152,7 @@ trait ApiService extends HttpService {
               serviceProxy.ask(GetProbeSystemMetadata(uri, paths)).map {
                 case result: GetProbeSystemMetadataResult =>
                   result.metadata
-                case failure: ProbeSystemOperationFailed =>
+                case failure: ServiceOperationFailed =>
                   throw failure.failure
               }
             }}
@@ -166,7 +166,7 @@ trait ApiService extends HttpService {
               serviceProxy.ask(GetProbeSystemPolicy(uri, paths)).map {
                 case result: GetProbeSystemPolicyResult =>
                   result.policy
-                case failure: ProbeSystemOperationFailed =>
+                case failure: ServiceOperationFailed =>
                   throw failure.failure
               }
             }}
@@ -180,7 +180,7 @@ trait ApiService extends HttpService {
               serviceProxy.ask(GetProbeSystemLinks(uri, paths)).map {
                 case result: GetProbeSystemLinksResult =>
                   result.links
-                case failure: ProbeSystemOperationFailed =>
+                case failure: ServiceOperationFailed =>
                   throw failure.failure
               }
             }}
@@ -237,7 +237,7 @@ trait ApiService extends HttpService {
                 serviceProxy.ask(command).map {
                   case result: AcknowledgeProbeSystemResult =>
                     result.acknowledgements
-                  case failure: ProbeSystemOperationFailed =>
+                  case failure: ServiceOperationFailed =>
                     throw failure.failure
                 }
               }
@@ -252,7 +252,7 @@ trait ApiService extends HttpService {
                 serviceProxy.ask(command).map {
                   case result: UnacknowledgeProbeSystemResult =>
                     result.unacknowledgements
-                  case failure: ProbeSystemOperationFailed =>
+                  case failure: ServiceOperationFailed =>
                     throw failure.failure
                 }
               }
@@ -267,7 +267,7 @@ trait ApiService extends HttpService {
                 serviceProxy.ask(command).map {
                   case result: SetProbeSquelchResult =>
                     result
-                  case failure: ProbeOperationFailed =>
+                  case failure: ServiceOperationFailed =>
                     throw failure.failure
                 }
               }
@@ -311,7 +311,7 @@ trait ApiService extends HttpService {
                 HttpResponse(StatusCodes.Accepted,
                              headers = List(Location("/objects/windows/" + result.id.toString)),
                              entity = JsonBody(result.id.toJson))
-              case failure: NotificationServiceOperationFailed =>
+              case failure: ServiceOperationFailed =>
                 throw failure.failure
             }
           }
@@ -323,7 +323,7 @@ trait ApiService extends HttpService {
           serviceProxy.ask(ListMaintenanceWindows()).map {
             case result: ListMaintenanceWindowsResult =>
               result.windows
-            case failure: NotificationServiceOperationFailed =>
+            case failure: ServiceOperationFailed =>
               throw failure.failure
           }
         }
@@ -337,7 +337,7 @@ trait ApiService extends HttpService {
             serviceProxy.ask(ModifyMaintenanceWindow(uuid, modifications)).map {
               case result: ModifyMaintenanceWindowResult =>
                 result.id
-              case failure: NotificationServiceOperationFailed =>
+              case failure: ServiceOperationFailed =>
                 throw failure.failure
             }
           }
@@ -349,7 +349,7 @@ trait ApiService extends HttpService {
           serviceProxy.ask(UnregisterMaintenanceWindow(uuid)).map {
             case result: UnregisterMaintenanceWindowResult =>
               HttpResponse(StatusCodes.OK)
-            case failure: NotificationServiceOperationFailed =>
+            case failure: ServiceOperationFailed =>
               throw failure.failure
           }
         }
@@ -368,7 +368,7 @@ trait ApiService extends HttpService {
                 HttpResponse(StatusCodes.Accepted,
                   headers = List(Location("/objects/tickets/" + result.ticket.toString)),
                   entity = JsonBody(result.ticket.toJson))
-              case failure: TrackingServiceOperationFailed =>
+              case failure: ServiceOperationFailed =>
                 throw failure.failure
             }
           }
@@ -381,7 +381,7 @@ trait ApiService extends HttpService {
           serviceProxy.ask(ListTrackingTickets(paging.last, paging.limit)).map {
             case result: ListTrackingTicketsResult =>
               result.tickets
-            case failure: TrackingServiceOperationFailed =>
+            case failure: ServiceOperationFailed =>
               throw failure.failure
           }
         }}
@@ -406,7 +406,7 @@ trait ApiService extends HttpService {
             serviceProxy.ask(ResolveTicket(uuid)).map {
               case result: ResolveTicketResult =>
                 HttpResponse(StatusCodes.OK)
-              case failure: TrackingServiceOperationFailed =>
+              case failure: ServiceOperationFailed =>
                 throw failure.failure
             }
           }
@@ -423,7 +423,7 @@ trait ApiService extends HttpService {
           serviceProxy.ask(ListNotificationRules()).map {
             case result: ListNotificationRulesResult =>
               result.rules
-            case failure: NotificationServiceOperationFailed =>
+            case failure: ServiceOperationFailed =>
               throw failure.failure
           }
         }

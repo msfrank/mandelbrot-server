@@ -65,10 +65,10 @@ case class ProbeState(status: ProbeStatus, lsn: Long, context: Option[ByteString
 /**
  *
  */
-sealed trait StateServiceOperation
-sealed trait StateServiceCommand extends StateServiceOperation
-sealed trait StateServiceQuery extends StateServiceOperation
-case class StateServiceOperationFailed(op: StateServiceOperation, failure: Throwable)
+sealed trait StateServiceOperation extends ServiceOperation
+sealed trait StateServiceCommand extends ServiceCommand with StateServiceOperation
+sealed trait StateServiceQuery extends ServiceQuery with StateServiceOperation
+case class StateServiceOperationFailed(op: StateServiceOperation, failure: Throwable) extends ServiceOperationFailed
 
 case class InitializeProbeState(ref: ProbeRef, timestamp: DateTime, lsn: Long) extends StateServiceCommand
 case class InitializeProbeStateResult(op: InitializeProbeState, status: ProbeStatus, lsn: Long)

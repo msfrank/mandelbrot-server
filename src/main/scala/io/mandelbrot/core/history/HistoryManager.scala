@@ -23,7 +23,7 @@ import akka.actor._
 import io.mandelbrot.core.system.ProbeRef
 import org.joda.time.{DateTimeZone, DateTime}
 
-import io.mandelbrot.core.{ServiceExtension, ServerConfig}
+import io.mandelbrot.core._
 import io.mandelbrot.core.notification.ProbeNotification
 import io.mandelbrot.core.system.ProbeStatus
 
@@ -84,11 +84,11 @@ object HistoryManager {
 case class CleanHistory(mark: DateTime)
 
 /* */
-sealed trait HistoryServiceOperation
-sealed trait HistoryServiceCommand extends HistoryServiceOperation
-sealed trait HistoryServiceQuery extends HistoryServiceOperation
-sealed trait HistoryServiceEvent extends HistoryServiceOperation
-case class HistoryServiceOperationFailed(op: HistoryServiceOperation, failure: Throwable)
+sealed trait HistoryServiceOperation extends ServiceOperation
+sealed trait HistoryServiceCommand extends ServiceCommand with HistoryServiceOperation
+sealed trait HistoryServiceQuery extends ServiceQuery with HistoryServiceOperation
+sealed trait HistoryServiceEvent extends ServiceEvent with HistoryServiceOperation
+case class HistoryServiceOperationFailed(op: HistoryServiceOperation, failure: Throwable) extends ServiceOperationFailed
 
 case class GetStatusHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends HistoryServiceQuery
 case class GetStatusHistoryResult(op: GetStatusHistory, history: Vector[ProbeStatus])

@@ -24,7 +24,7 @@ import io.mandelbrot.core.entity.Entity
 import scala.collection.mutable
 import java.net.URI
 
-import io.mandelbrot.core.{Conflict, ServerConfig, ResourceNotFound, ApiException}
+import io.mandelbrot.core._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.metrics.MetricsBus
 import io.mandelbrot.core.notification.{ProbeNotification, NotificationEvent}
@@ -407,10 +407,10 @@ case class ProbeLink(localRef: ProbeRef, remoteUrl: URI, remoteMatch: String)
 /**
  *
  */
-sealed trait ProbeSystemOperation { val uri: URI }
-sealed trait ProbeSystemCommand extends ProbeSystemOperation
-sealed trait ProbeSystemQuery extends ProbeSystemOperation
-case class ProbeSystemOperationFailed(op: ProbeSystemOperation, failure: Throwable)
+sealed trait ProbeSystemOperation extends ServiceOperation { val uri: URI }
+sealed trait ProbeSystemCommand extends ServiceCommand with ProbeSystemOperation
+sealed trait ProbeSystemQuery extends ServiceQuery with ProbeSystemOperation
+case class ProbeSystemOperationFailed(op: ProbeSystemOperation, failure: Throwable) extends ServiceOperationFailed
 
 case class RegisterProbeSystem(uri: URI, registration: ProbeRegistration) extends ProbeSystemCommand
 case class RegisterProbeSystemResult(op: RegisterProbeSystem, lsn: Long)

@@ -107,10 +107,10 @@ case class MaintenanceWindowModification(added: Option[Set[ProbeMatcher]],
                                          description: Option[String])
 
 /* notification manager operations */
-trait NotificationServiceOperation
-sealed trait NotificationServiceQuery extends NotificationServiceOperation
-sealed trait NotificationServiceCommand extends NotificationServiceOperation
-case class NotificationServiceOperationFailed(op: NotificationServiceOperation, failure: Throwable)
+trait NotificationServiceOperation extends ServiceOperation
+sealed trait NotificationServiceQuery extends ServiceCommand with NotificationServiceOperation
+sealed trait NotificationServiceCommand extends ServiceQuery with NotificationServiceOperation
+case class NotificationServiceOperationFailed(op: NotificationServiceOperation, failure: Throwable) extends ServiceOperationFailed
 
 case class ListNotificationRules() extends NotificationServiceQuery
 case class ListNotificationRulesResult(op: ListNotificationRules, rules: Vector[NotificationRule])

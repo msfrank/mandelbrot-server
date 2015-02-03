@@ -529,10 +529,10 @@ case class ProbeStatus(probeRef: ProbeRef,
 case class ProbeMetadata(probeRef: ProbeRef, metadata: Map[String,String])
 
 /* */
-trait ProbeOperation { val probeRef: ProbeRef }
-sealed trait ProbeCommand extends ProbeOperation
-sealed trait ProbeQuery extends ProbeOperation
-case class ProbeOperationFailed(op: ProbeOperation, failure: Throwable)
+trait ProbeOperation extends ServiceOperation { val probeRef: ProbeRef }
+sealed trait ProbeCommand extends ServiceCommand with ProbeOperation
+sealed trait ProbeQuery extends ServiceQuery with ProbeOperation
+case class ProbeOperationFailed(op: ProbeOperation, failure: Throwable) extends ServiceOperationFailed
 
 case class GetProbeStatus(probeRef: ProbeRef) extends ProbeQuery
 case class GetProbeStatusResult(op: GetProbeStatus, state: ProbeStatus)

@@ -106,10 +106,10 @@ case class ProbeRegistration(systemType: String,
 case class ProbeSystemMetadata(joinedOn: DateTime, lastUpdate: DateTime)
 
 /* object registry operations */
-sealed trait RegistryServiceOperation
-sealed trait RegistryServiceQuery extends RegistryServiceOperation
-sealed trait RegistryServiceCommand extends RegistryServiceOperation
-case class RegistryServiceOperationFailed(op: RegistryServiceOperation, failure: Throwable)
+sealed trait RegistryServiceOperation extends ServiceOperation
+sealed trait RegistryServiceCommand extends ServiceCommand with RegistryServiceOperation
+sealed trait RegistryServiceQuery extends ServiceQuery with RegistryServiceOperation
+case class RegistryServiceOperationFailed(op: RegistryServiceOperation, failure: Throwable) extends ServiceOperationFailed
 
 case class CreateProbeSystemEntry(uri: URI, registration: ProbeRegistration) extends RegistryServiceCommand
 case class CreateProbeSystemEntryResult(op: CreateProbeSystemEntry, lsn: Long)

@@ -100,8 +100,8 @@ class ShardEntities(services: ActorRef,
         // entity doesn't exist in shard
         case null =>
           // if this message creates props, then create the actor
-          if (propsCreator.isDefinedAt(envelope.message)) {
-            val props = propsCreator(envelope.message)
+          if (propsCreator.isDefinedAt(envelope.op)) {
+            val props = propsCreator(envelope.op)
             val entity = Entity(shardId, envelope.entityKey)
             val actor = context.actorOf(props)
             context.watch(actor)
@@ -111,16 +111,16 @@ class ShardEntities(services: ActorRef,
             pendingEntities.put(entity, envelope)
             // create the entity entry
             services ! CreateEntity(entity.shardId, entity.entityKey)
-          } else envelope.sender ! EntityDeliveryFailed(envelope, new ApiException(ResourceNotFound))
+          } else envelope.sender ! EntityDeliveryFailed(envelope.op, new ApiException(ResourceNotFound))
         // entity exists, forward the message to it
         case entity: ActorRef =>
-          entity.tell(envelope.message, envelope.sender)
+          entity.tell(envelope.op, envelope.sender)
       }
 
     case result: CreateEntityResult =>
       val entity = Entity(result.op.shardId, result.op.entityKey)
       val envelope = pendingEntities.remove(entity)
-      refsByKey.get(entity.entityKey).tell(envelope.message, envelope.sender)
+      refsByKey.get(entity.entityKey).tell(envelope.op, envelope.sender)
 
     case EntityServiceOperationFailed(op: CreateEntity, failure) =>
       log.debug("operation {} failed: {}", op, failure)

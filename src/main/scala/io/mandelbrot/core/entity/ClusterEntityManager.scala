@@ -22,7 +22,7 @@ package io.mandelbrot.core.entity
 import akka.cluster.Cluster
 import akka.actor._
 
-import io.mandelbrot.core.{BadRequest, ApiException, ServiceExtension}
+import io.mandelbrot.core.{ServiceOperation, BadRequest, ApiException, ServiceExtension}
 import io.mandelbrot.core.entity.EntityFunctions.{ShardResolver, KeyExtractor, PropsCreator}
 
 /**
@@ -103,14 +103,14 @@ class ClusterEntityManager(settings: ClusterSettings,
       shardManager ! envelope
 
     // we assume any other message is for an entity, so we wrap it in an envelope
-    case message: Any =>
+    case op: ServiceOperation =>
       try {
-        val shardKey = shardResolver(message)
-        val entityKey = keyExtractor(message)
-        shardManager ! EntityEnvelope(sender(), message, shardKey, entityKey, attempts = defaultAttempts)
+        val shardKey = shardResolver(op)
+        val entityKey = keyExtractor(op)
+        shardManager ! EntityEnvelope(sender(), op, shardKey, entityKey, attempts = defaultAttempts)
       } catch {
         case ex: Throwable =>
-          sender() ! EntityDeliveryFailed(message, new ApiException(BadRequest))
+          sender() ! EntityDeliveryFailed(op, new ApiException(BadRequest))
       }
   }
 }

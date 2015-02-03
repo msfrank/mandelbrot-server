@@ -53,8 +53,7 @@ class ServiceProxy extends Actor with ActorLogging {
     case message => MurmurHash3.stringHash(keyExtractor(message))
   }
   val propsCreator: EntityFunctions.PropsCreator = {
-    case op: ProbeOperation => ProbeSystem.props(self)
-    case op: ProbeSystemOperation => ProbeSystem.props(self)
+    case op: RegisterProbeSystem => ProbeSystem.props(self)
     case entity: Entity => ProbeSystem.props(self)
   }
 
@@ -93,3 +92,12 @@ object ServiceProxy {
   def props() =  Props(classOf[ServiceProxy])
 }
 
+trait ServiceOperation
+trait ServiceCommand extends ServiceOperation
+trait ServiceQuery extends ServiceOperation
+trait ServiceEvent extends ServiceOperation
+
+trait ServiceOperationFailed {
+  val op: ServiceOperation
+  val failure: Throwable
+}
