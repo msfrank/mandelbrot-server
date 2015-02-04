@@ -57,16 +57,9 @@ class ServiceProxy extends Actor with ActorLogging {
     case entity: Entity => ProbeSystem.props(self)
   }
 
-  val entityService = context.actorOf(EntityManager.props(settings.cluster,
-    shardResolver, keyExtractor, propsCreator), "entity-service")
+  val entityService = context.actorOf(EntityManager.props(settings.cluster, propsCreator), "entity-service")
 
   def receive = {
-
-    case op: ProbeSystemOperation =>
-      entityService forward op
-
-    case op: ProbeOperation =>
-      entityService forward op
 
     case op: EntityServiceOperation =>
       entityService forward op
@@ -85,6 +78,15 @@ class ServiceProxy extends Actor with ActorLogging {
 
     case op: TrackingServiceOperation =>
       trackingService forward op
+
+    case op: ServiceOperation if keyExtractor.isDefinedAt(op) =>
+      try {
+        val shardKey = shardResolver(op)
+        val entityKey = keyExtractor(op)
+        entityService ! EntityEnvelope(sender(), op, shardKey, entityKey, settings.cluster.deliveryAttempts)
+      } catch {
+        case ex: Throwable => sender() ! EntityDeliveryFailed(op, ApiException(BadRequest))
+      }
   }
 }
 

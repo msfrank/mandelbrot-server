@@ -4,7 +4,7 @@ import akka.actor.ActorRef
 import akka.testkit.{TestActorRef, TestProbe, ImplicitSender}
 import scala.concurrent.duration._
 
-import io.mandelbrot.core.{BadRequest, ResourceNotFound}
+import io.mandelbrot.core.{ServiceOperation, BadRequest, ResourceNotFound}
 
 class ShardManagerSpecMultiJvmNode1 extends ShardManagerSpec
 class ShardManagerSpecMultiJvmNode2 extends ShardManagerSpec
@@ -33,10 +33,10 @@ class ShardManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Implic
   val shardManager = TestActorRef[ShardManager](ShardManager.props(coordinator, TestEntity.propsCreator, myAddress, totalShards),
     "entities")
 
-  def entityEnvelope(sender: ActorRef, message: Any, attempts: Int): EntityEnvelope = {
-    val shardKey = TestEntity.shardResolver(message)
-    val entityKey = TestEntity.keyExtractor(message)
-    EntityEnvelope(sender, message, shardKey, entityKey, attempts)
+  def entityEnvelope(sender: ActorRef, op: ServiceOperation, attempts: Int): EntityEnvelope = {
+    val shardKey = TestEntity.shardResolver(op)
+    val entityKey = TestEntity.keyExtractor(op)
+    EntityEnvelope(sender, op, shardKey, entityKey, attempts)
   }
 
   "A ShardManager" should {
@@ -70,17 +70,6 @@ class ShardManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Implic
         reply.failure.getCause shouldEqual ResourceNotFound
       }
       enterBarrier("local-delivery-failure")
-    }
-
-    "receive delivery failure sending a message of unknown type" in {
-      case object UnknownMessageType
-      runOn(node1) {
-        shardManager ! entityEnvelope(self, UnknownMessageType, attempts = 3)
-        val reply = expectMsgClass(classOf[EntityDeliveryFailed])
-        lastSender.path.address.hasLocalScope shouldEqual true
-        reply.failure.getCause shouldEqual BadRequest
-      }
-      enterBarrier("unknown-message-type")
     }
 
     "create a remote entity" in {

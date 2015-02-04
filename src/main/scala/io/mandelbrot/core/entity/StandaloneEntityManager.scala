@@ -31,13 +31,7 @@ import io.mandelbrot.core.system.{ProbeSystem, ProbeSystemOperation, ProbeOperat
 /**
  *
  */
-class StandaloneEntityManager(settings: ClusterSettings,
-                              shardResolver: ShardResolver,
-                              keyExtractor: KeyExtractor,
-                              propsCreator: PropsCreator) extends Actor with ActorLogging {
-
-  // config
-  val defaultAttempts = 3
+class StandaloneEntityManager(settings: ClusterSettings, propsCreator: PropsCreator) extends Actor with ActorLogging {
 
   val coordinator = {
     val props = ServiceExtension.makePluginProps(settings.coordinator.plugin, settings.coordinator.settings)
@@ -65,20 +59,8 @@ class StandaloneEntityManager(settings: ClusterSettings,
     case op: EntityServiceOperation =>
       coordinator forward op
 
-    // send envelopes directly to the shard manager
+    // send envelopes to the shard manager
     case envelope: EntityEnvelope =>
       shardManager ! envelope
-
-    // we assume any other message is for an entity, so we wrap it in an envelope
-    case op: ServiceOperation =>
-      try {
-        val shardKey = shardResolver(op)
-        val entityKey = keyExtractor(op)
-        shardManager ! EntityEnvelope(sender(), op, shardKey, entityKey, attempts = defaultAttempts)
-      } catch {
-        case ex: Throwable =>
-          sender() ! EntityDeliveryFailed(op, new ApiException(BadRequest))
-      }
-
   }
 }

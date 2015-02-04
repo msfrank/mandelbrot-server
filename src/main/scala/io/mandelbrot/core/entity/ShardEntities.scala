@@ -148,5 +148,3 @@ object ShardEntities {
     Props(classOf[ShardEntities], services, propsCreator, shardId)
   }
 }
-
-case object StartEntity

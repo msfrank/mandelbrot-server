@@ -1,6 +1,7 @@
 package io.mandelbrot.core.entity
 
 import akka.actor.{Props, ActorLogging, Actor}
+import io.mandelbrot.core.ServiceCommand
 
 class TestEntity extends Actor with ActorLogging {
   log.debug("initialized TestEntity")
@@ -31,8 +32,8 @@ object TestEntity {
   }
 }
 
-case class TestEntityCreate(key: String, shard: Int, message: Any)
+case class TestEntityCreate(key: String, shard: Int, message: Any) extends ServiceCommand
 case class TestCreateReply(message: Any)
 
-case class TestEntityMessage(key: String, shard: Int, message: Any)
+case class TestEntityMessage(key: String, shard: Int, message: Any) extends ServiceCommand
 case class TestMessageReply(message: Any)

@@ -3,17 +3,17 @@ package io.mandelbrot.core.entity
 import akka.actor.{Address, Props}
 
 import io.mandelbrot.core.{ServiceQuery, ServiceCommand, ServiceOperationFailed, ServiceOperation}
-import io.mandelbrot.core.entity.EntityFunctions.{PropsCreator, KeyExtractor, ShardResolver}
+import io.mandelbrot.core.entity.EntityFunctions.PropsCreator
 
 /**
  *
  */
 object EntityManager {
-  def props(settings: ClusterSettings, shardResolver: ShardResolver, keyExtractor: KeyExtractor, propsCreator: PropsCreator) = {
+  def props(settings: ClusterSettings, propsCreator: PropsCreator) = {
     if (settings.enabled)
-      Props(classOf[ClusterEntityManager], settings, shardResolver, keyExtractor, propsCreator)
+      Props(classOf[ClusterEntityManager], settings, propsCreator)
     else
-      Props(classOf[StandaloneEntityManager], settings, shardResolver, keyExtractor, propsCreator)
+      Props(classOf[StandaloneEntityManager], settings, propsCreator)
   }
 }
 

@@ -1,10 +1,10 @@
 package io.mandelbrot.core.entity
 
-import akka.actor.ActorRef
+import akka.actor.{Props, ActorRef}
 import akka.testkit.{TestProbe, ImplicitSender}
 import scala.concurrent.duration._
 
-import io.mandelbrot.core.{ProxyForwarder, BadRequest, ResourceNotFound}
+import io.mandelbrot.core.{ServiceOperation, ProxyForwarder, BadRequest, ResourceNotFound}
 
 class ClusterEntityManagerSpecMultiJvmNode1 extends ClusterEntityManagerSpec
 class ClusterEntityManagerSpecMultiJvmNode2 extends ClusterEntityManagerSpec
@@ -18,6 +18,7 @@ class ClusterEntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) wit
   // config
   def initialParticipants = roles.size
   val totalShards = 10
+  val deliveryAttempts = 3
 
   val shards = ShardMap(totalShards)
   shards.assign(0, node(node1).address)
@@ -34,24 +35,31 @@ class ClusterEntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) wit
                                             seedNodes = Vector.empty,
                                             minNrMembers = 5,
                                             totalShards,
+                                            deliveryAttempts,
                                             CoordinatorSettings("io.mandelbrot.core.entity.TestCoordinator", Some(coordinatorSettings)))
-  var clusterManager = ActorRef.noSender
+  var entityManager = ActorRef.noSender
+
+  def entityEnvelope(op: ServiceOperation): EntityEnvelope = {
+    val shardKey = TestEntity.shardResolver(op)
+    val entityKey = TestEntity.keyExtractor(op)
+    EntityEnvelope(self, op, shardKey, entityKey, clusterSettings.deliveryAttempts)
+  }
 
   "A ClusterEntityManager" should {
 
     "wait for nodes to become ready" in {
       val eventStream = TestProbe()
       system.eventStream.subscribe(eventStream.ref, classOf[ClusterUp])
-      val props = EntityManager.props(clusterSettings, TestEntity.shardResolver, TestEntity.keyExtractor, TestEntity.propsCreator)
-      clusterManager = system.actorOf(ProxyForwarder.props(props, self, classOf[EntityServiceOperation]), "cluster-manager")
-      clusterManager ! JoinCluster(Vector(node(node1).address.toString))
+      val props = Props(classOf[ClusterEntityManager], clusterSettings, TestEntity.propsCreator)
+      entityManager = system.actorOf(ProxyForwarder.props(props, self, classOf[EntityServiceOperation]), "cluster-manager")
+      entityManager ! JoinCluster(Vector(node(node1).address.toString))
       eventStream.expectMsgClass(30.seconds, classOf[ClusterUp])
       enterBarrier("cluster-up")
     }
 
     "create a local entity" in {
       runOn(node1) {
-        clusterManager ! TestEntityCreate("test1", 0, 1)
+        entityManager ! entityEnvelope(TestEntityCreate("test1", 0, 1))
         val reply = expectMsgClass(classOf[TestCreateReply])
         lastSender.path.address.hasLocalScope shouldEqual true
         reply.message should be(1)
@@ -61,7 +69,7 @@ class ClusterEntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) wit
 
     "send a message to a local entity" in {
       runOn(node1) {
-        clusterManager ! TestEntityMessage("test1", 0, 2)
+        entityManager ! entityEnvelope(TestEntityMessage("test1", 0, 2))
         val reply = expectMsgClass(classOf[TestMessageReply])
         lastSender.path.address.hasLocalScope shouldEqual true
         reply.message should be(2)
@@ -71,7 +79,7 @@ class ClusterEntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) wit
 
     "receive delivery failure sending a message to a nonexistent local entity" in {
       runOn(node1) {
-        clusterManager ! TestEntityMessage("missing", 0, 3)
+        entityManager ! entityEnvelope(TestEntityMessage("missing", 0, 3))
         val reply = expectMsgClass(classOf[EntityDeliveryFailed])
         lastSender.path.address.hasLocalScope shouldEqual true
         reply.failure.getCause shouldEqual ResourceNotFound
@@ -79,20 +87,9 @@ class ClusterEntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) wit
       enterBarrier("local-delivery-failure")
     }
 
-    "receive delivery failure sending a message of unknown type" in {
-      case object UnknownMessageType
-      runOn(node1) {
-        clusterManager ! UnknownMessageType
-        val reply = expectMsgClass(classOf[EntityDeliveryFailed])
-        lastSender.path.address.hasLocalScope shouldEqual true
-        reply.failure.getCause shouldEqual BadRequest
-      }
-      enterBarrier("unknown-message-type")
-    }
-
     "create a remote entity" in {
       runOn(node1) {
-        clusterManager ! TestEntityCreate("test2", 1, 4)
+        entityManager ! entityEnvelope(TestEntityCreate("test2", 1, 4))
         val reply = expectMsgClass(classOf[TestCreateReply])
         lastSender.path.address.hasLocalScope shouldEqual false
         lastSender.path.address shouldEqual node(node2).address
@@ -103,7 +100,7 @@ class ClusterEntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) wit
 
     "send a message to a remote entity" in {
       runOn(node1) {
-        clusterManager ! TestEntityMessage("test2", 1, 5)
+        entityManager ! entityEnvelope(TestEntityMessage("test2", 1, 5))
         val reply = expectMsgClass(classOf[TestMessageReply])
         lastSender.path.address.hasLocalScope shouldEqual false
         lastSender.path.address shouldEqual node(node2).address
@@ -114,7 +111,7 @@ class ClusterEntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) wit
 
     "receive delivery failure sending a message to a nonexistent remote entity" in {
       runOn(node1) {
-        clusterManager ! TestEntityMessage("missing", 1, 6)
+        entityManager ! entityEnvelope(TestEntityMessage("missing", 1, 6))
         val reply = expectMsgClass(classOf[EntityDeliveryFailed])
         lastSender.path.address.hasLocalScope shouldEqual false
         lastSender.path.address shouldEqual node(node2).address
