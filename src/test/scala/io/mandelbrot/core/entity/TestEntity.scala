@@ -1,6 +1,6 @@
 package io.mandelbrot.core.entity
 
-import akka.actor.{Props, ActorLogging, Actor}
+import akka.actor.{Actor, ActorLogging, Props}
 import io.mandelbrot.core.ServiceCommand
 
 class TestEntity extends Actor with ActorLogging {

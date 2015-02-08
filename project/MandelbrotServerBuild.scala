@@ -50,7 +50,7 @@ object MandelbrotServerBuild extends Build {
       ),
 
       // make sure that MultiJvm test are compiled by the default test compilation
-      compile in MultiJvm <<= (compile in MultiJvm) triggeredBy (compile in Test),
+      //compile in MultiJvm <<= (compile in MultiJvm) triggeredBy (compile in Test),
       // disable parallel tests
       parallelExecution in Test := false
 

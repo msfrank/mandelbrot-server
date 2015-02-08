@@ -51,7 +51,7 @@ class ClusterEntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) wit
       val eventStream = TestProbe()
       system.eventStream.subscribe(eventStream.ref, classOf[ClusterUp])
       val props = Props(classOf[ClusterEntityManager], clusterSettings, TestEntity.propsCreator)
-      entityManager = system.actorOf(ProxyForwarder.props(props, self, classOf[EntityServiceOperation]), "cluster-manager")
+      entityManager = system.actorOf(ProxyForwarder.props(props, self, classOf[EntityServiceOperation]), "entity-manager")
       entityManager ! JoinCluster(Vector(node(node1).address.toString))
       eventStream.expectMsgClass(30.seconds, classOf[ClusterUp])
       enterBarrier("cluster-up")

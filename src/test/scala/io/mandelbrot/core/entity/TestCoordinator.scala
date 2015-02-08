@@ -1,12 +1,12 @@
 package io.mandelbrot.core.entity
 
+import java.util
 
 import akka.actor._
 import com.typesafe.config.Config
-import scala.collection.JavaConversions._
-import java.util
+import io.mandelbrot.core.{ApiException, Conflict, ResourceNotFound}
 
-import io.mandelbrot.core.{Conflict, ResourceNotFound, ApiException}
+import scala.collection.JavaConversions._
 
 case class TestCoordinatorSettings(shardMap: ShardMap, initialEntities: Vector[Entity], masterAddress: Address, selfAddress: Address)
 
