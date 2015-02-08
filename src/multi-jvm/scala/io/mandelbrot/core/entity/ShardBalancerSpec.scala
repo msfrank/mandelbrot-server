@@ -31,7 +31,7 @@ class ShardBalancerSpec extends MultiNodeSpec(RemoteMultiNodeConfig) with Implic
 
       val coordinatorSettings = TestCoordinatorSettings(shards, initialEntities, node(node1).address, myAddress)
       val coordinator = system.actorOf(TestCoordinator.props(coordinatorSettings), "coordinator_1")
-      val entityManager = system.actorOf(ShardManager.props(coordinator, TestEntity.propsCreator, myAddress, totalShards),
+      val entityManager = system.actorOf(ShardManager.props(coordinator, TestEntity.propsCreator, myAddress, totalShards, self),
         "entities_1")
 
       enterBarrier("start-balancer-no-ops")
@@ -72,7 +72,7 @@ class ShardBalancerSpec extends MultiNodeSpec(RemoteMultiNodeConfig) with Implic
 
       val coordinatorSettings = TestCoordinatorSettings(shards, initialEntities, node(node1).address, myAddress)
       val coordinator = system.actorOf(TestCoordinator.props(coordinatorSettings), "coordinator_2")
-      val entityManager = system.actorOf(ShardManager.props(coordinator, TestEntity.propsCreator, myAddress, totalShards),
+      val entityManager = system.actorOf(ShardManager.props(coordinator, TestEntity.propsCreator, myAddress, totalShards, self),
         "entities_2")
 
       enterBarrier("start-balancer-repair-shard")

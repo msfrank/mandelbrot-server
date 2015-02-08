@@ -36,7 +36,9 @@ import scala.util.hashing.MurmurHash3
  */
 class ServiceProxy extends Actor with ActorLogging {
 
+  // config
   val settings = ServerConfig(context.system).settings
+  val deliveryAttempts = settings.cluster.deliveryAttempts
 
   val registryService = context.actorOf(RegistryManager.props(settings.registry), "registry-service")
   val trackingService = context.actorOf(TrackingManager.props(settings.tracking), "tracking-service")
@@ -83,7 +85,7 @@ class ServiceProxy extends Actor with ActorLogging {
       try {
         val shardKey = shardResolver(op)
         val entityKey = keyExtractor(op)
-        entityService ! EntityEnvelope(sender(), op, shardKey, entityKey, settings.cluster.deliveryAttempts)
+        entityService ! EntityEnvelope(sender(), op, shardKey, entityKey, deliveryAttempts, deliveryAttempts)
       } catch {
         case ex: Throwable => sender() ! EntityDeliveryFailed(op, ApiException(BadRequest))
       }

@@ -1,10 +1,12 @@
 package io.mandelbrot.core.entity
 
 import akka.actor.ActorRef
-import akka.testkit.{TestActorRef, TestProbe, ImplicitSender}
+import akka.contrib.pattern.DistributedPubSubMediator.SendToAll
+import akka.testkit.{TestActorRef, ImplicitSender}
+import org.scalatest.Inside._
 import scala.concurrent.duration._
 
-import io.mandelbrot.core.{ServiceOperation, BadRequest, ResourceNotFound}
+import io.mandelbrot.core.{ServiceOperation, ResourceNotFound}
 
 class ShardManagerSpecMultiJvmNode1 extends ShardManagerSpec
 class ShardManagerSpecMultiJvmNode2 extends ShardManagerSpec
@@ -30,13 +32,13 @@ class ShardManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Implic
 
   val coordinatorSettings = TestCoordinatorSettings(shardMap, initialEntities, node(node1).address, myAddress)
   val coordinator = system.actorOf(TestCoordinator.props(coordinatorSettings), "coordinator")
-  val shardManager = TestActorRef[ShardManager](ShardManager.props(coordinator, TestEntity.propsCreator, myAddress, totalShards),
+  val shardManager = TestActorRef[ShardManager](ShardManager.props(coordinator, TestEntity.propsCreator, myAddress, totalShards, self),
     "entities")
 
   def entityEnvelope(sender: ActorRef, op: ServiceOperation, attempts: Int): EntityEnvelope = {
     val shardKey = TestEntity.shardResolver(op)
     val entityKey = TestEntity.keyExtractor(op)
-    EntityEnvelope(sender, op, shardKey, entityKey, attempts)
+    EntityEnvelope(sender, op, shardKey, entityKey, attempts, attempts)
   }
 
   "A ShardManager" should {
@@ -107,60 +109,70 @@ class ShardManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Implic
 
     "send message which is redirected" in {
       runOn(node1) {
-        shardManager.underlyingActor.shardMap.assign(6, node(node2).address)
+        shardManager.underlyingActor.shardMap.assign(2, node(node2).address)
         enterBarrier("setup-successful-redirect")
-      }
-      runOn(node2) {
-        shardManager.underlyingActor.shardMap.assign(6, node(node3).address)
-        enterBarrier("setup-successful-redirect")
-      }
-      runOn(node3) {
-        shardManager ! PrepareShard(6)
-        expectMsgClass(classOf[PrepareShardResult])
-        shardManager ! RecoverShard(6)
-        expectMsgClass(classOf[RecoverShardResult])
-        enterBarrier("setup-successful-redirect")
-      }
-      runOn(node4, node5) {
-        enterBarrier("setup-successful-redirect")
-      }
-      runOn(node1) {
-        shardManager ! entityEnvelope(self, TestEntityCreate("redirect-succeeds", 6, 7), attempts = 3)
+        shardManager ! entityEnvelope(self, TestEntityCreate("redirect-succeeds", 2, 7), attempts = 3)
         val reply = expectMsgClass(classOf[TestCreateReply])
         lastSender.path.address.hasLocalScope shouldEqual false
         lastSender.path.address shouldEqual node(node3).address
         reply.message should be(7)
       }
+      runOn(node2) {
+        enterBarrier("setup-successful-redirect")
+        inside(expectMsgClass(7.seconds, classOf[SendToAll])) {
+          case SendToAll(_, StaleShardSet(staleShards), _) =>
+            staleShards shouldEqual Set(StaleShard(2, node(node2).address))
+        }
+      }
+      runOn(node3) {
+        enterBarrier("setup-successful-redirect")
+      }
+      runOn(node4) {
+        enterBarrier("setup-successful-redirect")
+      }
+      runOn(node5) {
+        enterBarrier("setup-successful-redirect")
+      }
       enterBarrier("finish-successful-redirect")
     }
 
     "receive delivery failure sending a message which redirects too many times" in {
+      val a = Seq(node(node1).address, node(node2).address, node(node3).address, node(node4).address, node(node5).address)
+      println(a.mkString(" "))
       runOn(node1) {
-        shardManager.underlyingActor.shardMap.assign(7, node(node2).address)
+        shardManager.underlyingActor.shardMap.assign(4, node(node2).address)
         enterBarrier("setup-redirect-failure")
-      }
-      runOn(node2) {
-        shardManager.underlyingActor.shardMap.assign(7, node(node3).address)
-        enterBarrier("setup-redirect-failure")
-      }
-      runOn(node3) {
-        shardManager.underlyingActor.shardMap.assign(7, node(node4).address)
-        enterBarrier("setup-redirect-failure")
-      }
-      runOn(node4) {
-        shardManager.underlyingActor.shardMap.assign(7, node(node5).address)
-        enterBarrier("setup-redirect-failure")
-      }
-      runOn(node5) {
-        shardManager.underlyingActor.shardMap.assign(7, node(node5).address)
-        enterBarrier("setup-redirect-failure")
-      }
-      runOn(node1) {
-        shardManager ! entityEnvelope(self, TestEntityCreate("redirect-fails", 7, 8), attempts = 3)
+        shardManager ! entityEnvelope(self, TestEntityCreate("redirect-fails", 4, 8), attempts = 3)
         val reply = expectMsgClass(classOf[EntityDeliveryFailed])
         lastSender.path.address.hasLocalScope shouldEqual false
         lastSender.path.address shouldEqual node(node4).address
         reply.failure.getCause shouldEqual ResourceNotFound
+      }
+      runOn(node2) {
+        shardManager.underlyingActor.shardMap.assign(4, node(node3).address)
+        enterBarrier("setup-redirect-failure")
+        inside(expectMsgClass(7.seconds, classOf[SendToAll])) {
+          case SendToAll(_, StaleShardSet(staleShards), _) =>
+            staleShards shouldEqual Set(StaleShard(4, node(node2).address))
+        }
+      }
+      runOn(node3) {
+        shardManager.underlyingActor.shardMap.assign(4, node(node4).address)
+        enterBarrier("setup-redirect-failure")
+        inside(expectMsgClass(7.seconds, classOf[SendToAll])) {
+          case SendToAll(_, StaleShardSet(staleShards), _) =>
+            staleShards shouldEqual Set(StaleShard(4, node(node3).address))
+        }
+      }
+      runOn(node4) {
+        enterBarrier("setup-redirect-failure")
+        inside(expectMsgClass(7.seconds, classOf[SendToAll])) {
+          case SendToAll(_, StaleShardSet(staleShards), _) =>
+            staleShards shouldEqual Set(StaleShard(4, node(node4).address))
+        }
+      }
+      runOn(node5) {
+        enterBarrier("setup-redirect-failure")
       }
       enterBarrier("finish-redirect-failure")
     }

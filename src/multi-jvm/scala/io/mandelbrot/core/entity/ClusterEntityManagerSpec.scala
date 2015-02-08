@@ -42,7 +42,7 @@ class ClusterEntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) wit
   def entityEnvelope(op: ServiceOperation): EntityEnvelope = {
     val shardKey = TestEntity.shardResolver(op)
     val entityKey = TestEntity.keyExtractor(op)
-    EntityEnvelope(self, op, shardKey, entityKey, clusterSettings.deliveryAttempts)
+    EntityEnvelope(self, op, shardKey, entityKey, clusterSettings.deliveryAttempts, clusterSettings.deliveryAttempts)
   }
 
   "A ClusterEntityManager" should {

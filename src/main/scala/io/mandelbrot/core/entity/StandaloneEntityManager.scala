@@ -40,7 +40,7 @@ class StandaloneEntityManager(settings: ClusterSettings, propsCreator: PropsCrea
   }
 
   val shardManager = context.actorOf(ShardManager.props(context.parent, propsCreator,
-    ShardManager.StandaloneAddress, settings.totalShards), "entity-manager")
+    ShardManager.StandaloneAddress, settings.totalShards, ActorRef.noSender), "entity-manager")
 
   log.info("initializing standalone mode")
 

@@ -21,6 +21,7 @@ package io.mandelbrot.core.entity
 
 import akka.cluster.Cluster
 import akka.actor._
+import akka.contrib.pattern.DistributedPubSubMediator
 
 import io.mandelbrot.core.{ServiceOperation, BadRequest, ApiException, ServiceExtension}
 import io.mandelbrot.core.entity.EntityFunctions.{ShardResolver, KeyExtractor, PropsCreator}
@@ -46,12 +47,14 @@ class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator
   }
 
   val clusterMonitor = context.actorOf(ClusterMonitor.props(settings.minNrMembers), "cluster-monitor")
-  val shardManager = context.actorOf(ShardManager.props(context.parent, propsCreator, selfAddress, settings.totalShards),
+  val gossiper = context.actorOf(DistributedPubSubMediator.props(None), "cluster-gossiper")
+  val shardManager = context.actorOf(ShardManager.props(context.parent, propsCreator, selfAddress, settings.totalShards, gossiper),
     "entity-manager")
 
   log.info("initializing cluster mode")
 
   override def preStart(): Unit = {
+    // FIXME: always start the join in preStart, remove JoinCluster operation
     if (settings.seedNodes.nonEmpty) {
       Cluster(context.system).joinSeedNodes(settings.seedNodes.map(AddressFromURIString(_)).toSeq)
       self ! JoinCluster(settings.seedNodes.toVector)
