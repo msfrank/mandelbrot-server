@@ -23,7 +23,7 @@ import akka.cluster.Cluster
 import akka.actor._
 import akka.contrib.pattern.DistributedPubSubMediator
 
-import io.mandelbrot.core.{ServiceOperation, BadRequest, ApiException, ServiceExtension}
+import io.mandelbrot.core._
 import io.mandelbrot.core.entity.EntityFunctions.{ShardResolver, KeyExtractor, PropsCreator}
 
 /**
@@ -35,8 +35,6 @@ class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator
   val selfAddress = Cluster(context.system).selfAddress
 
   // state
-  var incubating = true
-  var running = false
   var status: ClusterMonitorEvent = ClusterUnknown
   var shardBalancer: Option[ActorRef] = None
 
@@ -53,45 +51,46 @@ class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator
 
   log.info("initializing cluster mode")
 
+  // we try to join immediately if seed nodes are specified
   override def preStart(): Unit = {
-    // FIXME: always start the join in preStart, remove JoinCluster operation
     if (settings.seedNodes.nonEmpty) {
       Cluster(context.system).joinSeedNodes(settings.seedNodes.map(AddressFromURIString(_)).toSeq)
-      self ! JoinCluster(settings.seedNodes.toVector)
       log.info("joining cluster using seed nodes {}", settings.seedNodes.mkString(","))
-    } else
-      log.info("waiting for seed nodes")
+      context.become(down)
+    } else log.info("waiting for seed nodes")
   }
 
-  def receive = {
+  def receive = waiting
 
-    // try to join the cluster using the specified seed nodes
+  // wait for cluster join message containing seed nodes
+  def waiting: Receive = {
+
     case op: JoinCluster =>
-      if (incubating) {
-        val seedNodes = op.seedNodes.map(AddressFromURIString(_)).toSeq
-        Cluster(context.system).joinSeedNodes(seedNodes)
-        incubating = false
-        log.debug("attempting to join cluster")
-      } else log.debug("ignoring join request, we are not incubating")
+      val seedNodes = op.seedNodes.map(AddressFromURIString(_)).toSeq
+      Cluster(context.system).joinSeedNodes(seedNodes)
+      log.debug("joining cluster using seed nodes {}", seedNodes.mkString(","))
+      context.become(down)
 
-    // cluster monitor emits this message
+    // tell client to try later
+    case op: EntityServiceOperation =>
+      sender() ! EntityServiceOperationFailed(op, ApiException(RetryLater))
+
+    // tell client to try later
+    case envelope: EntityEnvelope =>
+      sender() ! EntityDeliveryFailed(envelope.op, ApiException(RetryLater))
+  }
+
+  // cluster is UP, we can service messages from clients
+  def up: Receive = {
+
     case event: ClusterUp =>
-      log.debug("cluster is up")
-      running = true
       status = event
-      // FIXME: handle cluster up and cluster down
-      if (event.leader.equals(selfAddress) && shardBalancer.isEmpty) {
-      } else if (!event.leader.equals(selfAddress) && shardBalancer.nonEmpty) {
-      }
 
     // cluster monitor emits this message
     case event: ClusterDown =>
-      log.debug("cluster is down")
-      running = false
+      log.debug("cluster becomes DOWN")
       status = event
-      // FIXME: handle cluster up and cluster down
-      if (shardBalancer.nonEmpty) {
-      }
+      context.become(down)
 
     // forward any messages for the coordinator
     case op: EntityServiceOperation =>
@@ -100,5 +99,27 @@ class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator
     // send envelopes to the shard manager
     case envelope: EntityEnvelope =>
       shardManager ! envelope
+  }
+
+  // cluster is down, we just tell client to try again later
+  def down: Receive = {
+
+    // cluster monitor emits this message
+    case event: ClusterUp =>
+      log.debug("cluster becomes UP")
+      status = event
+      context.become(up)
+
+    // cluster monitor emits this message
+    case event: ClusterDown =>
+      status = event
+
+    // tell client to try later
+    case op: EntityServiceOperation =>
+      sender() ! EntityServiceOperationFailed(op, ApiException(RetryLater))
+
+    // tell client to try later
+    case envelope: EntityEnvelope =>
+      sender() ! EntityDeliveryFailed(envelope.op, ApiException(RetryLater))
   }
 }

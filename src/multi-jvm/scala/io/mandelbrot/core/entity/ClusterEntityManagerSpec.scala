@@ -60,7 +60,8 @@ class ClusterEntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) wit
     "create a local entity" in {
       runOn(node1) {
         entityManager ! entityEnvelope(TestEntityCreate("test1", 0, 1))
-        val reply = expectMsgClass(classOf[TestCreateReply])
+        // first message to shard entities will take a little longer
+        val reply = expectMsgClass(6.seconds, classOf[TestCreateReply])
         lastSender.path.address.hasLocalScope shouldEqual true
         reply.message should be(1)
       }

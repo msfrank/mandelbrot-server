@@ -138,7 +138,6 @@ class ShardManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Implic
 
     "receive delivery failure sending a message which redirects too many times" in {
       val a = Seq(node(node1).address, node(node2).address, node(node3).address, node(node4).address, node(node5).address)
-      println(a.mkString(" "))
       runOn(node1) {
         shardManager.underlyingActor.shardMap.assign(4, node(node2).address)
         enterBarrier("setup-redirect-failure")
