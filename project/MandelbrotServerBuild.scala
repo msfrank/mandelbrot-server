@@ -8,13 +8,14 @@ object MandelbrotServerBuild extends Build {
 
   val mandelbrotVersion = "0.0.8"
 
-  val scalaLangVersion = "2.10.4"
-  val akkaVersion = "2.3.8"
+  val scalaLangVersion = "2.11.5"
+  val akkaVersion = "2.3.9"
   val sprayVersion = "1.3.2"
   val sprayJsonVersion = "1.3.1"
   val luceneVersion = "4.7.1"
   val slickVersion = "2.0.3"
   val datastaxVersion = "2.1.4"
+  val scalatestVersion = "2.2.4"
 
   lazy val mandelbrotCoreBuild = (project in file("."))
     .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
@@ -30,6 +31,7 @@ object MandelbrotServerBuild extends Build {
 
       libraryDependencies ++= Seq(
         "org.scala-lang" % "scala-reflect" % scalaLangVersion,
+        "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3",
         "com.typesafe.akka" %% "akka-actor" % akkaVersion,
         "com.typesafe.akka" %% "akka-remote" % akkaVersion,
         "com.typesafe.akka" %% "akka-cluster" % akkaVersion,
@@ -43,14 +45,17 @@ object MandelbrotServerBuild extends Build {
         "org.joda" % "joda-convert" % "1.3.1",
         "org.slf4j" % "slf4j-api" % "1.7.5",
         "ch.qos.logback" % "logback-classic" % "1.1.2",
-        "org.scalatest" %% "scalatest" % "1.9.2" % "test",
+        "org.scalatest" %% "scalatest" % scalatestVersion % "test",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
         "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion % "test",
         "io.spray" %% "spray-testkit" % sprayVersion % "test"
       ),
 
+      // add multi-jvm classes
+      unmanagedSourceDirectories in Test += baseDirectory.value / "src" / "multi-jvm",
+
       // make sure that MultiJvm test are compiled by the default test compilation
-      //compile in MultiJvm <<= (compile in MultiJvm) triggeredBy (compile in Test),
+      compile in MultiJvm <<= (compile in MultiJvm) triggeredBy (compile in Test),
       // disable parallel tests
       parallelExecution in Test := false
 
@@ -84,7 +89,7 @@ object MandelbrotServerBuild extends Build {
 
       libraryDependencies ++= Seq(
         "com.datastax.cassandra" % "cassandra-driver-core" % datastaxVersion,
-        "org.scalatest" %% "scalatest" % "1.9.2" % "test",
+        "org.scalatest" %% "scalatest" % scalatestVersion % "test",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
       )
 
@@ -105,7 +110,7 @@ object MandelbrotServerBuild extends Build {
       libraryDependencies ++= Seq(
         "com.typesafe.slick" %% "slick" % slickVersion,
         "com.h2database" % "h2" % "1.4.177",
-        "org.scalatest" %% "scalatest" % "1.9.2" % "test",
+        "org.scalatest" %% "scalatest" % scalatestVersion % "test",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
       )
 
