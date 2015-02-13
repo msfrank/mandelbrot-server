@@ -20,175 +20,132 @@
 package io.mandelbrot.core.entity
 
 import akka.actor._
-import io.mandelbrot.core.{RetryLater, ApiException}
+import akka.cluster.{MemberStatus, Member}
+import akka.contrib.pattern.ClusterSingletonManager
+import scala.collection.SortedSet
 import scala.concurrent.duration._
-import scala.collection.mutable
-
-import ShardBalancer.{State, Data}
 
 /**
- * The ShardBalancer is responsible for keeping the shard map healthy.  this consists
- * of multiple interrelated tasks:
- *   1) ensure that all shards are assigned to an address.
- *   2) ensure that shards are equally balanced across the cluster when members join the cluster.
- *   3) ensure that shards are equally balanced across the cluster when members leave the cluster.
- *   4) ensure that shards are redistributed when members get too hot or cold.
+ *
  */
-class ShardBalancer(services: ActorRef, monitor: ActorRef, nodes: Map[Address,ActorPath], totalShards: Int) extends LoggingFSM[State,Data] {
+class ShardBalancer(settings: ClusterSettings, services: ActorRef, nodePath: Iterable[String])
+  extends LoggingFSM[ShardBalancer.State,ShardBalancer.Data] {
   import ShardBalancer._
+  import context.dispatcher
 
   // config
-  val timeout = 5.seconds
-  val limit = 100
+  val balancerInterval = 1.minute
 
   // state
-  val shardMap = ShardMap(totalShards)
-  val shardDensity = new mutable.HashMap[Address,Int]()
-  var missingShards = Map.empty[Int,MissingShardEntry]
-  var addedNodes = Set.empty[Address]
-  var removedNodes = Set.empty[Address]
+  var members: SortedSet[Member] = SortedSet.empty
 
-  override def preStart(): Unit = {
-    // get the current location of all shards
-    services ! ListShards(limit, None)
+  // subscribe to events from ClusterMonitor
+  context.system.eventStream.subscribe(self, classOf[ClusterMonitorEvent])
+
+  startWith(Down, Down(1))
+
+  when(Down) {
+
+    // cluster is up, start the balancer
+    case Event(event: ClusterUp, state: Down) =>
+      members = event.state.members
+      val nodes: Map[Address,ActorPath] = members.filter { member =>
+        member.status.equals(MemberStatus.Up)
+      }.map { member =>
+        member.address -> (RootActorPath(member.address) / nodePath)
+      }.toMap
+      val props = BalancerTask.props(services, self, nodes, settings.totalShards)
+      val balancer = context.actorOf(props, "balancer-%d".format(state.version))
+      goto(Running) using Running(balancer, state.version + 1)
+
+    // do nothing
+    case Event(event: ClusterMonitorEvent, state: Down) =>
+      members = event.state.members
+      stay()
   }
 
-  startWith(Initializing, NoData)
+  when(Waiting) {
 
-  when(Initializing) {
+    // delay has completed, start the balancer
+    case Event(StartBalancing, state: Waiting) =>
+      val nodes: Map[Address,ActorPath] = members.filter { member =>
+        member.status.equals(MemberStatus.Up)
+      }.map { member =>
+        member.address -> (RootActorPath(member.address) / nodePath)
+      }.toMap
+      val props = BalancerTask.props(services, self, nodes, settings.totalShards)
+      val balancer = context.actorOf(props, "balancer-%d".format(state.version))
+      context.watch(balancer)
+      goto(Running) using Running(balancer, state.version + 1)
 
-    // gather the current state of all shards
-    case Event(result: ListShardsResult, NoData) =>
+    // cluster is down, cancel the delay
+    case Event(event: ClusterDown, state: Waiting) =>
+      members = event.state.members
+      state.delay.cancel()
+      goto(Down) using Down(state.version)
 
-      // build shardMap and shardDensity from coordinator data
-      result.shards.foreach { case Shard(shardId, address) =>
-        shardMap.assign(shardId, address)
-        val numShards = shardDensity.getOrElse(address, 0)
-        shardDensity.put(address, numShards + 1)
-      }
-
-      // find shards which are not mapped to any address
-      missingShards = shardMap.missing.map(missing => missing.shardId -> missing).toMap
-
-      // find nodes which have been added since the last balancing and add to densities map
-      addedNodes = nodes.keySet diff shardDensity.keySet
-      addedNodes.foreach(shardDensity.put(_, 0))
-
-      // find nodes which have been removed since the last balancing
-      // TODO: handle rebalancing for node removals
-      removedNodes = shardDensity.keySet.toSet diff nodes.keySet
-
-      log.debug("shard assignments {}", shardMap)
-      log.debug("missing shards {}", missingShards)
-      log.debug("shard densities {}", shardDensity)
-      log.debug("added nodes {}", addedNodes)
-      log.debug("removed nodes {}", removedNodes)
-      // transition to the next State
-      balance()
+    // do nothing
+    case Event(event: ClusterMonitorEvent, state: Waiting) =>
+      members = event.state.members
+      stay()
   }
 
-  when(Repairing) {
+  when(Running) {
 
-    // update state and process the next operation, if any
-    case Event(result: PutShardComplete, state: Repairing) =>
-      val PutShard(shardId, address, _) = result.op
-      shardMap.assign(shardId, address)
-      val numShards = shardDensity.getOrElse(address, 0)
-      shardDensity.put(address, numShards + 1)
-      missingShards = missingShards - shardId
-      val remaining = state.queued.tail
-      if (remaining.nonEmpty) {
-        val inflight = context.actorOf(PutShardTask.props(remaining.head, services, self, timeout))
-        stay() using Repairing(inflight, remaining)
-      } else balance()
+    // balancer has completed, but terminate the balancer actor just to be safe
+    case Event(event: BalancerComplete, state: Running) =>
+      context.stop(state.balancer)
+      stay() using Stopping(state.version)
 
-    // the operation failed but we should retry later
-    case Event(PutShardFailed(op, ApiException(RetryLater)), state: Repairing) =>
-      val PutShard(shardId, address, _) = op
-      log.debug("failed to put shard {} at {}: retrying", shardId, address)
-      val inflight = context.actorOf(PutShardTask.props(state.queued.head, services, self, timeout))
-      stay() using Repairing(inflight, state.queued)
+    // cluster is down, terminate the balancer actor
+    case Event(event: ClusterDown, state: Running) =>
+      members = event.state.members
+      context.stop(state.balancer)
+      stay() using Down(state.version)
 
-    // the operation failed definitively, don't bother retrying
-    case Event(result: PutShardFailed, state: Repairing) =>
-      val PutShard(shardId, address, _) = result.op
-      log.debug("failed to put shard {} at {}: {}", shardId, address, result.ex)
-      val remaining = state.queued.tail
-      if (remaining.nonEmpty) {
-        val inflight = context.actorOf(PutShardTask.props(remaining.head, services, self, timeout))
-        stay() using Repairing(inflight, remaining)
-      } else balance()
+    // do nothing
+    case Event(event: ClusterMonitorEvent, state: Running) =>
+      members = event.state.members
+      stay()
+
+    // balancer completed and actor has terminated
+    case Event(Terminated(ref), state: Stopping) =>
+      val delay = context.system.scheduler.scheduleOnce(balancerInterval, self, StartBalancing)
+      goto(Waiting) using Waiting(delay, state.version)
+
+    // balancer has terminated forcibly after cluster down
+    case Event(Terminated(ref), state: Down) =>
+      goto(Down) using state
+
+    // balancer has terminated unexpectedly
+    case Event(Terminated(ref), state: Running) =>
+      val delay = context.system.scheduler.scheduleOnce(balancerInterval, self, StartBalancing)
+      goto(Waiting) using Waiting(delay, state.version)
   }
 
-  /**
-   * decide the appropriate State to transition to based on the current state.
-   */
-  def balance(): State = {
-    if (missingShards.nonEmpty) {
-      // sort addresses by density
-      val addressesSortedByDensity = mutable.PriorityQueue()(ordering)
-      shardDensity.foreach(addressesSortedByDensity.enqueue(_))
-      // create PutShard operations for any missing shards
-      val ops = shardMap.missing.map { missingShard =>
-        val (address,numShards) = addressesSortedByDensity.dequeue()
-        addressesSortedByDensity.enqueue((address, numShards + 1))
-        PutShard(missingShard.shardId, address, nodes(address))
-      }.toVector
-      // put the first operation in flight
-      val inflight = context.actorOf(PutShardTask.props(ops.head, services, self, timeout))
-      goto(Repairing) using Repairing(inflight, ops)
-    } else {
-      monitor ! ShardBalancerResult(shardMap)
-      stop()
-    }
-  }
-
-  /**
-   * calculate the standard deviation from the specified iterable of densities.
-   */
-  def calculateDensityDeviation(densities: Iterable[Int]): Double = {
-    val cardinality = densities.size
-    val mean = densities.sum / cardinality
-    val variance = densities.foldLeft(0.toDouble) { case (acc,n) => math.pow(n - mean, 2) + acc } / cardinality
-    math.sqrt(variance)
-  }
-
-  // must be at the end of the constructor
   initialize()
 }
 
 object ShardBalancer {
-  def props(services: ActorRef, monitor: ActorRef, nodes: Map[Address,ActorPath], totalShards: Int) = {
-    Props(classOf[ShardBalancer], services, monitor, nodes, totalShards)
+  def props(settings: ClusterSettings, services: ActorRef, nodePath: Iterable[String]) = {
+    val props = Props(classOf[ShardBalancer], settings, services, nodePath)
+    val role = settings.clusterRole
+    val maxHandOverRetries = settings.maxHandOverRetries
+    val maxTakeOverRetries = settings.maxTakeOverRetries
+    val retryInterval = settings.retryInterval
+    ClusterSingletonManager.props(props, "singleton", PoisonPill, role, maxHandOverRetries, maxTakeOverRetries, retryInterval)
   }
 
-  val ordering = Ordering.by[(Address,Int),Int](_._2).reverse
-
-  case class MigrateShard(shardId: Int, targetNode: Address, sourceNode: Option[ActorPath])
+  case object StartBalancing
 
   sealed trait State
-  case object Initializing extends State
-  case object Migrating extends State
-  case object Repairing extends State
+  case object Waiting extends State
+  case object Running extends State
+  case object Down extends State
 
   sealed trait Data
-  case object NoData extends Data
-  case class Migrating(inflight: ActorRef, queued: Vector[MoveShard]) extends Data
-  case class Repairing(inflight: ActorRef, queued: Vector[PutShard]) extends Data
+  case class Down(version: Long) extends Data
+  case class Waiting(delay: Cancellable, version: Long) extends Data
+  case class Running(balancer: ActorRef, version: Long) extends Data
+  case class Stopping(version: Long) extends Data
 }
-
-sealed trait ShardBalancerOperation
-sealed trait ShardBalancerCommand extends ShardBalancerOperation
-sealed trait ShardBalancerQuery extends ShardBalancerOperation
-case class ShardBalancerOperationFailed(op: ShardBalancerOperation, failure: Throwable)
-
-case class PrepareShard(shardId: Int) extends ShardBalancerCommand
-case class PrepareShardResult(op: PrepareShard)
-
-case class ProposeShard(shardId: Int, target: Address) extends ShardBalancerCommand
-case class ProposeShardResult(op: ProposeShard)
-
-case class RecoverShard(shardId: Int) extends ShardBalancerCommand
-case class RecoverShardResult(op: RecoverShard)
-
-case class ShardBalancerResult(shardMap: ShardMap)

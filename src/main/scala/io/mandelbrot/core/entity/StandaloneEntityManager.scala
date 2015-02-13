@@ -45,14 +45,14 @@ class StandaloneEntityManager(settings: ClusterSettings, propsCreator: PropsCrea
   log.info("initializing standalone mode")
 
   override def preStart(): Unit = {
-    context.actorOf(ShardBalancer.props(context.parent, self,
+    context.actorOf(BalancerTask.props(context.parent, self,
       Map(ShardManager.StandaloneAddress -> shardManager.path), settings.totalShards),
       "shard-balancer")
   }
 
   def receive = {
 
-    case result: ShardBalancerResult =>
+    case result: BalancerComplete =>
       log.debug("shard balancer completed")
 
     // forward any messages for the coordinator

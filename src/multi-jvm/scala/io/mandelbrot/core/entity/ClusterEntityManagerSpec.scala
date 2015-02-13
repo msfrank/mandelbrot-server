@@ -4,7 +4,7 @@ import akka.actor.{Props, ActorRef}
 import akka.testkit.{TestProbe, ImplicitSender}
 import scala.concurrent.duration._
 
-import io.mandelbrot.core.{ServiceOperation, ProxyForwarder, BadRequest, ResourceNotFound}
+import io.mandelbrot.core.{ServiceOperation, ProxyForwarder, ResourceNotFound}
 
 class ClusterEntityManagerSpecMultiJvmNode1 extends ClusterEntityManagerSpec
 class ClusterEntityManagerSpecMultiJvmNode2 extends ClusterEntityManagerSpec
@@ -18,7 +18,6 @@ class ClusterEntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) wit
   // config
   def initialParticipants = roles.size
   val totalShards = 10
-  val deliveryAttempts = 3
 
   val shards = ShardMap(totalShards)
   shards.assign(0, node(node1).address)
@@ -34,8 +33,12 @@ class ClusterEntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) wit
   val clusterSettings = new ClusterSettings(enabled = true,
                                             seedNodes = Vector.empty,
                                             minNrMembers = 5,
-                                            totalShards,
-                                            deliveryAttempts,
+                                            totalShards = totalShards,
+                                            deliveryAttempts = 3,
+                                            clusterRole = None,
+                                            maxHandOverRetries = 10,
+                                            maxTakeOverRetries = 5,
+                                            retryInterval = 1.second,
                                             CoordinatorSettings("io.mandelbrot.core.entity.TestCoordinator", Some(coordinatorSettings)))
   var entityManager = ActorRef.noSender
 

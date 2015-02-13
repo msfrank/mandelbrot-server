@@ -24,7 +24,7 @@ import io.mandelbrot.core.{RetryLater, ApiException}
 import scala.concurrent.duration.FiniteDuration
 
 /**
- * The PutShardTask is invoked by the ShardBalancer to place a shard at the specified
+ * The PutShardTask is invoked by the BalancerTask to place a shard at the specified
  * address.
  */
 class PutShardTask(op: PutShard,

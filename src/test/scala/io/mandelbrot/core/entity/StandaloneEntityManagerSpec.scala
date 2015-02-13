@@ -4,6 +4,7 @@ import akka.actor.{ActorSystem, Props}
 import akka.testkit.{TestKit, ImplicitSender}
 import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
 import org.scalatest.matchers.ShouldMatchers
+import scala.concurrent.duration._
 
 import io.mandelbrot.core.{AkkaConfig, ProxyForwarder, ResourceNotFound, ServiceOperation}
 import io.mandelbrot.core.ConfigConversions._
@@ -17,7 +18,6 @@ class StandaloneEntityManagerSpec(_system: ActorSystem) extends TestKit(_system)
 
   // config
   val totalShards = 4
-  val deliveryAttempts = 3
 
   val shards = ShardMap(totalShards)
   shards.assign(0, ShardManager.StandaloneAddress)
@@ -32,8 +32,12 @@ class StandaloneEntityManagerSpec(_system: ActorSystem) extends TestKit(_system)
   val clusterSettings = new ClusterSettings(enabled = false,
                                             seedNodes = Vector.empty,
                                             minNrMembers = 0,
-                                            totalShards,
-                                            deliveryAttempts,
+                                            totalShards = totalShards,
+                                            deliveryAttempts = 3,
+                                            clusterRole = None,
+                                            maxHandOverRetries = 10,
+                                            maxTakeOverRetries = 5,
+                                            retryInterval = 1.second,
                                             CoordinatorSettings("io.mandelbrot.core.entity.TestCoordinator", Some(coordinatorSettings)))
 
   val props = Props(classOf[StandaloneEntityManager], clusterSettings, TestEntity.propsCreator)

@@ -82,7 +82,6 @@ class ClusterMonitor(minNrMembers: Int) extends Actor with ActorLogging {
   }
 
   def sendCurrentState(currentState: ClusterMonitorEvent): Unit = {
-    context.parent ! currentState
     context.system.eventStream.publish(currentState)
   }
 }
@@ -91,7 +90,6 @@ object ClusterMonitor {
   def props(minNrMembers: Int) = Props(classOf[ClusterMonitor], minNrMembers)
 }
 
-sealed trait ClusterMonitorEvent
+sealed trait ClusterMonitorEvent { val state: CurrentClusterState }
 case class ClusterUp(leader: Address, state: CurrentClusterState) extends ClusterMonitorEvent
 case class ClusterDown(state: CurrentClusterState) extends ClusterMonitorEvent
-case object ClusterUnknown extends ClusterMonitorEvent

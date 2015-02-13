@@ -19,9 +19,12 @@
 
 package io.mandelbrot.core.entity
 
+import java.util.concurrent.TimeUnit
+
 import com.typesafe.config.Config
 import io.mandelbrot.core.{ServerConfigException, ServiceExtension}
 import scala.collection.JavaConversions._
+import scala.concurrent.duration.FiniteDuration
 
 case class CoordinatorSettings(plugin: String, settings: Option[Any])
 
@@ -30,6 +33,10 @@ class ClusterSettings(val enabled: Boolean,
                       val minNrMembers: Int,
                       val totalShards: Int,
                       val deliveryAttempts: Int,
+                      val clusterRole: Option[String],
+                      val maxHandOverRetries: Int,
+                      val maxTakeOverRetries: Int,
+                      val retryInterval: FiniteDuration,
                       val coordinator: CoordinatorSettings)
 
 object ClusterSettings {
@@ -39,12 +46,26 @@ object ClusterSettings {
     val minNrMembers = config.getInt("min-nr-members")
     val totalShards = config.getInt("total-shards")
     val deliveryAttempts = config.getInt("delivery-attempts")
+    val clusterRole: Option[String] = if (config.hasPath("cluster-role")) Some(config.getString("cluster-role")) else None
+    val maxHandOverRetries = config.getInt("balancer-handover-retries")
+    val maxTakeOverRetries = config.getInt("balancer-takeover-retries")
+    val units = TimeUnit.MILLISECONDS
+    val retryInterval = FiniteDuration(config.getDuration("balancer-retry-interval", units), units)
     val plugin = config.getString("plugin")
     if (!ServiceExtension.pluginImplements(plugin, classOf[Coordinator]))
       throw new ServerConfigException("%s is not recognized as an Coordinator plugin".format(plugin))
     val service = if (config.hasPath("plugin-settings")) {
       ServiceExtension.makePluginSettings(plugin, config.getConfig("plugin-settings"))
     } else None
-    new ClusterSettings(enabled, seedNodes.toVector, minNrMembers, totalShards, deliveryAttempts, CoordinatorSettings(plugin, service))
+    new ClusterSettings(enabled,
+                        seedNodes.toVector,
+                        minNrMembers,
+                        totalShards,
+                        deliveryAttempts,
+                        clusterRole,
+                        maxHandOverRetries,
+                        maxTakeOverRetries,
+                        retryInterval,
+                        CoordinatorSettings(plugin, service))
   }
 }

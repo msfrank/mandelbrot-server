@@ -24,7 +24,7 @@ import akka.actor._
 import akka.contrib.pattern.DistributedPubSubMediator
 
 import io.mandelbrot.core._
-import io.mandelbrot.core.entity.EntityFunctions.{ShardResolver, KeyExtractor, PropsCreator}
+import io.mandelbrot.core.entity.EntityFunctions.PropsCreator
 
 /**
  * 
@@ -34,10 +34,6 @@ class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator
   // config
   val selfAddress = Cluster(context.system).selfAddress
 
-  // state
-  var status: ClusterMonitorEvent = ClusterUnknown
-  var shardBalancer: Option[ActorRef] = None
-
   val coordinator = {
     val props = ServiceExtension.makePluginProps(settings.coordinator.plugin, settings.coordinator.settings)
     log.info("loading coordinator plugin {}", settings.coordinator.plugin)
@@ -46,10 +42,12 @@ class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator
 
   val clusterMonitor = context.actorOf(ClusterMonitor.props(settings.minNrMembers), "cluster-monitor")
   val gossiper = context.actorOf(DistributedPubSubMediator.props(None), "cluster-gossiper")
-  val shardManager = context.actorOf(ShardManager.props(context.parent, propsCreator, selfAddress, settings.totalShards, gossiper),
-    "entity-manager")
+  val shardManager = context.actorOf(ShardManager.props(context.parent, propsCreator, selfAddress, settings.totalShards, gossiper), "entity-manager")
+  val shardBalancer = context.actorOf(ShardBalancer.props(settings, context.parent, shardManager.path.elements), "shard-balancer")
 
   log.info("initializing cluster mode")
+
+  context.system.eventStream.subscribe(self, classOf[ClusterMonitorEvent])
 
   // we try to join immediately if seed nodes are specified
   override def preStart(): Unit = {
@@ -83,13 +81,12 @@ class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator
   // cluster is UP, we can service messages from clients
   def up: Receive = {
 
+    // cluster monitor emits this message
     case event: ClusterUp =>
-      status = event
 
     // cluster monitor emits this message
     case event: ClusterDown =>
       log.debug("cluster becomes DOWN")
-      status = event
       context.become(down)
 
     // forward any messages for the coordinator
@@ -107,12 +104,10 @@ class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator
     // cluster monitor emits this message
     case event: ClusterUp =>
       log.debug("cluster becomes UP")
-      status = event
       context.become(up)
 
     // cluster monitor emits this message
     case event: ClusterDown =>
-      status = event
 
     // tell client to try later
     case op: EntityServiceOperation =>
