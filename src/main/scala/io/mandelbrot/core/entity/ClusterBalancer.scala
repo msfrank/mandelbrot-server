@@ -28,9 +28,9 @@ import scala.concurrent.duration._
 /**
  *
  */
-class ShardBalancer(settings: ClusterSettings, services: ActorRef, nodePath: Iterable[String])
-  extends LoggingFSM[ShardBalancer.State,ShardBalancer.Data] {
-  import ShardBalancer._
+class ClusterBalancer(settings: ClusterSettings, services: ActorRef, nodePath: Iterable[String])
+  extends LoggingFSM[ClusterBalancer.State,ClusterBalancer.Data] {
+  import ClusterBalancer._
   import context.dispatcher
 
   // config
@@ -126,9 +126,9 @@ class ShardBalancer(settings: ClusterSettings, services: ActorRef, nodePath: Ite
   initialize()
 }
 
-object ShardBalancer {
+object ClusterBalancer {
   def props(settings: ClusterSettings, services: ActorRef, nodePath: Iterable[String]) = {
-    val props = Props(classOf[ShardBalancer], settings, services, nodePath)
+    val props = Props(classOf[ClusterBalancer], settings, services, nodePath)
     val role = settings.clusterRole
     val maxHandOverRetries = settings.maxHandOverRetries
     val maxTakeOverRetries = settings.maxTakeOverRetries

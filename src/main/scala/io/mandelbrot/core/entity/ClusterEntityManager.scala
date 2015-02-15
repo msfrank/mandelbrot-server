@@ -43,7 +43,7 @@ class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator
   val clusterMonitor = context.actorOf(ClusterMonitor.props(settings.minNrMembers), "cluster-monitor")
   val gossiper = context.actorOf(DistributedPubSubMediator.props(None), "cluster-gossiper")
   val shardManager = context.actorOf(ShardManager.props(context.parent, propsCreator, selfAddress, settings.totalShards, gossiper), "entity-manager")
-  val shardBalancer = context.actorOf(ShardBalancer.props(settings, context.parent, shardManager.path.elements), "shard-balancer")
+  val shardBalancer = context.actorOf(ClusterBalancer.props(settings, context.parent, shardManager.path.elements), "shard-balancer")
 
   log.info("initializing cluster mode")
 
