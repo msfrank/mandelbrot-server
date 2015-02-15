@@ -34,19 +34,20 @@ class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator
   // config
   val selfAddress = Cluster(context.system).selfAddress
 
+  // state
   val coordinator = {
     val props = ServiceExtension.makePluginProps(settings.coordinator.plugin, settings.coordinator.settings)
     log.info("loading coordinator plugin {}", settings.coordinator.plugin)
     context.actorOf(props, "coordinator")
   }
-
-  val clusterMonitor = context.actorOf(ClusterMonitor.props(settings.minNrMembers), "cluster-monitor")
-  val gossiper = context.actorOf(DistributedPubSubMediator.props(None), "cluster-gossiper")
-  val shardManager = context.actorOf(ShardManager.props(context.parent, propsCreator, selfAddress, settings.totalShards, gossiper), "entity-manager")
-  val shardBalancer = context.actorOf(ClusterBalancer.props(settings, context.parent, shardManager.path.elements), "shard-balancer")
+  var clusterMonitor = ActorRef.noSender
+  var gossiper = ActorRef.noSender
+  var shardManager = ActorRef.noSender
+  var shardBalancer = ActorRef.noSender
 
   log.info("initializing cluster mode")
 
+  // listen for ClusterUp and ClusterDown
   context.system.eventStream.subscribe(self, classOf[ClusterMonitorEvent])
 
   // we try to join immediately if seed nodes are specified
@@ -103,6 +104,15 @@ class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator
 
     // cluster monitor emits this message
     case event: ClusterUp =>
+      // create actors if they don't exist.  this should happen only once.
+      if (clusterMonitor.equals(ActorRef.noSender))
+        clusterMonitor = context.actorOf(ClusterMonitor.props(settings.minNrMembers), "cluster-monitor")
+      if (gossiper.equals(ActorRef.noSender))
+        gossiper = context.actorOf(DistributedPubSubMediator.props(None), "cluster-gossiper")
+      if (shardManager.equals(ActorRef.noSender))
+        shardManager = context.actorOf(ShardManager.props(context.parent, propsCreator, selfAddress, settings.totalShards, gossiper), "entity-manager")
+      if (shardBalancer.equals(ActorRef.noSender))
+        shardBalancer = context.actorOf(ClusterBalancer.props(settings, context.parent, shardManager.path.elements), "shard-balancer")
       log.debug("cluster becomes UP")
       context.become(up)
 
