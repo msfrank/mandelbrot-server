@@ -3,6 +3,9 @@ import Keys._
 import com.typesafe.sbt.SbtMultiJvm
 import com.typesafe.sbt.SbtMultiJvm.MultiJvmKeys.MultiJvm
 import sbtassembly.AssemblyPlugin.assemblySettings
+import sbtassembly.AssemblyKeys._
+import sbtassembly.PathList
+import sbtassembly.MergeStrategy
 
 object MandelbrotServerBuild extends Build {
 
@@ -56,11 +59,15 @@ object MandelbrotServerBuild extends Build {
         "io.spray" %% "spray-testkit" % sprayVersion % "test"
       ),
 
+      // don't run tests when building assembly jar
+      test in assembly := {},
+
       // add multi-jvm classes
-      unmanagedSourceDirectories in Test += baseDirectory.value / "src" / "multi-jvm" / "scala",
+      //unmanagedSourceDirectories in Test += baseDirectory.value / "src" / "multi-jvm" / "scala",
 
       // make sure that MultiJvm test are compiled by the default test compilation
       //compile in MultiJvm <<= (compile in MultiJvm) triggeredBy (compile in Test),
+
       // disable parallel tests
       parallelExecution in Test := false
 
@@ -97,7 +104,19 @@ object MandelbrotServerBuild extends Build {
         "com.datastax.cassandra" % "cassandra-driver-core" % datastaxVersion,
         "org.scalatest" %% "scalatest" % scalatestVersion % "test",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
-      )
+      ),
+
+      // specify the main class to use
+      mainClass in assembly := Some("io.mandelbrot.persistence.cassandra.CassandraApplication$"),
+
+      // don't run tests when building assembly jar
+      test in assembly := {},
+
+      // simply discard any files in META-INF/maven/
+      assemblyMergeStrategy in assembly := {
+        case PathList("META-INF", "maven", xs @_*) => MergeStrategy.discard
+        case otherwise => (assemblyMergeStrategy in assembly).value(otherwise)
+      }
 
   ).dependsOn(mandelbrotCoreBuild)
 
@@ -119,7 +138,10 @@ object MandelbrotServerBuild extends Build {
         "com.h2database" % "h2" % "1.4.177",
         "org.scalatest" %% "scalatest" % scalatestVersion % "test",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
-      )
+      ),
+
+      // don't run tests when building assembly jar
+      test in assembly := {}
 
   ).dependsOn(mandelbrotCoreBuild)
 
