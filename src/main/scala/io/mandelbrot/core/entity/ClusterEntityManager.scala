@@ -117,6 +117,12 @@ class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator
       val status = ClusterStatus(nodes, leader, unreachable)
       sender() ! GetClusterStatusResult(op, status)
 
+    // return the current shard map status
+    case op: GetShardMapStatus =>
+      if (shardManager == null)
+        sender() ! EntityServiceOperationFailed(op, ApiException(RetryLater))
+      else shardManager.forward(op)
+
     // tell client to try later
     case op: EntityServiceOperation =>
       sender() ! EntityServiceOperationFailed(op, ApiException(RetryLater))
@@ -159,6 +165,10 @@ class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator
       val unreachable = clusterState.getUnreachable.map(_.address)
       val status = ClusterStatus(nodes, leader, unreachable)
       sender() ! GetClusterStatusResult(op, status)
+
+    // return the current shard map status
+    case op: GetShardMapStatus =>
+      shardManager forward op
 
     // forward any messages for the coordinator
     case op: EntityServiceOperation =>

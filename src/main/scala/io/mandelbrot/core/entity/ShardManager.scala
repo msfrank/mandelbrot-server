@@ -122,6 +122,10 @@ class ShardManager(services: ActorRef,
     case envelope: EntityEnvelope =>
       deliverEnvelope(envelope)
 
+    // return the shard map entries
+    case op: GetShardMapStatus =>
+      sender() ! GetShardMapStatusResult(op, ShardMapStatus(shardMap.shards.toSet, totalShards))
+
     // a shard terminated  
     case Terminated(ref) =>
       val shardId = shardForEntities.remove(ref)
@@ -223,6 +227,10 @@ class ShardManager(services: ActorRef,
           case entry =>
         }
       }
+
+    // return the shard map entries
+    case op: GetShardMapStatus =>
+      sender() ! GetShardMapStatusResult(op, ShardMapStatus(shardMap.shards.toSet, totalShards))
 
     // a shard terminated
     case Terminated(ref) =>

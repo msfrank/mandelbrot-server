@@ -453,6 +453,7 @@ object JsonProtocol extends DefaultJsonProtocol {
     def read(value: JsValue) = AddressFromURIString(value.toString())
   }
 
+  /* convert MemberStatus class */
   implicit object MemberStatusFormat extends RootJsonFormat[MemberStatus] {
     import akka.cluster.MemberStatus._
     def write(status: MemberStatus) = status match {
@@ -474,6 +475,66 @@ object JsonProtocol extends DefaultJsonProtocol {
       case unknown => throw new DeserializationException("unknown MemberStatus type " + value.toString())
     }
   }
+
+  /* convert ShardEntry class */
+  implicit object ShardEntryFormat extends RootJsonFormat[ShardEntry] {
+    def write(entry: ShardEntry) = entry match {
+      case AssignedShardEntry(shardId, address) =>
+        JsObject(Map(
+          "status" -> JsString("assigned"),
+          "shardId" -> JsNumber(shardId),
+          "address" -> JsString(address.toString)
+        ))
+      case PreparingShardEntry(shardId, address) =>
+        JsObject(Map(
+          "status" -> JsString("preparing"),
+          "shardId" -> JsNumber(shardId),
+          "address" -> JsString(address.toString)
+        ))
+      case MigratingShardEntry(shardId, address) =>
+        JsObject(Map(
+          "status" -> JsString("migrating"),
+          "shardId" -> JsNumber(shardId),
+          "address" -> JsString(address.toString)
+        ))
+      case MissingShardEntry(shardId) =>
+        JsObject(Map(
+          "status" -> JsString("assigned"),
+          "shardId" -> JsNumber(shardId)
+        ))
+    }
+    def read(value: JsValue): ShardEntry = value match {
+      case JsObject(fields) =>
+        val shardId = fields.get("shardId") match {
+          case Some(JsNumber(number)) => number.toInt
+          case None => throw new DeserializationException("ShardEntry missing field 'shardId'")
+          case unknown => throw new DeserializationException("failed to parse ShardEntry field 'shardId'")
+        }
+        val address = fields.get("address") map {
+          case JsString(string) => AddressFromURIString(string)
+          case unknown => throw new DeserializationException("failed to parse ShardEntry field 'status'")
+        }
+        fields.get("status") match {
+          case Some(JsString("missing")) if address.isEmpty =>
+            MissingShardEntry(shardId)
+          case Some(JsString("assigned")) if address.isDefined =>
+            AssignedShardEntry(shardId, address.get)
+          case Some(JsString("preparing")) if address.isDefined =>
+            PreparingShardEntry(shardId, address.get)
+          case Some(JsString("migrating")) if address.isDefined =>
+            MigratingShardEntry(shardId, address.get)
+          case None =>
+            throw new DeserializationException("ShardEntry missing field 'status'")
+          case unknown =>
+            throw new DeserializationException("failed to parse ShardEntry format")
+        }
+      case unknown =>
+        throw new DeserializationException("unknown ShardEntry format")
+    }
+  }
+
+  /* convert ShardMapStatus class */
+  implicit val ShardMapStatusFormat = jsonFormat2(ShardMapStatus)
 
   /* convert ClusterStatus class */
   implicit val NodeStatusFormat = jsonFormat4(NodeStatus)

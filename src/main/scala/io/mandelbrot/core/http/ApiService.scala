@@ -431,7 +431,20 @@ trait ApiService extends HttpService {
   }
 
   val clusterRoutes = {
-    path("cluster") {
+    path("shards") {
+      /* get the status of the cluster */
+      get {
+        complete {
+          serviceProxy.ask(GetShardMapStatus()).map {
+            case result: GetShardMapStatusResult =>
+              result.status
+            case failure: ServiceOperationFailed =>
+              throw failure.failure
+          }
+        }
+      }
+    } ~
+    path("nodes") {
       /* get the status of the cluster */
       get {
         complete {
@@ -442,28 +455,16 @@ trait ApiService extends HttpService {
               throw failure.failure
           }
         }
-      } ~
-      path("node") {
-        get {
-          complete {
-            serviceProxy.ask(GetNodeStatus(None)).map {
-              case result: GetNodeStatusResult =>
-                result.status
-              case failure: ServiceOperationFailed =>
-                throw failure.failure
-            }
-          }
-        }
-      } ~
-      pathPrefix("node" / ClusterAddress) { case address =>
-        get {
-          complete {
-            serviceProxy.ask(GetNodeStatus(Some(address))).map {
-              case result: GetNodeStatusResult =>
-                result.status
-              case failure: ServiceOperationFailed =>
-                throw failure.failure
-            }
+      }
+    } ~
+    pathPrefix("nodes" / ClusterAddress) { case address =>
+      get {
+        complete {
+          serviceProxy.ask(GetNodeStatus(Some(address))).map {
+            case result: GetNodeStatusResult =>
+              result.status
+            case failure: ServiceOperationFailed =>
+              throw failure.failure
           }
         }
       }

@@ -24,6 +24,7 @@ case class Shard(shardId: Int, address: Address)
 case class Entity(shardId: Int, entityKey: String)
 case class NodeStatus(address: Address, uid: Int, status: MemberStatus, roles: Set[String])
 case class ClusterStatus(nodes: Vector[NodeStatus], leader: Option[Address], unreachable: Set[Address])
+case class ShardMapStatus(shards: Set[ShardEntry], totalShards: Int)
 
 sealed trait EntityServiceOperation extends ServiceOperation
 sealed trait EntityServiceCommand extends ServiceCommand with EntityServiceOperation
@@ -59,6 +60,9 @@ case class GetNodeStatusResult(op: GetNodeStatus, status: NodeStatus)
 
 case class GetClusterStatus() extends EntityServiceQuery
 case class GetClusterStatusResult(op: GetClusterStatus, status: ClusterStatus)
+
+case class GetShardMapStatus() extends EntityServiceQuery
+case class GetShardMapStatusResult(op: GetShardMapStatus, status: ShardMapStatus)
 
 /* marker trait for Coordinator implementations */
 trait Coordinator
