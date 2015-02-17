@@ -19,6 +19,7 @@
 
 package io.mandelbrot.core.http
 
+import akka.actor.{AddressFromURIString, Address}
 import org.joda.time.DateTime
 import org.joda.time.format.ISODateTimeFormat
 import spray.http.{HttpHeader, HttpHeaders}
@@ -113,6 +114,18 @@ object Uri extends PathMatcher1[URI] {
   def apply(path: Path) = path match {
     case Path.Segment(segment, tail) =>
       Matched(tail, new URI(segment) :: HNil)
+    case _ =>
+      Unmatched
+  }
+}
+
+/**
+ *
+ */
+object ClusterAddress extends PathMatcher1[Address] {
+  def apply(path: Path) = path match {
+    case Path.Segment(segment, tail) =>
+      Matched(tail, AddressFromURIString(segment) :: HNil)
     case _ =>
       Unmatched
   }

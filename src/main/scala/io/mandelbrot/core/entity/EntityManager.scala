@@ -1,6 +1,7 @@
 package io.mandelbrot.core.entity
 
 import akka.actor.{Address, Props}
+import akka.cluster.{UniqueAddress, MemberStatus}
 
 import io.mandelbrot.core.{ServiceQuery, ServiceCommand, ServiceOperationFailed, ServiceOperation}
 import io.mandelbrot.core.entity.EntityFunctions.PropsCreator
@@ -21,6 +22,8 @@ case class JoinCluster(seedNodes: Vector[String])
 
 case class Shard(shardId: Int, address: Address)
 case class Entity(shardId: Int, entityKey: String)
+case class NodeStatus(address: Address, uid: Int, status: MemberStatus, roles: Set[String])
+case class ClusterStatus(nodes: Vector[NodeStatus], leader: Option[Address], unreachable: Set[Address])
 
 sealed trait EntityServiceOperation extends ServiceOperation
 sealed trait EntityServiceCommand extends ServiceCommand with EntityServiceOperation
@@ -50,6 +53,12 @@ case class CreateEntityResult(op: CreateEntity)
 
 case class DeleteEntity(shardId: Int, entityKey: String) extends EntityServiceCommand
 case class DeleteEntityResult(op: DeleteEntity)
+
+case class GetNodeStatus(node: Option[Address]) extends EntityServiceQuery
+case class GetNodeStatusResult(op: GetNodeStatus, status: NodeStatus)
+
+case class GetClusterStatus() extends EntityServiceQuery
+case class GetClusterStatusResult(op: GetClusterStatus, status: ClusterStatus)
 
 /* marker trait for Coordinator implementations */
 trait Coordinator

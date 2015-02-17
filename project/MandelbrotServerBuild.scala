@@ -107,7 +107,7 @@ object MandelbrotServerBuild extends Build {
       ),
 
       // specify the main class to use
-      mainClass in assembly := Some("io.mandelbrot.persistence.cassandra.CassandraApplication$"),
+      mainClass in assembly := Some("io.mandelbrot.persistence.cassandra.CassandraApplication"),
 
       // don't run tests when building assembly jar
       test in assembly := {},

@@ -19,9 +19,10 @@
 
 package io.mandelbrot.core.entity
 
-import akka.cluster.{MemberStatus, Cluster}
-import akka.cluster.ClusterEvent._
 import akka.actor._
+import akka.cluster.{UniqueAddress, Member, MemberStatus, Cluster}
+import akka.cluster.ClusterEvent._
+import scala.collection.SortedSet
 
 /**
  * The ClusterMonitor listens for akka cluster domain events and decides when
@@ -30,7 +31,9 @@ import akka.actor._
 class ClusterMonitor(minNrMembers: Int) extends Actor with ActorLogging {
 
   // state
-  var running = false
+  var members: SortedSet[Member] = SortedSet.empty
+  var leader: Option[Address] = None
+  var unreachable: Set[Member] = Set.empty
 
   override def preStart(): Unit = {
     Cluster(context.system).subscribe(self, classOf[ClusterDomainEvent])
@@ -38,50 +41,65 @@ class ClusterMonitor(minNrMembers: Int) extends Actor with ActorLogging {
 
   override def postStop(): Unit = {
     Cluster(context.system).unsubscribe(self)
+    members = SortedSet.empty
+    leader = None
+    unreachable = Set.empty
   }
 
   def receive = {
 
+    case state: CurrentClusterState =>
+      members = state.members
+      leader = state.leader
+      unreachable = state.unreachable
+      log.debug("received initial cluster state")
+      sendCurrentState(currentState)
+
     case MemberUp(member) =>
+      members = members + member
       log.debug("cluster member {} is now UP", member)
       sendCurrentState(currentState)
 
     case MemberExited(member) =>
+      members = members + member
       log.debug("cluster member {} exits", member)
       sendCurrentState(currentState)
 
     case MemberRemoved(member, previous) =>
+      members = members - member
       log.debug("cluster member {} has been removed", member)
       sendCurrentState(currentState)
 
-    case LeaderChanged(leader) =>
+    case LeaderChanged(newLeader) =>
+      leader = newLeader
       log.debug("cluster leader changes to {}", leader)
       sendCurrentState(currentState)
 
     case ReachableMember(member) =>
+      unreachable = unreachable - member
       log.debug("cluster member {} becomes reachable", member)
       sendCurrentState(currentState)
 
     case UnreachableMember(member) =>
+      unreachable = unreachable + member
       log.debug("cluster member {} becomes unreachable", member)
       sendCurrentState(currentState)
 
-    case event: ClusterDomainEvent =>
-      //log.debug("ignoring cluster domain event {}", event)
+    case event: ClusterMetricsChanged =>
+      // ignore this message for now
   }
 
-  def currentState: ClusterMonitorEvent = {
-    val state = Cluster(context.system).state
-    val membersUp = state.members.foldLeft(0) {
+  def currentState: ClusterState = {
+    val membersUp = members.foldLeft(0) {
       case (numUp, member) => if (member.status.equals(MemberStatus.up)) numUp + 1 else numUp
     }
-    if (membersUp < minNrMembers || state.leader.isEmpty)
-      ClusterDown(state)
+    if (membersUp < minNrMembers || leader.isEmpty)
+      ClusterDown(leader, members)
     else
-      ClusterUp(state.leader.get, state)
+      ClusterUp(leader.get, members, unreachable)
   }
 
-  def sendCurrentState(currentState: ClusterMonitorEvent): Unit = {
+  def sendCurrentState(currentState: ClusterState): Unit = {
     context.system.eventStream.publish(currentState)
   }
 }
@@ -90,6 +108,22 @@ object ClusterMonitor {
   def props(minNrMembers: Int) = Props(classOf[ClusterMonitor], minNrMembers)
 }
 
-sealed trait ClusterMonitorEvent { val state: CurrentClusterState }
-case class ClusterUp(leader: Address, state: CurrentClusterState) extends ClusterMonitorEvent
-case class ClusterDown(state: CurrentClusterState) extends ClusterMonitorEvent
+sealed trait ClusterState {
+  val members: SortedSet[Member]
+  def getMember(address: Address): Option[Member] = members.find(_.uniqueAddress.address.equals(address))
+  def getMember(uniqueAddress: UniqueAddress): Option[Member] = members.find(_.uniqueAddress.equals(uniqueAddress))
+  def getLeader: Option[Address]
+  def getUnreachable: Set[Member]
+}
+
+object ClusterState {
+  val initialState = ClusterDown(None, SortedSet.empty)
+}
+case class ClusterUp(leader: Address, members: SortedSet[Member], unreachable: Set[Member]) extends ClusterState {
+  def getLeader = Some(leader)
+  def getUnreachable = unreachable
+}
+case class ClusterDown(leader: Option[Address], members: SortedSet[Member]) extends ClusterState {
+  def getLeader = leader
+  def getUnreachable = Set.empty
+}

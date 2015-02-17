@@ -40,7 +40,7 @@ class ClusterBalancer(settings: ClusterSettings, services: ActorRef, nodePath: I
   var members: SortedSet[Member] = SortedSet.empty
 
   // subscribe to events from ClusterMonitor
-  context.system.eventStream.subscribe(self, classOf[ClusterMonitorEvent])
+  context.system.eventStream.subscribe(self, classOf[ClusterState])
 
   startWith(Down, Down(1))
 
@@ -48,7 +48,7 @@ class ClusterBalancer(settings: ClusterSettings, services: ActorRef, nodePath: I
 
     // cluster is up, start the balancer
     case Event(event: ClusterUp, state: Down) =>
-      members = event.state.members
+      members = event.members
       val nodes: Map[Address,ActorPath] = members.filter { member =>
         member.status.equals(MemberStatus.Up)
       }.map { member =>
@@ -59,8 +59,8 @@ class ClusterBalancer(settings: ClusterSettings, services: ActorRef, nodePath: I
       goto(Running) using Running(balancer, state.version + 1)
 
     // do nothing
-    case Event(event: ClusterMonitorEvent, state: Down) =>
-      members = event.state.members
+    case Event(event: ClusterState, state: Down) =>
+      members = event.members
       stay()
   }
 
@@ -80,13 +80,13 @@ class ClusterBalancer(settings: ClusterSettings, services: ActorRef, nodePath: I
 
     // cluster is down, cancel the delay
     case Event(event: ClusterDown, state: Waiting) =>
-      members = event.state.members
+      members = event.members
       state.delay.cancel()
       goto(Down) using Down(state.version)
 
     // do nothing
-    case Event(event: ClusterMonitorEvent, state: Waiting) =>
-      members = event.state.members
+    case Event(event: ClusterState, state: Waiting) =>
+      members = event.members
       stay()
   }
 
@@ -99,13 +99,13 @@ class ClusterBalancer(settings: ClusterSettings, services: ActorRef, nodePath: I
 
     // cluster is down, terminate the balancer actor
     case Event(event: ClusterDown, state: Running) =>
-      members = event.state.members
+      members = event.members
       context.stop(state.balancer)
       stay() using Down(state.version)
 
     // do nothing
-    case Event(event: ClusterMonitorEvent, state: Running) =>
-      members = event.state.members
+    case Event(event: ClusterState, state: Running) =>
+      members = event.members
       stay()
 
     // balancer completed and actor has terminated

@@ -19,9 +19,10 @@
 
 package io.mandelbrot.core.entity
 
-import akka.cluster.Cluster
 import akka.actor._
+import akka.cluster.{UniqueAddress, Cluster}
 import akka.contrib.pattern.DistributedPubSubMediator
+import scala.collection.immutable.SortedSet
 
 import io.mandelbrot.core._
 import io.mandelbrot.core.entity.EntityFunctions.PropsCreator
@@ -32,7 +33,11 @@ import io.mandelbrot.core.entity.EntityFunctions.PropsCreator
 class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator) extends Actor with ActorLogging {
 
   // config
-  val selfAddress = Cluster(context.system).selfAddress
+  val selfAddress: Address = Cluster(context.system).selfAddress
+  val selfUniqueAddress: UniqueAddress = Cluster(context.system).selfUniqueAddress
+
+  // subscribe to ClusterUp and ClusterDown before starting ClusterMonitor
+  context.system.eventStream.subscribe(self, classOf[ClusterState])
 
   // state
   val coordinator = {
@@ -40,35 +45,77 @@ class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator
     log.info("loading coordinator plugin {}", settings.coordinator.plugin)
     context.actorOf(props, "coordinator")
   }
-  var clusterMonitor = ActorRef.noSender
-  var gossiper = ActorRef.noSender
-  var shardManager = ActorRef.noSender
-  var shardBalancer = ActorRef.noSender
+  val clusterMonitor = context.actorOf(ClusterMonitor.props(settings.minNrMembers), "cluster-monitor")
+
+  // these actors are created when cluster moves to UP
+  var shardManager: ActorRef = null
+  var shardBalancer: ActorRef = null
+  var gossiper: ActorRef = null
+  var clusterState: ClusterState = ClusterState.initialState
 
   log.info("initializing cluster mode")
 
-  // listen for ClusterUp and ClusterDown
-  context.system.eventStream.subscribe(self, classOf[ClusterMonitorEvent])
-
   // we try to join immediately if seed nodes are specified
   override def preStart(): Unit = {
-    if (settings.seedNodes.nonEmpty) {
-      Cluster(context.system).joinSeedNodes(settings.seedNodes.map(AddressFromURIString(_)).toSeq)
-      log.info("joining cluster using seed nodes {}", settings.seedNodes.mkString(","))
-      context.become(down)
-    } else log.info("waiting for seed nodes")
+    val seedNodes = scala.collection.immutable.Seq(settings.seedNodes.map(AddressFromURIString(_)) :_*)
+    seedNodes.headOption match {
+      case None =>
+        val nodes = scala.collection.immutable.Seq(selfAddress)
+        Cluster(context.system).joinSeedNodes(nodes)
+        log.info("starting seed with addresses {}", nodes.mkString(", "))
+      case Some(address) if address.equals(selfAddress) =>
+        val nodes = scala.collection.immutable.Seq(seedNodes.toSeq :_*)
+        Cluster(context.system).joinSeedNodes(nodes)
+        log.info("starting seed with addresses {}", nodes.mkString(", "))
+      case Some(address) =>
+        val nodes = seedNodes.filterNot(_.equals(selfAddress))
+        Cluster(context.system).joinSeedNodes(nodes)
+        log.info("joining cluster using seeds {}", nodes.mkString(", "))
+    }
   }
 
-  def receive = waiting
+  def receive = down
 
-  // wait for cluster join message containing seed nodes
-  def waiting: Receive = {
+  // cluster is down, we just tell client to try again later
+  def down: Receive = {
 
-    case op: JoinCluster =>
-      val seedNodes = op.seedNodes.map(AddressFromURIString(_)).toSeq
-      Cluster(context.system).joinSeedNodes(seedNodes)
-      log.debug("joining cluster using seed nodes {}", seedNodes.mkString(","))
-      context.become(down)
+    // cluster monitor emits this message
+    case state: ClusterUp =>
+      clusterState =  state
+      // create actors if they don't exist.  this should happen only once.
+      if (gossiper == null)
+        gossiper = context.actorOf(DistributedPubSubMediator.props(None), "cluster-gossiper")
+      if (shardManager == null)
+        shardManager = context.actorOf(ShardManager.props(context.parent, propsCreator, selfAddress, settings.totalShards, gossiper), "entity-manager")
+      if (shardBalancer == null)
+        shardBalancer = context.actorOf(ClusterBalancer.props(settings, context.parent, shardManager.path.elements), "shard-balancer")
+      log.debug("cluster becomes UP")
+      context.become(up)
+
+    // cluster monitor emits this message
+    case state: ClusterDown =>
+      clusterState = state
+
+    // return the current status for the specified node
+    case op: GetNodeStatus =>
+      val address = op.node.getOrElse(selfAddress)
+      clusterState.getMember(address) match {
+        case Some(member) =>
+          val status = NodeStatus(selfUniqueAddress.address, selfUniqueAddress.uid, member.status, member.roles)
+          sender() ! GetNodeStatusResult(op, status)
+        case None =>
+          sender() ! EntityServiceOperationFailed(op, ApiException(ResourceNotFound))
+      }
+
+    // return the current cluster status
+    case op: GetClusterStatus =>
+      val nodes = clusterState.members.map {
+        case m => NodeStatus(m.uniqueAddress.address, m.uniqueAddress.uid, m.status, m.roles)
+      }.toVector
+      val leader = clusterState.getLeader
+      val unreachable = clusterState.getUnreachable.map(_.address)
+      val status = ClusterStatus(nodes, leader, unreachable)
+      sender() ! GetClusterStatusResult(op, status)
 
     // tell client to try later
     case op: EntityServiceOperation =>
@@ -83,12 +130,35 @@ class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator
   def up: Receive = {
 
     // cluster monitor emits this message
-    case event: ClusterUp =>
+    case state: ClusterUp =>
+      clusterState = state
 
     // cluster monitor emits this message
-    case event: ClusterDown =>
+    case state: ClusterDown =>
+      clusterState = state
       log.debug("cluster becomes DOWN")
       context.become(down)
+
+    // return the current status for the specified node
+    case op: GetNodeStatus =>
+      val address = op.node.getOrElse(selfAddress)
+      clusterState.getMember(address) match {
+        case Some(member) =>
+          val status = NodeStatus(selfUniqueAddress.address, selfUniqueAddress.uid, member.status, member.roles)
+          sender() ! GetNodeStatusResult(op, status)
+        case None =>
+          sender() ! EntityServiceOperationFailed(op, ApiException(ResourceNotFound))
+      }
+
+    // return the current cluster status
+    case op: GetClusterStatus =>
+      val nodes = clusterState.members.map {
+        case m => NodeStatus(m.uniqueAddress.address, m.uniqueAddress.uid, m.status, m.roles)
+      }.toVector
+      val leader = clusterState.getLeader
+      val unreachable = clusterState.getUnreachable.map(_.address)
+      val status = ClusterStatus(nodes, leader, unreachable)
+      sender() ! GetClusterStatusResult(op, status)
 
     // forward any messages for the coordinator
     case op: EntityServiceOperation =>
@@ -99,32 +169,4 @@ class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator
       shardManager ! envelope
   }
 
-  // cluster is down, we just tell client to try again later
-  def down: Receive = {
-
-    // cluster monitor emits this message
-    case event: ClusterUp =>
-      // create actors if they don't exist.  this should happen only once.
-      if (clusterMonitor.equals(ActorRef.noSender))
-        clusterMonitor = context.actorOf(ClusterMonitor.props(settings.minNrMembers), "cluster-monitor")
-      if (gossiper.equals(ActorRef.noSender))
-        gossiper = context.actorOf(DistributedPubSubMediator.props(None), "cluster-gossiper")
-      if (shardManager.equals(ActorRef.noSender))
-        shardManager = context.actorOf(ShardManager.props(context.parent, propsCreator, selfAddress, settings.totalShards, gossiper), "entity-manager")
-      if (shardBalancer.equals(ActorRef.noSender))
-        shardBalancer = context.actorOf(ClusterBalancer.props(settings, context.parent, shardManager.path.elements), "shard-balancer")
-      log.debug("cluster becomes UP")
-      context.become(up)
-
-    // cluster monitor emits this message
-    case event: ClusterDown =>
-
-    // tell client to try later
-    case op: EntityServiceOperation =>
-      sender() ! EntityServiceOperationFailed(op, ApiException(RetryLater))
-
-    // tell client to try later
-    case envelope: EntityEnvelope =>
-      sender() ! EntityDeliveryFailed(envelope.op, ApiException(RetryLater))
-  }
 }

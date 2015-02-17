@@ -19,11 +19,11 @@
 
 package io.mandelbrot.core.http
 
-import akka.actor.{Props, ActorRef, ActorSystem}
+import akka.actor.{ActorRef, ActorSystem}
 import akka.pattern.ask
 import akka.util.Timeout
 import akka.event.LoggingAdapter
-import spray.routing.{Route, HttpService, ExceptionHandler}
+import spray.routing.{HttpService, ExceptionHandler}
 import spray.http._
 import spray.http.HttpHeaders.Location
 import spray.util.LoggingContext
@@ -33,10 +33,9 @@ import java.net.URI
 import java.util.UUID
 
 import io.mandelbrot.core._
+import io.mandelbrot.core.entity._
 import io.mandelbrot.core.system._
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.state._
-import io.mandelbrot.core.history._
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.tracking._
 
@@ -431,6 +430,46 @@ trait ApiService extends HttpService {
     }
   }
 
+  val clusterRoutes = {
+    path("cluster") {
+      /* get the status of the cluster */
+      get {
+        complete {
+          serviceProxy.ask(GetClusterStatus()).map {
+            case result: GetClusterStatusResult =>
+              result.status
+            case failure: ServiceOperationFailed =>
+              throw failure.failure
+          }
+        }
+      } ~
+      path("node") {
+        get {
+          complete {
+            serviceProxy.ask(GetNodeStatus(None)).map {
+              case result: GetNodeStatusResult =>
+                result.status
+              case failure: ServiceOperationFailed =>
+                throw failure.failure
+            }
+          }
+        }
+      } ~
+      pathPrefix("node" / ClusterAddress) { case address =>
+        get {
+          complete {
+            serviceProxy.ask(GetNodeStatus(Some(address))).map {
+              case result: GetNodeStatusResult =>
+                result.status
+              case failure: ServiceOperationFailed =>
+                throw failure.failure
+            }
+          }
+        }
+      }
+    }
+  }
+
   val objectsRoutes = pathPrefix("objects") {
     objectsSystemsRoutes ~ objectsWindowsRoutes ~ objectsRulesRoutes
   }
@@ -489,7 +528,7 @@ trait ApiService extends HttpService {
 //    }
 //  }
 
-  val version1 = objectsRoutes
+  val version1 = objectsRoutes ~ clusterRoutes
 
   val routes =  version1
 

@@ -19,6 +19,8 @@
 
 package io.mandelbrot.core.http
 
+import akka.actor.{AddressFromURIString, Address}
+import akka.cluster.MemberStatus
 import spray.json._
 import spray.http.{ContentTypes, HttpEntity}
 import org.joda.time.DateTime
@@ -30,6 +32,7 @@ import java.net.URI
 import java.util.concurrent.TimeUnit
 import java.nio.charset.Charset
 
+import io.mandelbrot.core.entity._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.history._
 import io.mandelbrot.core.metrics._
@@ -443,6 +446,40 @@ object JsonProtocol extends DefaultJsonProtocol {
       }
     }
   }
+
+  /* convert Address class */
+  implicit object ClusterAddressFormat extends RootJsonFormat[Address] {
+    def write(address: Address) = JsString(address.toString)
+    def read(value: JsValue) = AddressFromURIString(value.toString())
+  }
+
+  implicit object MemberStatusFormat extends RootJsonFormat[MemberStatus] {
+    import akka.cluster.MemberStatus._
+    def write(status: MemberStatus) = status match {
+      case Up => JsString("up")
+      case Down => JsString("down")
+      case Exiting => JsString("exiting")
+      case Joining => JsString("joining")
+      case Leaving => JsString("leaving")
+      case Removed => JsString("removed")
+      case unknown => throw new DeserializationException("unknown MemberStatus type " + status.toString)
+    }
+    def read(value: JsValue) = value match {
+      case JsString("up") => Up
+      case JsString("down") => Down
+      case JsString("exiting") => Exiting
+      case JsString("joining") => Joining
+      case JsString("leaving") => Leaving
+      case JsString("removed") => Removed
+      case unknown => throw new DeserializationException("unknown MemberStatus type " + value.toString())
+    }
+  }
+
+  /* convert ClusterStatus class */
+  implicit val NodeStatusFormat = jsonFormat4(NodeStatus)
+
+  /* convert ClusterStatus class */
+  implicit val ClusterStatusFormat = jsonFormat3(ClusterStatus)
 }
 
 object JsonBody {
