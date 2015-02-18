@@ -49,8 +49,7 @@ class CoordinatorDriver(settings: CassandraCoordinatorSettings, session: Session
   def createShard(op: CreateShard, timestamp: DateTime): Future[CreateShardResult] = {
     val shardId: java.lang.Integer = op.shardId
     val address: String = op.address.toString
-    val f = session.executeAsync(new BoundStatement(preparedCreateShard).bind(shardId, address, timestamp.toDate))
-    guavaFutureToAkka(f).map {
+    session.executeAsync(new BoundStatement(preparedCreateShard).bind(shardId, address, timestamp.toDate)).map {
       case resultSet if !resultSet.wasApplied() => throw ApiException(Conflict)
       case _ => CreateShardResult(op)
     }
@@ -68,8 +67,7 @@ class CoordinatorDriver(settings: CassandraCoordinatorSettings, session: Session
     val shardId: java.lang.Integer = op.shardId
     val address: String = op.address.toString
     val prev: String = op.prev.toString
-    val f = session.executeAsync(new BoundStatement(preparedUpdateShard).bind(address, timestamp.toDate, shardId, prev))
-    guavaFutureToAkka(f).map {
+    session.executeAsync(new BoundStatement(preparedUpdateShard).bind(address, timestamp.toDate, shardId, prev)).map {
       case resultSet if !resultSet.wasApplied() => throw ApiException(Conflict)
       case _ => UpdateShardResult(op)
     }
@@ -83,8 +81,7 @@ class CoordinatorDriver(settings: CassandraCoordinatorSettings, session: Session
 
   def getShard(op: GetShard): Future[GetShardResult] = {
     val shardId: java.lang.Integer = op.shardId
-    val f = session.executeAsync(new BoundStatement(preparedGetShard).bind(shardId))
-    guavaFutureToAkka(f).map { resultSet =>
+    session.executeAsync(new BoundStatement(preparedGetShard).bind(shardId)).map { resultSet =>
       val row = resultSet.one()
       if (row != null) {
         val shardId = row.getInt(0)
@@ -106,8 +103,7 @@ class CoordinatorDriver(settings: CassandraCoordinatorSettings, session: Session
   def listShards(op: ListShards): Future[ListShardsResult] = {
     val shardId: java.lang.Integer = op.token.map(1 + _.shardId: java.lang.Integer).getOrElse(0)
     val limit: java.lang.Integer = op.limit
-    val f = session.executeAsync(new BoundStatement(preparedListShards).bind(shardId, limit))
-    guavaFutureToAkka(f).map { resultSet =>
+    session.executeAsync(new BoundStatement(preparedListShards).bind(shardId, limit)).map { resultSet =>
       val shards = resultSet.all().map { row =>
         val shardId = row.getInt(0)
         val address = AddressFromURIString(row.getString(1))
@@ -119,8 +115,7 @@ class CoordinatorDriver(settings: CassandraCoordinatorSettings, session: Session
   }
 
   def flushShards(): Future[Unit] = {
-    val f = session.executeAsync(s"TRUNCATE $shardsTableName")
-    guavaFutureToAkka(f).map { resultSet => }
+    session.executeAsync(s"TRUNCATE $shardsTableName").map { resultSet => }
   }
 
   val preparedCreateEntity = session.prepare(
@@ -132,8 +127,7 @@ class CoordinatorDriver(settings: CassandraCoordinatorSettings, session: Session
   def createEntity(op: CreateEntity, timestamp: DateTime): Future[CreateEntityResult] = {
     val shardId: java.lang.Integer = op.shardId
     val entityKey: String = op.entityKey
-    val f = session.executeAsync(new BoundStatement(preparedCreateEntity).bind(shardId, entityKey, timestamp.toDate))
-    guavaFutureToAkka(f).map {
+    session.executeAsync(new BoundStatement(preparedCreateEntity).bind(shardId, entityKey, timestamp.toDate)).map {
       case _ => CreateEntityResult(op)
     }
   }
@@ -147,8 +141,7 @@ class CoordinatorDriver(settings: CassandraCoordinatorSettings, session: Session
   def getEntity(op: GetEntity): Future[GetEntityResult] = {
     val shardId: java.lang.Integer = op.shardId
     val entityKey: String = op.entityKey
-    val f = session.executeAsync(new BoundStatement(preparedGetEntity).bind(shardId, entityKey))
-    guavaFutureToAkka(f).map { resultSet =>
+    session.executeAsync(new BoundStatement(preparedGetEntity).bind(shardId, entityKey)).map { resultSet =>
       val row = resultSet.one()
       if (row != null) {
         val shardId = row.getInt(0)
@@ -167,8 +160,7 @@ class CoordinatorDriver(settings: CassandraCoordinatorSettings, session: Session
   def deleteEntity(op: DeleteEntity): Future[DeleteEntityResult] = {
     val shardId: java.lang.Integer = op.shardId
     val entityKey: String = op.entityKey
-    val f = session.executeAsync(new BoundStatement(preparedDeleteEntity).bind(shardId, entityKey))
-    guavaFutureToAkka(f).map {
+    session.executeAsync(new BoundStatement(preparedDeleteEntity).bind(shardId, entityKey)).map {
       case _ => DeleteEntityResult(op)
     }
   }
@@ -185,8 +177,7 @@ class CoordinatorDriver(settings: CassandraCoordinatorSettings, session: Session
     val shardId: java.lang.Integer = op.shardId
     val entityKey: java.lang.String = op.token.map(_.entityKey).getOrElse("")
     val limit: java.lang.Integer = op.limit
-    val f = session.executeAsync(new BoundStatement(preparedListEntities).bind(shardId, entityKey, limit))
-    guavaFutureToAkka(f).map { resultSet =>
+    session.executeAsync(new BoundStatement(preparedListEntities).bind(shardId, entityKey, limit)).map { resultSet =>
       val entities = resultSet.all().map { row =>
         val shardId = row.getInt(0)
         val entityKey = row.getString(1)
@@ -198,7 +189,6 @@ class CoordinatorDriver(settings: CassandraCoordinatorSettings, session: Session
   }
 
   def flushEntities(): Future[Unit] = {
-    val f = session.executeAsync(s"TRUNCATE $entitiesTableName")
-    guavaFutureToAkka(f).map { resultSet => }
+    session.executeAsync(s"TRUNCATE $entitiesTableName").map { resultSet => }
   }
 }

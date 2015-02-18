@@ -106,6 +106,10 @@ class PersisterDriver(settings: CassandraPersisterSettings, session: Session)(im
     }
   }
 
+  def flushProbeState(): Future[Unit] = {
+    session.executeAsync(s"TRUNCATE $tableName").map { resultSet => }
+  }
+
   implicit def row2ProbeState(row: Row): ProbeState = {
     val probeRef = ProbeRef(row.getString(0))
     val generation = row.getLong(1)
