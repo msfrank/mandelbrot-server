@@ -1,10 +1,9 @@
 package io.mandelbrot.persistence.cassandra
 
 import akka.actor.AddressFromURIString
-import com.datastax.driver.core.{BatchStatement, BoundStatement, Session}
+import com.datastax.driver.core.{BoundStatement, Session}
 import org.joda.time.DateTime
-import com.google.common.util.concurrent.{Futures, FutureCallback, ListenableFuture}
-import scala.concurrent.{ExecutionContext, Promise, Future}
+import scala.concurrent.{ExecutionContext, Future}
 import scala.collection.JavaConversions._
 
 import io.mandelbrot.core.{ResourceNotFound, Conflict, ApiException}
@@ -14,7 +13,7 @@ import io.mandelbrot.persistence.cassandra.CassandraCoordinator.CassandraCoordin
 /**
  *
  */
-class CoordinatorDriver(settings: CassandraCoordinatorSettings, session: Session)(implicit ec: ExecutionContext) {
+class CoordinatorDriver(settings: CassandraCoordinatorSettings, session: Session)(implicit ec: ExecutionContext) extends AbstractDriver(session, ec) {
 
   val shardsTableName = "shards"
   val entitiesTableName = "entities"
@@ -39,16 +38,6 @@ class CoordinatorDriver(settings: CassandraCoordinatorSettings, session: Session
        |  PRIMARY KEY (shard_id, entity_key)
        |);
      """.stripMargin)
-
-  def guavaFutureToAkka[T](f: ListenableFuture[T]): Future[T] = {
-    val p = Promise[T]()
-    Futures.addCallback(f,
-      new FutureCallback[T] {
-        def onSuccess(r: T) = p success r
-        def onFailure(t: Throwable) = p failure t
-      })
-    p.future
-  }
 
   val preparedCreateShard = session.prepare(
     s"""
