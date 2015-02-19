@@ -50,21 +50,25 @@ trait RegistryEntriesComponent { this: RegistrarProfile =>
   import spray.json._
   import JsonProtocol._
 
-  class RegistryEntries(tag: Tag) extends Table[(Long,String,String,Long,Long,Long)](tag, "registry_entries") {
-    def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
-    def probeSystem = column[String]("probeSystem")
-    def probeSystemIdx = index("idx_probeSystem", probeSystem, unique = true)
+  class RegistryEntries(tag: Tag) extends Table[(String,String,Long,Long,Long)](tag, "registry_entries") {
+    def probeSystem = column[String]("probeSystem", O.PrimaryKey)
     def registration = column[String]("registration")
     def lsn = column[Long]("lsn")
     def joinedOn = column[Long]("joinedOn")
     def lastUpdate = column[Long]("lastUpdate")
-    def * = (id, probeSystem, registration, lsn, joinedOn, lastUpdate)
+    def * = (probeSystem, registration, lsn, joinedOn, lastUpdate)
   }
 
   val registryEntries = TableQuery[RegistryEntries]
 
-  def list(last: Long, limit: Int)(implicit session: Session): Iterable[RegistryEntry] = {
-    registryEntries.filter(_.id > last).take(limit).list()
+  def list(limit: Int, token: Option[URI])(implicit session: Session): Iterable[RegistryEntry] = {
+    token match {
+      case Some(_uri) =>
+        val uri = _uri.toString
+        registryEntries.filter(_.probeSystem > uri).take(limit).list()
+      case None =>
+        registryEntries.take(limit).list()
+    }
   }
 
   def get(systemUri: URI)(implicit session: Session): Option[RegistryEntry] = {
@@ -78,7 +82,7 @@ trait RegistryEntriesComponent { this: RegistrarProfile =>
         val registrationString: String = registration.toJson.prettyPrint
         val lsn = 1L
         val joinedOn: Long = timestamp.getMillis
-        registryEntries += ((0, probeSystem, registrationString, lsn, joinedOn, joinedOn))
+        registryEntries += ((probeSystem, registrationString, lsn, joinedOn, joinedOn))
         Success(lsn)
       case _ =>
         Failure(new ApiException(Conflict))
@@ -104,7 +108,7 @@ trait RegistryEntriesComponent { this: RegistrarProfile =>
   def delete(systemUri: URI, timestamp: DateTime)(implicit session: Session): Try[Long] = {
     val probeSystem = systemUri.toString
     registryEntries.filter(_.probeSystem === probeSystem).firstOption match {
-      case Some((_, _, _, lsn: Long, _, _)) =>
+      case Some((_, _, lsn: Long, _, _)) =>
         registryEntries.filter(_.probeSystem === probeSystem).delete
         Success(lsn)
       case None =>
@@ -113,7 +117,7 @@ trait RegistryEntriesComponent { this: RegistrarProfile =>
   }
 
   object RegistryEntries {
-    type RegistryEntry = (Long,String,String,Long,Long,Long)
+    type RegistryEntry = (String,String,Long,Long,Long)
   }
 }
 
@@ -179,7 +183,7 @@ trait SlickRegistrar extends Actor with ActorLogging {
     case query: GetProbeSystemEntry =>
       db.withSession { implicit session =>
         dal.get(query.uri) match {
-          case Some((_, _, registration, lsn, _, _)) =>
+          case Some((_, registration, lsn, _, _)) =>
             sender() ! GetProbeSystemEntryResult(query, JsonParser(registration).convertTo[ProbeRegistration], lsn)
           case None =>
             sender() ! RegistryServiceOperationFailed(query, new ApiException(ResourceNotFound))
@@ -187,23 +191,14 @@ trait SlickRegistrar extends Actor with ActorLogging {
       }
 
     case query: ListProbeSystems =>
-      val last = query.last match {
-        case Some(s) => s.toLong
-        case None => 0L
-      }
-      val limit = query.limit match {
-        case Some(i) if i > 100 => 100
-        case Some(i) => i
-        case None => 100
-      }
       db.withSession { implicit session =>
-        val entries = dal.list(last, limit).toVector
-        val systems = entries.map { case (id,probeSystem,_,lsn,joinedOn,lastUpdate) =>
+        val entries = dal.list(query.limit, query.token).toVector
+        val systems = entries.map { case (probeSystem,_,lsn,joinedOn,lastUpdate) =>
           new URI(probeSystem) -> ProbeSystemMetadata(new DateTime(joinedOn), new DateTime(lastUpdate))
         }.toMap
         entries.lastOption match {
-          case Some((id, _, _, _, _, _)) =>
-            sender() ! ListProbeSystemsResult(query, systems, Some(id.toString))
+          case Some((probeSystem, _, _, _, _)) =>
+            sender() ! ListProbeSystemsResult(query, systems, Some(new URI(probeSystem)))
           case None =>
             sender() ! ListProbeSystemsResult(query, Map.empty, None)
         }

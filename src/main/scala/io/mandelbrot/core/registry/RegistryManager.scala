@@ -120,8 +120,8 @@ case class UpdateProbeSystemEntryResult(op: UpdateProbeSystemEntry, lsn: Long)
 case class DeleteProbeSystemEntry(uri: URI, lsn: Long) extends RegistryServiceCommand
 case class DeleteProbeSystemEntryResult(op: DeleteProbeSystemEntry, lsn: Long)
 
-case class ListProbeSystems(last: Option[String], limit: Option[Int]) extends RegistryServiceQuery
-case class ListProbeSystemsResult(op: ListProbeSystems, systems: Map[URI,ProbeSystemMetadata], last: Option[String])
+case class ListProbeSystems(limit: Int, token: Option[URI]) extends RegistryServiceQuery
+case class ListProbeSystemsResult(op: ListProbeSystems, systems: Map[URI,ProbeSystemMetadata], token: Option[URI])
 
 case class GetProbeSystemEntry(uri: URI) extends RegistryServiceQuery
 case class GetProbeSystemEntryResult(op: GetProbeSystemEntry, registration: ProbeRegistration, lsn: Long)

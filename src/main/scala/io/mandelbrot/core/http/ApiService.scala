@@ -84,7 +84,9 @@ trait ApiService extends HttpService {
       get {
         pagingParams { paging =>
           complete {
-            serviceProxy.ask(ListProbeSystems(paging.last, paging.limit)).map {
+            val limit = paging.limit.getOrElse(100)
+            val token = paging.last.map(new URI(_))
+            serviceProxy.ask(ListProbeSystems(limit, token)).map {
               case result: ListProbeSystemsResult =>
                 result.systems
               case failure: ServiceOperationFailed =>
