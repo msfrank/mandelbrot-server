@@ -31,7 +31,9 @@ class ShardsDALSpec(_system: ActorSystem) extends TestKit(_system) with Implicit
       val dal = new ShardsDAL(settings, session)(system.dispatcher)
       val keyspaceName = Cassandra(system).keyspaceName
       val keyspaceMeta = session.getCluster.getMetadata.getKeyspace(keyspaceName)
-      keyspaceMeta.getTable("shards").getName shouldEqual "shards"
+      val table = keyspaceMeta.getTable(dal.tableName)
+      table should not be null
+      table.getName shouldEqual dal.tableName
     }
   }
 

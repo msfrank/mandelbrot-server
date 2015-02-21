@@ -31,7 +31,9 @@ class EntitiesDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val dal = new EntitiesDAL(settings, session)(system.dispatcher)
       val keyspaceName = Cassandra(system).keyspaceName
       val keyspaceMeta = session.getCluster.getMetadata.getKeyspace(keyspaceName)
-      keyspaceMeta.getTable("entities").getName shouldEqual "entities"
+      val table = keyspaceMeta.getTable(dal.tableName)
+      table should not be null
+      table.getName shouldEqual dal.tableName
     }
   }
 

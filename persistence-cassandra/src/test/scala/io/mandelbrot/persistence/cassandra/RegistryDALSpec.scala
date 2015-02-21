@@ -32,9 +32,9 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val dal = new RegistryDAL(settings, session)(system.dispatcher)
       val keyspaceName = Cassandra(system).keyspaceName
       val keyspaceMeta = session.getCluster.getMetadata.getKeyspace(keyspaceName)
-      val table = keyspaceMeta.getTable("registry")
+      val table = keyspaceMeta.getTable(dal.tableName)
       table should not be null
-      table.getName shouldEqual "registry"
+      table.getName shouldEqual dal.tableName
     }
   }
 

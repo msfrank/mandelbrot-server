@@ -48,7 +48,7 @@ class StateDAL(settings: CassandraPersisterSettings, session: Session)(implicit 
     session.executeAsync(new BoundStatement(preparedGetProbeState).bind(probeRef)).map { resultSet =>
       val row = resultSet.one()
       if (row != null) {
-        val state = row2ProbeState(resultSet.one())
+        val state = row2ProbeState(row)
         InitializeProbeStateResult(op, state.status, state.lsn)
       } else {
         val status = ProbeStatus(op.ref, op.timestamp, ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
@@ -62,7 +62,7 @@ class StateDAL(settings: CassandraPersisterSettings, session: Session)(implicit 
     session.executeAsync(new BoundStatement(preparedGetProbeState).bind(probeRef)).map { resultSet =>
       val row = resultSet.one()
       if (row != null) {
-        val state = row2ProbeState(resultSet.one())
+        val state = row2ProbeState(row)
         GetProbeStateResult(op, state.status, state.lsn)
       } else throw ApiException(ResourceNotFound)
     }
