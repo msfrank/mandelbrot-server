@@ -1,16 +1,24 @@
 immediately
 -----------
 
+0.0.9
+-----
+* implement shard migration
+* implement metrics storage
 
 0.0.8
 -----
-* abstract probe system registry persistence (Registrar plugins)
-* add 'related' property to probe system, to attach probes not directly
-  under the probe system hierarchy
-
+* make cassandra plugins fully asynchronous
+* full unit test coverage for cassandra plugins
+* more entity unit tests, integration tests
 
 backlog
 -------
+* rename plugin marker traits
+* create DAL for each cassandra table
+* segregate hot and cold storage?
+* add DynamoDB persistence
+* migrate slick to 3.0.0, use async interface.  look into HikariCP.
 * delete LuceneSearcher state when probe is deleted
 * add unit tests for registry lifecycle
 * prune snapshots and messages (implement in SnapshotOperations trait)

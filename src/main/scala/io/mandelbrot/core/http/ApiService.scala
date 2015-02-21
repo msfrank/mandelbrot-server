@@ -535,6 +535,8 @@ trait ApiService extends HttpService {
 
   val routes =  version1
 
+  import scala.language.implicitConversions
+
   /**
    * catch thrown exceptions and convert them to HTTP responses.  we bake in support
    * for catching APIFailure objects wrapped in an APIException, otherwise any other
