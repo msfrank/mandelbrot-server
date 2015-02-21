@@ -20,7 +20,7 @@
 package io.mandelbrot.core.entity
 
 import akka.actor._
-import io.mandelbrot.core.{ServiceOperation, BadRequest, ApiException, ServiceExtension}
+import io.mandelbrot.core._
 import io.mandelbrot.core.entity.EntityFunctions.{ShardResolver, KeyExtractor, PropsCreator}
 import scala.collection.mutable
 import java.net.URI
@@ -55,12 +55,24 @@ class StandaloneEntityManager(settings: ClusterSettings, propsCreator: PropsCrea
     case result: BalancerComplete =>
       log.debug("shard balancer completed")
 
-    // forward any messages for the coordinator
-    case op: EntityServiceOperation =>
-      coordinator forward op
-
     // send envelopes to the shard manager
     case envelope: EntityEnvelope =>
       shardManager ! envelope
+
+    // return the current status for the specified node
+    case op: GetNodeStatus =>
+      sender() ! EntityServiceOperationFailed(op, ApiException(NotImplemented))
+
+    // return the current cluster status
+    case op: GetClusterStatus =>
+      sender() ! EntityServiceOperationFailed(op, ApiException(NotImplemented))
+
+    // return the current shard map status
+    case op: GetShardMapStatus =>
+      shardManager forward op
+
+    // forward any other operations for the coordinator
+    case op: EntityServiceOperation =>
+      coordinator forward op
   }
 }

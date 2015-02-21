@@ -553,6 +553,8 @@ trait ApiService extends HttpService {
           ctx.complete(HttpResponse(StatusCodes.NotFound, JsonBody(throwableToJson(ex))))
         case failure: Conflict =>
           ctx.complete(HttpResponse(StatusCodes.Conflict, JsonBody(throwableToJson(ex))))
+        case failure: NotImplemented =>
+          ctx.complete(HttpResponse(StatusCodes.NotImplemented, JsonBody(throwableToJson(ex))))
         case _ =>
           log.error(ex, "caught exception processing HTTP request: {}", ex.getMessage)
           ctx.complete(HttpResponse(StatusCodes.InternalServerError, JsonBody(throwableToJson(ex))))
