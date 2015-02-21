@@ -1,11 +1,10 @@
 package io.mandelbrot.persistence.cassandra
 
-import java.net.URI
-
 import com.datastax.driver.core.{BoundStatement, Session}
 import org.joda.time.DateTime
 import scala.concurrent.{Future, ExecutionContext}
 import scala.collection.JavaConversions._
+import java.net.URI
 
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.http.JsonProtocol
@@ -16,7 +15,7 @@ import io.mandelbrot.persistence.cassandra.CassandraRegistrar.CassandraRegistrar
 /**
  *
  */
-class RegistrarDriver(settings: CassandraRegistrarSettings, session: Session)(implicit ec: ExecutionContext) extends AbstractDriver(session, ec) {
+class RegistryDAL(settings: CassandraRegistrarSettings, session: Session)(implicit ec: ExecutionContext) extends AbstractDriver(session, ec) {
   import spray.json._
   import JsonProtocol._
 
@@ -35,7 +34,7 @@ class RegistrarDriver(settings: CassandraRegistrarSettings, session: Session)(im
        |);
      """.stripMargin)
 
-  val preparedCreateProbeSystem = session.prepare(
+  private val preparedCreateProbeSystem = session.prepare(
     s"""
        |INSERT INTO $tableName (p, uri, registration, lsn, last_update, joined_on)
        |VALUES (0, ?, ?, 1, ?, ?)
@@ -50,7 +49,7 @@ class RegistrarDriver(settings: CassandraRegistrarSettings, session: Session)(im
     }
   }
 
-  val preparedUpdateProbeSystem = session.prepare(
+  private val preparedUpdateProbeSystem = session.prepare(
     s"""
        |UPDATE $tableName
        |SET registration = ?, lsn = ?, last_update = ?
@@ -67,7 +66,7 @@ class RegistrarDriver(settings: CassandraRegistrarSettings, session: Session)(im
     }
   }
 
-  val preparedDeleteProbeSystem = session.prepare(
+  private val preparedDeleteProbeSystem = session.prepare(
     s"""
        |DELETE FROM $tableName
        |WHERE p = 0 AND uri = ?
@@ -80,7 +79,7 @@ class RegistrarDriver(settings: CassandraRegistrarSettings, session: Session)(im
     }
   }
 
-  val preparedGetProbeSystem = session.prepare(
+  private val preparedGetProbeSystem = session.prepare(
     s"""
        |SELECT registration, lsn FROM $tableName
        |WHERE p = 0 AND uri = ?
@@ -98,7 +97,7 @@ class RegistrarDriver(settings: CassandraRegistrarSettings, session: Session)(im
     }
   }
 
-  val preparedListProbeSystems = session.prepare(
+  private val preparedListProbeSystems = session.prepare(
     s"""
        |SELECT uri, lsn, last_update, joined_on FROM $tableName
        |WHERE p = 0 AND uri > ?

@@ -14,34 +14,34 @@ class CassandraRegistrar(settings: CassandraRegistrarSettings) extends Actor wit
   import context.dispatcher
 
   val session = Cassandra(context.system).getSession
-  val driver = new RegistrarDriver(settings, session)
+  val registry = new RegistryDAL(settings, session)
 
   def receive = {
 
     case op: CreateProbeSystemEntry =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      driver.createProbeSystem(op, timestamp).recover {
+      registry.createProbeSystem(op, timestamp).recover {
         case ex: Throwable => sender() ! RegistryServiceOperationFailed(op, ex)
       }
 
     case op: UpdateProbeSystemEntry =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      driver.updateProbeSystem(op, timestamp).recover {
+      registry.updateProbeSystem(op, timestamp).recover {
         case ex: Throwable => sender () ! RegistryServiceOperationFailed(op, ex)
       }
 
     case op: DeleteProbeSystemEntry =>
-      driver.deleteProbeSystem(op).recover {
+      registry.deleteProbeSystem(op).recover {
         case ex: Throwable => sender() ! RegistryServiceOperationFailed(op, ex)
       }
 
     case op: GetProbeSystemEntry =>
-      driver.getProbeSystem(op).recover {
+      registry.getProbeSystem(op).recover {
         case ex: Throwable => sender() ! RegistryServiceOperationFailed(op, ex)
       }
 
     case op: ListProbeSystems =>
-      driver.listProbeSystems(op).recover {
+      registry.listProbeSystems(op).recover {
         case ex: Throwable => RegistryServiceOperationFailed(op, ex)
       }
   }

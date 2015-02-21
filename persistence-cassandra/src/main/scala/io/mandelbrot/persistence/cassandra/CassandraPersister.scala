@@ -14,27 +14,27 @@ class CassandraPersister(settings: CassandraPersisterSettings) extends Actor wit
   import context.dispatcher
 
   val session = Cassandra(context.system).getSession
-  val driver = new PersisterDriver(settings, session)
+  val state = new StateDAL(settings, session)
 
   def receive = {
 
     case op: InitializeProbeState =>
-      driver.initializeProbeState(op).recover {
+      state.initializeProbeState(op).recover {
         case ex: Throwable => sender() ! StateServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     case op: GetProbeState =>
-      driver.getProbeState(op).recover {
+      state.getProbeState(op).recover {
         case ex: Throwable => sender() ! StateServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     case op: UpdateProbeState =>
-      driver.updateProbeState(op).recover {
+      state.updateProbeState(op).recover {
         case ex: Throwable => sender() ! StateServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     case op: DeleteProbeState =>
-      driver.deleteProbeState(op).recover {
+      state.deleteProbeState(op).recover {
         case ex: Throwable => sender() ! StateServiceOperationFailed(op, ex)
       }.pipeTo(sender())
   }

@@ -11,7 +11,6 @@ import java.util.Date
 import io.mandelbrot.core.history._
 import io.mandelbrot.core.system._
 import io.mandelbrot.core.notification._
-import io.mandelbrot.core.{NotImplemented, ApiException}
 import io.mandelbrot.persistence.cassandra.CassandraArchiver.CassandraArchiverSettings
 
 /**
@@ -31,7 +30,8 @@ class CassandraArchiver(settings: CassandraArchiverSettings) extends Actor with 
   var checkEpoch: Option[Cancellable] = None
 
   val session = Cassandra(context.system).getSession
-  val driver = new ArchiverDriver(settings, session)
+  val notificationHistory = new NotificationHistoryDAL(settings, session)
+  val statusHistory = new StatusHistoryDAL(settings, session)
 
   override def preStart(): Unit = {
     checkEpoch = Some(context.system.scheduler.schedule(1.minute, 1.minute, self, CheckEpoch))
@@ -53,14 +53,14 @@ class CassandraArchiver(settings: CassandraArchiverSettings) extends Actor with 
     /* append probe status to history */
     case status: ProbeStatus =>
       getEpoch(status.timestamp) match {
-        case Some(epoch) => driver.insertStatus(status, epoch)
+        case Some(epoch) => statusHistory.insertStatus(status, epoch)
         case None =>  // drop status
       }
 
     /* append notification to history */
     case notification: ProbeNotification =>
       getEpoch(notification.timestamp) match {
-        case Some(epoch) => driver.insertNotification(notification, epoch)
+        case Some(epoch) => notificationHistory.insertNotification(notification, epoch)
         case None =>  // drop notification
       }
 
@@ -68,10 +68,10 @@ class CassandraArchiver(settings: CassandraArchiverSettings) extends Actor with 
     case op: GetStatusHistory =>
       val getEpoch = op.from match {
         case Some(from) => Future.successful[Long](timestamp2epoch(from))
-        case None => driver.getFirstStatusEpoch(op.probeRef).map[Long](_.getOrElse(-1))
+        case None => statusHistory.getFirstStatusEpoch(op.probeRef).map[Long](_.getOrElse(-1))
       }
       getEpoch.flatMap[Vector[ProbeStatus]] { epoch =>
-        driver.getStatusHistory(op.probeRef, epoch, op.from, op.to, op.limit.getOrElse(defaultLimit))
+        statusHistory.getStatusHistory(op.probeRef, epoch, op.from, op.to, op.limit.getOrElse(defaultLimit))
       }.map { history => GetStatusHistoryResult(op, history) }.recover {
         case ex: Throwable => HistoryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
@@ -80,10 +80,10 @@ class CassandraArchiver(settings: CassandraArchiverSettings) extends Actor with 
     case op: GetNotificationHistory =>
       val getEpoch = op.from match {
         case Some(from) => Future.successful[Long](timestamp2epoch(from))
-        case None => driver.getFirstStatusEpoch(op.probeRef).map[Long](_.getOrElse(-1))
+        case None => notificationHistory.getFirstNotificationEpoch(op.probeRef).map[Long](_.getOrElse(-1))
       }
       getEpoch.flatMap[Vector[ProbeNotification]] { epoch =>
-        driver.getNotificationHistory(op.probeRef, epoch, op.from, op.to, op.limit.getOrElse(defaultLimit))
+        notificationHistory.getNotificationHistory(op.probeRef, epoch, op.from, op.to, op.limit.getOrElse(defaultLimit))
       }.map { history => GetNotificationHistoryResult(op, history) }.recover {
         case ex: Throwable => HistoryServiceOperationFailed(op, ex)
       }.pipeTo(sender())

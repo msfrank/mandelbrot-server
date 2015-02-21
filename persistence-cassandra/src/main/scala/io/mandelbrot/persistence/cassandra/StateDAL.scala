@@ -13,7 +13,7 @@ import io.mandelbrot.persistence.cassandra.CassandraPersister.CassandraPersister
 /**
  *
  */
-class PersisterDriver(settings: CassandraPersisterSettings, session: Session)(implicit ec: ExecutionContext) extends AbstractDriver(session, ec) {
+class StateDAL(settings: CassandraPersisterSettings, session: Session)(implicit ec: ExecutionContext) extends AbstractDriver(session, ec) {
   import scala.language.implicitConversions
 
   val tableName: String = "state"
@@ -36,7 +36,7 @@ class PersisterDriver(settings: CassandraPersisterSettings, session: Session)(im
        |)
      """.stripMargin)
 
-  val preparedGetProbeState = session.prepare(
+  private val preparedGetProbeState = session.prepare(
     s"""
        |SELECT probe_ref, generation, timestamp, lifecycle, health, summary, last_update, last_change, correlation, acknowledged, squelched, context
        |FROM $tableName
@@ -68,7 +68,7 @@ class PersisterDriver(settings: CassandraPersisterSettings, session: Session)(im
     }
   }
 
-  val preparedUpdateProbeState = session.prepare(
+  private val preparedUpdateProbeState = session.prepare(
     s"""
        |INSERT INTO $tableName (probe_ref, generation, timestamp, lifecycle, health, summary, last_update, last_change, correlation, acknowledged, squelched, context)
        |VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -94,7 +94,7 @@ class PersisterDriver(settings: CassandraPersisterSettings, session: Session)(im
     }
   }
 
-  val preparedDeleteProbeState = session.prepare(
+  private val preparedDeleteProbeState = session.prepare(
     s"""
        |DELETE FROM $tableName WHERE probe_ref = ?
      """.stripMargin)

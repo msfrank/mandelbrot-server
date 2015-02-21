@@ -15,50 +15,51 @@ class CassandraCoordinator(settings: CassandraCoordinatorSettings) extends Actor
   import context.dispatcher
 
   val session = Cassandra(context.system).getSession
-  val driver = new CoordinatorDriver(settings, session)
+  val shards = new ShardsDAL(settings, session)
+  val entities = new EntitiesDAL(settings, session)
 
   def receive = {
 
     case op: CreateShard =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      driver.createShard(op, timestamp).recover {
+      shards.createShard(op, timestamp).recover {
         case ex: Throwable => EntityServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     case op: UpdateShard =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      driver.updateShard(op, timestamp).recover {
+      shards.updateShard(op, timestamp).recover {
         case ex: Throwable => sender () ! EntityServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     case op: GetShard =>
-      driver.getShard(op).recover {
+      shards.getShard(op).recover {
         case ex: Throwable => sender() ! EntityServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     case op: ListShards =>
-      driver.listShards(op).recover {
+      shards.listShards(op).recover {
         case ex: Throwable => sender() ! EntityServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     case op: CreateEntity =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      driver.createEntity(op, timestamp).recover {
+      entities.createEntity(op, timestamp).recover {
         case ex: Throwable => sender() ! EntityServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     case op: DeleteEntity =>
-      driver.deleteEntity(op).recover {
+      entities.deleteEntity(op).recover {
         case ex: Throwable => sender() ! EntityServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     case op: GetEntity =>
-      driver.getEntity(op).recover {
+      entities.getEntity(op).recover {
         case ex: Throwable => sender() ! EntityServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     case op: ListEntities =>
-      driver.listEntities(op).recover {
+      entities.listEntities(op).recover {
         case ex: Throwable => sender() ! EntityServiceOperationFailed(op, ex)
       }.pipeTo(sender())
   }
