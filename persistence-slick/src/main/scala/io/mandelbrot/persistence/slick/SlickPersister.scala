@@ -150,7 +150,7 @@ trait SlickPersister extends Actor with ActorLogging {
           case Some(state) =>
             sender() ! GetProbeStateResult(op, state.status, state.lsn)
           case None =>
-            sender() ! StateServiceOperationFailed(op, new ApiException(ResourceNotFound))
+            sender() ! StateServiceOperationFailed(op, ApiException(ResourceNotFound))
         }
       }
 

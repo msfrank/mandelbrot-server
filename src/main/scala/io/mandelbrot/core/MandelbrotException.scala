@@ -19,15 +19,10 @@
 
 package io.mandelbrot.core
 
-class MandelbrotException(message: String, cause: Throwable) extends Exception(message, cause) {
-  def this(cause: Throwable) = this("", cause)
-  def this(message: String) = this(message, null)
-}
-
 /**
  * abstract base class for all API failures.
  */
-sealed abstract class ApiFailure(val description: String) extends Exception(description)
+sealed abstract class ApiFailure(val description: String) extends Exception(description, null)
 
 /**
  * trait and companion object for API failures which indicate the operation
@@ -82,6 +77,17 @@ trait InternalError
 case object InternalError extends ApiFailure("internal error") with InternalError
 
 /**
+ *
+ */
+sealed abstract class MandelbrotException(message: String, cause: Throwable) extends Exception(message, cause)
+
+/**
  * Exception which wraps an API failure.
  */
-case class ApiException(failure: ApiFailure) extends MandelbrotException(failure.description, failure)
+class ApiException(val failure: ApiFailure, cause: Throwable) extends MandelbrotException(failure.description, cause)
+
+object ApiException {
+  def apply(failure: ApiFailure): ApiException = new ApiException(failure, null)
+  def apply(failure: ApiFailure, cause: Throwable): ApiException = new ApiException(failure, cause)
+  def unapply(ex: ApiException): Option[ApiFailure] = Some(ex.failure)
+}

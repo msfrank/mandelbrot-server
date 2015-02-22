@@ -85,7 +85,7 @@ trait RegistryEntriesComponent { this: RegistrarProfile =>
         registryEntries += ((probeSystem, registrationString, lsn, joinedOn, joinedOn))
         Success(lsn)
       case _ =>
-        Failure(new ApiException(Conflict))
+        Failure(ApiException(Conflict))
     }
   }
 
@@ -101,7 +101,7 @@ trait RegistryEntriesComponent { this: RegistrarProfile =>
           .update((registrationString, updatedLsn, lastUpdate))
         Success(updatedLsn)
       case None =>
-        Failure(new ApiException(ResourceNotFound))
+        Failure(ApiException(ResourceNotFound))
     }
   }
 
@@ -112,7 +112,7 @@ trait RegistryEntriesComponent { this: RegistrarProfile =>
         registryEntries.filter(_.probeSystem === probeSystem).delete
         Success(lsn)
       case None =>
-        Failure(new ApiException(ResourceNotFound))
+        Failure(ApiException(ResourceNotFound))
     }
   }
 
@@ -186,7 +186,7 @@ trait SlickRegistrar extends Actor with ActorLogging {
           case Some((_, registration, lsn, _, _)) =>
             sender() ! GetProbeSystemEntryResult(query, JsonParser(registration).convertTo[ProbeRegistration], lsn)
           case None =>
-            sender() ! RegistryServiceOperationFailed(query, new ApiException(ResourceNotFound))
+            sender() ! RegistryServiceOperationFailed(query, ApiException(ResourceNotFound))
         }
       }
 

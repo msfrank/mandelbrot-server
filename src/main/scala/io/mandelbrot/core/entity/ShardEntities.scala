@@ -111,7 +111,7 @@ class ShardEntities(services: ActorRef,
             pendingEntities.put(entity, envelope)
             // create the entity entry
             services ! CreateEntity(entity.shardId, entity.entityKey)
-          } else envelope.sender ! EntityDeliveryFailed(envelope.op, new ApiException(ResourceNotFound))
+          } else envelope.sender ! EntityDeliveryFailed(envelope.op, ApiException(ResourceNotFound))
         // entity exists, forward the message to it
         case entity: ActorRef =>
           entity.tell(envelope.op, envelope.sender)

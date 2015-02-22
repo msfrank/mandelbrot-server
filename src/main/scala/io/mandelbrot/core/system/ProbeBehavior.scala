@@ -67,11 +67,11 @@ trait ProbeBehaviorInterface {
   def processAcknowledge(probe: ProbeInterface, command: AcknowledgeProbe): Try[CommandMutation] = {
     probe.correlationId match {
       case None =>
-        Failure(new ApiException(ResourceNotFound))
+        Failure(ApiException(ResourceNotFound))
       case Some(correlation) if probe.acknowledgementId.isDefined =>
-        Failure(new ApiException(Conflict))
+        Failure(ApiException(Conflict))
       case Some(correlation) if correlation != command.correlationId =>
-        Failure(new ApiException(BadRequest))
+        Failure(ApiException(BadRequest))
       case Some(correlation) =>
         val acknowledgement = UUID.randomUUID()
         val timestamp = DateTime.now(DateTimeZone.UTC)
@@ -84,9 +84,9 @@ trait ProbeBehaviorInterface {
   def processUnacknowledge(probe: ProbeInterface, command: UnacknowledgeProbe): Try[CommandMutation] = {
     probe.acknowledgementId match {
       case None =>
-        Failure(new ApiException(ResourceNotFound))
+        Failure(ApiException(ResourceNotFound))
       case Some(acknowledgement) if acknowledgement != command.acknowledgementId =>
-        Failure(new ApiException(BadRequest))
+        Failure(ApiException(BadRequest))
       case Some(acknowledgement) =>
         val timestamp = DateTime.now(DateTimeZone.UTC)
         val correlation = probe.correlationId.get
@@ -97,7 +97,7 @@ trait ProbeBehaviorInterface {
   }
 
   def processSetSquelch(probe: ProbeInterface, command: SetProbeSquelch): Try[CommandMutation] = {
-    if (probe.squelch == command.squelch) Failure(new ApiException(BadRequest)) else {
+    if (probe.squelch == command.squelch) Failure(ApiException(BadRequest)) else {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val squelch = command.squelch
       val status = probe.getProbeStatus(timestamp).copy(squelched = squelch)

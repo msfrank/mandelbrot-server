@@ -48,12 +48,12 @@ class RegistryManager(settings: RegistrySettings) extends Actor with ActorLoggin
   def receive = {
     case op: CreateProbeSystemEntry =>
       if (!registrationValid(op.registration))
-        sender() ! RegistryServiceOperationFailed(op, new ApiException(BadRequest))
+        sender() ! RegistryServiceOperationFailed(op, ApiException(BadRequest))
       else registrar forward op
 
     case op: UpdateProbeSystemEntry =>
       if (!registrationValid(op.registration))
-        sender() ! RegistryServiceOperationFailed(op, new ApiException(BadRequest))
+        sender() ! RegistryServiceOperationFailed(op, ApiException(BadRequest))
       else registrar forward op
 
     case op: RegistryServiceOperation =>

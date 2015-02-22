@@ -93,7 +93,7 @@ class RegistryDAL(settings: CassandraRegistrarSettings, session: Session)(implic
         val registration = JsonParser(row.getString(0)).convertTo[ProbeRegistration]
         val lsn = row.getLong(1)
         GetProbeSystemEntryResult(op, registration, lsn)
-      } else throw new ApiException(ResourceNotFound)
+      } else throw ApiException(ResourceNotFound)
     }
   }
 

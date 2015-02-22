@@ -27,6 +27,7 @@ class HttpSettings(val interface: String,
                    val port: Int,
                    val backlog: Int,
                    val requestTimeout: FiniteDuration,
+                   val debugExceptions: Boolean,
                    val tls: Option[TlsSettings])
 
 object HttpSettings {
@@ -35,8 +36,9 @@ object HttpSettings {
     val interface = config.getString("interface")
     val backlog = config.getInt("backlog")
     val requestTimeout = FiniteDuration(config.getDuration("request-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+    val debugExceptions = config.getBoolean("debug-exceptions")
     val tls = if (config.hasPath("tls")) Some(TlsSettings.parse(config.getConfig("tls"))) else None
-    new HttpSettings(interface, port, backlog, requestTimeout, tls)
+    new HttpSettings(interface, port, backlog, requestTimeout, debugExceptions, tls)
   }
 }
 

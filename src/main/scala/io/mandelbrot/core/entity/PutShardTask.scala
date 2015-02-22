@@ -74,7 +74,7 @@ class PutShardTask(op: PutShard,
       context.stop(self)
 
     case TaskTimeout =>
-      monitor ! PutShardFailed(op, new ApiException(RetryLater))
+      monitor ! PutShardFailed(op, ApiException(RetryLater))
       context.stop(self)
   }
 

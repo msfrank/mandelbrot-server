@@ -117,7 +117,7 @@ class ShardManager(services: ActorRef,
       context.system.scheduler.scheduleOnce(servicesTimeout, self, Retry)
 
     case op: ShardBalancerOperation =>
-      sender() ! ShardBalancerOperationFailed(op, new ApiException(RetryLater))
+      sender() ! ShardBalancerOperationFailed(op, ApiException(RetryLater))
 
     case envelope: EntityEnvelope =>
       deliverEnvelope(envelope)
@@ -146,9 +146,9 @@ class ShardManager(services: ActorRef,
     case op: PrepareShard =>
       shardMap.get(op.shardId) match {
         case entry: AssignedShardEntry =>
-          sender() ! ShardBalancerOperationFailed(op, new ApiException(BadRequest))
+          sender() ! ShardBalancerOperationFailed(op, ApiException(BadRequest))
         case entry: ShardEntry if taskTimeouts.containsKey(op.shardId) =>
-          sender() ! ShardBalancerOperationFailed(op, new ApiException(RetryLater))
+          sender() ! ShardBalancerOperationFailed(op, ApiException(RetryLater))
         case entry: ShardEntry =>
           log.debug("{} says prepare shardId {}", sender().path, op.shardId)
           shardMap.prepare(op.shardId, selfAddress)
@@ -160,7 +160,7 @@ class ShardManager(services: ActorRef,
     case op: RecoverShard =>
       shardMap.get(op.shardId) match {
         case entry: PreparingShardEntry if !taskTimeouts.containsKey(op.shardId) =>
-          sender() ! ShardBalancerOperationFailed(op, new ApiException(RetryLater))
+          sender() ! ShardBalancerOperationFailed(op, ApiException(RetryLater))
         case entry: PreparingShardEntry =>
           log.debug("{} says recover shardId {}", sender().path, op.shardId)
           shardMap.assign(op.shardId, selfAddress)
@@ -171,7 +171,7 @@ class ShardManager(services: ActorRef,
           taskTimeouts.remove(op.shardId).cancel()
           sender() ! RecoverShardResult(op)
         case entry: ShardEntry =>
-          sender() ! ShardBalancerOperationFailed(op, new ApiException(BadRequest))
+          sender() ! ShardBalancerOperationFailed(op, ApiException(BadRequest))
       }
 
     // the Put or Migrate task did not complete
@@ -250,7 +250,7 @@ class ShardManager(services: ActorRef,
         entitiesByShard.get(shard.shardId) match {
           // entity doesn't exist in shard
           case null =>
-            envelope.sender ! EntityDeliveryFailed(envelope.op, new ApiException(RetryLater))
+            envelope.sender ! EntityDeliveryFailed(envelope.op, ApiException(RetryLater))
           // entity exists, forward the message to it
           case entity: ActorRef =>
             entity forward envelope
@@ -261,7 +261,7 @@ class ShardManager(services: ActorRef,
         if (envelope.attemptsLeft > 0) {
           val selection = context.system.actorSelection(RootActorPath(shard.address) / self.path.elements)
           selection ! envelope.copy(attemptsLeft = envelope.attemptsLeft - 1)
-        } else envelope.sender ! EntityDeliveryFailed(envelope.op, new ApiException(ResourceNotFound))
+        } else envelope.sender ! EntityDeliveryFailed(envelope.op, ApiException(ResourceNotFound))
         // if the sender is remote, then note the stale shard mapping
         if (!envelope.sender.path.address.equals(selfAddress) && envelope.attemptsLeft < envelope.maxAttempts)
           markStaleShard(shard.shardId, selfAddress)
@@ -276,7 +276,7 @@ class ShardManager(services: ActorRef,
         if (envelope.attemptsLeft > 0) {
           val selection = context.system.actorSelection(RootActorPath(shard.address) / self.path.elements)
           selection ! envelope.copy(attemptsLeft = envelope.attemptsLeft - 1)
-        } else envelope.sender ! EntityDeliveryFailed(envelope.op, new ApiException(ResourceNotFound))
+        } else envelope.sender ! EntityDeliveryFailed(envelope.op, ApiException(ResourceNotFound))
         // if the sender is remote, then note the stale shard mapping
         if (!envelope.sender.path.address.equals(selfAddress) && envelope.attemptsLeft < envelope.maxAttempts)
           markStaleShard(shard.shardId, selfAddress)

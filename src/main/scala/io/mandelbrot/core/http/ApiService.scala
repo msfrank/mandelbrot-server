@@ -31,6 +31,7 @@ import org.joda.time.format.ISODateTimeFormat
 import scala.concurrent.ExecutionContext
 import java.net.URI
 import java.util.UUID
+import java.io.{PrintStream, ByteArrayOutputStream}
 
 import io.mandelbrot.core._
 import io.mandelbrot.core.entity._
@@ -226,7 +227,7 @@ trait ApiService extends HttpService {
                   HttpResponse(StatusCodes.OK)
                 }
               case other =>
-                throw new ApiException(BadRequest)
+                throw ApiException(BadRequest)
             }
           }
         } ~
@@ -295,7 +296,7 @@ trait ApiService extends HttpService {
         } ~
         path("invoke") {
           /* execute an external command */
-          post { complete { throw new ApiException(BadRequest)}}
+          post { complete { throw ApiException(BadRequest)}}
         }
       }
     }
@@ -556,13 +557,21 @@ trait ApiService extends HttpService {
         case failure: NotImplemented =>
           ctx.complete(HttpResponse(StatusCodes.NotImplemented, JsonBody(throwableToJson(ex))))
         case _ =>
-          log.error(ex, "caught exception processing HTTP request: {}", ex.getMessage)
           ctx.complete(HttpResponse(StatusCodes.InternalServerError, JsonBody(throwableToJson(ex))))
       }
-    case ex: Throwable => ctx =>
-      log.error(ex, "caught exception processing HTTP request: {}", ex.getMessage)
-      ctx.complete(HttpResponse(StatusCodes.InternalServerError, JsonBody(throwableToJson(new Exception("internal server error")))))
+    case t: Throwable => ctx =>
+      val ex = ApiException(InternalError, t)
+      ctx.complete(HttpResponse(StatusCodes.InternalServerError, JsonBody(throwableToJson(ex))))
   }
 
-  def throwableToJson(t: Throwable): JsValue = JsObject(Map("description" -> JsString(t.getMessage)))
+  def throwableToJson(t: ApiException): JsValue = {
+    if (settings.debugExceptions) {
+      val os = new ByteArrayOutputStream()
+      val ps = new PrintStream(os)
+      t.printStackTrace(ps)
+      val stackTrace = os.toString
+      ps.close()
+      JsObject(Map("description" -> JsString(t.getMessage), "stackTrace" -> JsString(stackTrace)))
+    } else JsObject(Map("description" -> JsString(t.getMessage)))
+  }
 }

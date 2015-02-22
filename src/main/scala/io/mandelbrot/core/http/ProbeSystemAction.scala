@@ -75,7 +75,7 @@ class GetProbeSystemStatusAction(params: HttpActionParams, op: GetProbeSystemSta
       context.stop(self)
 
     case ActionTimeout =>
-      params.ctx.complete(new ApiException(RetryLater))
+      params.ctx.complete(ApiException(RetryLater))
       context.stop(self)
   }
 
@@ -122,7 +122,7 @@ class GetProbeSystemStatusHistoryAction(params: HttpActionParams, op: GetProbeSy
       context.stop(self)
 
     case ActionTimeout =>
-      params.ctx.complete(new ApiException(RetryLater))
+      params.ctx.complete(ApiException(RetryLater))
       context.stop(self)
   }
 
@@ -169,7 +169,7 @@ class GetProbeSystemNotificationHistoryAction(params: HttpActionParams, op: GetP
       context.stop(self)
 
     case ActionTimeout =>
-      params.ctx.complete(new ApiException(RetryLater))
+      params.ctx.complete(ApiException(RetryLater))
       context.stop(self)
   }
 
@@ -273,7 +273,7 @@ object HttpActionProps {
 //        ref -> findProbeSpec(registration, ref.path).metadata
 //      }.toMap
 //      if (metadata.isEmpty)
-//        sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
+//        sender() ! ProbeSystemOperationFailed(query, ApiException(ResourceNotFound))
 //      else
 //        sender() ! GetProbeSystemMetadataResult(query, metadata)
 
@@ -284,6 +284,6 @@ object HttpActionProps {
 //        ref -> findProbeSpec(registration, ref.path).policy
 //      }.toMap
 //      if (policy.isEmpty)
-//        sender() ! ProbeSystemOperationFailed(query, new ApiException(ResourceNotFound))
+//        sender() ! ProbeSystemOperationFailed(query, ApiException(ResourceNotFound))
 //      else
 //        sender() ! GetProbeSystemPolicyResult(query, policy)

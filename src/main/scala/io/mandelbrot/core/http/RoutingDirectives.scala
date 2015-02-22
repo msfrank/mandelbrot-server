@@ -66,9 +66,9 @@ object RoutingDirectives {
       try {
         new DateTime(string.toLong)
       } catch {
-        case ex: Throwable => throw new ApiException(BadRequest)
+        case ex: Throwable => throw ApiException(BadRequest)
       }
-    case ex: Throwable => throw new ApiException(BadRequest)
+    case ex: Throwable => throw ApiException(BadRequest)
   }
   val timeseriesParams: Directive1[TimeseriesParams] = parameters2timeseriesParams.hmap {
     case from :: to :: HNil =>

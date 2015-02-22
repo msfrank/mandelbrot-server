@@ -170,7 +170,7 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[SystemFSMState,SystemFS
         case Some(probeActor: ProbeActor) =>
           probeActor.actor.forward(op)
         case None =>
-          sender() ! ProbeOperationFailed(op, new ApiException(ResourceNotFound))
+          sender() ! ProbeOperationFailed(op, ApiException(ResourceNotFound))
       }
       stay()
 
@@ -255,9 +255,9 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[SystemFSMState,SystemFS
       if (probes.nonEmpty) stay() else stop()
     /* system doesn't exist anymore, so return resource not found */
     case Event(op: ProbeSystemOperation, _) =>
-      stay() replying ProbeSystemOperationFailed(op, new ApiException(ResourceNotFound))
+      stay() replying ProbeSystemOperationFailed(op, ApiException(ResourceNotFound))
     case Event(op: ProbeOperation, _) =>
-      stay() replying ProbeOperationFailed(op, new ApiException(ResourceNotFound))
+      stay() replying ProbeOperationFailed(op, ApiException(ResourceNotFound))
   }
 
   onTransition {
