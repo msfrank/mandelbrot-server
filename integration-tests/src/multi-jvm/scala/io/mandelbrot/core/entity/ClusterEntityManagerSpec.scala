@@ -4,7 +4,7 @@ import akka.actor.{Props, ActorRef}
 import akka.testkit.{TestProbe, ImplicitSender}
 import scala.concurrent.duration._
 
-import io.mandelbrot.core.{ServiceOperation, ProxyForwarder, ResourceNotFound}
+import io.mandelbrot.core.{ApiException, ServiceOperation, ProxyForwarder, ResourceNotFound}
 
 class ClusterEntityManagerSpecMultiJvmNode1 extends ClusterEntityManagerSpec
 class ClusterEntityManagerSpecMultiJvmNode2 extends ClusterEntityManagerSpec
@@ -86,7 +86,7 @@ class ClusterEntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) wit
         entityManager ! entityEnvelope(TestEntityMessage("missing", 0, 3))
         val reply = expectMsgClass(classOf[EntityDeliveryFailed])
         lastSender.path.address.hasLocalScope shouldEqual true
-        reply.failure.getCause shouldEqual ResourceNotFound
+        reply.failure shouldEqual ApiException(ResourceNotFound)
       }
       enterBarrier("local-delivery-failure")
     }
@@ -119,7 +119,7 @@ class ClusterEntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) wit
         val reply = expectMsgClass(classOf[EntityDeliveryFailed])
         lastSender.path.address.hasLocalScope shouldEqual false
         lastSender.path.address shouldEqual node(node2).address
-        reply.failure.getCause shouldEqual ResourceNotFound
+        reply.failure shouldEqual ApiException(ResourceNotFound)
       }
       enterBarrier("remote-delivery-failure")
     }

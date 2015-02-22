@@ -6,7 +6,7 @@ import akka.testkit.{TestActorRef, ImplicitSender}
 import org.scalatest.Inside._
 import scala.concurrent.duration._
 
-import io.mandelbrot.core.{ServiceOperation, ResourceNotFound}
+import io.mandelbrot.core.{ApiException, ServiceOperation, ResourceNotFound}
 
 class ShardManagerSpecMultiJvmNode1 extends ShardManagerSpec
 class ShardManagerSpecMultiJvmNode2 extends ShardManagerSpec
@@ -69,7 +69,7 @@ class ShardManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Implic
         shardManager ! entityEnvelope(self, TestEntityMessage("missing", 0, 3), attempts = 3)
         val reply = expectMsgClass(classOf[EntityDeliveryFailed])
         lastSender.path.address.hasLocalScope shouldEqual true
-        reply.failure.getCause shouldEqual ResourceNotFound
+        reply.failure shouldEqual ApiException(ResourceNotFound)
       }
       enterBarrier("local-delivery-failure")
     }
@@ -102,7 +102,7 @@ class ShardManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Implic
         val reply = expectMsgClass(classOf[EntityDeliveryFailed])
         lastSender.path.address.hasLocalScope shouldEqual false
         lastSender.path.address shouldEqual node(node2).address
-        reply.failure.getCause shouldEqual ResourceNotFound
+        reply.failure shouldEqual ApiException(ResourceNotFound)
       }
       enterBarrier("remote-delivery-failure")
     }
@@ -145,7 +145,7 @@ class ShardManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Implic
         val reply = expectMsgClass(classOf[EntityDeliveryFailed])
         lastSender.path.address.hasLocalScope shouldEqual false
         lastSender.path.address shouldEqual node(node4).address
-        reply.failure.getCause shouldEqual ResourceNotFound
+        reply.failure shouldEqual ApiException(ResourceNotFound)
       }
       runOn(node2) {
         shardManager.underlyingActor.shardMap.assign(4, node(node3).address)
