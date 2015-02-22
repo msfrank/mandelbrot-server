@@ -24,9 +24,8 @@ object MandelbrotServerBuild extends Build {
   val commonScalacOptions = Seq("-feature", "-deprecation")
   val commonJavacOptions = Seq("-source", "1.7")
 
-  lazy val mandelbrotCoreBuild = (project in file("."))
+  lazy val mandelbrotCore = (project in file("."))
     .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
-    .settings(SbtMultiJvm.multiJvmSettings: _*)
     .settings(
 
       name := "mandelbrot-core",
@@ -55,39 +54,18 @@ object MandelbrotServerBuild extends Build {
         "ch.qos.logback" % "logback-classic" % "1.1.2",
         "org.scalatest" %% "scalatest" % scalatestVersion % "test",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
-        "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion % "test",
         "io.spray" %% "spray-testkit" % sprayVersion % "test"
       ),
 
-      // don't run tests when building assembly jar
-      test in assembly := {},
-
-      // add multi-jvm classes
-      //unmanagedSourceDirectories in Test += baseDirectory.value / "src" / "multi-jvm" / "scala",
-
-      // make sure that MultiJvm test are compiled by the default test compilation
-      //compile in MultiJvm <<= (compile in MultiJvm) triggeredBy (compile in Test),
-
       // disable parallel tests
-      parallelExecution in Test := false
+      parallelExecution in Test := false,
 
-//      // make sure that MultiJvm tests are executed by the default test target
-//      executeTests in Test <<=
-//        (executeTests in Test, executeTests in MultiJvm) map {
-//          case ((testResults), (multiJvmResults)) =>
-//            val overall =
-//              if (testResults.overall.id < multiJvmResults.overall.id)
-//                multiJvmResults.overall
-//              else
-//                testResults.overall
-//            Tests.Output(overall,
-//              testResults.events ++ multiJvmResults.events,
-//              testResults.summaries ++ multiJvmResults.summaries)
-//        }
+      // don't run tests when building assembly jar
+      test in assembly := {}
 
-    ).configs(MultiJvm)
+    )
 
-  lazy val mandelbrotServerCassandraBuild = (project in file("persistence-cassandra"))
+  lazy val cassandraServer = (project in file("persistence-cassandra"))
     .settings(assemblySettings: _*)
     .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
     .settings(
@@ -109,6 +87,9 @@ object MandelbrotServerBuild extends Build {
       // specify the main class to use
       mainClass in assembly := Some("io.mandelbrot.persistence.cassandra.CassandraApplication"),
 
+      // disable parallel tests
+      parallelExecution in Test := false,
+
       // don't run tests when building assembly jar
       test in assembly := {},
 
@@ -118,9 +99,9 @@ object MandelbrotServerBuild extends Build {
         case otherwise => (assemblyMergeStrategy in assembly).value(otherwise)
       }
 
-  ).dependsOn(mandelbrotCoreBuild)
+  ).dependsOn(mandelbrotCore % "compile->compile;test->test")
 
-  lazy val mandelbrotServerSlickBuild = (project in file("persistence-slick"))
+  lazy val slickServer = (project in file("persistence-slick"))
     .settings(assemblySettings: _*)
     .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
     .settings(
@@ -140,9 +121,58 @@ object MandelbrotServerBuild extends Build {
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
       ),
 
+      // disable parallel tests
+      parallelExecution in Test := false,
+
       // don't run tests when building assembly jar
       test in assembly := {}
 
-  ).dependsOn(mandelbrotCoreBuild)
+  ).dependsOn(mandelbrotCore % "compile->compile;test->test")
+
+
+  lazy val integrationTests = (project in file("integration-tests"))
+    .settings(SbtMultiJvm.multiJvmSettings: _*)
+    .settings(
+
+      name := "integration-tests",
+      version := mandelbrotVersion,
+
+      scalaVersion := scalaLangVersion,
+      scalacOptions ++= commonScalacOptions,
+      javacOptions ++= commonJavacOptions,
+      exportJars := false,
+
+      libraryDependencies ++= Seq(
+        "org.scalatest" %% "scalatest" % scalatestVersion % "test",
+        "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion % "test",
+        "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
+      ),
+
+      // add multi-jvm classes
+      unmanagedSourceDirectories in Test += baseDirectory.value / "src" / "multi-jvm" / "scala",
+
+      // make sure that MultiJvm test are compiled by the default test compilation
+      compile in MultiJvm <<= (compile in MultiJvm) triggeredBy (compile in Test),
+
+      // disable parallel tests
+      parallelExecution in Test := false,
+
+      // make sure that MultiJvm tests are executed by the default test target
+      executeTests in Test <<=
+        (executeTests in Test, executeTests in MultiJvm) map {
+          case ((testResults), (multiJvmResults)) =>
+            val overall =
+              if (testResults.overall.id < multiJvmResults.overall.id)
+                multiJvmResults.overall
+              else
+                testResults.overall
+            Tests.Output(overall,
+              testResults.events ++ multiJvmResults.events,
+              testResults.summaries ++ multiJvmResults.summaries)
+        }
+
+  ).configs(MultiJvm)
+   .dependsOn(mandelbrotCore % "compile->compile;test->test", cassandraServer % "compile->compile;test->test")
+
 
 }
