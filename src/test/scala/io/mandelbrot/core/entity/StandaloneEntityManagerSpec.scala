@@ -6,7 +6,7 @@ import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
 import org.scalatest.matchers.ShouldMatchers
 import scala.concurrent.duration._
 
-import io.mandelbrot.core.{AkkaConfig, ProxyForwarder, ResourceNotFound, ServiceOperation}
+import io.mandelbrot.core._
 import io.mandelbrot.core.ConfigConversions._
 
 class StandaloneEntityManagerSpec(_system: ActorSystem) extends TestKit(_system) with WordSpecLike with ImplicitSender with ShouldMatchers with BeforeAndAfterAll {
@@ -70,7 +70,7 @@ class StandaloneEntityManagerSpec(_system: ActorSystem) extends TestKit(_system)
         entityManager ! entityEnvelope(TestEntityMessage("missing", 0, 3))
         val reply = expectMsgClass(classOf[EntityDeliveryFailed])
         lastSender.path.address.hasLocalScope shouldEqual true
-        reply.failure.getCause shouldEqual ResourceNotFound
+        reply.failure shouldEqual ApiException(ResourceNotFound)
     }
   }
 }

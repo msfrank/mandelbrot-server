@@ -84,7 +84,12 @@ sealed abstract class MandelbrotException(message: String, cause: Throwable) ext
 /**
  * Exception which wraps an API failure.
  */
-class ApiException(val failure: ApiFailure, cause: Throwable) extends MandelbrotException(failure.description, cause)
+class ApiException(val failure: ApiFailure, cause: Throwable) extends MandelbrotException(failure.description, cause) {
+  override def equals(other: Any): Boolean = other match {
+    case other: ApiException => failure.equals(other.failure)
+    case _ => false
+  }
+}
 
 object ApiException {
   def apply(failure: ApiFailure): ApiException = new ApiException(failure, null)
