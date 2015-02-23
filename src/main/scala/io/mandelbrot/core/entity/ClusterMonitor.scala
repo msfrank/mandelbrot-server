@@ -36,7 +36,7 @@ class ClusterMonitor(minNrMembers: Int) extends Actor with ActorLogging {
   var unreachable: Set[Member] = Set.empty
 
   override def preStart(): Unit = {
-    Cluster(context.system).subscribe(self, classOf[ClusterDomainEvent])
+    Cluster(context.system).subscribe(self, initialStateMode = initialStateAsSnapshot, classOf[ClusterDomainEvent])
   }
 
   override def postStop(): Unit = {

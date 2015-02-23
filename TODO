@@ -8,14 +8,12 @@ immediately
 
 0.0.8
 -----
-* make cassandra plugins fully asynchronous
-* full unit test coverage for cassandra plugins
-* more entity unit tests, integration tests
 
 backlog
 -------
+* full unit test coverage for cassandra plugins
+* more entity unit tests, integration tests
 * rename plugin marker traits
-* create DAL for each cassandra table
 * segregate hot and cold storage?
 * add DynamoDB persistence
 * migrate slick to 3.0.0, use async interface.  look into HikariCP.

@@ -18,8 +18,6 @@ object EntityManager {
   }
 }
 
-case class JoinCluster(seedNodes: Vector[String])
-
 case class Shard(shardId: Int, address: Address)
 case class Entity(shardId: Int, entityKey: String)
 case class NodeStatus(address: Address, uid: Int, status: MemberStatus, roles: Set[String])

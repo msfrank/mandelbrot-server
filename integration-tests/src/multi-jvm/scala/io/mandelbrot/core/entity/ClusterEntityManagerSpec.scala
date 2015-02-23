@@ -1,6 +1,7 @@
 package io.mandelbrot.core.entity
 
 import akka.actor.{Props, ActorRef}
+import akka.cluster.Cluster
 import akka.testkit.{TestProbe, ImplicitSender}
 import scala.concurrent.duration._
 
@@ -55,7 +56,7 @@ class ClusterEntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) wit
       system.eventStream.subscribe(eventStream.ref, classOf[ClusterUp])
       val props = Props(classOf[ClusterEntityManager], clusterSettings, TestEntity.propsCreator)
       entityManager = system.actorOf(ProxyForwarder.props(props, self, classOf[EntityServiceOperation]), "entity-manager")
-      entityManager ! JoinCluster(Vector(node(node1).address.toString))
+      Cluster(system).join(node(node1).address)
       eventStream.expectMsgClass(30.seconds, classOf[ClusterUp])
       enterBarrier("cluster-up")
     }
