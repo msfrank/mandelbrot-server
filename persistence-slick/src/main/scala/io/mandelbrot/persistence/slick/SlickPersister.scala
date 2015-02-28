@@ -133,14 +133,14 @@ trait SlickPersister extends Actor with ActorLogging {
 
   def receive = {
 
-    case op: InitializeProbeState =>
+    case op: InitializeProbeStatus =>
       db.withSession { implicit session =>
         dal.get(op.ref) match {
           case Some(state) =>
-            sender() ! InitializeProbeStateResult(op, state.status, state.lsn)
+            sender() ! InitializeProbeStatusResult(op, state.status, state.lsn)
           case None =>
             val status = ProbeStatus(op.ref, op.timestamp, ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
-            sender() ! InitializeProbeStateResult(op, status, 0)
+            sender() ! InitializeProbeStatusResult(op, status, 0)
         }
       }
 
@@ -154,21 +154,21 @@ trait SlickPersister extends Actor with ActorLogging {
         }
       }
 
-    case op: UpdateProbeState =>
+    case op: UpdateProbeStatus =>
       db.withSession { implicit session =>
         try {
           dal.update(op.status, op.lsn)
-          sender() ! UpdateProbeStateResult(op)
+          sender() ! UpdateProbeStatusResult(op)
         } catch {
           case ex: Throwable => sender() ! StateServiceOperationFailed(op, ex)
         }
       }
 
-    case op: DeleteProbeState =>
+    case op: DeleteProbeStatus =>
       db.withSession { implicit session =>
         try {
           dal.delete(op.ref)
-          sender() ! DeleteProbeStateResult(op)
+          sender() ! DeleteProbeStatusResult(op)
         } catch {
           case ex: Throwable => sender() ! StateServiceOperationFailed(op, ex)
         }

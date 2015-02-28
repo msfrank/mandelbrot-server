@@ -2,7 +2,7 @@ package io.mandelbrot.core.entity
 
 import akka.actor.Address
 import org.scalatest.WordSpec
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.ShouldMatchers
 
 class ShardMapSpec extends WordSpec with ShouldMatchers {
 

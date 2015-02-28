@@ -4,7 +4,7 @@ import akka.actor.{ActorSystem, Terminated}
 import akka.testkit.{TestProbe, ImplicitSender, TestActorRef, TestKit}
 import io.mandelbrot.core.metrics.MetricsBus
 import org.joda.time.DateTime
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.ShouldMatchers
 import org.scalatest.{WordSpecLike, BeforeAndAfterAll}
 import scala.concurrent.duration._
 
@@ -33,14 +33,14 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val metricsBus = new MetricsBus()
       val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val probe = actor.underlyingActor
-      probe.lifecycle should be(ProbeInitializing)
-      probe.health should be(ProbeUnknown)
-      probe.summary should be(None)
-      probe.lastChange should be(None)
-      probe.lastUpdate should be(None)
-      probe.correlationId should be(None)
-      probe.acknowledgementId should be(None)
-      probe.squelch should be(false)
+      probe.lifecycle shouldEqual ProbeInitializing
+      probe.health shouldEqual ProbeUnknown
+      probe.summary shouldEqual None
+      probe.lastChange shouldEqual None
+      probe.lastUpdate shouldEqual None
+      probe.correlationId shouldEqual None
+      probe.acknowledgementId shouldEqual None
+      probe.squelch shouldEqual false
     }
 
     "initialize and transition to running behavior" in {
@@ -50,18 +50,20 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
+
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
-      val initialize = stateService.expectMsgClass(classOf[InitializeProbeState])
-      val status = ProbeStatus(ref, DateTime.now(), ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
-      stateService.reply(InitializeProbeStateResult(initialize, status, 0))
+      val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
+      val status = ProbeStatus(DateTime.now(), ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false)
+      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+
       actor ! GetProbeStatus(ref)
       val result = expectMsgClass(classOf[GetProbeStatusResult])
-      result.state.lifecycle should be(ProbeKnown)
-      result.state.health should be(ProbeHealthy)
-      result.state.summary should be(None)
-      result.state.correlation should be(None)
-      result.state.acknowledged should be(None)
-      result.state.squelched should be(false)
+      result.status.lifecycle shouldEqual ProbeKnown
+      result.status.health shouldEqual ProbeHealthy
+      result.status.summary shouldEqual None
+      result.status.correlation shouldEqual None
+      result.status.acknowledged shouldEqual None
+      result.status.squelched shouldEqual false
     }
 
     "update behavior" in {
@@ -71,13 +73,16 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
+
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
-      val initialize = stateService.expectMsgClass(classOf[InitializeProbeState])
-      val status = ProbeStatus(ref, DateTime.now(), ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
-      stateService.reply(InitializeProbeStateResult(initialize, status, 0))
+      val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
+      val status = ProbeStatus(DateTime.now(), ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false)
+      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+
       actor ! UpdateProbe(Set.empty, policy, TestUpdateBehavior(2), 1)
-      val update = stateService.expectMsgClass(classOf[UpdateProbeState])
-      stateService.reply(UpdateProbeStateResult(update))
+      val update = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(update))
+
       actor ! GetProbeConfig(ref)
       val result = expectMsgClass(classOf[GetProbeConfigResult])
       result.behavior shouldEqual TestUpdateBehavior(2)
@@ -94,13 +99,16 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val metricsBus = new MetricsBus()
       val policy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
       val initialBehavior = TestBehavior()
+
       val actor = system.actorOf(Probe.props(ref, blackhole, children, policy, initialBehavior, 0, services, metricsBus))
-      val initialize = stateService.expectMsgClass(classOf[InitializeProbeState])
-      val status = ProbeStatus(ref, DateTime.now(), ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
-      stateService.reply(InitializeProbeStateResult(initialize, status, 0))
+      val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
+      val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
+      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+
       actor ! ChangeProbe(children, policy, TestChangeBehavior(), 1)
-      val update = stateService.expectMsgClass(classOf[UpdateProbeState])
-      stateService.reply(UpdateProbeStateResult(update))
+      val update = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(update))
+
       actor ! GetProbeConfig(ref)
       val result = expectMsgClass(classOf[GetProbeConfigResult])
       result.children shouldEqual children
@@ -115,16 +123,20 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
+
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       watch(actor)
-      val initialize = stateService.expectMsgClass(classOf[InitializeProbeState])
-      val status = ProbeStatus(ref, DateTime.now(), ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
-      stateService.reply(InitializeProbeStateResult(initialize, status, 0))
+
+      val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
+      val status = ProbeStatus(DateTime.now(), ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false)
+      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+
       actor ! RetireProbe(0)
-      val retire = stateService.expectMsgClass(classOf[DeleteProbeState])
-      stateService.reply(DeleteProbeStateResult(retire))
+      val retire = stateService.expectMsgClass(classOf[DeleteProbeStatus])
+      stateService.reply(DeleteProbeStatusResult(retire))
+
       val result = expectMsgClass(classOf[Terminated])
-      result.actor should be(actor)
+      result.actor shouldEqual actor
     }
   }
 }

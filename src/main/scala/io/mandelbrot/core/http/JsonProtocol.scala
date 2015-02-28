@@ -21,6 +21,7 @@ package io.mandelbrot.core.http
 
 import akka.actor.{AddressFromURIString, Address}
 import akka.cluster.MemberStatus
+import io.mandelbrot.core.state.GetNotificationHistory
 import spray.json._
 import spray.http.{ContentTypes, HttpEntity}
 import org.joda.time.DateTime
@@ -34,7 +35,7 @@ import java.nio.charset.Charset
 
 import io.mandelbrot.core.entity._
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.history._
+import io.mandelbrot.core.state._
 import io.mandelbrot.core.metrics._
 import io.mandelbrot.core.system._
 import io.mandelbrot.core.tracking._
@@ -86,6 +87,16 @@ object JsonProtocol extends DefaultJsonProtocol {
     def read(value: JsValue) = value match {
       case JsString(uri) => new URI(uri)
       case _ => throw new DeserializationException("expected URI")
+    }
+  }
+
+  /* convert BigDecimal class */
+  implicit object BigDecimalFormat extends RootJsonFormat[BigDecimal] {
+    def write(value: BigDecimal) = JsString(value.toString())
+    def read(value: JsValue) = value match {
+      case JsNumber(v) => v
+      case JsString(v) => BigDecimal(v)
+      case unknown => throw new DeserializationException("unknown metric value type " + unknown)
     }
   }
 
@@ -179,7 +190,7 @@ object JsonProtocol extends DefaultJsonProtocol {
   implicit val ProbePolicyFormat = jsonFormat5(ProbePolicy)
 
 
-  /* convert MetricsEvaluation class */
+  /* convert SourceType class */
   implicit object SourceTypeFormat extends RootJsonFormat[SourceType] {
     def write(sourceType: SourceType) = JsString(sourceType.toString)
     def read(value: JsValue) = value match {
@@ -189,7 +200,7 @@ object JsonProtocol extends DefaultJsonProtocol {
     }
   }
 
-  /* convert MetricsEvaluation class */
+  /* convert MetricUnit class */
   implicit object MetricUnitFormat extends RootJsonFormat[MetricUnit] {
     def write(unit: MetricUnit) = JsString(unit.name)
     def read(value: JsValue) = value match {
@@ -215,7 +226,7 @@ object JsonProtocol extends DefaultJsonProtocol {
     }
   }
 
-  /* convert MetricsEvaluation class */
+  /* convert ConsolidationFunction class */
   implicit object ConsolidationFunctionFormat extends RootJsonFormat[ConsolidationFunction] {
     def write(function: ConsolidationFunction) = JsString(function.name)
     def read(value: JsValue) = value match {
@@ -278,6 +289,9 @@ object JsonProtocol extends DefaultJsonProtocol {
       case unknown => throw new DeserializationException("unknown ProbeLifecycle state " + unknown)
     }
   }
+
+  /* convert ProbeEvaluation class */
+  implicit val ProbeEvaluationFormat = jsonFormat4(ProbeEvaluation)
 
   /* convert ProbeNotification class */
   implicit object ProbeNotificationFormat extends RootJsonFormat[ProbeNotification] {
@@ -343,8 +357,9 @@ object JsonProtocol extends DefaultJsonProtocol {
   /* convert ProbeStatus class */
   implicit val ProbeStatusFormat = jsonFormat10(ProbeStatus)
 
-  /* convert ProbeLink class */
-  implicit val ProbeLinkFormat = jsonFormat3(ProbeLink)
+  implicit val ProbeConditionRecordFormat = jsonFormat9(ProbeConditionRecord)
+  implicit val ProbeNotificationRecordFormat = jsonFormat3(ProbeNotificationRecord)
+  implicit val ProbeMetricRecordFormat = jsonFormat3(ProbeMetricRecord)
 
   /* registry operations */
   implicit val RegisterProbeSystemFormat = jsonFormat2(RegisterProbeSystem)
@@ -361,8 +376,8 @@ object JsonProtocol extends DefaultJsonProtocol {
   implicit val SetProbeSquelchResultFormat = jsonFormat2(SetProbeSquelchResult)
 
   /* history service operations */
-  implicit val GetStatusHistoryFormat = jsonFormat4(GetStatusHistory)
-  implicit val GetStatusHistoryResultFormat = jsonFormat2(GetStatusHistoryResult)
+  implicit val GetConditionHistoryFormat = jsonFormat4(GetConditionHistory)
+  implicit val GetConditionHistoryResultFormat = jsonFormat2(GetConditionHistoryResult)
   implicit val GetNotificationHistoryFormat = jsonFormat4(GetNotificationHistory)
   implicit val GetNotificationHistoryResultFormat = jsonFormat2(GetNotificationHistoryResult)
 
@@ -385,8 +400,8 @@ object JsonProtocol extends DefaultJsonProtocol {
   /* http actions */
   implicit val GetProbeSystemStatusFormat = jsonFormat2(GetProbeSystemStatus)
   implicit val GetProbeSystemStatusResultFormat = jsonFormat2(GetProbeSystemStatusResult)
-  implicit val GetProbeSystemStatusHistoryFormat = jsonFormat5(GetProbeSystemStatusHistory)
-  implicit val GetProbeSystemStatusHistoryResultFormat = jsonFormat2(GetProbeSystemStatusHistoryResult)
+  implicit val GetProbeSystemConditionHistoryFormat = jsonFormat5(GetProbeSystemConditionHistory)
+  implicit val GetProbeSystemConditionHistoryResultFormat = jsonFormat2(GetProbeSystemConditionHistoryResult)
   implicit val GetProbeSystemNotificationHistoryFormat = jsonFormat5(GetProbeSystemNotificationHistory)
   implicit val GetProbeSystemNotificationHistoryResultFormat = jsonFormat2(GetProbeSystemNotificationHistoryResult)
   implicit val GetProbeSystemMetadataFormat = jsonFormat2(GetProbeSystemMetadata)
@@ -398,54 +413,6 @@ object JsonProtocol extends DefaultJsonProtocol {
   implicit val UnacknowledgeProbeSystemFormat = jsonFormat2(UnacknowledgeProbeSystem)
   implicit val UnacknowledgeProbeSystemResultFormat = jsonFormat2(UnacknowledgeProbeSystemResult)
 
-  /* metrics types */
-  implicit object BigDecimalFormat extends RootJsonFormat[BigDecimal] {
-    def write(value: BigDecimal) = JsString(value.toString())
-    def read(value: JsValue) = value match {
-      case JsNumber(v) => v
-      case JsString(v) => BigDecimal(v)
-      case unknown => throw new DeserializationException("unknown metric value type " + unknown)
-    }
-  }
-
-  /* message types */
-  implicit val StatusMessageFormat = jsonFormat5(StatusMessage)
-  implicit val MetricsMessageFormat = jsonFormat3(MetricsMessage)
-
-  /* */
-  implicit object ProbeEventFormat extends RootJsonFormat[ProbeEvent] {
-    def write(message: ProbeEvent) = {
-      val (messageType, payload) = message match {
-        case m: MetricsMessage =>
-          "io.mandelbrot.message.MetricsMessage" -> MetricsMessageFormat.write(m)
-        case m: StatusMessage =>
-          "io.mandelbrot.message.StatusMessage" -> StatusMessageFormat.write(m)
-        case unknownType =>
-          throw new DeserializationException("unknown messageType")
-      }
-      JsObject(Map("messageType" -> JsString(messageType), "payload" -> payload))
-    }
-    def read(value: JsValue) = {
-      value match {
-        case JsObject(fields) =>
-          if (!fields.contains("payload"))
-            throw new DeserializationException("missing payload")
-          fields.get("messageType") match {
-            case Some(JsString("io.mandelbrot.message.StatusMessage")) =>
-              StatusMessageFormat.read(fields("payload"))
-            case Some(JsString("io.mandelbrot.message.MetricsMessage")) =>
-              MetricsMessageFormat.read(fields("payload"))
-            case Some(JsString(unknownType)) =>
-              throw new DeserializationException("unknown messageType")
-            case None =>
-              throw new DeserializationException("missing messageType")
-            case unknownValue =>
-              throw new DeserializationException("messageType is not a string")
-          }
-        case unknown => throw new DeserializationException("unknown Message format")
-      }
-    }
-  }
 
   /* convert Address class */
   implicit object ClusterAddressFormat extends RootJsonFormat[Address] {

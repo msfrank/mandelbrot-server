@@ -58,9 +58,9 @@ class GetProbeSystemStatusAction(params: HttpActionParams, op: GetProbeSystemSta
     case result: MatchProbeSystemResult =>
       log.debug("matched probe refs {}", result.refs.mkString(","))
       refs = result.refs
-      refs.foreach(ref => params.services ! GetProbeState(ref))
+      refs.foreach(ref => params.services ! GetProbeStatus(ref))
 
-    case result: GetProbeStateResult =>
+    case result: GetProbeStatusResult =>
       log.debug("got status for {}", result.op.probeRef)
       refs = refs - result.op.probeRef
       results = results + (result.op.probeRef -> result.status)
@@ -85,7 +85,7 @@ class GetProbeSystemStatusAction(params: HttpActionParams, op: GetProbeSystemSta
 /**
  *
  */
-class GetProbeSystemStatusHistoryAction(params: HttpActionParams, op: GetProbeSystemStatusHistory) extends Actor with ActorLogging {
+class GetProbeSystemConditionHistoryAction(params: HttpActionParams, op: GetProbeSystemConditionHistory) extends Actor with ActorLogging {
   import context.dispatcher
 
   val actionTimeout = context.system.scheduler.scheduleOnce(params.timeout.duration, self, ActionTimeout)
@@ -96,7 +96,7 @@ class GetProbeSystemStatusHistoryAction(params: HttpActionParams, op: GetProbeSy
   }
 
   var refs = Set.empty[ProbeRef]
-  var results = Map.empty[ProbeRef,GetStatusHistoryResult]
+  var results = Map.empty[ProbeRef,GetConditionHistoryResult]
 
   params.services ! MatchProbeSystem(op.uri, matchers)
 
@@ -104,16 +104,16 @@ class GetProbeSystemStatusHistoryAction(params: HttpActionParams, op: GetProbeSy
     case result: MatchProbeSystemResult =>
       log.debug("matched probe refs {}", result.refs.mkString(","))
       refs = result.refs
-      refs.foreach(ref => params.services ! GetStatusHistory(ref, op.from, op.to, op.limit))
+      refs.foreach(ref => params.services ! GetConditionHistory(ref, op.from, op.to, op.limit))
 
-    case result: GetStatusHistoryResult =>
-      log.debug("got status history for {}", result.op.probeRef)
+    case result: GetConditionHistoryResult =>
+      log.debug("got condition history for {}", result.op.probeRef)
       refs = refs - result.op.probeRef
       results = results + (result.op.probeRef -> result)
       if (refs.isEmpty) {
         val history = results.values.flatMap(_.history).toVector.sortWith((s1,s2) => s1.timestamp.isBefore(s2.timestamp))
         actionTimeout.cancel()
-        params.ctx.complete(GetProbeSystemStatusHistoryResult(op, history))
+        params.ctx.complete(GetProbeSystemConditionHistoryResult(op, history))
         context.stop(self)
       }
 
@@ -151,7 +151,7 @@ class GetProbeSystemNotificationHistoryAction(params: HttpActionParams, op: GetP
     case result: MatchProbeSystemResult =>
       log.debug("matched probe refs {}", result.refs.mkString(","))
       refs = result.refs
-      refs.foreach(ref => params.services ! GetStatusHistory(ref, op.from, op.to, op.limit))
+      refs.foreach(ref => params.services ! GetNotificationHistory(ref, op.from, op.to, op.limit))
 
     case result: GetNotificationHistoryResult =>
       log.debug("got notification history for {}", result.op.probeRef)
@@ -190,14 +190,11 @@ case class GetProbeSystemMetadataResult(op: GetProbeSystemMetadata, metadata: Ma
 case class GetProbeSystemPolicy(uri: URI, paths: Option[Set[String]]) extends HttpOperation
 case class GetProbeSystemPolicyResult(op: GetProbeSystemPolicy, policy: Map[ProbeRef,ProbePolicy])
 
-case class GetProbeSystemLinks(uri: URI, paths: Option[Set[String]]) extends HttpOperation
-case class GetProbeSystemLinksResult(op: GetProbeSystemLinks, links: Map[ProbeRef,ProbeLink])
-
-case class GetProbeSystemStatusHistory(uri: URI, paths: Option[Set[String]], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends HttpOperation
-case class GetProbeSystemStatusHistoryResult(op: GetProbeSystemStatusHistory, history: Vector[ProbeStatus])
+case class GetProbeSystemConditionHistory(uri: URI, paths: Option[Set[String]], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends HttpOperation
+case class GetProbeSystemConditionHistoryResult(op: GetProbeSystemConditionHistory, history: Vector[ProbeConditionRecord])
 
 case class GetProbeSystemNotificationHistory(uri: URI, paths: Option[Set[String]], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends HttpOperation
-case class GetProbeSystemNotificationHistoryResult(op: GetProbeSystemNotificationHistory, history: Vector[ProbeNotification])
+case class GetProbeSystemNotificationHistoryResult(op: GetProbeSystemNotificationHistory, history: Vector[ProbeNotificationRecord])
 
 case class AcknowledgeProbeSystem(uri: URI, correlations: Map[ProbeRef,UUID]) extends HttpOperation
 case class AcknowledgeProbeSystemResult(op: AcknowledgeProbeSystem, acknowledgements: Map[ProbeRef,UUID])
@@ -219,8 +216,8 @@ object HttpActionProps {
   implicit object GetProbeSystemStatusPropsCreator extends HttpActionPropsCreator[GetProbeSystemStatus] {
     def props(params: HttpActionParams, op: GetProbeSystemStatus) = Props(classOf[GetProbeSystemStatusAction], params, op)
   }
-  implicit object GetProbeSystemStatusHistoryPropsCreator extends HttpActionPropsCreator[GetProbeSystemStatusHistory] {
-    def props(params: HttpActionParams, op: GetProbeSystemStatusHistory) = Props(classOf[GetProbeSystemStatusHistoryAction], params, op)
+  implicit object GetProbeSystemConditionHistoryPropsCreator extends HttpActionPropsCreator[GetProbeSystemConditionHistory] {
+    def props(params: HttpActionParams, op: GetProbeSystemConditionHistory) = Props(classOf[GetProbeSystemConditionHistoryAction], params, op)
   }
   implicit object GetProbeSystemNotificationHistoryPropsCreator extends HttpActionPropsCreator[GetProbeSystemNotificationHistory] {
     def props(params: HttpActionParams, op: GetProbeSystemNotificationHistory) = Props(classOf[GetProbeSystemNotificationHistoryAction], params, op)

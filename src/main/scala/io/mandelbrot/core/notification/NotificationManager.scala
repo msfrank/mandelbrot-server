@@ -20,13 +20,12 @@
 package io.mandelbrot.core.notification
 
 import akka.actor._
-import io.mandelbrot.core.history.NotificationAppends
-import io.mandelbrot.core.system.ProbeMatcher
 import org.joda.time.DateTime
 import scala.collection.mutable
 import java.util.UUID
 
 import io.mandelbrot.core._
+import io.mandelbrot.core.system.ProbeMatcher
 
 /**
  * the notification manager holds notification routing configuration as well as
@@ -57,7 +56,6 @@ class NotificationManager(settings: NotificationSettings) extends Actor with Act
     case notification: ProbeNotification =>
       if (!isSuppressed(notification)) {
         settings.rules.evaluate(notification, notifiers)
-        historyService ! NotificationAppends(notification)
       }
 
     case notification: NotificationEvent =>

@@ -19,10 +19,13 @@
 
 package io.mandelbrot.core.state
 
+import java.util.UUID
+
 import akka.actor._
 import akka.util.ByteString
+import io.mandelbrot.core.notification.{ProbeNotification, NotificationEvent}
 import io.mandelbrot.core.system.ProbeRef
-import org.joda.time.DateTime
+import org.joda.time.{DateTimeZone, DateTime}
 
 import io.mandelbrot.core._
 import io.mandelbrot.core.system._
@@ -31,6 +34,7 @@ import io.mandelbrot.core.system._
  *
  */
 class StateManager(settings: StateSettings) extends Actor with ActorLogging {
+  import StateManager._
 
   // config
   val persister: ActorRef = {
@@ -38,29 +42,66 @@ class StateManager(settings: StateSettings) extends Actor with ActorLogging {
     log.info("loading persister plugin {}", settings.persister.plugin)
     context.actorOf(props, "persister")
   }
+  var historyCleaner: Option[Cancellable] = None
 
+  override def preStart(): Unit = {
+    //historyCleaner = Some(context.system.scheduler.schedule(settings.cleanerInitialDelay, settings.cleanerInterval, self, PerformTrim))
+  }
+
+  override def postStop(): Unit = {
+    for (cancellable <- historyCleaner)
+      cancellable.cancel()
+    historyCleaner = None
+  }
+  
   def receive = {
 
-    case op: InitializeProbeState =>
+    case op: InitializeProbeStatus =>
       persister forward op
       
-    case op: UpdateProbeState =>
+    case op: UpdateProbeStatus =>
       persister forward op
       
-    case op: DeleteProbeState =>
+    case op: DeleteProbeStatus =>
       persister forward op
 
-    case op: GetProbeState =>
+    /* retrieve condition history */
+    case op: GetConditionHistory =>
       persister forward op
 
+    /* retrieve notification history */
+    case op: GetNotificationHistory =>
+      persister forward op
+
+    /* retrieve metric history */
+    case op: GetMetricHistory =>
+      persister forward op
+
+    case PerformTrim =>
+      //val mark = new DateTime(DateTime.now(DateTimeZone.UTC).getMillis - settings.historyRetention.toMillis)
+      //persister ! TrimProbeHistory(mark)
   }
 }
 
 object StateManager {
   def props(settings: StateSettings) = Props(classOf[StateManager], settings)
+  
+  case object PerformTrim
 }
 
-case class ProbeState(status: ProbeStatus, lsn: Long, context: Option[ByteString])
+case class ProbeConditionRecord(timestamp: DateTime,
+                                lifecycle: ProbeLifecycle,
+                                summary: Option[String],
+                                health: ProbeHealth,
+                                lastUpdate: Option[DateTime],
+                                lastChange: Option[DateTime],
+                                correlation: Option[UUID],
+                                acknowledged: Option[UUID],
+                                squelched: Boolean)
+
+case class ProbeNotificationRecord(timestamp: DateTime, kind: String, description: String)
+
+case class ProbeMetricRecord(timestamp: DateTime, name: String, value: BigDecimal)
 
 /**
  *
@@ -70,20 +111,26 @@ sealed trait StateServiceCommand extends ServiceCommand with StateServiceOperati
 sealed trait StateServiceQuery extends ServiceQuery with StateServiceOperation
 case class StateServiceOperationFailed(op: StateServiceOperation, failure: Throwable) extends ServiceOperationFailed
 
-case class InitializeProbeState(ref: ProbeRef, timestamp: DateTime, lsn: Long) extends StateServiceCommand
-case class InitializeProbeStateResult(op: InitializeProbeState, status: ProbeStatus, lsn: Long)
+case class InitializeProbeStatus(ref: ProbeRef, timestamp: DateTime, lsn: Long) extends StateServiceCommand
+case class InitializeProbeStatusResult(op: InitializeProbeStatus, status: ProbeStatus, lsn: Long)
 
-case class UpdateProbeState(ref: ProbeRef, status: ProbeStatus, lsn: Long) extends StateServiceCommand
-case class UpdateProbeStateResult(op: UpdateProbeState)
+case class UpdateProbeStatus(ref: ProbeRef, status: ProbeStatus, notifications: Vector[NotificationEvent], lsn: Long) extends StateServiceCommand
+case class UpdateProbeStatusResult(op: UpdateProbeStatus)
 
-case class DeleteProbeState(ref: ProbeRef, lastStatus: Option[ProbeStatus], lsn: Long) extends StateServiceCommand
-case class DeleteProbeStateResult(op: DeleteProbeState)
+case class DeleteProbeStatus(ref: ProbeRef, lastStatus: Option[ProbeStatus], lsn: Long) extends StateServiceCommand
+case class DeleteProbeStatusResult(op: DeleteProbeStatus)
 
-case class GetProbeState(probeRef: ProbeRef) extends StateServiceQuery
-case class GetProbeStateResult(op: GetProbeState, status: ProbeStatus, lsn: Long)
+case class TrimProbeHistory(probeRef: ProbeRef, mark: DateTime) extends StateServiceCommand
+case class TrimProbeHistoryResult(op: TrimProbeHistory)
+
+case class GetConditionHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends StateServiceQuery
+case class GetConditionHistoryResult(op: GetConditionHistory, history: Vector[ProbeConditionRecord])
+
+case class GetNotificationHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends StateServiceQuery
+case class GetNotificationHistoryResult(op: GetNotificationHistory, history: Vector[ProbeNotificationRecord])
+
+case class GetMetricHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends StateServiceQuery
+case class GetMetricHistoryResult(op: GetMetricHistory, history: Vector[ProbeMetricRecord])
 
 /* marker trait for Persister implementations */
 trait Persister
-
-/* marker trait for Searcher implementations */
-trait Searcher

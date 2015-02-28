@@ -2,29 +2,29 @@ package io.mandelbrot.core.system
 
 import org.joda.time.{DateTimeZone, DateTime}
 
+import scala.util.{Failure, Try}
+
 case class TestBehavior() extends ProbeBehavior {
   def makeProbeBehavior(): ProbeBehaviorInterface = new TestBehaviorImpl()
 }
 
 class TestBehaviorImpl() extends ProbeBehaviorInterface {
 
-  def enter(probe: ProbeInterface): Option[EventMutation] = None
+  def enter(probe: ProbeInterface): Option[EventEffect] = None
 
-  def processChild(probe: ProbeInterface, message: ProbeStatus): Option[EventMutation] = None
+  def processChild(probe: ProbeInterface, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
 
-  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventMutation] = None
+  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventEffect] = None
 
-  def processExpiryTimeout(probe: ProbeInterface): Option[EventMutation] = None
+  def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect] = None
 
-  def retire(probe: ProbeInterface, lsn: Long): Option[EventMutation] = None
+  def retire(probe: ProbeInterface, lsn: Long): Option[EventEffect] = None
 
-  def processMetrics(probe: ProbeInterface, message: MetricsMessage): Option[EventMutation] = None
+  def processAlertTimeout(probe: ProbeInterface): Option[EventEffect] = None
 
-  def processAlertTimeout(probe: ProbeInterface): Option[EventMutation] = None
+  def exit(probe: ProbeInterface): Option[EventEffect] = None
 
-  def exit(probe: ProbeInterface): Option[EventMutation] = None
-
-  def processStatus(probe: ProbeInterface, message: StatusMessage): Option[EventMutation] = None
+  def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
 }
 
 case class TestChangeBehavior() extends ProbeBehavior {
@@ -33,27 +33,25 @@ case class TestChangeBehavior() extends ProbeBehavior {
 
 class TestChangeBehaviorImpl() extends ProbeBehaviorInterface {
 
-  def enter(probe: ProbeInterface): Option[EventMutation] = {
+  def enter(probe: ProbeInterface): Option[EventEffect] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
-    val status = ProbeStatus(probe.probeRef, timestamp, ProbeKnown, ProbeHealthy, None, Some(timestamp), Some(timestamp), None, None, false)
-    Some(EventMutation(status, Vector.empty))
+    val status = ProbeStatus(timestamp, ProbeKnown, None, ProbeHealthy, Map.empty, Some(timestamp), Some(timestamp), None, None, false)
+    Some(EventEffect(status, Vector.empty))
   }
 
-  def processStatus(probe: ProbeInterface, message: StatusMessage): Option[EventMutation] = None
+  def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
 
-  def processMetrics(probe: ProbeInterface, message: MetricsMessage): Option[EventMutation] = None
+  def processChild(probe: ProbeInterface, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
 
-  def processChild(probe: ProbeInterface, message: ProbeStatus): Option[EventMutation] = None
+  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventEffect] = None
 
-  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventMutation] = None
+  def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect] = None
 
-  def processExpiryTimeout(probe: ProbeInterface): Option[EventMutation] = None
+  def retire(probe: ProbeInterface, lsn: Long): Option[EventEffect] = None
 
-  def retire(probe: ProbeInterface, lsn: Long): Option[EventMutation] = None
+  def processAlertTimeout(probe: ProbeInterface): Option[EventEffect] = None
 
-  def processAlertTimeout(probe: ProbeInterface): Option[EventMutation] = None
-
-  def exit(probe: ProbeInterface): Option[EventMutation] = None
+  def exit(probe: ProbeInterface): Option[EventEffect] = None
 
 }
 
@@ -63,26 +61,24 @@ case class TestUpdateBehavior(param: Int) extends ProbeBehavior {
 
 class TestUpdateBehaviorImpl() extends ProbeBehaviorInterface {
 
-  def enter(probe: ProbeInterface): Option[EventMutation] = None
+  def enter(probe: ProbeInterface): Option[EventEffect] = None
 
-  def processStatus(probe: ProbeInterface, message: StatusMessage): Option[EventMutation] = None
+  def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
 
-  def processMetrics(probe: ProbeInterface, message: MetricsMessage): Option[EventMutation] = None
+  def processChild(probe: ProbeInterface, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
 
-  def processChild(probe: ProbeInterface, message: ProbeStatus): Option[EventMutation] = None
-
-  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventMutation] = {
+  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventEffect] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
-    val status = ProbeStatus(probe.probeRef, timestamp, ProbeKnown, ProbeHealthy, None, Some(timestamp), Some(timestamp), None, None, false)
-    Some(EventMutation(status, Vector.empty))
+    val status = ProbeStatus(timestamp, ProbeKnown, None, ProbeHealthy, Map.empty, Some(timestamp), Some(timestamp), None, None, false)
+    Some(EventEffect(status, Vector.empty))
   }
 
-  def processExpiryTimeout(probe: ProbeInterface): Option[EventMutation] = None
+  def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect] = None
 
-  def retire(probe: ProbeInterface, lsn: Long): Option[EventMutation] = None
+  def retire(probe: ProbeInterface, lsn: Long): Option[EventEffect] = None
 
-  def processAlertTimeout(probe: ProbeInterface): Option[EventMutation] = None
+  def processAlertTimeout(probe: ProbeInterface): Option[EventEffect] = None
 
-  def exit(probe: ProbeInterface): Option[EventMutation] = None
+  def exit(probe: ProbeInterface): Option[EventEffect] = None
 
 }

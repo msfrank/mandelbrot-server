@@ -1,7 +1,7 @@
 package io.mandelbrot.core.metrics
 
 import org.scalatest.WordSpec
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.ShouldMatchers
 
 import scala.math.BigDecimal
 

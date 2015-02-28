@@ -35,7 +35,7 @@ import io.mandelbrot.core.notification.{ProbeNotification, NotificationEvent}
  * as updating probes when policy changes.  lastly, the ProbeSystem acts as an endpoint
  * for commands and queries operating on sets of probes in the system.
  */
-class ProbeSystem(services: ActorRef) extends LoggingFSM[SystemFSMState,SystemFSMData] with Stash {
+class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,ProbeSystem.Data] with Stash {
   import ProbeSystem._
 
   // config
@@ -45,7 +45,6 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[SystemFSMState,SystemFS
   var probes: Map[ProbeRef,ProbeActor] = Map.empty
   val retiredProbes = new mutable.HashMap[ActorRef,(ProbeRef,Long)]
   val zombieProbes = new mutable.HashSet[ProbeRef]
-  val links = new mutable.HashMap[ProbeRef,ProbeLink]
   val metricsBus = new MetricsBus()
 
   override def preStart(): Unit = {
@@ -141,24 +140,6 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[SystemFSMState,SystemFS
     /* retire all running probes */
     case Event(op: RetireProbeSystem, state: SystemRunning) =>
       goto(SystemRetiring) using SystemRetiring(op, sender(), state)
-
-    /* send status message to specified probe */
-    case Event(message: StatusMessage, state: SystemRunning) =>
-      probes.get(message.probeRef) match {
-        case Some(probeActor: ProbeActor) =>
-          probeActor.actor ! message
-        case None =>
-          log.warning("ignoring message {}: probe source is not known", message)
-      }
-      stay()
-
-    /* send metrics message to all interested probes */
-    case Event(message: MetricsMessage, state: SystemRunning) =>
-      if (probes.contains(message.probeRef))
-        metricsBus.publish(message)
-      else
-        log.warning("ignoring message {}: probe source is not known", message)
-      stay()
 
     /* ignore probe status from top level probes */
     case Event(status: ProbeStatus, state: SystemRunning) =>
@@ -375,34 +356,31 @@ object ProbeSystem {
   def props(services: ActorRef) = Props(classOf[ProbeSystem], services)
 
   case class ProbeActor(spec: ProbeSpec, actor: ActorRef)
+
+  sealed trait State
+  case object SystemIncubating extends State
+  case object SystemRegistering extends State
+  case object SystemInitializing extends State
+  case object SystemRunning extends State
+  case object SystemUpdating extends State
+  case object SystemRetiring extends State
+  case object SystemRetired extends State
+  case object SystemFailed extends State
+
+  sealed trait Data
+  case object SystemWaiting extends Data
+  case class SystemInitializing(uri: URI) extends Data
+  case class SystemRegistering(op: RegisterProbeSystem, sender: ActorRef) extends Data
+  case class SystemRunning(uri: URI, registration: ProbeRegistration, lsn: Long) extends Data
+  case class SystemUpdating(op: UpdateProbeSystem, sender: ActorRef, prev: SystemRunning) extends Data
+  case class SystemRetiring(op: RetireProbeSystem, sender: ActorRef, prev: SystemRunning) extends Data
+  case class SystemRetired(uri: URI, registration: ProbeRegistration, lsn: Long) extends Data
+  case class SystemError(ex: Throwable) extends Data
 }
-
-sealed trait SystemFSMState
-case object SystemIncubating extends SystemFSMState
-case object SystemRegistering extends SystemFSMState
-case object SystemInitializing extends SystemFSMState
-case object SystemRunning extends SystemFSMState
-case object SystemUpdating extends SystemFSMState
-case object SystemRetiring extends SystemFSMState
-case object SystemRetired extends SystemFSMState
-case object SystemFailed extends SystemFSMState
-
-sealed trait SystemFSMData
-case object SystemWaiting extends SystemFSMData
-case class SystemInitializing(uri: URI) extends SystemFSMData
-case class SystemRegistering(op: RegisterProbeSystem, sender: ActorRef) extends SystemFSMData
-case class SystemRunning(uri: URI, registration: ProbeRegistration, lsn: Long) extends SystemFSMData
-case class SystemUpdating(op: UpdateProbeSystem, sender: ActorRef, prev: SystemRunning) extends SystemFSMData
-case class SystemRetiring(op: RetireProbeSystem, sender: ActorRef, prev: SystemRunning) extends SystemFSMData
-case class SystemRetired(uri: URI, registration: ProbeRegistration, lsn: Long) extends SystemFSMData
-case class SystemError(ex: Throwable) extends SystemFSMData
 
 case class UpdateProbe(children: Set[ProbeRef], policy: ProbePolicy, behavior: ProbeBehavior, lsn: Long)
 case class ChangeProbe(children: Set[ProbeRef], policy: ProbePolicy, behavior: ProbeBehavior, lsn: Long)
 case class RetireProbe(lsn: Long)
-
-/* describes a link to a probe subtree from a different probe system */
-case class ProbeLink(localRef: ProbeRef, remoteUrl: URI, remoteMatch: String)
 
 /**
  *

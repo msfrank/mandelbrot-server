@@ -3,13 +3,13 @@ package io.mandelbrot.core.metrics
 import akka.actor.ActorRef
 import akka.event.{LookupClassification, EventBus}
 
-import io.mandelbrot.core.system.{ProbeRef, MetricsMessage}
+import io.mandelbrot.core.system.ProbeRef
 
 /**
  *
  */
 class MetricsBus extends EventBus with LookupClassification {
-  type Event = MetricsMessage
+  type Event = MetricsSet
   type Classifier = Vector[String]
   type Subscriber = ActorRef
 
@@ -21,3 +21,5 @@ class MetricsBus extends EventBus with LookupClassification {
   // used internally (i.e. the expected number of different classifiers)
   override protected def mapSize(): Int = 32
 }
+
+case class MetricsSet(probeRef: ProbeRef, metrics: Map[String,BigDecimal])

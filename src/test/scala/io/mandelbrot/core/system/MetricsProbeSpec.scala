@@ -19,6 +19,8 @@
 
 package io.mandelbrot.core.system
 
+import java.util.UUID
+
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import org.joda.time.DateTime
@@ -57,21 +59,25 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
+
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
-      val initialize = stateService.expectMsgClass(classOf[InitializeProbeState])
-      val status = ProbeStatus(ref, DateTime.now(), ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
-      stateService.reply(InitializeProbeStateResult(initialize, status, 0))
+      val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
+      val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
+      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+
       // probe sets its lifecycle to joining
-      val update1 = stateService.expectMsgClass(classOf[UpdateProbeState])
-      stateService.reply(UpdateProbeStateResult(update1))
-      update1.status.lifecycle should be(ProbeJoining)
+      val update1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(update1))
+      update1.status.lifecycle shouldEqual ProbeJoining
+
       val timestamp = DateTime.now()
-      actor ! MetricsMessage(ref, Map(source.metricName -> BigDecimal(5)), timestamp)
-      val update2 = stateService.expectMsgClass(classOf[UpdateProbeState])
-      update2.status.health should be(ProbeHealthy)
-      update2.status.correlation should be(None)
-      update2.status.acknowledged should be(None)
-      update2.status.squelched should be(false)
+      actor ! ProcessProbeEvaluation(ref, ProbeEvaluation(timestamp, None, None, Some(Map(source.metricName -> BigDecimal(5)))))
+      val update2 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      update2.status.health shouldEqual ProbeHealthy
+      update2.status.correlation shouldEqual None
+      update2.status.acknowledged shouldEqual None
+      update2.status.squelched shouldEqual false
+      expectMsgClass(classOf[ProcessProbeEvaluationResult])
     }
 
     "transition to ProbeKnown/ProbeFailed when a failed MetricsMessage is received" in {
@@ -83,21 +89,25 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
+
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
-      val initialize = stateService.expectMsgClass(classOf[InitializeProbeState])
-      val status = ProbeStatus(ref, DateTime.now(), ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
-      stateService.reply(InitializeProbeStateResult(initialize, status, 0))
+      val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
+      val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
+      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+
       // probe sets its lifecycle to joining
-      val update1 = stateService.expectMsgClass(classOf[UpdateProbeState])
-      stateService.reply(UpdateProbeStateResult(update1))
+      val update1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(update1))
       update1.status.lifecycle should be(ProbeJoining)
+
       val timestamp = DateTime.now()
-      actor ! MetricsMessage(ref, Map(source.metricName -> BigDecimal(15)), timestamp)
-      val update2 = stateService.expectMsgClass(classOf[UpdateProbeState])
-      update2.status.health should be(ProbeFailed)
-      update2.status.correlation should not be(None)
-      update2.status.acknowledged should be(None)
-      update2.status.squelched should be(false)
+      actor ! ProcessProbeEvaluation(ref, ProbeEvaluation(timestamp, None, None, Some(Map(source.metricName -> BigDecimal(15)))))
+      val update2 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      update2.status.health shouldEqual ProbeFailed
+      update2.status.correlation shouldEqual Some(_: UUID)
+      update2.status.acknowledged shouldEqual None
+      update2.status.squelched shouldEqual false
+      expectMsgClass(classOf[ProcessProbeEvaluationResult])
     }
 
     "notify StateService when the joining timeout expires" in {
@@ -109,21 +119,24 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
+
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
-      val initialize = stateService.expectMsgClass(classOf[InitializeProbeState])
-      val status = ProbeStatus(ref, DateTime.now(), ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
-      stateService.reply(InitializeProbeStateResult(initialize, status, 0))
+      val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
+      val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
+      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+
       // probe sets its lifecycle to joining
-      val update1 = stateService.expectMsgClass(classOf[UpdateProbeState])
-      stateService.reply(UpdateProbeStateResult(update1))
-      update1.status.lifecycle should be(ProbeJoining)
+      val update1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(update1))
+      update1.status.lifecycle shouldEqual ProbeJoining
+
       // expiry timer should fire within 5 seconds
-      val update2 = stateService.expectMsgClass(5.seconds, classOf[UpdateProbeState])
-      update2.status.probeRef should be(ref)
-      update2.status.health should be(ProbeUnknown)
-      update2.status.correlation should not be(None)
-      update2.status.acknowledged should be(None)
-      update2.status.squelched should be(false)
+      val update2 = stateService.expectMsgClass(5.seconds, classOf[UpdateProbeStatus])
+      update2.ref shouldEqual ref
+      update2.status.health shouldEqual ProbeUnknown
+      update2.status.correlation shouldEqual Some(_: UUID)
+      update2.status.acknowledged shouldEqual None
+      update2.status.squelched shouldEqual false
     }
 
     "notify StateService when the probe timeout expires" in {
@@ -135,29 +148,34 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
+
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
-      val initialize = stateService.expectMsgClass(classOf[InitializeProbeState])
-      val status = ProbeStatus(ref, DateTime.now(), ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
-      stateService.reply(InitializeProbeStateResult(initialize, status, 0))
+      val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
+      val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
+      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+
       // probe sets its lifecycle to joining
-      val update1 = stateService.expectMsgClass(classOf[UpdateProbeState])
-      stateService.reply(UpdateProbeStateResult(update1))
-      update1.status.lifecycle should be(ProbeJoining)
+      val update1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(update1))
+      update1.status.lifecycle shouldEqual ProbeJoining
+
       val timestamp = DateTime.now()
-      actor ! MetricsMessage(ref, Map(source.metricName -> BigDecimal(5)), timestamp)
-      val update2 = stateService.expectMsgClass(classOf[UpdateProbeState])
-      stateService.reply(UpdateProbeStateResult(update2))
-      update2.status.lifecycle should be(ProbeKnown)
-      update2.status.health should be(ProbeHealthy)
+      actor ! ProcessProbeEvaluation(ref, ProbeEvaluation(timestamp, None, None, Some(Map(source.metricName -> BigDecimal(5)))))
+      val update2 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(update2))
+      update2.status.lifecycle shouldEqual ProbeKnown
+      update2.status.health shouldEqual ProbeHealthy
+      expectMsgClass(classOf[ProcessProbeEvaluationResult])
+
       // expiry timer should fire within 5 seconds
-      val update3 = stateService.expectMsgClass(5.seconds, classOf[UpdateProbeState])
-      update3.status.probeRef should be(ref)
-      update3.status.lifecycle should be(ProbeKnown)
-      update3.status.health should be(ProbeUnknown)
-      update3.status.summary should be(None)
-      update3.status.correlation should not be(None)
-      update3.status.acknowledged should be(None)
-      update3.status.squelched should be(false)
+      val update3 = stateService.expectMsgClass(5.seconds, classOf[UpdateProbeStatus])
+      update3.ref shouldEqual ref
+      update3.status.lifecycle shouldEqual ProbeKnown
+      update3.status.health shouldEqual ProbeUnknown
+      update3.status.summary shouldEqual None
+      update3.status.correlation shouldEqual Some(_: UUID)
+      update3.status.acknowledged shouldEqual None
+      update3.status.squelched shouldEqual false
     }
 
     "notify NotificationService when the alert timeout expires" in {
@@ -170,26 +188,31 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref), notificationService = Some(notificationService.ref)))
       val metricsBus = new MetricsBus()
+
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
-      val initialize = stateService.expectMsgClass(classOf[InitializeProbeState])
-      val status = ProbeStatus(ref, DateTime.now(), ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
-      stateService.reply(InitializeProbeStateResult(initialize, status, 0))
+      val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
+      val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
+      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+
       // probe sets its lifecycle to joining
-      val update1 = stateService.expectMsgClass(classOf[UpdateProbeState])
-      stateService.reply(UpdateProbeStateResult(update1))
-      update1.status.lifecycle should be(ProbeJoining)
+      val update1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(update1))
+      update1.status.lifecycle shouldEqual ProbeJoining
+
       val timestamp = DateTime.now()
-      actor ! MetricsMessage(ref, Map(source.metricName -> BigDecimal(15)), timestamp)
-      val update2 = stateService.expectMsgClass(classOf[UpdateProbeState])
-      stateService.reply(UpdateProbeStateResult(update2))
+      actor ! ProcessProbeEvaluation(ref, ProbeEvaluation(timestamp, None, None, Some(Map(source.metricName -> BigDecimal(15)))))
+      val update2 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(update2))
       notificationService.expectMsgClass(classOf[NotifyLifecycleChanges])
       notificationService.expectMsgClass(classOf[NotifyHealthChanges])
+      expectMsgClass(classOf[ProcessProbeEvaluationResult])
+
       // expiry timer should fire within 5 seconds
-      val update3 = stateService.expectMsgClass(5.seconds, classOf[UpdateProbeState])
-      stateService.reply(UpdateProbeStateResult(update3))
+      val update3 = stateService.expectMsgClass(5.seconds, classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(update3))
       val notification = notificationService.expectMsgClass(classOf[NotifyHealthAlerts])
-      notification.probeRef should be(ref)
-      notification.health should be(ProbeFailed)
+      notification.probeRef shouldEqual ref
+      notification.health shouldEqual ProbeFailed
       notification.correlation shouldEqual update2.status.correlation
     }
 

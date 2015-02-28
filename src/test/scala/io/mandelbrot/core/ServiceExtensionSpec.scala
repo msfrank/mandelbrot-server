@@ -1,7 +1,7 @@
 package io.mandelbrot.core
 
 import org.scalatest.WordSpec
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.ShouldMatchers
 import akka.actor.{Props, Actor}
 
 class ServiceExtensionSpec extends WordSpec with ShouldMatchers {

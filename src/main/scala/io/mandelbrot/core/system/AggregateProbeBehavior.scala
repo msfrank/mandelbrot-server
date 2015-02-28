@@ -21,15 +21,13 @@ package io.mandelbrot.core.system
 
 import java.util.UUID
 
-import akka.actor.{PoisonPill, Actor}
-import akka.pattern.ask
+import io.mandelbrot.core.{BadRequest, ApiException}
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.collection.mutable
 import scala.concurrent.duration.FiniteDuration
-import scala.util.{Failure, Success}
+import scala.util.{Try, Failure, Success}
 
 import io.mandelbrot.core.notification._
-import io.mandelbrot.core.state.DeleteProbeState
 
 /**
  *
@@ -46,7 +44,7 @@ class AggregateProbeBehaviorImpl(evaluation: AggregateEvaluation) extends ProbeB
   val children = new mutable.HashMap[ProbeRef,Option[ProbeStatus]]
   val flapQueue: Option[FlapQueue] = None
 
-  def enter(probe: ProbeInterface): Option[EventMutation] = {
+  def enter(probe: ProbeInterface): Option[EventEffect] = {
     probe.children.foreach(child => children.put(child, None))
     probe.alertTimer.stop()
     probe.expiryTimer.restart(probe.policy.joiningTimeout)
@@ -54,28 +52,25 @@ class AggregateProbeBehaviorImpl(evaluation: AggregateEvaluation) extends ProbeB
       val timestamp = DateTime.now(DateTimeZone.UTC)
       probe.getProbeStatus.copy(lifecycle = ProbeSynthetic, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
     } else probe.getProbeStatus
-    Some(EventMutation(status, Vector.empty))
+    Some(EventEffect(status, Vector.empty))
   }
 
   /*
    * if the set of direct children has changed, or the probe policy has updated,
    * then update our state.
    */
-  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventMutation] = {
+  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventEffect] = {
     (children.keySet -- probe.children).foreach { ref => children.remove(ref)}
     (probe.children -- children.keySet).foreach { ref => children.put(ref, None)}
     None
   }
 
-  /* ignore status messages */
-  def processStatus(probe: ProbeInterface, message: StatusMessage): Option[EventMutation] = None
+  /* ignore probe evaluations from client */
+  def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect] = Failure(ApiException(BadRequest))
 
-  /* ignore metrics messages */
-  def processMetrics(probe: ProbeInterface, message: MetricsMessage): Option[EventMutation] = None
-
-  /* */
-  def processChild(probe: ProbeInterface, message: ProbeStatus): Option[EventMutation] = {
-    children.put(message.probeRef, Some(message))
+  /* process the status of a child probe */
+  def processChild(probe: ProbeInterface, childRef: ProbeRef, childStatus: ProbeStatus): Option[EventEffect] = {
+    children.put(childRef, Some(childStatus))
 
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val health = evaluation.evaluate(children)
@@ -100,7 +95,7 @@ class AggregateProbeBehaviorImpl(evaluation: AggregateEvaluation) extends ProbeB
       probe.acknowledgementId
     }
 
-    val status = ProbeStatus(probe.probeRef, timestamp, probe.lifecycle, health, None, lastUpdate, lastChange, correlationId, acknowledgementId, probe.squelch)
+    val status = ProbeStatus(timestamp, probe.lifecycle, None, health, Map.empty, lastUpdate, lastChange, correlationId, acknowledgementId, probe.squelch)
 
     var notifications = Vector.empty[NotificationEvent]
     // append health notification
@@ -114,16 +109,16 @@ class AggregateProbeBehaviorImpl(evaluation: AggregateEvaluation) extends ProbeB
     // append recovery notification
     if (health == ProbeHealthy && probe.acknowledgementId.isDefined)
       notifications = notifications :+ NotifyRecovers(probe.probeRef, timestamp, probe.correlationId.get, probe.acknowledgementId.get)
-    Some(EventMutation(status, notifications))
+    Some(EventEffect(status, notifications))
   }
 
   /* ignore spurious ProbeExpiryTimeout messages */
-  def processExpiryTimeout(probe: ProbeInterface): Option[EventMutation] = None
+  def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect] = None
 
   /*
    * if the alert timer expires, then send a health-alerts notification and restart the alert timer.
    */
-  def processAlertTimeout(probe: ProbeInterface): Option[EventMutation] = {
+  def processAlertTimeout(probe: ProbeInterface): Option[EventEffect] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val status = probe.getProbeStatus(timestamp)
     // restart the alert timer
@@ -132,7 +127,7 @@ class AggregateProbeBehaviorImpl(evaluation: AggregateEvaluation) extends ProbeB
     val notifications = probe.correlationId.map { correlation =>
       NotifyHealthAlerts(probe.probeRef, timestamp, probe.health, correlation, probe.acknowledgementId)
     }.toVector
-    Some(EventMutation(status, notifications))
+    Some(EventEffect(status, notifications))
   }
 
   /*
@@ -140,16 +135,16 @@ class AggregateProbeBehaviorImpl(evaluation: AggregateEvaluation) extends ProbeB
    * retired, state is updated, and lifecycle-changes notification is sent.  finally, all timers
    * are stopped, then the actor itself is stopped.
    */
-  def retire(probe: ProbeInterface, lsn: Long): Option[EventMutation] = {
+  def retire(probe: ProbeInterface, lsn: Long): Option[EventEffect] = {
     probe.expiryTimer.stop()
     probe.alertTimer.stop()
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val status = probe.getProbeStatus(timestamp).copy(lifecycle = ProbeRetired, lastChange = Some(timestamp), lastUpdate = Some(timestamp))
     val notifications = Vector(NotifyLifecycleChanges(probe.probeRef, timestamp, probe.lifecycle, ProbeRetired))
-    Some(EventMutation(status, notifications))
+    Some(EventEffect(status, notifications))
   }
 
-  def exit(probe: ProbeInterface): Option[EventMutation] = {
+  def exit(probe: ProbeInterface): Option[EventEffect] = {
     // stop timers
     probe.alertTimer.stop()
     None

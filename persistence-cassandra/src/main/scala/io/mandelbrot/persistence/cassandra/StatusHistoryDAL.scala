@@ -144,6 +144,6 @@ class StatusHistoryDAL(settings: CassandraArchiverSettings, session: Session)(im
     val correlation = Option(row.getUUID(7))
     val acknowledged = Option(row.getUUID(8))
     val squelched = row.getBool(9)
-    ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlation, acknowledged, squelched)
+    ProbeStatus(timestamp, lifecycle, summary, health, Map.empty, lastUpdate, lastChange, correlation, acknowledged, squelched)
   }
 }

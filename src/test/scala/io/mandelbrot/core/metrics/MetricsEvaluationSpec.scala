@@ -1,7 +1,7 @@
 package io.mandelbrot.core.metrics
 
 import org.scalatest.WordSpec
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.ShouldMatchers
 
 import scala.math.BigDecimal
 
@@ -15,62 +15,62 @@ class MetricsEvaluationSpec extends WordSpec with ShouldMatchers {
       val evaluation = new MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueEquals(BigDecimal(10)))), "")
       val metrics = new MetricsStore(evaluation)
       metrics.append(source, BigDecimal(10))
-      evaluation.evaluate(metrics) should be(Some(true))
+      evaluation.evaluate(metrics) shouldEqual Some(true)
       metrics.append(source, BigDecimal(11))
-      evaluation.evaluate(metrics) should be(Some(false))
+      evaluation.evaluate(metrics) shouldEqual Some(false)
     }
 
     "evaluate !=" in {
       val evaluation = new MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueNotEquals(BigDecimal(10)))), "")
       val metrics = new MetricsStore(evaluation)
       metrics.append(source, BigDecimal(10))
-      evaluation.evaluate(metrics) should be(Some(false))
+      evaluation.evaluate(metrics) shouldEqual Some(false)
       metrics.append(source, BigDecimal(11))
-      evaluation.evaluate(metrics) should be(Some(true))
+      evaluation.evaluate(metrics) shouldEqual Some(true)
     }
 
     "evaluate <" in {
       val evaluation = new MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueLessThan(BigDecimal(10)))), "")
       val metrics = new MetricsStore(evaluation)
       metrics.append(source, BigDecimal(5))
-      evaluation.evaluate(metrics) should be(Some(true))
+      evaluation.evaluate(metrics) shouldEqual Some(true)
       metrics.append(source, BigDecimal(10))
-      evaluation.evaluate(metrics) should be(Some(false))
+      evaluation.evaluate(metrics) shouldEqual Some(false)
       metrics.append(source, BigDecimal(15))
-      evaluation.evaluate(metrics) should be(Some(false))
+      evaluation.evaluate(metrics) shouldEqual Some(false)
     }
 
     "evaluate >" in {
       val evaluation = new MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueGreaterThan(BigDecimal(10)))), "")
       val metrics = new MetricsStore(evaluation)
       metrics.append(source, BigDecimal(5))
-      evaluation.evaluate(metrics) should be(Some(false))
+      evaluation.evaluate(metrics) shouldEqual Some(false)
       metrics.append(source, BigDecimal(10))
-      evaluation.evaluate(metrics) should be(Some(false))
+      evaluation.evaluate(metrics) shouldEqual Some(false)
       metrics.append(source, BigDecimal(15))
-      evaluation.evaluate(metrics) should be(Some(true))
+      evaluation.evaluate(metrics) shouldEqual Some(true)
     }
 
     "evaluate <=" in {
       val evaluation = new MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueLessEqualThan(BigDecimal(10)))), "")
       val metrics = new MetricsStore(evaluation)
       metrics.append(source, BigDecimal(5))
-      evaluation.evaluate(metrics) should be(Some(true))
+      evaluation.evaluate(metrics) shouldEqual Some(true)
       metrics.append(source, BigDecimal(10))
-      evaluation.evaluate(metrics) should be(Some(true))
+      evaluation.evaluate(metrics) shouldEqual Some(true)
       metrics.append(source, BigDecimal(15))
-      evaluation.evaluate(metrics) should be(Some(false))
+      evaluation.evaluate(metrics) shouldEqual Some(false)
     }
 
     "evaluate >=" in {
       val evaluation = new MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueGreaterEqualThan(BigDecimal(10)))), "")
       val metrics = new MetricsStore(evaluation)
       metrics.append(source, BigDecimal(5))
-      evaluation.evaluate(metrics) should be(Some(false))
+      evaluation.evaluate(metrics) shouldEqual Some(false)
       metrics.append(source, BigDecimal(10))
-      evaluation.evaluate(metrics) should be(Some(true))
+      evaluation.evaluate(metrics) shouldEqual Some(true)
       metrics.append(source, BigDecimal(15))
-      evaluation.evaluate(metrics) should be(Some(true))
+      evaluation.evaluate(metrics) shouldEqual Some(true)
     }
   }
 }

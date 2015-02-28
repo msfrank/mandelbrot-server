@@ -110,10 +110,22 @@ object RoutingDirectives {
 /**
  *
  */
-object Uri extends PathMatcher1[URI] {
+object SystemUri extends PathMatcher1[URI] {
   def apply(path: Path) = path match {
     case Path.Segment(segment, tail) =>
       Matched(tail, new URI(segment) :: HNil)
+    case _ =>
+      Unmatched
+  }
+}
+
+/**
+ *
+ */
+object ProbePath extends PathMatcher1[Vector[String]] {
+  def apply(path: Path) = path match {
+    case Path.Segment(segment, tail) =>
+      Matched(tail, segment.split('.').toVector :: HNil)
     case _ =>
       Unmatched
   }

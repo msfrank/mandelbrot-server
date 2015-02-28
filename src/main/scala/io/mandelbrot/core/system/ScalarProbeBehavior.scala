@@ -21,6 +21,7 @@ package io.mandelbrot.core.system
 
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration.FiniteDuration
+import scala.util.{Success, Try}
 import java.util.UUID
 
 import io.mandelbrot.core.notification._
@@ -39,17 +40,17 @@ class ScalarProbeBehaviorImpl extends ProbeBehaviorInterface {
 
   val flapQueue: Option[FlapQueue] = None
 
-  def enter(probe: ProbeInterface): Option[EventMutation] = {
+  def enter(probe: ProbeInterface): Option[EventEffect] = {
     probe.alertTimer.stop()
     probe.expiryTimer.restart(probe.policy.joiningTimeout)
     if (probe.lifecycle == ProbeInitializing) {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val status = probe.getProbeStatus.copy(lifecycle = ProbeJoining, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
-      Some(EventMutation(status, Vector.empty))
+      Some(EventEffect(status, Vector.empty))
     } else None
   }
 
-  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventMutation] = None
+  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventEffect] = None
 
     /*
      * if we receive a status message while joining or known, then update probe state
@@ -59,10 +60,11 @@ class ScalarProbeBehaviorImpl extends ProbeBehaviorInterface {
      * we set the correlation if it is different from the current correlation, and we start
      * the alert timer.
      */
-  def processStatus(probe: ProbeInterface, message: StatusMessage): Option[EventMutation] = {
+  def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect] = {
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      val health = message.health
-      val summary = Some(message.summary)
+      val summary = command.evaluation.summary.orElse(probe.summary)
+      val health = command.evaluation.health.getOrElse(probe.health)
+      val metrics = command.evaluation.metrics.getOrElse(Map.empty)
       val lastUpdate = Some(timestamp)
       var lifecycle = probe.lifecycle
       var lastChange = probe.lastChange
@@ -75,7 +77,7 @@ class ScalarProbeBehaviorImpl extends ProbeBehaviorInterface {
       probe.expiryTimer.reset(probe.policy.probeTimeout)
       if (health != probe.health) {
         lastChange = Some(timestamp)
-        flapQueue.foreach(_.push(message.timestamp))
+        flapQueue.foreach(_.push(command.evaluation.timestamp))
       }
       // we are healthy
       if (health == ProbeHealthy) {
@@ -91,33 +93,30 @@ class ScalarProbeBehaviorImpl extends ProbeBehaviorInterface {
           probe.alertTimer.start(probe.policy.alertTimeout)
       }
 
-      val status = ProbeStatus(probe.probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, probe.squelch)
+      val status = ProbeStatus(timestamp, lifecycle, summary, health, metrics, lastUpdate, lastChange, correlationId, acknowledgementId, probe.squelch)
 
       var notifications = Vector.empty[NotificationEvent]
       // append lifecycle notification
       if (lifecycle != probe.lifecycle)
-        notifications = notifications :+ NotifyLifecycleChanges(probe.probeRef, message.timestamp, probe.lifecycle, lifecycle)
+        notifications = notifications :+ NotifyLifecycleChanges(probe.probeRef, command.evaluation.timestamp, probe.lifecycle, lifecycle)
       // append health notification
       flapQueue match {
         case Some(flapDetector) if flapDetector.isFlapping =>
-          notifications = notifications :+ NotifyHealthFlaps(probe.probeRef, message.timestamp, correlationId, flapDetector.flapStart)
+          notifications = notifications :+ NotifyHealthFlaps(probe.probeRef, command.evaluation.timestamp, correlationId, flapDetector.flapStart)
         case _ if probe.health != health =>
-          notifications = notifications :+ NotifyHealthChanges(probe.probeRef, message.timestamp, correlationId, probe.health, health)
+          notifications = notifications :+ NotifyHealthChanges(probe.probeRef, command.evaluation.timestamp, correlationId, probe.health, health)
         case _ =>
-          notifications = notifications :+ NotifyHealthUpdates(probe.probeRef, message.timestamp, correlationId, health)
+          notifications = notifications :+ NotifyHealthUpdates(probe.probeRef, command.evaluation.timestamp, correlationId, health)
       }
       // append recovery notification
       if (health == ProbeHealthy && probe.acknowledgementId.isDefined)
         notifications = notifications :+ NotifyRecovers(probe.probeRef, timestamp, probe.correlationId.get, probe.acknowledgementId.get)
 
-      Some(EventMutation(status, notifications))
+      Success(CommandEffect(ProcessProbeEvaluationResult(command), status, notifications))
   }
 
-  /* ignore status messages */
-  def processMetrics(probe: ProbeInterface, message: MetricsMessage): Option[EventMutation] = None
-
   /* ignore child messages */
-  def processChild(probe: ProbeInterface, message: ProbeStatus): Option[EventMutation] = None
+  def processChild(probe: ProbeInterface, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
 
   /*
    * if we haven't received a status message within the current expiry window, then update probe
@@ -125,7 +124,7 @@ class ScalarProbeBehaviorImpl extends ProbeBehaviorInterface {
    * different from the current correlation.  we restart the expiry timer, and we start the alert
    * timer if it is not already running.
    */
-  def processExpiryTimeout(probe: ProbeInterface): Option[EventMutation] = {
+  def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect] = {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val health = ProbeUnknown
       val correlationId = if (probe.correlationId.isDefined) probe.correlationId else Some(UUID.randomUUID())
@@ -150,13 +149,13 @@ class ScalarProbeBehaviorImpl extends ProbeBehaviorInterface {
           Vector(NotifyHealthExpires(probe.probeRef, timestamp, correlationId))
       }
       // update state and send notifications
-      Some(EventMutation(status, notifications))
+      Some(EventEffect(status, notifications))
   }
 
   /*
    * if the alert timer expires, then send a health-alerts notification and restart the alert timer.
    */
-  def processAlertTimeout(probe: ProbeInterface): Option[EventMutation] = {
+  def processAlertTimeout(probe: ProbeInterface): Option[EventEffect] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val status = probe.getProbeStatus(timestamp)
     // restart the alert timer
@@ -165,7 +164,7 @@ class ScalarProbeBehaviorImpl extends ProbeBehaviorInterface {
     val notifications = probe.correlationId.map { correlation =>
       NotifyHealthAlerts(probe.probeRef, timestamp, probe.health, correlation, probe.acknowledgementId)
     }.toVector
-    Some(EventMutation(status, notifications))
+    Some(EventEffect(status, notifications))
   }
 
   /*
@@ -173,15 +172,15 @@ class ScalarProbeBehaviorImpl extends ProbeBehaviorInterface {
    * retired, state is updated, and lifecycle-changes notification is sent.  finally, all timers
    * are stopped, then the actor itself is stopped.
    */
-  def retire(probe: ProbeInterface, lsn: Long): Option[EventMutation] = {
+  def retire(probe: ProbeInterface, lsn: Long): Option[EventEffect] = {
     probe.expiryTimer.stop()
     probe.alertTimer.stop()
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val status = probe.getProbeStatus(timestamp).copy(lifecycle = ProbeRetired, lastChange = Some(timestamp), lastUpdate = Some(timestamp))
     val notifications = Vector(NotifyLifecycleChanges(probe.probeRef, timestamp, probe.lifecycle, ProbeRetired))
-    Some(EventMutation(status, notifications))  }
+    Some(EventEffect(status, notifications))  }
 
-  def exit(probe: ProbeInterface): Option[EventMutation] = {
+  def exit(probe: ProbeInterface): Option[EventEffect] = {
     probe.alertTimer.stop()
     probe.expiryTimer.stop()
     None

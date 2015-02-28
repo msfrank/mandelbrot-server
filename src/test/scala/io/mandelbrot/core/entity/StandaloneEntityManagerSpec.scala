@@ -3,7 +3,7 @@ package io.mandelbrot.core.entity
 import akka.actor.{ActorSystem, Props}
 import akka.testkit.{TestKit, ImplicitSender}
 import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.ShouldMatchers
 import scala.concurrent.duration._
 
 import io.mandelbrot.core._
@@ -56,14 +56,14 @@ class StandaloneEntityManagerSpec(_system: ActorSystem) extends TestKit(_system)
       val reply = expectMsgClass(classOf[TestCreateReply])
       lastSender.path.address.hasLocalScope
       lastSender.path.address.hasLocalScope shouldEqual true
-      reply.message should be(1)
+      reply.message shouldEqual 1
     }
 
     "send a message to a local entity" in {
         entityManager ! entityEnvelope(TestEntityMessage("test1", 0, 2))
         val reply = expectMsgClass(classOf[TestMessageReply])
         lastSender.path.address.hasLocalScope shouldEqual true
-        reply.message should be(2)
+        reply.message shouldEqual 2
     }
 
     "receive delivery failure sending a message to a nonexistent local entity" in {

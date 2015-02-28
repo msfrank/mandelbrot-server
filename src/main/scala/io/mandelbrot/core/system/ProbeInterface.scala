@@ -48,10 +48,46 @@ trait ProbeInterface {
   def acknowledgementId: Option[UUID]
   def squelch: Boolean
 
-  def getProbeStatus(timestamp: DateTime) = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+  def getProbeStatus(timestamp: DateTime) = ProbeStatus(timestamp, lifecycle, summary, health, Map.empty, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
   def getProbeStatus: ProbeStatus = getProbeStatus(DateTime.now(DateTimeZone.UTC))
 
   /* */
   def subscribeToMetrics(probePath: Vector[String]): Unit
   def unsubscribeFromMetrics(probePath: Vector[String]): Unit
 }
+
+/* object lifecycle */
+sealed trait ProbeLifecycle
+case object ProbeInitializing extends ProbeLifecycle { override def toString = "initializing" }
+case object ProbeJoining extends ProbeLifecycle { override def toString = "joining" }
+case object ProbeKnown extends ProbeLifecycle   { override def toString = "known" }
+case object ProbeSynthetic extends ProbeLifecycle { override def toString = "synthetic" }
+case object ProbeRetired extends ProbeLifecycle { override def toString = "retired" }
+
+/* object state */
+sealed trait ProbeHealth
+case object ProbeHealthy extends ProbeHealth  { override def toString = "healthy" }
+case object ProbeDegraded extends ProbeHealth { override def toString = "degraded" }
+case object ProbeFailed extends ProbeHealth   { override def toString = "failed" }
+case object ProbeUnknown extends ProbeHealth  { override def toString = "unknown" }
+
+/* probe status submitted by the agent */
+case class ProbeEvaluation(timestamp: DateTime,
+                           summary: Option[String],
+                           health: Option[ProbeHealth],
+                           metrics: Option[Map[String,BigDecimal]])
+
+/* the complete status of a probe */
+case class ProbeStatus(timestamp: DateTime,
+                       lifecycle: ProbeLifecycle,
+                       summary: Option[String],
+                       health: ProbeHealth,
+                       metrics: Map[String,BigDecimal],
+                       lastUpdate: Option[DateTime],
+                       lastChange: Option[DateTime],
+                       correlation: Option[UUID],
+                       acknowledged: Option[UUID],
+                       squelched: Boolean)
+
+/* key-value pairs describing a probe */
+case class ProbeMetadata(probeRef: ProbeRef, metadata: Map[String,String])

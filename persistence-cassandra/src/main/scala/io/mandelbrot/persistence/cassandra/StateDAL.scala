@@ -43,16 +43,16 @@ class StateDAL(settings: CassandraPersisterSettings, session: Session)(implicit 
        |WHERE probe_ref = ?
      """.stripMargin)
 
-  def initializeProbeState(op: InitializeProbeState): Future[InitializeProbeStateResult] = {
+  def initializeProbeState(op: InitializeProbeStatus): Future[InitializeProbeStatusResult] = {
     val probeRef = op.ref.toString
     session.executeAsync(new BoundStatement(preparedGetProbeState).bind(probeRef)).map { resultSet =>
       val row = resultSet.one()
       if (row != null) {
         val state = row2ProbeState(row)
-        InitializeProbeStateResult(op, state.status, state.lsn)
+        InitializeProbeStatusResult(op, state.status, state.lsn)
       } else {
-        val status = ProbeStatus(op.ref, op.timestamp, ProbeInitializing, ProbeUnknown, None, None, None, None, None, false)
-        InitializeProbeStateResult(op, status, 0)
+        val status = ProbeStatus(op.timestamp, ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
+        InitializeProbeStatusResult(op, status, 0)
       }
     }
   }
@@ -74,8 +74,8 @@ class StateDAL(settings: CassandraPersisterSettings, session: Session)(implicit 
        |VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      """.stripMargin)
 
-  def updateProbeState(op: UpdateProbeState): Future[UpdateProbeStateResult] = {
-    val probeRef = op.status.probeRef.toString
+  def updateProbeState(op: UpdateProbeStatus): Future[UpdateProbeStatusResult] = {
+    val probeRef = op.ref.toString
     val lsn: java.lang.Long = op.lsn
     val timestamp = op.status.timestamp.toDate
     val lifecycle = op.status.lifecycle.toString
@@ -90,7 +90,7 @@ class StateDAL(settings: CassandraPersisterSettings, session: Session)(implicit 
     session.executeAsync(new BoundStatement(preparedUpdateProbeState).bind(probeRef, lsn,
       timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlation, acknowledged, squelched, context
     )).map {
-      resultSet => UpdateProbeStateResult(op)
+      resultSet => UpdateProbeStatusResult(op)
     }
   }
 
@@ -99,10 +99,10 @@ class StateDAL(settings: CassandraPersisterSettings, session: Session)(implicit 
        |DELETE FROM $tableName WHERE probe_ref = ?
      """.stripMargin)
 
-  def deleteProbeState(op: DeleteProbeState): Future[DeleteProbeStateResult] = {
+  def deleteProbeState(op: DeleteProbeStatus): Future[DeleteProbeStatusResult] = {
     val probeRef = op.ref.toString
     session.executeAsync(new BoundStatement(preparedDeleteProbeState).bind(probeRef)).map {
-      resultSet => DeleteProbeStateResult(op)
+      resultSet => DeleteProbeStatusResult(op)
     }
   }
 
@@ -134,7 +134,7 @@ class StateDAL(settings: CassandraPersisterSettings, session: Session)(implicit 
     val acknowledged = Option(row.getUUID(9))
     val squelched = row.getBool(10)
     val context = Option(row.getBytes(11)).map(ByteString(_))
-    val status = ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlation, acknowledged, squelched)
+    val status = ProbeStatus(timestamp, lifecycle, summary, health, Map.empty, lastUpdate, lastChange, correlation, acknowledged, squelched)
     ProbeState(status, generation, None)
   }
 }

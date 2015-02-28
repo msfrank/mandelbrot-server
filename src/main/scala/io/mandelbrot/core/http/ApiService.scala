@@ -64,7 +64,7 @@ trait ApiService extends HttpService {
   /**
    * Spray routes for managing objects
    */
-  val objectsSystemsRoutes = {
+  val systemsRoutes = {
     path("systems") {
       /* register new probe system, or fail if it already exists */
       post {
@@ -97,7 +97,7 @@ trait ApiService extends HttpService {
         }
       }
     } ~
-    pathPrefix("systems" / Uri) { case uri: URI =>
+    pathPrefix("systems" / SystemUri) { case uri: URI =>
       pathEndOrSingleSlash {
         /* retrieve the spec for the specified probe system */
         get {
@@ -137,15 +137,33 @@ trait ApiService extends HttpService {
           }
         }
       } ~
-      pathPrefix("properties") {
-        path("status") {
-          /* describe the status of the ProbeSystem */
-          get {
-            pathParams { paths =>
-              completeAction(GetProbeSystemStatus(uri, paths))
+      pathPrefix("probes" / ProbePath) { case path: Vector[String] =>
+        get {
+          /* describe the status of the Probe */
+          complete {
+            serviceProxy.ask(GetProbeStatus(ProbeRef(uri, path))).map {
+              case result: GetProbeStatusResult =>
+                result.status
+              case failure: ServiceOperationFailed =>
+                throw failure.failure
             }
           }
         } ~
+        post {
+          /* update the status of the Probe */
+          entity(as[ProbeEvaluation]) { case evaluation: ProbeEvaluation =>
+            complete {
+              serviceProxy.ask(ProcessProbeEvaluation(ProbeRef(uri, path), evaluation)).map {
+                case result: ProcessProbeEvaluationResult =>
+                  HttpResponse(StatusCodes.OK)
+                case failure: ServiceOperationFailed =>
+                  throw failure.failure
+              }
+            }
+          }
+        }
+      } ~
+      path("properties") {
         path("metadata") {
           /* return metadata attached to the ProbeSystem */
           get {
@@ -164,38 +182,25 @@ trait ApiService extends HttpService {
           /* return the current policy */
           get {
             pathParams { paths =>
-            complete {
-              serviceProxy.ask(GetProbeSystemPolicy(uri, paths)).map {
-                case result: GetProbeSystemPolicyResult =>
-                  result.policy
-                case failure: ServiceOperationFailed =>
-                  throw failure.failure
+              complete {
+                serviceProxy.ask(GetProbeSystemPolicy(uri, paths)).map {
+                  case result: GetProbeSystemPolicyResult =>
+                    result.policy
+                  case failure: ServiceOperationFailed =>
+                    throw failure.failure
+                }
               }
-            }}
-          }
-        } ~
-        path("links") {
-          /* return links attached to the ProbeSystem */
-          get {
-            pathParams { paths =>
-            complete {
-              serviceProxy.ask(GetProbeSystemLinks(uri, paths)).map {
-                case result: GetProbeSystemLinksResult =>
-                  result.links
-                case failure: ServiceOperationFailed =>
-                  throw failure.failure
-              }
-            }}
+            }
           }
         }
       } ~
-      pathPrefix("collections") {
-        path("history") {
+      path("collections") {
+        path("conditions") {
           get {
             pathParams { paths =>
             timeseriesParams { timeseries =>
             pagingParams { paging =>
-              completeAction(GetProbeSystemStatusHistory(uri, paths, timeseries.from, timeseries.to, paging.limit))
+              completeAction(GetProbeSystemConditionHistory(uri, paths, timeseries.from, timeseries.to, paging.limit))
             }}}
           }
         } ~
@@ -208,29 +213,15 @@ trait ApiService extends HttpService {
             }}}
           }
         } ~
-        path("metrics") { get { complete { StatusCodes.BadRequest }}
-        } ~
-        path("events") { get { complete { StatusCodes.BadRequest }}
-        } ~
-        path("snapshots") { get { complete { StatusCodes.BadRequest }}
+        path("metrics") {
+          get {
+            complete {
+              StatusCodes.NotImplemented
+            }
+          }
         }
       } ~
       pathPrefix("actions") {
-        path("submit") {
-          /* publish message to the message stream */
-          post {
-            // FIXME: reject message if proberef doesn't match
-            entity(as[ProbeEvent]) {
-              case message: ProbeEvent =>
-                complete {
-                  serviceProxy ! message
-                  HttpResponse(StatusCodes.OK)
-                }
-              case other =>
-                throw ApiException(BadRequest)
-            }
-          }
-        } ~
         path("acknowledge") {
           /* acknowledge an unhealthy probe */
           post {
@@ -275,167 +266,14 @@ trait ApiService extends HttpService {
               }
             }
           }
-        } ~
-        path("link") {
-          /* register a probe link */
-          post {
-            complete { StatusCodes.BadRequest }
-          }
-        } ~
-        path("relink") {
-          /* update a probe link */
-          post {
-            complete { StatusCodes.BadRequest }
-          }
-        } ~
-        path("unlink") {
-          /* unregister a probe link */
-          post {
-            complete { StatusCodes.BadRequest }
-          }
-        } ~
-        path("invoke") {
-          /* execute an external command */
-          post { complete { throw ApiException(BadRequest)}}
         }
       }
     }
   }
 
-  val objectsWindowsRoutes = {
-    path("windows") {
-      /* register new maintenance window */
-      post {
-        entity(as[RegisterMaintenanceWindow]) { case registerMaintenanceWindow: RegisterMaintenanceWindow =>
-          complete {
-            serviceProxy.ask(registerMaintenanceWindow).map {
-              case result: RegisterMaintenanceWindowResult =>
-                HttpResponse(StatusCodes.Accepted,
-                             headers = List(Location("/objects/windows/" + result.id.toString)),
-                             entity = JsonBody(result.id.toJson))
-              case failure: ServiceOperationFailed =>
-                throw failure.failure
-            }
-          }
-        }
-      } ~
-      /* enumerate all maintenance windows */
-      get {
-        complete {
-          serviceProxy.ask(ListMaintenanceWindows()).map {
-            case result: ListMaintenanceWindowsResult =>
-              result.windows
-            case failure: ServiceOperationFailed =>
-              throw failure.failure
-          }
-        }
-      }
-    } ~
-    pathPrefix("windows" / JavaUUID) { case uuid: UUID =>
-      /* modify an existing maintenance window */
-      put {
-        entity(as[MaintenanceWindowModification]) { case modifications: MaintenanceWindowModification =>
-          complete {
-            serviceProxy.ask(ModifyMaintenanceWindow(uuid, modifications)).map {
-              case result: ModifyMaintenanceWindowResult =>
-                result.id
-              case failure: ServiceOperationFailed =>
-                throw failure.failure
-            }
-          }
-        }
-      } ~
-      /* unregister an existing maintenance window */
-      delete {
-        complete {
-          serviceProxy.ask(UnregisterMaintenanceWindow(uuid)).map {
-            case result: UnregisterMaintenanceWindowResult =>
-              HttpResponse(StatusCodes.OK)
-            case failure: ServiceOperationFailed =>
-              throw failure.failure
-          }
-        }
-      }
-    }
-  }
-
-  val objectsTicketsRoutes = {
-    path("tickets") {
-      /* create new tracking ticket */
-      post {
-        entity(as[CreateTicket]) { case createTicket: CreateTicket =>
-          complete {
-            serviceProxy.ask(createTicket).map {
-              case result: CreateTicketResult =>
-                HttpResponse(StatusCodes.Accepted,
-                  headers = List(Location("/objects/tickets/" + result.ticket.toString)),
-                  entity = JsonBody(result.ticket.toJson))
-              case failure: ServiceOperationFailed =>
-                throw failure.failure
-            }
-          }
-        }
-      } ~
-      /* enumerate all tracking tickets */
-      get {
-        pagingParams { paging =>
-        complete {
-          serviceProxy.ask(ListTrackingTickets(paging.last, paging.limit)).map {
-            case result: ListTrackingTicketsResult =>
-              result.tickets
-            case failure: ServiceOperationFailed =>
-              throw failure.failure
-          }
-        }}
-      } ~
-      pathPrefix("tickets" / JavaUUID) { case uuid: UUID =>
-          //      /* modify an existing tracking ticket */
-          //      put {
-          //        entity(as[AppendWorknote]) { case appendWorknote: AppendWorknote =>
-          //          complete {
-          //            serviceProxy.ask(appendWorknote)).map {
-          //              case result: AppendWorknoteResult =>
-          //                result.ticket
-          //              case failure: TrackingServiceOperationFailed =>
-          //                throw failure.failure
-          //            }
-          //          }
-          //        }
-          //      } ~
-          /* close an existing tracking ticket */
-        delete {
-          complete {
-            serviceProxy.ask(ResolveTicket(uuid)).map {
-              case result: ResolveTicketResult =>
-                HttpResponse(StatusCodes.OK)
-              case failure: ServiceOperationFailed =>
-                throw failure.failure
-            }
-          }
-        }
-      }
-    }
-  }
-
- val objectsRulesRoutes = {
-    path("rules") {
-      /* enumerate all maintenance windows */
-      get {
-        complete {
-          serviceProxy.ask(ListNotificationRules()).map {
-            case result: ListNotificationRulesResult =>
-              result.rules
-            case failure: ServiceOperationFailed =>
-              throw failure.failure
-          }
-        }
-      }
-    }
-  }
-
-  val clusterRoutes = {
+  val shardsRoutes = {
     path("shards") {
-      /* get the status of the cluster */
+      /* get the status of all shards in the cluster */
       get {
         complete {
           serviceProxy.ask(GetShardMapStatus()).map {
@@ -446,9 +284,12 @@ trait ApiService extends HttpService {
           }
         }
       }
-    } ~
+    }
+  }
+
+  val nodesRoutes = {
     path("nodes") {
-      /* get the status of the cluster */
+      /* get the status of all nodes in the cluster */
       get {
         complete {
           serviceProxy.ask(GetClusterStatus()).map {
@@ -461,6 +302,7 @@ trait ApiService extends HttpService {
       }
     } ~
     pathPrefix("nodes" / ClusterAddress) { case address =>
+      /* get the status of the specified node */
       get {
         complete {
           serviceProxy.ask(GetNodeStatus(Some(address))).map {
@@ -474,67 +316,11 @@ trait ApiService extends HttpService {
     }
   }
 
-  val objectsRoutes = pathPrefix("objects") {
-    objectsSystemsRoutes ~ objectsWindowsRoutes ~ objectsRulesRoutes
+  val version2 = pathPrefix("v2") {
+    systemsRoutes ~ shardsRoutes ~ nodesRoutes
   }
 
-  /**
-   * Spray routes for invoking services
-   */
-//  val servicesRoutes = pathPrefix("services") {
-//    pathPrefix("status") {
-//      path("search") {
-//        get {
-//          queryParams { query =>
-//          pagingParams { paging =>
-//          complete {
-//            serviceProxy.ask(SearchCurrentStatus(query.qs, paging.limit)).map {
-//              case result: SearchCurrentStatusResult =>
-//                result.status
-//            }
-//          }}}
-//        }
-//      }
-//    } ~
-//    pathPrefix("history") {
-//      path("search") {
-//        get {
-//          queryParams { query =>
-//          timeseriesParams { timeseries =>
-//          pagingParams { paging =>
-//          complete {
-//            serviceProxy.ask(QueryProbes(query.qs, None)).flatMap {
-//              case Failure(failure: Throwable) =>
-//                throw failure
-//              case Success(result: QueryProbesResult) =>
-//                completeAction(GetProbeSystemNotificationHistory(uri, paths, timeseries.from, timeseries.to, paging.limit))
-//            }
-//          }}}}
-//        }
-//      }
-//    } ~
-//    pathPrefix("notifications") {
-//      path("search") {
-//        get {
-//          queryParams { query =>
-//          timeseriesParams { timeseries =>
-//          pagingParams { paging =>
-//          complete {
-//            serviceProxy.ask(QueryProbes(query.qs, None)).flatMap {
-//              case Failure(failure: Throwable) =>
-//                throw failure
-//              case Success(result: QueryProbesResult) =>
-//                completeAction(GetProbeSystemNotificationHistory(uri, paths, timeseries.from, timeseries.to, paging.limit))
-//            }
-//          }}}}
-//        }
-//      }
-//    }
-//  }
-
-  val version1 = objectsRoutes ~ clusterRoutes
-
-  val routes =  version1
+  val routes = version2
 
   import scala.language.implicitConversions
 

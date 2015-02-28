@@ -19,13 +19,12 @@
 
 package io.mandelbrot.core.system
 
-import io.mandelbrot.core.{BadRequest, Conflict, ResourceNotFound, ApiException}
 import org.joda.time.{DateTimeZone, DateTime}
+import scala.util.{Success, Failure, Try}
 import java.util.UUID
 
 import io.mandelbrot.core.notification._
-
-import scala.util.{Success, Failure, Try}
+import io.mandelbrot.core.{BadRequest, Conflict, ResourceNotFound, ApiException}
 
 /**
  *
@@ -38,33 +37,29 @@ trait ProbeBehavior {
  *
  */
 trait ProbeBehaviorInterface {
-  import io.mandelbrot.core.system.Probe._
 
-  def enter(probe: ProbeInterface): Option[EventMutation]
-  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventMutation]
-  def processStatus(probe: ProbeInterface, message: StatusMessage): Option[EventMutation]
-  def processMetrics(probe: ProbeInterface, message: MetricsMessage): Option[EventMutation]
-  def processChild(probe: ProbeInterface, message: ProbeStatus): Option[EventMutation]
-  def processAlertTimeout(probe: ProbeInterface): Option[EventMutation]
-  def processExpiryTimeout(probe: ProbeInterface): Option[EventMutation]
-  def retire(probe: ProbeInterface, lsn: Long): Option[EventMutation]
-  def exit(probe: ProbeInterface): Option[EventMutation]
+  def enter(probe: ProbeInterface): Option[EventEffect]
+  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventEffect]
+  def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect]
+  def processChild(probe: ProbeInterface, child: ProbeRef, status: ProbeStatus): Option[EventEffect]
+  def processAlertTimeout(probe: ProbeInterface): Option[EventEffect]
+  def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect]
+  def retire(probe: ProbeInterface, lsn: Long): Option[EventEffect]
+  def exit(probe: ProbeInterface): Option[EventEffect]
 
   /**
    *
    */
-  def processEvent(probe: ProbeInterface, message: Any): Option[EventMutation] = message match {
+  def processEvent(probe: ProbeInterface, message: Any): Option[EventEffect] = message match {
     case ProbeEnters => enter(probe)
-    case msg: StatusMessage => processStatus(probe, msg)
-    case msg: MetricsMessage => processMetrics(probe, msg)
-    case msg: ProbeStatus => processChild(probe, msg)
+    case ChildMutates(child, status) => processChild(probe, child, status)
     case ProbeAlertTimeout => processAlertTimeout(probe)
     case ProbeExpiryTimeout => processExpiryTimeout(probe)
     case ProbeExits => exit(probe)
     case _ => throw new IllegalArgumentException()
   }
 
-  def processAcknowledge(probe: ProbeInterface, command: AcknowledgeProbe): Try[CommandMutation] = {
+  def processAcknowledge(probe: ProbeInterface, command: AcknowledgeProbe): Try[CommandEffect] = {
     probe.correlationId match {
       case None =>
         Failure(ApiException(ResourceNotFound))
@@ -77,11 +72,11 @@ trait ProbeBehaviorInterface {
         val timestamp = DateTime.now(DateTimeZone.UTC)
         val status = probe.getProbeStatus(timestamp).copy(acknowledged = Some(acknowledgement))
         val notifications = Vector(NotifyAcknowledged(probe.probeRef, timestamp, correlation, acknowledgement))
-        Success(CommandMutation(AcknowledgeProbeResult(command, acknowledgement), status, notifications))
+        Success(CommandEffect(AcknowledgeProbeResult(command, acknowledgement), status, notifications))
     }
   }
 
-  def processUnacknowledge(probe: ProbeInterface, command: UnacknowledgeProbe): Try[CommandMutation] = {
+  def processUnacknowledge(probe: ProbeInterface, command: UnacknowledgeProbe): Try[CommandEffect] = {
     probe.acknowledgementId match {
       case None =>
         Failure(ApiException(ResourceNotFound))
@@ -92,24 +87,29 @@ trait ProbeBehaviorInterface {
         val correlation = probe.correlationId.get
         val status = probe.getProbeStatus(timestamp).copy(acknowledged = None)
         val notifications = Vector(NotifyUnacknowledged(probe.probeRef, timestamp, correlation, acknowledgement))
-        Success(CommandMutation(UnacknowledgeProbeResult(command, acknowledgement), status, notifications))
+        Success(CommandEffect(UnacknowledgeProbeResult(command, acknowledgement), status, notifications))
     }
   }
 
-  def processSetSquelch(probe: ProbeInterface, command: SetProbeSquelch): Try[CommandMutation] = {
+  def processSetSquelch(probe: ProbeInterface, command: SetProbeSquelch): Try[CommandEffect] = {
     if (probe.squelch == command.squelch) Failure(ApiException(BadRequest)) else {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val squelch = command.squelch
       val status = probe.getProbeStatus(timestamp).copy(squelched = squelch)
       val notifications = if (command.squelch) Vector(NotifySquelched(probe.probeRef, timestamp)) else Vector(NotifyUnsquelched(probe.probeRef, timestamp))
-      Success(CommandMutation(SetProbeSquelchResult(command, command.squelch), status, notifications))
+      Success(CommandEffect(SetProbeSquelchResult(command, command.squelch), status, notifications))
     }
   }
 
-  def processCommand(probe: ProbeInterface, command: ProbeCommand): Try[CommandMutation] = command match {
+  def processCommand(probe: ProbeInterface, command: ProbeCommand): Try[CommandEffect] = command match {
+    case cmd: ProcessProbeEvaluation => processEvaluation(probe, cmd)
     case cmd: AcknowledgeProbe => processAcknowledge(probe, cmd)
     case cmd: UnacknowledgeProbe => processUnacknowledge(probe, cmd)
     case cmd: SetProbeSquelch => processSetSquelch(probe, cmd)
     case _ => throw new IllegalArgumentException()
   }
 }
+
+sealed trait ProbeEffect
+case class CommandEffect(result: Any, status: ProbeStatus, notifications: Vector[NotificationEvent]) extends ProbeEffect
+case class EventEffect(status: ProbeStatus, notifications: Vector[NotificationEvent]) extends ProbeEffect

@@ -11,7 +11,7 @@ import scala.concurrent.Await
 
 import io.mandelbrot.core.{ResourceNotFound, ApiException, AkkaConfig}
 import io.mandelbrot.core.ConfigConversions._
-import io.mandelbrot.core.state.{DeleteProbeState, UpdateProbeState, GetProbeState, InitializeProbeState}
+import io.mandelbrot.core.state.{DeleteProbeStatus, UpdateProbeStatus, GetProbeState, InitializeProbeStatus}
 import io.mandelbrot.core.system._
 import io.mandelbrot.persistence.cassandra.CassandraPersister.CassandraPersisterSettings
 
@@ -54,7 +54,7 @@ class StateDALSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitS
     "initialize probe state when state doesn't exist" in withSessionAndDAL { (session, dal) =>
       val probeRef = ProbeRef("test:1")
       val timestamp = DateTime.now()
-      val op = InitializeProbeState(probeRef, timestamp, lsn = 1)
+      val op = InitializeProbeStatus(probeRef, timestamp, lsn = 1)
       val initializeProbeStateResult = Await.result(dal.initializeProbeState(op), 5.seconds)
       initializeProbeStateResult.status.lifecycle shouldEqual ProbeInitializing
       initializeProbeStateResult.status.health shouldEqual ProbeUnknown
@@ -69,9 +69,9 @@ class StateDALSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitS
       val probeRef = ProbeRef("test:2")
       val timestamp = DateTime.now()
       val status = ProbeStatus(probeRef, timestamp, ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
-      val op = UpdateProbeState(probeRef, status, lsn = 3)
+      val op = UpdateProbeStatus(probeRef, status, lsn = 3)
       Await.result(dal.updateProbeState(op), 5.seconds)
-      val initializeProbeStateResult = Await.result(dal.initializeProbeState(InitializeProbeState(probeRef, timestamp, lsn = 0)), 5.seconds)
+      val initializeProbeStateResult = Await.result(dal.initializeProbeState(InitializeProbeStatus(probeRef, timestamp, lsn = 0)), 5.seconds)
       initializeProbeStateResult.status shouldEqual status
       initializeProbeStateResult.lsn shouldEqual 3
     }
@@ -80,7 +80,7 @@ class StateDALSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitS
       val probeRef = ProbeRef("test:3")
       val timestamp = DateTime.now()
       val status = ProbeStatus(probeRef, timestamp, ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
-      val op = UpdateProbeState(probeRef, status, lsn = 3)
+      val op = UpdateProbeStatus(probeRef, status, lsn = 3)
       Await.result(dal.updateProbeState(op), 5.seconds)
       val getProbeStateResult = Await.result(dal.getProbeState(GetProbeState(probeRef)), 5.seconds)
       getProbeStateResult.status shouldEqual status
@@ -91,8 +91,8 @@ class StateDALSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitS
       val probeRef = ProbeRef("test:4")
       val timestamp = DateTime.now()
       val status = ProbeStatus(probeRef, timestamp, ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
-      Await.result(dal.updateProbeState(UpdateProbeState(probeRef, status, lsn = 3)), 5.seconds)
-      val op = DeleteProbeState(probeRef, None, lsn = 3)
+      Await.result(dal.updateProbeState(UpdateProbeStatus(probeRef, status, lsn = 3)), 5.seconds)
+      val op = DeleteProbeStatus(probeRef, None, lsn = 3)
       val deleteProbeStateResult = Await.result(dal.deleteProbeState(op), 5.seconds)
       val ex = evaluating {
         Await.result(dal.getProbeState(GetProbeState(probeRef)), 5.seconds)
