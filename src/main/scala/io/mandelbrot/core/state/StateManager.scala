@@ -19,16 +19,13 @@
 
 package io.mandelbrot.core.state
 
-import java.util.UUID
-
 import akka.actor._
-import akka.util.ByteString
-import io.mandelbrot.core.notification.{ProbeNotification, NotificationEvent}
-import io.mandelbrot.core.system.ProbeRef
-import org.joda.time.{DateTimeZone, DateTime}
+import org.joda.time.DateTime
+import java.util.UUID
 
 import io.mandelbrot.core._
 import io.mandelbrot.core.system._
+import io.mandelbrot.core.notification.ProbeNotification
 
 /**
  *
@@ -73,9 +70,9 @@ class StateManager(settings: StateSettings) extends Actor with ActorLogging {
     case op: GetNotificationHistory =>
       persister forward op
 
-    /* retrieve metric history */
-    case op: GetMetricHistory =>
-      persister forward op
+//    /* retrieve metric history */
+//    case op: GetMetricHistory =>
+//      persister forward op
 
     case PerformTrim =>
       //val mark = new DateTime(DateTime.now(DateTimeZone.UTC).getMillis - settings.historyRetention.toMillis)
@@ -89,19 +86,13 @@ object StateManager {
   case object PerformTrim
 }
 
-case class ProbeConditionRecord(timestamp: DateTime,
-                                lifecycle: ProbeLifecycle,
-                                summary: Option[String],
-                                health: ProbeHealth,
-                                lastUpdate: Option[DateTime],
-                                lastChange: Option[DateTime],
-                                correlation: Option[UUID],
-                                acknowledged: Option[UUID],
-                                squelched: Boolean)
-
-case class ProbeNotificationRecord(timestamp: DateTime, kind: String, description: String)
-
-case class ProbeMetricRecord(timestamp: DateTime, name: String, value: BigDecimal)
+case class ProbeCondition(timestamp: DateTime,
+                          lifecycle: ProbeLifecycle,
+                          summary: Option[String],
+                          health: ProbeHealth,
+                          correlation: Option[UUID],
+                          acknowledged: Option[UUID],
+                          squelched: Boolean)
 
 /**
  *
@@ -111,26 +102,26 @@ sealed trait StateServiceCommand extends ServiceCommand with StateServiceOperati
 sealed trait StateServiceQuery extends ServiceQuery with StateServiceOperation
 case class StateServiceOperationFailed(op: StateServiceOperation, failure: Throwable) extends ServiceOperationFailed
 
-case class InitializeProbeStatus(ref: ProbeRef, timestamp: DateTime, lsn: Long) extends StateServiceCommand
-case class InitializeProbeStatusResult(op: InitializeProbeStatus, status: ProbeStatus, lsn: Long)
+case class InitializeProbeStatus(probeRef: ProbeRef, timestamp: DateTime) extends StateServiceCommand
+case class InitializeProbeStatusResult(op: InitializeProbeStatus, status: ProbeStatus, seqNum: Long)
 
-case class UpdateProbeStatus(ref: ProbeRef, status: ProbeStatus, notifications: Vector[NotificationEvent], lsn: Long) extends StateServiceCommand
+case class UpdateProbeStatus(probeRef: ProbeRef, status: ProbeStatus, notifications: Vector[ProbeNotification], seqNum: Long) extends StateServiceCommand
 case class UpdateProbeStatusResult(op: UpdateProbeStatus)
 
-case class DeleteProbeStatus(ref: ProbeRef, lastStatus: Option[ProbeStatus], lsn: Long) extends StateServiceCommand
+case class DeleteProbeStatus(probeRef: ProbeRef, lastStatus: Option[ProbeStatus], seqNum: Long) extends StateServiceCommand
 case class DeleteProbeStatusResult(op: DeleteProbeStatus)
 
 case class TrimProbeHistory(probeRef: ProbeRef, mark: DateTime) extends StateServiceCommand
 case class TrimProbeHistoryResult(op: TrimProbeHistory)
 
 case class GetConditionHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends StateServiceQuery
-case class GetConditionHistoryResult(op: GetConditionHistory, history: Vector[ProbeConditionRecord])
+case class GetConditionHistoryResult(op: GetConditionHistory, history: Vector[ProbeCondition])
 
 case class GetNotificationHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends StateServiceQuery
-case class GetNotificationHistoryResult(op: GetNotificationHistory, history: Vector[ProbeNotificationRecord])
+case class GetNotificationHistoryResult(op: GetNotificationHistory, history: Vector[ProbeNotification])
 
-case class GetMetricHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends StateServiceQuery
-case class GetMetricHistoryResult(op: GetMetricHistory, history: Vector[ProbeMetricRecord])
+//case class GetMetricHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends StateServiceQuery
+//case class GetMetricHistoryResult(op: GetMetricHistory, history: Vector[ProbeMetric])
 
 /* marker trait for Persister implementations */
 trait Persister

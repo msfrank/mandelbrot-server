@@ -4,7 +4,7 @@ import akka.testkit.{ImplicitSender, TestKit}
 import akka.actor.ActorSystem
 import com.datastax.driver.core.Session
 import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.ShouldMatchers
 import org.joda.time.DateTime
 import scala.concurrent.duration._
 import scala.concurrent.Await
@@ -81,9 +81,9 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val getProbeSystemResult = Await.result(dal.getProbeSystem(GetProbeSystemEntry(uri)), 5.seconds)
       val op = DeleteProbeSystemEntry(uri, lsn = 1)
       val deleteEntityResult = Await.result(dal.deleteProbeSystem(op), 5.seconds)
-      val ex = evaluating {
+      val ex = the[ApiException] thrownBy {
         Await.result(dal.getProbeSystem(GetProbeSystemEntry(uri)), 5.seconds)
-      } should produce[ApiException]
+      }
       ex.failure shouldEqual ResourceNotFound
     }
 

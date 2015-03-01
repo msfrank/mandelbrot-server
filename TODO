@@ -5,9 +5,12 @@ immediately
 -----
 * implement shard migration
 * implement metrics storage
+* make probe system config changes/updates more resilient to failure
+* implement registration validation logic
 
-0.0.8
------
+0.0.10
+------
+
 
 backlog
 -------
@@ -17,15 +20,11 @@ backlog
 * segregate hot and cold storage?
 * add DynamoDB persistence
 * migrate slick to 3.0.0, use async interface.  look into HikariCP.
-* delete LuceneSearcher state when probe is deleted
 * add unit tests for registry lifecycle
-* prune snapshots and messages (implement in SnapshotOperations trait)
 * implement notification deduplication logic 
 * add action notifier targeting to notification rules
 * complete test coverage for all rule matchers, rules file parsing
 * implement probe flap detection logic
 * notification templating (use scalate?)
-* implement metrics storage
 * implement snapshots storage
 * rethink probe squelch logic
-* implement registration validation logic

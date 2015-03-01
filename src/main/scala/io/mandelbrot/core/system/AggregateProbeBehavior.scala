@@ -25,7 +25,7 @@ import io.mandelbrot.core.{BadRequest, ApiException}
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.collection.mutable
 import scala.concurrent.duration.FiniteDuration
-import scala.util.{Try, Failure, Success}
+import scala.util.{Try, Failure}
 
 import io.mandelbrot.core.notification._
 
@@ -97,7 +97,7 @@ class AggregateProbeBehaviorImpl(evaluation: AggregateEvaluation) extends ProbeB
 
     val status = ProbeStatus(timestamp, probe.lifecycle, None, health, Map.empty, lastUpdate, lastChange, correlationId, acknowledgementId, probe.squelch)
 
-    var notifications = Vector.empty[NotificationEvent]
+    var notifications = Vector.empty[ProbeNotification]
     // append health notification
     flapQueue match {
       case Some(flapDetector) if flapDetector.isFlapping =>

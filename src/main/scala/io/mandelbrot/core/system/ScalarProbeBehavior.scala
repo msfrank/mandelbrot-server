@@ -95,7 +95,7 @@ class ScalarProbeBehaviorImpl extends ProbeBehaviorInterface {
 
       val status = ProbeStatus(timestamp, lifecycle, summary, health, metrics, lastUpdate, lastChange, correlationId, acknowledgementId, probe.squelch)
 
-      var notifications = Vector.empty[NotificationEvent]
+      var notifications = Vector.empty[ProbeNotification]
       // append lifecycle notification
       if (lifecycle != probe.lifecycle)
         notifications = notifications :+ NotifyLifecycleChanges(probe.probeRef, command.evaluation.timestamp, probe.lifecycle, lifecycle)

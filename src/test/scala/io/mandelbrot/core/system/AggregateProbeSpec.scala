@@ -21,13 +21,13 @@ package io.mandelbrot.core.system
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
-import io.mandelbrot.core.metrics.MetricsBus
-import io.mandelbrot.core.registry.ProbePolicy
 import org.joda.time.DateTime
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.ShouldMatchers
 import org.scalatest.{WordSpecLike, BeforeAndAfterAll}
 import scala.concurrent.duration._
 
+import io.mandelbrot.core.metrics.MetricsBus
+import io.mandelbrot.core.registry.ProbePolicy
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.{PersistenceConfig, AkkaConfig, Blackhole}
@@ -50,7 +50,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
   "A Probe with aggregate behavior" should {
 
     "transition to ProbeSynthetic/ProbeHealthy when all children have notified of healthy status" in {
-      val ref = ProbeRef("fqdn:local/")
+      val probeRef = ProbeRef("fqdn:local/")
       val behavior = AggregateProbeBehavior(EvaluateWorst, 1.hour, 17)
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val children = Set(child1, child2, child3)
@@ -58,7 +58,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val probe = system.actorOf(Probe.props(ref, blackhole, children, initialPolicy, behavior, 0, services, metricsBus))
+      val probe = system.actorOf(Probe.props(probeRef, blackhole, children, initialPolicy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
@@ -86,7 +86,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
     }
 
     "transition to ProbeSynthetic/ProbeDegraded when one child has notified of degraded status" in {
-      val ref = ProbeRef("fqdn:local/")
+      val probeRef = ProbeRef("fqdn:local/")
       val behavior = AggregateProbeBehavior(EvaluateWorst, 1.hour, 17)
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val children = Set(child1, child2, child3)
@@ -94,7 +94,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val probe = system.actorOf(Probe.props(ref, blackhole, children, initialPolicy, behavior, 0, services, metricsBus))
+      val probe = system.actorOf(Probe.props(probeRef, blackhole, children, initialPolicy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
@@ -122,7 +122,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
     }
 
     "transition to ProbeSynthetic/ProbeFailed when one child has notified of failed status" in {
-      val ref = ProbeRef("fqdn:local/")
+      val probeRef = ProbeRef("fqdn:local/")
       val behavior = AggregateProbeBehavior(EvaluateWorst, 1.hour, 17)
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val children = Set(child1, child2, child3)
@@ -130,7 +130,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val probe = system.actorOf(Probe.props(ref, blackhole, children, initialPolicy, behavior, 0, services, metricsBus))
+      val probe = system.actorOf(Probe.props(probeRef, blackhole, children, initialPolicy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
@@ -158,7 +158,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
     }
 
     "notify NotificationService when the alert timeout expires" in {
-      val ref = ProbeRef("fqdn:local/")
+      val probeRef = ProbeRef("fqdn:local/")
       val behavior = AggregateProbeBehavior(EvaluateWorst, 1.hour, 17)
       val initialPolicy = ProbePolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)
       val children = Set(child1, child2, child3)
@@ -167,7 +167,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref), notificationService = Some(notificationService.ref)))
       val metricsBus = new MetricsBus()
 
-      val probe = system.actorOf(Probe.props(ref, blackhole, children, initialPolicy, behavior, 0, services, metricsBus))
+      val probe = system.actorOf(Probe.props(probeRef, blackhole, children, initialPolicy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
@@ -198,7 +198,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val update5 = stateService.expectMsgClass(5.seconds, classOf[UpdateProbeStatus])
       stateService.reply(UpdateProbeStatusResult(update5))
       val notification = notificationService.expectMsgClass(classOf[NotifyHealthAlerts])
-      notification.probeRef shouldEqual ref
+      notification.probeRef shouldEqual probeRef
       notification.health shouldEqual ProbeFailed
       notification.correlation shouldEqual update4.status.correlation
     }

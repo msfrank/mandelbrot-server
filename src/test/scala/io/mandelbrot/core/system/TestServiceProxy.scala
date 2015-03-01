@@ -17,32 +17,67 @@ class TestServiceProxy(registryService: Option[ActorRef],
   def receive = {
 
     case op: RegistryServiceOperation =>
-      log.debug("received {}", op)
-      registryService.foreach(_ forward op)
+      registryService match {
+        case Some(ref) =>
+          ref forward op
+          log.debug("forwarded {}", op)
+        case None =>
+          log.debug("dropped {}", op)
+      }
 
     case op: ProbeSystemOperation =>
-      log.debug("received {}", op)
-      registryService.foreach(_ forward op)
+      registryService match {
+        case Some(ref) =>
+          ref forward op
+          log.debug("forwarded {}", op)
+        case None =>
+          log.debug("dropped {}", op)
+      }
 
     case op: ProbeOperation =>
-      log.debug("received {}", op)
-      registryService.foreach(_ forward op)
+      registryService match {
+        case Some(ref) =>
+          ref forward op
+          log.debug("forwarded {}", op)
+        case None =>
+          log.debug("dropped {}", op)
+      }
 
     case op: TrackingServiceOperation =>
-      log.debug("received {}", op)
-      trackingService.foreach(_ forward op)
+      trackingService match {
+        case Some(ref) =>
+          ref forward op
+          log.debug("forwarded {}", op)
+        case None =>
+          log.debug("dropped {}", op)
+      }
 
     case op: HistoryServiceOperation =>
-      log.debug("received {}", op)
-      historyService.foreach(_ forward op)
+      historyService match {
+        case Some(ref) =>
+          ref forward op
+          log.debug("forwarded {}", op)
+        case None =>
+          log.debug("dropped {}", op)
+      }
 
     case op: NotificationServiceOperation =>
-      log.debug("received {}", op)
-      notificationService.foreach(_ forward op)
+      notificationService match {
+        case Some(ref) =>
+          ref forward op
+          log.debug("forwarded {}", op)
+        case None =>
+          log.debug("dropped {}", op)
+      }
 
     case op: StateServiceOperation =>
-      log.debug("received {}", op)
-      stateService.foreach(_ forward op)
+      stateService match {
+        case Some(ref) =>
+          ref forward op
+          log.debug("forwarded {}", op)
+        case None =>
+          log.debug("dropped {}", op)
+      }
   }
 }
 

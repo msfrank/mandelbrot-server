@@ -4,7 +4,7 @@ import akka.testkit.{ImplicitSender, TestKit}
 import akka.actor.{Address, ActorSystem}
 import com.datastax.driver.core.Session
 import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.ShouldMatchers
 import org.joda.time.DateTime
 import scala.concurrent.duration._
 import scala.concurrent.Await
@@ -64,9 +64,9 @@ class ShardsDALSpec(_system: ActorSystem) extends TestKit(_system) with Implicit
       val op = CreateShard(shardId = 0, address = new Address("akka", "ActorSystem1"))
       val timestamp = DateTime.now()
       Await.result(dal.createShard(op, timestamp), 5.seconds)
-      val ex = evaluating {
+      val ex = the[ApiException] thrownBy {
         Await.result(dal.createShard(op, timestamp), 5.seconds)
-      } should produce[ApiException]
+      }
       ex.failure shouldEqual Conflict
     }
 
@@ -85,18 +85,18 @@ class ShardsDALSpec(_system: ActorSystem) extends TestKit(_system) with Implicit
       val timestamp = DateTime.now()
       Await.result(dal.createShard(CreateShard(shardId = 0, address = new Address("akka", "ActorSystem1")), timestamp), 5.seconds)
       val op = UpdateShard(shardId = 0, address = new Address("akka", "ActorSystem2"), prev = new Address("akka", "DoesNotMatch"))
-      val ex = evaluating {
+      val ex = the[ApiException] thrownBy {
         Await.result(dal.updateShard(op, timestamp), 5.seconds)
-      } should produce[ApiException]
+      }
       ex.failure shouldEqual Conflict
     }
 
     "fail to update a shard if it doesn't exist" in withSessionAndDAL { (session, dal) =>
       val timestamp = DateTime.now()
       val op = UpdateShard(shardId = 0, address = new Address("akka", "ActorSystem2"), prev = new Address("akka", "ActorSystem1"))
-      val ex = evaluating {
+      val ex = the[ApiException] thrownBy {
         Await.result(dal.updateShard(op, timestamp), 5.seconds)
-      } should produce[ApiException]
+      }
       ex.failure shouldEqual Conflict
     }
 

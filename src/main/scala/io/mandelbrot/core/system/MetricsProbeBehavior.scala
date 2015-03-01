@@ -78,7 +78,6 @@ class MetricsProbeBehaviorImpl(evaluation: MetricsEvaluation) extends ProbeBehav
     var lastChange = probe.lastChange
     var correlationId = probe.correlationId
     var acknowledgementId = probe.acknowledgementId
-    var notifications = Vector.empty[NotificationEvent]
 
     // push new metrics into the store
     metrics.foreach { case (metricName, metricValue) =>
@@ -120,6 +119,7 @@ class MetricsProbeBehaviorImpl(evaluation: MetricsEvaluation) extends ProbeBehav
     }
 
     val status = ProbeStatus(timestamp, lifecycle, None, health, metrics, lastUpdate, lastChange, correlationId, acknowledgementId, probe.squelch)
+    var notifications = Vector.empty[ProbeNotification]
 
     // append lifecycle notification
     if (probe.lifecycle != lifecycle)

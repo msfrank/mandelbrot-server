@@ -191,10 +191,10 @@ case class GetProbeSystemPolicy(uri: URI, paths: Option[Set[String]]) extends Ht
 case class GetProbeSystemPolicyResult(op: GetProbeSystemPolicy, policy: Map[ProbeRef,ProbePolicy])
 
 case class GetProbeSystemConditionHistory(uri: URI, paths: Option[Set[String]], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends HttpOperation
-case class GetProbeSystemConditionHistoryResult(op: GetProbeSystemConditionHistory, history: Vector[ProbeConditionRecord])
+case class GetProbeSystemConditionHistoryResult(op: GetProbeSystemConditionHistory, history: Vector[ProbeCondition])
 
 case class GetProbeSystemNotificationHistory(uri: URI, paths: Option[Set[String]], from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends HttpOperation
-case class GetProbeSystemNotificationHistoryResult(op: GetProbeSystemNotificationHistory, history: Vector[ProbeNotificationRecord])
+case class GetProbeSystemNotificationHistoryResult(op: GetProbeSystemNotificationHistory, history: Vector[ProbeNotification])
 
 case class AcknowledgeProbeSystem(uri: URI, correlations: Map[ProbeRef,UUID]) extends HttpOperation
 case class AcknowledgeProbeSystemResult(op: AcknowledgeProbeSystem, acknowledgements: Map[ProbeRef,UUID])

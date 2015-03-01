@@ -11,7 +11,7 @@ import scala.concurrent.Await
 
 import io.mandelbrot.core.{ResourceNotFound, ApiException, AkkaConfig}
 import io.mandelbrot.core.ConfigConversions._
-import io.mandelbrot.core.state.{DeleteProbeStatus, UpdateProbeStatus, GetProbeState, InitializeProbeStatus}
+import io.mandelbrot.core.state.{DeleteProbeStatus, UpdateProbeStatus, InitializeProbeStatus}
 import io.mandelbrot.core.system._
 import io.mandelbrot.persistence.cassandra.CassandraPersister.CassandraPersisterSettings
 
@@ -27,7 +27,7 @@ class StateDALSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitS
 
   "A StateDAL" should {
 
-    "create the entities table during initialization" in {
+    "create the state table during initialization" in {
       val session = Cassandra(system).getSession
       val dal = new StateDAL(settings, session)(system.dispatcher)
       val keyspaceName = Cassandra(system).keyspaceName
@@ -54,49 +54,54 @@ class StateDALSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitS
     "initialize probe state when state doesn't exist" in withSessionAndDAL { (session, dal) =>
       val probeRef = ProbeRef("test:1")
       val timestamp = DateTime.now()
-      val op = InitializeProbeStatus(probeRef, timestamp, lsn = 1)
-      val initializeProbeStateResult = Await.result(dal.initializeProbeState(op), 5.seconds)
-      initializeProbeStateResult.status.lifecycle shouldEqual ProbeInitializing
-      initializeProbeStateResult.status.health shouldEqual ProbeUnknown
-      initializeProbeStateResult.lsn shouldEqual 0
-      val ex = evaluating {
-        Await.result(dal.getProbeState(GetProbeState(probeRef)), 5.seconds)
-      } should produce[ApiException]
+      val op = InitializeProbeStatus(probeRef, timestamp)
+      val initializeProbeStateResult = Await.result(dal.initializeProbeState(op.probeRef), 5.seconds)
+      initializeProbeStateResult.probeRef shouldEqual probeRef
+      initializeProbeStateResult.seqNum shouldEqual 0
+      initializeProbeStateResult.timestamp shouldEqual timestamp
+      initializeProbeStateResult.lastUpdate shouldEqual None
+      initializeProbeStateResult.lastChange shouldEqual None
+      val ex = the[ApiException] thrownBy {
+        Await.result(dal.getProbeState(probeRef), 5.seconds)
+      }
       ex.failure shouldEqual ResourceNotFound
     }
 
     "initialize probe state when state exists" in withSessionAndDAL { (session, dal) =>
       val probeRef = ProbeRef("test:2")
       val timestamp = DateTime.now()
-      val status = ProbeStatus(probeRef, timestamp, ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
-      val op = UpdateProbeStatus(probeRef, status, lsn = 3)
-      Await.result(dal.updateProbeState(op), 5.seconds)
-      val initializeProbeStateResult = Await.result(dal.initializeProbeState(InitializeProbeStatus(probeRef, timestamp, lsn = 0)), 5.seconds)
-      initializeProbeStateResult.status shouldEqual status
-      initializeProbeStateResult.lsn shouldEqual 3
+      val state = ProbeState(probeRef, 3, timestamp, Some(timestamp), Some(timestamp))
+      Await.result(dal.updateProbeState(state), 5.seconds)
+      val initializeProbeStateResult = Await.result(dal.initializeProbeState(probeRef), 5.seconds)
+      initializeProbeStateResult.probeRef shouldEqual probeRef
+      initializeProbeStateResult.seqNum shouldEqual 3
+      initializeProbeStateResult.timestamp shouldEqual timestamp
+      initializeProbeStateResult.lastUpdate shouldEqual Some(timestamp)
+      initializeProbeStateResult.lastChange shouldEqual Some(timestamp)
     }
 
     "update probe state" in withSessionAndDAL { (session, dal) =>
       val probeRef = ProbeRef("test:3")
       val timestamp = DateTime.now()
-      val status = ProbeStatus(probeRef, timestamp, ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
-      val op = UpdateProbeStatus(probeRef, status, lsn = 3)
-      Await.result(dal.updateProbeState(op), 5.seconds)
-      val getProbeStateResult = Await.result(dal.getProbeState(GetProbeState(probeRef)), 5.seconds)
-      getProbeStateResult.status shouldEqual status
-      getProbeStateResult.lsn shouldEqual 3
+      val state = ProbeState(probeRef, 3, timestamp, Some(timestamp), Some(timestamp))
+      Await.result(dal.updateProbeState(state), 5.seconds)
+      val initializeProbeStateResult = Await.result(dal.getProbeState(probeRef), 5.seconds)
+      initializeProbeStateResult.probeRef shouldEqual probeRef
+      initializeProbeStateResult.seqNum shouldEqual 3
+      initializeProbeStateResult.timestamp shouldEqual timestamp
+      initializeProbeStateResult.lastUpdate shouldEqual Some(timestamp)
+      initializeProbeStateResult.lastChange shouldEqual Some(timestamp)
     }
 
     "delete probe state" in withSessionAndDAL { (session, dal) =>
       val probeRef = ProbeRef("test:4")
       val timestamp = DateTime.now()
-      val status = ProbeStatus(probeRef, timestamp, ProbeKnown, ProbeHealthy, None, None, None, None, None, false)
-      Await.result(dal.updateProbeState(UpdateProbeStatus(probeRef, status, lsn = 3)), 5.seconds)
-      val op = DeleteProbeStatus(probeRef, None, lsn = 3)
-      val deleteProbeStateResult = Await.result(dal.deleteProbeState(op), 5.seconds)
-      val ex = evaluating {
-        Await.result(dal.getProbeState(GetProbeState(probeRef)), 5.seconds)
-      } should produce[ApiException]
+      val state = ProbeState(probeRef, 3, timestamp, Some(timestamp), Some(timestamp))
+      Await.result(dal.updateProbeState(state), 5.seconds)
+      val deleteProbeStateResult = Await.result(dal.deleteProbeState(probeRef), 5.seconds)
+      val ex = the[ApiException] thrownBy {
+        Await.result(dal.getProbeState(probeRef), 5.seconds)
+      }
       ex.failure shouldEqual ResourceNotFound
    }
   }

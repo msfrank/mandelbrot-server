@@ -111,5 +111,5 @@ trait ProbeBehaviorInterface {
 }
 
 sealed trait ProbeEffect
-case class CommandEffect(result: Any, status: ProbeStatus, notifications: Vector[NotificationEvent]) extends ProbeEffect
-case class EventEffect(status: ProbeStatus, notifications: Vector[NotificationEvent]) extends ProbeEffect
+case class CommandEffect(result: Any, status: ProbeStatus, notifications: Vector[ProbeNotification]) extends ProbeEffect
+case class EventEffect(status: ProbeStatus, notifications: Vector[ProbeNotification]) extends ProbeEffect

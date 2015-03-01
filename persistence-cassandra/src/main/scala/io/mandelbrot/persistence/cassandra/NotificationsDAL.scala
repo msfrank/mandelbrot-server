@@ -1,21 +1,22 @@
 package io.mandelbrot.persistence.cassandra
 
-import com.datastax.driver.core.{BoundStatement, Row, Session}
+import com.datastax.driver.core.{BatchStatement, BoundStatement, Row, Session}
 import org.joda.time.DateTime
 import scala.concurrent.{Future, ExecutionContext}
 import scala.collection.JavaConversions._
 import java.util.Date
 
+import io.mandelbrot.core.state.UpdateProbeStatus
 import io.mandelbrot.core.notification.ProbeNotification
-import io.mandelbrot.core.system._
-import io.mandelbrot.persistence.cassandra.CassandraArchiver.CassandraArchiverSettings
+import io.mandelbrot.core.system.ProbeRef
+import io.mandelbrot.persistence.cassandra.CassandraPersister.CassandraPersisterSettings
 
 /**
  *
  */
-class NotificationHistoryDAL(settings: CassandraArchiverSettings, session: Session)(implicit ec: ExecutionContext) extends AbstractDriver(session, ec) {
+class NotificationsDAL(settings: CassandraPersisterSettings, session: Session)(implicit ec: ExecutionContext) extends AbstractDriver(session, ec) {
 
-  val tableName = "history_n"
+  val tableName = "notifications"
 
   val LARGEST_DATE = new Date(java.lang.Long.MAX_VALUE)
   val SMALLEST_DATE = new Date(0)
@@ -25,29 +26,36 @@ class NotificationHistoryDAL(settings: CassandraArchiverSettings, session: Sessi
        |CREATE TABLE IF NOT EXISTS $tableName (
        |  probe_ref text,
        |  epoch timestamp,
-       |  timestamp timestamp,
+       |  seq_num: bigint,
        |  kind text,
+       |  timestamp timestamp,
        |  description text,
        |  correlation uuid,
-       |  PRIMARY KEY (probe_ref, epoch, timestamp)
+       |  PRIMARY KEY (probe_ref, epoch, seq_num, kind)
        |)
      """.stripMargin)
 
   private val preparedInsertNotification = session.prepare(
     s"""
-       |INSERT INTO $tableName (probe_ref, epoch, timestamp, kind, description, correlation)
-       |VALUES (?, ?, ?, ?, ?, ?)
+       |INSERT INTO $tableName (probe_ref, epoch, seq_num, kind, timestamp, description, correlation)
+       |VALUES (?, ?, ?, ?, ?, ?, ?)
      """.stripMargin)
 
-  def insertNotification(notification: ProbeNotification, epoch: Long): Future[ProbeNotification] = {
-    val probeRef = notification.probeRef.toString
+  def insertNotifications(op: UpdateProbeStatus, epoch: Long): Future[Unit] = {
+    val batch = new BatchStatement()
+    val probeRef = op.probeRef.toString
     val _epoch: java.lang.Long = epoch
-    val timestamp = notification.timestamp.toDate
-    val kind = notification.kind
-    val description = notification.description
-    val correlation = notification.correlation.orNull
-    session.executeAsync(new BoundStatement(preparedInsertNotification).bind(probeRef, _epoch,
-      timestamp, kind, description, correlation)).map { _ => notification }
+    val seqNum: java.lang.Long = op.seqNum
+    op.notifications.foreach { notification =>
+      val timestamp = notification.timestamp.toDate
+      val kind = notification.kind
+      val description = notification.description
+      val correlation = notification.correlation.orNull
+      val statement = new BoundStatement(preparedInsertNotification).bind(probeRef,
+        _epoch, seqNum, timestamp, kind, description, correlation)
+      batch.add(statement)
+    }
+    session.executeAsync(batch).map { _ => Unit }
   }
 
   private val preparedCleanNotificationHistory = session.prepare(

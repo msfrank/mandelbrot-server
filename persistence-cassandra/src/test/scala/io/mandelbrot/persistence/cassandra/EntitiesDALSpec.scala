@@ -4,7 +4,7 @@ import akka.testkit.{ImplicitSender, TestKit}
 import akka.actor.ActorSystem
 import com.datastax.driver.core.Session
 import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.ShouldMatchers
 import org.joda.time.DateTime
 import scala.concurrent.duration._
 import scala.concurrent.Await
@@ -65,9 +65,9 @@ class EntitiesDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       beforeDelete.entityKey shouldEqual "entity1"
       val op = DeleteEntity(0, "entity1")
       val deleteEntityResult = Await.result(dal.deleteEntity(op), 5.seconds)
-      val ex = evaluating {
+      val ex = the[ApiException] thrownBy {
         Await.result(dal.getEntity(GetEntity(0, "entity1")), 5.seconds)
-      } should produce[ApiException]
+      }
       ex.failure shouldEqual ResourceNotFound
     }
 

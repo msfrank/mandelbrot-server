@@ -357,9 +357,8 @@ object JsonProtocol extends DefaultJsonProtocol {
   /* convert ProbeStatus class */
   implicit val ProbeStatusFormat = jsonFormat10(ProbeStatus)
 
-  implicit val ProbeConditionRecordFormat = jsonFormat9(ProbeConditionRecord)
-  implicit val ProbeNotificationRecordFormat = jsonFormat3(ProbeNotificationRecord)
-  implicit val ProbeMetricRecordFormat = jsonFormat3(ProbeMetricRecord)
+  /* convert ProbeCondition class */
+  implicit val ProbeConditionFormat = jsonFormat7(ProbeCondition)
 
   /* registry operations */
   implicit val RegisterProbeSystemFormat = jsonFormat2(RegisterProbeSystem)

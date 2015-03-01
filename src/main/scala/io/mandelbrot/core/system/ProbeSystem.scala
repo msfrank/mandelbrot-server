@@ -304,7 +304,6 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
       context.watch(actor)
       log.debug("probe {} joins", ref)
       probes = probes + (ref -> ProbeActor(probeSpec, actor))
-      services ! ProbeMetadata(ref, registration.metadata)
     }
     // remove stale probes
     val probesRemoved = probeSet -- specSet
