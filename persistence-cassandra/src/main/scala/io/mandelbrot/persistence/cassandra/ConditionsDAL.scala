@@ -79,15 +79,16 @@ class ConditionsDAL(settings: CassandraPersisterSettings, session: Session)(impl
     }
   }
   
-  private val preparedCleanConditionHistory = session.prepare(
+  private val preparedDeleteConditionEpoch = session.prepare(
     s"""
        |DELETE FROM $tableName
        |WHERE probe_ref = ? AND epoch = ?
      """.stripMargin)
 
-  def cleanConditionHistory(probeRef: ProbeRef, epoch: Long): Future[Unit] = {
-    session.executeAsync(new BoundStatement(preparedCleanConditionHistory).bind(probeRef.toString,
-      epoch: java.lang.Long)).map { _ => Unit }
+  def deleteConditionEpoch(probeRef: ProbeRef, epoch: Long): Future[Unit] = {
+    val _probeRef = probeRef.toString
+    val _epoch: java.lang.Long = epoch
+    session.executeAsync(new BoundStatement(preparedDeleteConditionEpoch).bind(_probeRef, _epoch)).map { _ => Unit }
   }
 
   private val preparedGetFirstConditionEpoch = session.prepare(
@@ -137,6 +138,10 @@ class ConditionsDAL(settings: CassandraPersisterSettings, session: Session)(impl
     session.executeAsync(new BoundStatement(preparedGetConditionHistory).bind(_probeRef, _epoch, start, end, _limit)).map { resultSet =>
       resultSet.all().map(row2ProbeCondition).toVector
     }
+  }
+
+  def flushConditions(): Future[Unit] = {
+    session.executeAsync(s"TRUNCATE $tableName").map { _ => Unit }
   }
 
   def row2ProbeCondition(row: Row): ProbeCondition = {
