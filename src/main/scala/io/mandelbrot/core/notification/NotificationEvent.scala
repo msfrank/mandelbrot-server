@@ -37,6 +37,16 @@ sealed trait NotificationEvent extends NotificationServiceOperation {
  * A notification about a probe
  */
 class ProbeNotification(val probeRef: ProbeRef, val timestamp: DateTime, val kind: String, val description: String, val correlation: Option[UUID]) extends NotificationEvent {
+  override def equals(other: Any): Boolean = other match {
+    case notification: ProbeNotification =>
+      if (!probeRef.equals(notification.probeRef)) return false
+      if (!timestamp.equals(notification.timestamp)) return false
+      if (!kind.equals(notification.kind)) return false
+      if (!description.equals(notification.description)) return false
+      if (!correlation.equals(notification.correlation)) return false
+      true
+    case _ => false
+  }
   override def toString = "%s: %s %s".format(kind, probeRef, description)
 }
 

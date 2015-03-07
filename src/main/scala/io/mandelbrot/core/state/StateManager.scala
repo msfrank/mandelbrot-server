@@ -31,7 +31,6 @@ import io.mandelbrot.core.notification.ProbeNotification
  *
  */
 class StateManager(settings: StateSettings) extends Actor with ActorLogging {
-  import StateManager._
 
   // config
   val persister: ActorRef = {
@@ -39,18 +38,7 @@ class StateManager(settings: StateSettings) extends Actor with ActorLogging {
     log.info("loading persister plugin {}", settings.persister.plugin)
     context.actorOf(props, "persister")
   }
-  var historyCleaner: Option[Cancellable] = None
 
-  override def preStart(): Unit = {
-    //historyCleaner = Some(context.system.scheduler.schedule(settings.cleanerInitialDelay, settings.cleanerInterval, self, PerformTrim))
-  }
-
-  override def postStop(): Unit = {
-    for (cancellable <- historyCleaner)
-      cancellable.cancel()
-    historyCleaner = None
-  }
-  
   def receive = {
 
     case op: InitializeProbeStatus =>
@@ -73,17 +61,11 @@ class StateManager(settings: StateSettings) extends Actor with ActorLogging {
 //    /* retrieve metric history */
 //    case op: GetMetricHistory =>
 //      persister forward op
-
-    case PerformTrim =>
-      //val mark = new DateTime(DateTime.now(DateTimeZone.UTC).getMillis - settings.historyRetention.toMillis)
-      //persister ! TrimProbeHistory(mark)
   }
 }
 
 object StateManager {
   def props(settings: StateSettings) = Props(classOf[StateManager], settings)
-  
-  case object PerformTrim
 }
 
 case class ProbeCondition(timestamp: DateTime,
@@ -94,6 +76,11 @@ case class ProbeCondition(timestamp: DateTime,
                           acknowledged: Option[UUID],
                           squelched: Boolean)
 
+
+case class ProbeNotifications(notifications: Vector[ProbeNotification])
+
+case class ProbeMetrics(metrics: Map[String,BigDecimal])
+
 /**
  *
  */
@@ -103,15 +90,15 @@ sealed trait StateServiceQuery extends ServiceQuery with StateServiceOperation
 case class StateServiceOperationFailed(op: StateServiceOperation, failure: Throwable) extends ServiceOperationFailed
 
 case class InitializeProbeStatus(probeRef: ProbeRef, timestamp: DateTime) extends StateServiceCommand
-case class InitializeProbeStatusResult(op: InitializeProbeStatus, status: ProbeStatus, seqNum: Long)
+case class InitializeProbeStatusResult(op: InitializeProbeStatus, status: Option[ProbeStatus])
 
-case class UpdateProbeStatus(probeRef: ProbeRef, status: ProbeStatus, notifications: Vector[ProbeNotification], seqNum: Long) extends StateServiceCommand
+case class UpdateProbeStatus(probeRef: ProbeRef, status: ProbeStatus, notifications: Vector[ProbeNotification], lastTimestamp: Option[DateTime]) extends StateServiceCommand
 case class UpdateProbeStatusResult(op: UpdateProbeStatus)
 
-case class DeleteProbeStatus(probeRef: ProbeRef, lastStatus: Option[ProbeStatus], seqNum: Long) extends StateServiceCommand
+case class DeleteProbeStatus(probeRef: ProbeRef, lastStatus: Option[ProbeStatus]) extends StateServiceCommand
 case class DeleteProbeStatusResult(op: DeleteProbeStatus)
 
-case class TrimProbeHistory(probeRef: ProbeRef, mark: DateTime) extends StateServiceCommand
+case class TrimProbeHistory(probeRef: ProbeRef, until: DateTime) extends StateServiceCommand
 case class TrimProbeHistoryResult(op: TrimProbeHistory)
 
 case class GetConditionHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends StateServiceQuery

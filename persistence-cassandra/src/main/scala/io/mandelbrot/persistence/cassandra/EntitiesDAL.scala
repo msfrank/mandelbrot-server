@@ -13,7 +13,9 @@ import io.mandelbrot.persistence.cassandra.CassandraCoordinator.CassandraCoordin
 /**
  *
  */
-class EntitiesDAL(settings: CassandraCoordinatorSettings, session: Session)(implicit ec: ExecutionContext) extends AbstractDriver(session, ec) {
+class EntitiesDAL(settings: CassandraCoordinatorSettings,
+                  val session: Session,
+                  implicit val ec: ExecutionContext) extends AbstractDriver {
 
   val tableName = "entities"
 
@@ -37,7 +39,7 @@ class EntitiesDAL(settings: CassandraCoordinatorSettings, session: Session)(impl
   def createEntity(op: CreateEntity, timestamp: DateTime): Future[CreateEntityResult] = {
     val shardId: java.lang.Integer = op.shardId
     val entityKey: String = op.entityKey
-    session.executeAsync(new BoundStatement(preparedCreateEntity).bind(shardId, entityKey, timestamp.toDate)).map {
+    executeAsync(new BoundStatement(preparedCreateEntity).bind(shardId, entityKey, timestamp.toDate)).map {
       case _ => CreateEntityResult(op)
     }
   }
@@ -51,7 +53,7 @@ class EntitiesDAL(settings: CassandraCoordinatorSettings, session: Session)(impl
   def getEntity(op: GetEntity): Future[GetEntityResult] = {
     val shardId: java.lang.Integer = op.shardId
     val entityKey: String = op.entityKey
-    session.executeAsync(new BoundStatement(preparedGetEntity).bind(shardId, entityKey)).map { resultSet =>
+    executeAsync(new BoundStatement(preparedGetEntity).bind(shardId, entityKey)).map { resultSet =>
       val row = resultSet.one()
       if (row != null) {
         val shardId = row.getInt(0)
@@ -70,7 +72,7 @@ class EntitiesDAL(settings: CassandraCoordinatorSettings, session: Session)(impl
   def deleteEntity(op: DeleteEntity): Future[DeleteEntityResult] = {
     val shardId: java.lang.Integer = op.shardId
     val entityKey: String = op.entityKey
-    session.executeAsync(new BoundStatement(preparedDeleteEntity).bind(shardId, entityKey)).map {
+    executeAsync(new BoundStatement(preparedDeleteEntity).bind(shardId, entityKey)).map {
       case _ => DeleteEntityResult(op)
     }
   }
@@ -87,7 +89,7 @@ class EntitiesDAL(settings: CassandraCoordinatorSettings, session: Session)(impl
     val shardId: java.lang.Integer = op.shardId
     val entityKey: java.lang.String = op.token.map(_.entityKey).getOrElse("")
     val limit: java.lang.Integer = op.limit
-    session.executeAsync(new BoundStatement(preparedListEntities).bind(shardId, entityKey, limit)).map { resultSet =>
+    executeAsync(new BoundStatement(preparedListEntities).bind(shardId, entityKey, limit)).map { resultSet =>
       val entities = resultSet.all().map { row =>
         val shardId = row.getInt(0)
         val entityKey = row.getString(1)
@@ -99,6 +101,6 @@ class EntitiesDAL(settings: CassandraCoordinatorSettings, session: Session)(impl
   }
 
   def flushEntities(): Future[Unit] = {
-    session.executeAsync(s"TRUNCATE $tableName").map { resultSet => }
+    executeAsync(s"TRUNCATE $tableName").map { resultSet => }
   }
 }

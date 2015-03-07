@@ -61,7 +61,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val probe = system.actorOf(Probe.props(probeRef, blackhole, children, initialPolicy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
 
       // probe sets its lifecycle to synthetic
       val update1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
@@ -97,7 +97,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val probe = system.actorOf(Probe.props(probeRef, blackhole, children, initialPolicy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
 
       // probe sets its lifecycle to synthetic
       val update1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
@@ -133,7 +133,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val probe = system.actorOf(Probe.props(probeRef, blackhole, children, initialPolicy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
 
       // probe sets its lifecycle to synthetic
       val update1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
@@ -170,7 +170,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val probe = system.actorOf(Probe.props(probeRef, blackhole, children, initialPolicy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
 
       // probe sets its lifecycle to synthetic
       val update1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])

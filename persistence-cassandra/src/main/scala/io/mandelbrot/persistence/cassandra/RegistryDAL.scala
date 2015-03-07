@@ -15,7 +15,9 @@ import io.mandelbrot.persistence.cassandra.CassandraRegistrar.CassandraRegistrar
 /**
  *
  */
-class RegistryDAL(settings: CassandraRegistrarSettings, session: Session)(implicit ec: ExecutionContext) extends AbstractDriver(session, ec) {
+class RegistryDAL(settings: CassandraRegistrarSettings,
+                  val session: Session,
+                  implicit val ec: ExecutionContext) extends AbstractDriver {
   import spray.json._
   import JsonProtocol._
 
@@ -44,7 +46,7 @@ class RegistryDAL(settings: CassandraRegistrarSettings, session: Session)(implic
     val uri = op.uri.toString
     val registration = op.registration.toJson.toString()
     val _timestamp = timestamp.toDate
-    session.executeAsync(new BoundStatement(preparedCreateProbeSystem).bind(uri, registration, _timestamp, _timestamp)).map {
+    executeAsync(new BoundStatement(preparedCreateProbeSystem).bind(uri, registration, _timestamp, _timestamp)).map {
       resultSet => CreateProbeSystemEntryResult(op, 1)
     }
   }
@@ -61,7 +63,7 @@ class RegistryDAL(settings: CassandraRegistrarSettings, session: Session)(implic
     val registration = op.registration.toJson.toString()
     val _timestamp = timestamp.toDate
     val lsn: java.lang.Long = op.lsn + 1
-    session.executeAsync(new BoundStatement(preparedUpdateProbeSystem).bind(registration, lsn, _timestamp, uri)).map {
+    executeAsync(new BoundStatement(preparedUpdateProbeSystem).bind(registration, lsn, _timestamp, uri)).map {
       resultSet => UpdateProbeSystemEntryResult(op, lsn)
     }
   }
@@ -74,7 +76,7 @@ class RegistryDAL(settings: CassandraRegistrarSettings, session: Session)(implic
 
   def deleteProbeSystem(op: DeleteProbeSystemEntry): Future[DeleteProbeSystemEntryResult] = {
     val uri = op.uri.toString
-    session.executeAsync(new BoundStatement(preparedDeleteProbeSystem).bind(uri)).map {
+    executeAsync(new BoundStatement(preparedDeleteProbeSystem).bind(uri)).map {
       resultSet => DeleteProbeSystemEntryResult(op, op.lsn)
     }
   }
@@ -87,7 +89,7 @@ class RegistryDAL(settings: CassandraRegistrarSettings, session: Session)(implic
 
   def getProbeSystem(op: GetProbeSystemEntry): Future[GetProbeSystemEntryResult] = {
     val uri = op.uri.toString
-    session.executeAsync(new BoundStatement(preparedGetProbeSystem).bind(uri)).map { resultSet =>
+    executeAsync(new BoundStatement(preparedGetProbeSystem).bind(uri)).map { resultSet =>
       val row = resultSet.one()
       if (row != null) {
         val registration = JsonParser(row.getString(0)).convertTo[ProbeRegistration]
@@ -108,7 +110,7 @@ class RegistryDAL(settings: CassandraRegistrarSettings, session: Session)(implic
   def listProbeSystems(op: ListProbeSystems): Future[ListProbeSystemsResult] = {
     val uri = op.token.map(_.toString).getOrElse("")
     val limit: java.lang.Integer = op.limit
-    session.executeAsync(new BoundStatement(preparedListProbeSystems).bind(uri, limit)).map { resultSet =>
+    executeAsync(new BoundStatement(preparedListProbeSystems).bind(uri, limit)).map { resultSet =>
       val systems = resultSet.all().map { row =>
         val uri = new URI(row.getString(0))
         val lsn = row.getLong(1)
@@ -122,6 +124,6 @@ class RegistryDAL(settings: CassandraRegistrarSettings, session: Session)(implic
   }
 
   def flushEntities(): Future[Unit] = {
-    session.executeAsync(s"TRUNCATE $tableName").map { resultSet => }
+    executeAsync(s"TRUNCATE $tableName").map { resultSet => }
   }
 }

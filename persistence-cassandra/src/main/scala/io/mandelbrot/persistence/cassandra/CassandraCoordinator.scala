@@ -15,8 +15,8 @@ class CassandraCoordinator(settings: CassandraCoordinatorSettings) extends Actor
   import context.dispatcher
 
   val session = Cassandra(context.system).getSession
-  val shards = new ShardsDAL(settings, session)
-  val entities = new EntitiesDAL(settings, session)
+  val entities = new EntitiesDAL(settings, session, context.dispatcher)
+  val shards = new ShardsDAL(settings, session, context.dispatcher)
 
   def receive = {
 

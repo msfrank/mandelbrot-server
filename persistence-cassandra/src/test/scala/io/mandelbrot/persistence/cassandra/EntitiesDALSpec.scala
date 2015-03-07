@@ -28,7 +28,7 @@ class EntitiesDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "create the entities table during initialization" in {
       val session = Cassandra(system).getSession
-      val dal = new EntitiesDAL(settings, session)(system.dispatcher)
+      val dal = new EntitiesDAL(settings, session, system.dispatcher)
       val keyspaceName = Cassandra(system).keyspaceName
       val keyspaceMeta = session.getCluster.getMetadata.getKeyspace(keyspaceName)
       val table = keyspaceMeta.getTable(dal.tableName)
@@ -44,7 +44,7 @@ class EntitiesDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       import system.dispatcher
       val session = Cassandra(system).getSession
       if (_dal == null)
-        _dal = new EntitiesDAL(settings, session)(system.dispatcher)
+        _dal = new EntitiesDAL(settings, session, system.dispatcher)
       Await.result(_dal.flushEntities(), 5.seconds)
       testCode(session, _dal)
     }

@@ -4,6 +4,7 @@ import java.util.Date
 
 import akka.actor.{Cancellable, Props, ActorLogging, Actor}
 import akka.pattern.pipe
+import akka.serialization.SerializationExtension
 import com.typesafe.config.Config
 import io.mandelbrot.core.system.{ProbeStatus, ProbeUnknown, ProbeJoining}
 import io.mandelbrot.core.{ResourceNotFound, BadRequest, ApiException}
@@ -25,63 +26,45 @@ class CassandraPersister(settings: CassandraPersisterSettings) extends Actor wit
   val defaultLimit = 100
 
   // state
-  var currEpoch: Long = millis2epoch(System.currentTimeMillis())
-  var prevEpoch: Long = currEpoch - EPOCH_TERM
-  var nextEpoch: Long = currEpoch + EPOCH_TERM
-  var checkEpoch: Option[Cancellable] = None
-
   val session = Cassandra(context.system).getSession
-  val state = new StateDAL(settings, session)
-  val notifications = new NotificationsDAL(settings, session)
-  val conditions = new ConditionsDAL(settings, session)
+  val serialization = SerializationExtension(context.system)
+  val committedIndexDAL = new CommittedIndexDAL(settings, session, context.dispatcher)
+  val probeStatusDAL = new ProbeStatusDAL(settings, session, context.dispatcher)
 
   def receive = {
 
     case op: InitializeProbeStatus =>
-      state.initializeProbeState(op.probeRef).flatMap {
-        case _state: ProbeState =>
-          val epoch = timestamp2epoch(_state.timestamp)
-          conditions.getCondition(op.probeRef, epoch, _state.seqNum).recover {
-            case ex: ApiException if ex.failure == ResourceNotFound =>
-              ProbeCondition(DateTime.now(DateTimeZone.UTC), ProbeJoining, None, ProbeUnknown, None, None, false)
-          }.map { condition =>
-            val timestamp = condition.timestamp
-            val lifecycle = condition.lifecycle
-            val summary = condition.summary
-            val health = condition.health
-            val metrics = Map.empty[String,BigDecimal]
-            val lastUpdate = _state.lastUpdate
-            val lastChange = _state.lastChange
-            val correlation = condition.correlation
-            val acknowledged = condition.acknowledged
-            val squelched = condition.squelched
-            val status = ProbeStatus(timestamp, lifecycle, summary, health, metrics,
-              lastUpdate, lastChange, correlation, acknowledged, squelched)
-            InitializeProbeStatusResult(op, status, _state.seqNum)
+      committedIndexDAL.getCommittedIndex(op.probeRef).flatMap {
+        case committedIndex =>
+          val epoch = EpochUtils.timestamp2epoch(committedIndex.current)
+          probeStatusDAL.getProbeStatus(op.probeRef, epoch, committedIndex.current).map {
+            case status => InitializeProbeStatusResult(op, Some(status))
           }
+      }.recover {
+        case ex: ApiException if ex.failure == ResourceNotFound =>
+          InitializeProbeStatusResult(op, None)
+        case ex: Throwable =>
+          StateServiceOperationFailed(op, ex)
+      }.pipeTo(sender())
+
+    case op: UpdateProbeStatus =>
+      val commit = op.lastTimestamp match {
+        case Some(last) =>
+          committedIndexDAL.updateCommittedIndex(op.probeRef, op.status.timestamp, last)
+        case None =>
+          committedIndexDAL.initializeCommittedIndex(op.probeRef, op.status.timestamp)
+      }
+      val epoch = EpochUtils.timestamp2epoch(op.status.timestamp)
+      commit.flatMap {
+        case _ => probeStatusDAL.updateProbeStatus(op.probeRef, epoch, op.status, op.notifications)
       }.recover {
         case ex: Throwable => StateServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
-    case op: UpdateProbeStatus =>
-      getEpoch(op.status.timestamp) match {
-        case None =>
-          sender() ! StateServiceOperationFailed(op, ApiException(BadRequest))
-        case Some(epoch) =>
-          val cFuture = conditions.insertCondition(op, epoch)
-          val nFuture = notifications.insertNotifications(op, epoch)
-          Future.sequence(Vector(cFuture,nFuture)).flatMap[Unit] { case _ =>
-            val _state = ProbeState(op.probeRef, op.seqNum, op.status.timestamp, op.status.lastUpdate, op.status.lastChange)
-            state.updateProbeState(_state)
-          }.recover {
-            case ex: Throwable => StateServiceOperationFailed(op, ex)
-          }.pipeTo(sender())
-      }
-
-    case op: DeleteProbeStatus =>
-      state.deleteProbeState(op.probeRef).recover {
-        case ex: Throwable => StateServiceOperationFailed(op, ex)
-      }.pipeTo(sender())
+//    case op: DeleteProbeStatus =>
+//      state.deleteProbeState(op.probeRef).recover {
+//        case ex: Throwable => StateServiceOperationFailed(op, ex)
+//      }.pipeTo(sender())
 
 //    /* retrieve status history for the ProbeRef and all its children */
 //    case op: GetConditionHistory =>
@@ -120,22 +103,6 @@ class CassandraPersister(settings: CassandraPersisterSettings) extends Actor wit
 //    case CleanHistory(mark) =>
 //      session.execute(bindCleanHistory(mark))
   }
-
-  def getEpoch(timestamp: DateTime): Option[Long] = {
-    val millis = timestamp.getMillis
-    if (millis >= currEpoch && millis < nextEpoch)
-      Some(currEpoch)
-    else if (millis >= prevEpoch && millis < currEpoch)
-      Some(prevEpoch)
-    else if (millis >= nextEpoch && millis < currEpoch + EPOCH_TERM)
-      Some(nextEpoch)
-    else
-      None
-  }
-
-  def millis2epoch(millis: Long): Long = (millis / EPOCH_TERM) * EPOCH_TERM
-
-  def timestamp2epoch(timestamp: DateTime): Long = millis2epoch(timestamp.getMillis)
 }
 
 object CassandraPersister {

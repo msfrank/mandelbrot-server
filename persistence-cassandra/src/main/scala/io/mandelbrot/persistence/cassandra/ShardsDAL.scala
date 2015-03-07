@@ -13,7 +13,9 @@ import io.mandelbrot.persistence.cassandra.CassandraCoordinator.CassandraCoordin
 /**
  *
  */
-class ShardsDAL(settings: CassandraCoordinatorSettings, session: Session)(implicit ec: ExecutionContext) extends AbstractDriver(session, ec) {
+class ShardsDAL(settings: CassandraCoordinatorSettings,
+                val session: Session,
+                implicit val ec: ExecutionContext) extends AbstractDriver {
 
   val tableName = "shards"
 
@@ -39,7 +41,7 @@ class ShardsDAL(settings: CassandraCoordinatorSettings, session: Session)(implic
   def createShard(op: CreateShard, timestamp: DateTime): Future[CreateShardResult] = {
     val shardId: java.lang.Integer = op.shardId
     val address: String = op.address.toString
-    session.executeAsync(new BoundStatement(preparedCreateShard).bind(shardId, address, timestamp.toDate)).map {
+    executeAsync(new BoundStatement(preparedCreateShard).bind(shardId, address, timestamp.toDate)).map {
       case resultSet if !resultSet.wasApplied() => throw ApiException(Conflict)
       case _ => CreateShardResult(op)
     }
@@ -57,7 +59,7 @@ class ShardsDAL(settings: CassandraCoordinatorSettings, session: Session)(implic
     val shardId: java.lang.Integer = op.shardId
     val address: String = op.address.toString
     val prev: String = op.prev.toString
-    session.executeAsync(new BoundStatement(preparedUpdateShard).bind(address, timestamp.toDate, shardId, prev)).map {
+    executeAsync(new BoundStatement(preparedUpdateShard).bind(address, timestamp.toDate, shardId, prev)).map {
       case resultSet if !resultSet.wasApplied() => throw ApiException(Conflict)
       case _ => UpdateShardResult(op)
     }
@@ -71,7 +73,7 @@ class ShardsDAL(settings: CassandraCoordinatorSettings, session: Session)(implic
 
   def getShard(op: GetShard): Future[GetShardResult] = {
     val shardId: java.lang.Integer = op.shardId
-    session.executeAsync(new BoundStatement(preparedGetShard).bind(shardId)).map { resultSet =>
+    executeAsync(new BoundStatement(preparedGetShard).bind(shardId)).map { resultSet =>
       val row = resultSet.one()
       if (row != null) {
         val shardId = row.getInt(0)
@@ -93,7 +95,7 @@ class ShardsDAL(settings: CassandraCoordinatorSettings, session: Session)(implic
   def listShards(op: ListShards): Future[ListShardsResult] = {
     val shardId: java.lang.Integer = op.token.map(1 + _.shardId: java.lang.Integer).getOrElse(0)
     val limit: java.lang.Integer = op.limit
-    session.executeAsync(new BoundStatement(preparedListShards).bind(shardId, limit)).map { resultSet =>
+    executeAsync(new BoundStatement(preparedListShards).bind(shardId, limit)).map { resultSet =>
       val shards = resultSet.all().map { row =>
         val shardId = row.getInt(0)
         val address = AddressFromURIString(row.getString(1))
@@ -105,6 +107,6 @@ class ShardsDAL(settings: CassandraCoordinatorSettings, session: Session)(implic
   }
 
   def flushShards(): Future[Unit] = {
-    session.executeAsync(s"TRUNCATE $tableName").map { resultSet => }
+    executeAsync(s"TRUNCATE $tableName").map { resultSet => }
   }
 }

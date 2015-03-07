@@ -51,7 +51,7 @@ class Probe(val probeRef: ProbeRef,
   val timeout = 5.seconds
 
   // state
-  var seqNum: Long = 0
+  var lastCommitted: Option[DateTime] = None
   var processor: ProbeBehaviorInterface = behavior.makeProbeBehavior()
   var _lifecycle: ProbeLifecycle = ProbeInitializing
   var _health: ProbeHealth = ProbeUnknown
@@ -102,13 +102,18 @@ class Probe(val probeRef: ProbeRef,
 
     case Event(result: InitializeProbeStatusResult, state: InitializingProbe) =>
       cancelCommitTimer()
-      log.debug("gen {}: received initial status: {} (lsn {})", probeGeneration, result.status, result.seqNum)
-      // initialize probe state
-      setProbeStatus(result.status)
-      seqNum = result.seqNum
-      // so switch to retired behavior
-      if (result.status.lifecycle == ProbeRetired) {
-        log.debug("gen {}: probe becomes retired (lsn {})", probeGeneration, probeRef, seqNum)
+      result.status match {
+        // rehydrate probe status from state service
+        case Some(status) =>
+          log.debug("gen {}: received initial status: {}", probeGeneration, status)
+          setProbeStatus(status)
+          lastCommitted = Some(status.timestamp)
+        case None =>
+          // there is no previous probe status, do nothing
+      }
+      // switch to retired behavior if latest probe status is retired
+      if (lifecycle == ProbeRetired) {
+        log.debug("gen {}: probe becomes retired", probeGeneration, probeRef)
         goto(StaleProbe) using NoData
       }
       // otherwise replay any stashed messages and transition to initialized
@@ -367,13 +372,13 @@ class Probe(val probeRef: ProbeRef,
           log.debug("skipping {}", queued.head)
           queued = queued.tail
         case Some(mutation: StatusMutation) =>
-          val op = UpdateProbeStatus(probeRef, mutation.status, filterNotifications(mutation.notifications), seqNum)
+          val op = UpdateProbeStatus(probeRef, mutation.status, filterNotifications(mutation.notifications), lastCommitted)
           services ! op
           setCommitTimer()
           log.debug("op {} is in flight with mutation {}", queued.head, mutation)
           return RunningProbe(Some(InflightMutation(op, mutation)), queued)
         case Some(deletion: Deletion) =>
-          val op = DeleteProbeStatus(probeRef, deletion.lastStatus, seqNum)
+          val op = DeleteProbeStatus(probeRef, deletion.lastStatus)
           services ! op
           setCommitTimer()
           log.debug("op {} is in flight with mutation {}", queued.head, deletion)

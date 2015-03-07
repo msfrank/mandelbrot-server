@@ -54,7 +54,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
 
       actor ! GetProbeStatus(ref)
       val result = expectMsgClass(classOf[GetProbeStatusResult])
@@ -77,7 +77,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
 
       actor ! UpdateProbe(Set.empty, policy, TestUpdateBehavior(2), 1)
       val update = stateService.expectMsgClass(classOf[UpdateProbeStatus])
@@ -103,7 +103,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val actor = system.actorOf(Probe.props(ref, blackhole, children, policy, initialBehavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
 
       actor ! ChangeProbe(children, policy, TestChangeBehavior(), 1)
       val update = stateService.expectMsgClass(classOf[UpdateProbeStatus])
@@ -129,7 +129,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
 
       actor ! RetireProbe(0)
       val retire = stateService.expectMsgClass(classOf[DeleteProbeStatus])

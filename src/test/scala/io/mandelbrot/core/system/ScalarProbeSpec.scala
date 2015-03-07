@@ -59,7 +59,7 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val actor = system.actorOf(Probe.props(probeRef, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeJoining, None, ProbeUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
 
       val timestamp = DateTime.now()
       actor ! ProcessProbeEvaluation(probeRef, ProbeEvaluation(timestamp, Some("healthy"), Some(ProbeHealthy), None))
@@ -86,7 +86,7 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val actor = system.actorOf(Probe.props(probeRef, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeJoining, None, ProbeUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
 
       val timestamp = DateTime.now()
       actor ! ProcessProbeEvaluation(probeRef, ProbeEvaluation(timestamp, Some("degraded"), Some(ProbeDegraded), None))
@@ -113,7 +113,7 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val actor = system.actorOf(Probe.props(probeRef, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeJoining, None, ProbeUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
 
       val timestamp = DateTime.now()
       actor ! ProcessProbeEvaluation(probeRef, ProbeEvaluation(timestamp, Some("failed"), Some(ProbeFailed), None))
@@ -140,7 +140,7 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val actor = system.actorOf(Probe.props(probeRef, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeJoining, None, ProbeUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
 
       val timestamp = DateTime.now()
       actor ! ProcessProbeEvaluation(probeRef, ProbeEvaluation(timestamp, Some("unknown"), Some(ProbeUnknown), None))
@@ -167,7 +167,7 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val actor = system.actorOf(Probe.props(probeRef, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeJoining, None, ProbeUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
 
       // expiry timer should fire within 5 seconds
       val update1 = stateService.expectMsgClass(5.seconds, classOf[UpdateProbeStatus])
@@ -191,7 +191,7 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val actor = system.actorOf(Probe.props(probeRef, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeJoining, None, ProbeUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
 
       val timestamp = DateTime.now()
       actor ! ProcessProbeEvaluation(probeRef, ProbeEvaluation(timestamp, Some("healthy"), Some(ProbeHealthy), None))
@@ -221,7 +221,7 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val actor = system.actorOf(Probe.props(probeRef, blackhole, Set.empty, policy, behavior, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeJoining, None, ProbeUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, status, 0))
+      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
 
       val timestamp = DateTime.now()
       actor ! ProcessProbeEvaluation(probeRef, ProbeEvaluation(timestamp, Some("failed"), Some(ProbeFailed), None))

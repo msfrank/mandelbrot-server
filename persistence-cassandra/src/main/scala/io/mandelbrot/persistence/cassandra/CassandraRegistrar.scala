@@ -15,7 +15,7 @@ class CassandraRegistrar(settings: CassandraRegistrarSettings) extends Actor wit
   import context.dispatcher
 
   val session = Cassandra(context.system).getSession
-  val registry = new RegistryDAL(settings, session)
+  val registry = new RegistryDAL(settings, session, context.dispatcher)
 
   def receive = {
 

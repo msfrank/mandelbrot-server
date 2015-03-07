@@ -28,7 +28,7 @@ class ShardsDALSpec(_system: ActorSystem) extends TestKit(_system) with Implicit
 
     "create the shards table during initialization" in {
       val session = Cassandra(system).getSession
-      val dal = new ShardsDAL(settings, session)(system.dispatcher)
+      val dal = new ShardsDAL(settings, session, system.dispatcher)
       val keyspaceName = Cassandra(system).keyspaceName
       val keyspaceMeta = session.getCluster.getMetadata.getKeyspace(keyspaceName)
       val table = keyspaceMeta.getTable(dal.tableName)
@@ -45,7 +45,7 @@ class ShardsDALSpec(_system: ActorSystem) extends TestKit(_system) with Implicit
       import system.dispatcher
       val session = Cassandra(system).getSession
       if (_dal == null)
-        _dal = new ShardsDAL(settings, session)(system.dispatcher)
+        _dal = new ShardsDAL(settings, session, system.dispatcher)
       Await.result(_dal.flushShards(), 5.seconds)
       testCode(session, _dal)
     }
