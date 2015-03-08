@@ -23,6 +23,7 @@ class CassandraPersisterSpec(_system: ActorSystem)
 
   // shutdown the actor system
   override def afterAll() {
+    Cassandra(system).dropKeyspace()
     TestKit.shutdownActorSystem(system)
   }
 
@@ -32,7 +33,7 @@ class CassandraPersisterSpec(_system: ActorSystem)
     val actor = system.actorOf(CassandraPersister.props(settings))
 
     "initialize probe status when probe doesn't exist" in {
-      val probeRef = ProbeRef("test:1")
+      val probeRef = ProbeRef("test1")
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val op = InitializeProbeStatus(probeRef, timestamp)
       actor ! op
@@ -42,10 +43,9 @@ class CassandraPersisterSpec(_system: ActorSystem)
     }
 
     "initialize probe status when probe exists" in {
-      val probeRef = ProbeRef("test:2")
+      val probeRef = ProbeRef("test2")
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      //val metrics = Map("metric" -> BigDecimal(0.1))
-      val metrics = Map.empty[String,BigDecimal]
+      val metrics = Map("metric" -> BigDecimal(0.1))
       val status = ProbeStatus(timestamp, ProbeKnown, Some("healthy"), ProbeHealthy, metrics, Some(timestamp),
         Some(timestamp), None, None, squelched = false)
       val notifications = Vector(NotifyHealthChanges(probeRef, timestamp, None, ProbeUnknown, ProbeHealthy))
@@ -58,5 +58,34 @@ class CassandraPersisterSpec(_system: ActorSystem)
       initializeProbeStatusResult.status shouldEqual Some(status)
     }
 
+    "retrieve condition history" in {
+      val probeRef = ProbeRef("test3")
+
+      val status1 = ProbeStatus(DateTime.now(DateTimeZone.UTC), ProbeKnown, Some("healthy1"), ProbeHealthy,
+        Map.empty, None, None, None, None, squelched = false)
+      actor ! UpdateProbeStatus(probeRef, status1, Vector.empty, None)
+      expectMsgClass(classOf[UpdateProbeStatusResult])
+      val condition1 = ProbeCondition(status1.timestamp, status1.lifecycle, status1.summary, status1.health,
+        status1.correlation, status1.acknowledged, status1.squelched)
+
+      val status2 = ProbeStatus(DateTime.now(DateTimeZone.UTC), ProbeKnown, Some("healthy2"), ProbeHealthy,
+        Map.empty, None, None, None, None, squelched = false)
+      actor ! UpdateProbeStatus(probeRef, status2, Vector.empty, None)
+      expectMsgClass(classOf[UpdateProbeStatusResult])
+      val condition2 = ProbeCondition(status2.timestamp, status2.lifecycle, status2.summary, status2.health,
+        status2.correlation, status2.acknowledged, status2.squelched)
+
+      val status3 = ProbeStatus(DateTime.now(DateTimeZone.UTC), ProbeKnown, Some("healthy3"), ProbeHealthy,
+        Map.empty, None, None, None, None, squelched = false)
+      actor ! UpdateProbeStatus(probeRef, status3, Vector.empty, None)
+      expectMsgClass(classOf[UpdateProbeStatusResult])
+      val condition3 = ProbeCondition(status3.timestamp, status3.lifecycle, status3.summary, status3.health,
+        status3.correlation, status3.acknowledged, status3.squelched)
+
+      actor ! GetConditionHistory(probeRef, None, None, Some(100), None)
+      val getConditionHistoryResult = expectMsgClass(classOf[GetConditionHistoryResult])
+      getConditionHistoryResult.history shouldEqual Vector(condition1, condition2, condition3)
+      getConditionHistoryResult.exhausted shouldEqual true
+    }
   }
 }

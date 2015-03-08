@@ -64,7 +64,9 @@ class CassandraPersister(settings: CassandraPersisterSettings) extends Actor wit
 
     /* retrieve condition history for the specified ProbeRef */
     case op: GetConditionHistory =>
+      // find the epoch to read
       val getEpoch: Future[Long] = op.from match {
+        // if last was specified, then use the epoch derived from the last timestamp
         case _ if op.last.nonEmpty =>
           val last = op.last.get
           val epoch = EpochUtils.timestamp2epoch(last)
@@ -72,8 +74,10 @@ class CassandraPersister(settings: CassandraPersisterSettings) extends Actor wit
             case true => epoch
             case false => EpochUtils.nextEpoch(epoch)
           }
+        // if from was specified, then use the epoch derived from the from timestamp
         case Some(from) =>
           Future.successful[Long](EpochUtils.timestamp2epoch(from))
+        // if from was not specified, then use the initial timestamp in the committed index
         case None =>
           committedIndexDAL.getCommittedIndex(op.probeRef).map {
             committedIndex => EpochUtils.timestamp2epoch(committedIndex.initial)

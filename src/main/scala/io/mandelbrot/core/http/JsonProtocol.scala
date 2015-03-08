@@ -24,7 +24,7 @@ import akka.cluster.MemberStatus
 import io.mandelbrot.core.state.GetNotificationHistory
 import spray.json._
 import spray.http.{ContentTypes, HttpEntity}
-import org.joda.time.DateTime
+import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration.{FiniteDuration, Duration}
 import scala.math.BigDecimal
 import org.joda.time.format.ISODateTimeFormat
@@ -58,7 +58,7 @@ object JsonProtocol extends DefaultJsonProtocol {
     def write(datetime: DateTime) = JsNumber(datetime.getMillis)
     def read(value: JsValue) = value match {
       case JsString(string) => datetimeParser.parseDateTime(string)
-      case JsNumber(bigDecimal) => new DateTime(bigDecimal.toLong)
+      case JsNumber(bigDecimal) => new DateTime(bigDecimal.toLong, DateTimeZone.UTC)
       case _ => throw new DeserializationException("expected DateTime")
     }
   }
