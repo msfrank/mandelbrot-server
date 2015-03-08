@@ -101,11 +101,11 @@ case class DeleteProbeStatusResult(op: DeleteProbeStatus)
 case class TrimProbeHistory(probeRef: ProbeRef, until: DateTime) extends StateServiceCommand
 case class TrimProbeHistoryResult(op: TrimProbeHistory)
 
-case class GetConditionHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends StateServiceQuery
-case class GetConditionHistoryResult(op: GetConditionHistory, history: Vector[ProbeCondition])
+case class GetConditionHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int], last: Option[DateTime]) extends StateServiceQuery
+case class GetConditionHistoryResult(op: GetConditionHistory, history: Vector[ProbeCondition], last: Option[DateTime], exhausted: Boolean)
 
-case class GetNotificationHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends StateServiceQuery
-case class GetNotificationHistoryResult(op: GetNotificationHistory, history: Vector[ProbeNotification])
+case class GetNotificationHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int], last: Option[DateTime]) extends StateServiceQuery
+case class GetNotificationHistoryResult(op: GetNotificationHistory, history: Vector[ProbeNotification], last: Option[DateTime], exhausted: Boolean)
 
 //case class GetMetricHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends StateServiceQuery
 //case class GetMetricHistoryResult(op: GetMetricHistory, history: Vector[ProbeMetric])

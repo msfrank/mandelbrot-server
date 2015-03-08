@@ -381,10 +381,10 @@ object JsonProtocol extends DefaultJsonProtocol {
   implicit val SetProbeSquelchResultFormat = jsonFormat2(SetProbeSquelchResult)
 
   /* history service operations */
-  implicit val GetConditionHistoryFormat = jsonFormat4(GetConditionHistory)
-  implicit val GetConditionHistoryResultFormat = jsonFormat2(GetConditionHistoryResult)
-  implicit val GetNotificationHistoryFormat = jsonFormat4(GetNotificationHistory)
-  implicit val GetNotificationHistoryResultFormat = jsonFormat2(GetNotificationHistoryResult)
+  implicit val GetConditionHistoryFormat = jsonFormat5(GetConditionHistory)
+  implicit val GetConditionHistoryResultFormat = jsonFormat4(GetConditionHistoryResult)
+  implicit val GetNotificationHistoryFormat = jsonFormat5(GetNotificationHistory)
+  implicit val GetNotificationHistoryResultFormat = jsonFormat4(GetNotificationHistoryResult)
 
   /* notification service operations */
   implicit val RegisterMaintenanceWindowFormat = jsonFormat4(RegisterMaintenanceWindow)

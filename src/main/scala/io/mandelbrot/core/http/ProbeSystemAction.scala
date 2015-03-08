@@ -103,19 +103,6 @@ class GetProbeSystemConditionHistoryAction(params: HttpActionParams, op: GetProb
   def receive = {
     case result: MatchProbeSystemResult =>
       log.debug("matched probe refs {}", result.refs.mkString(","))
-      refs = result.refs
-      refs.foreach(ref => params.services ! GetConditionHistory(ref, op.from, op.to, op.limit))
-
-    case result: GetConditionHistoryResult =>
-      log.debug("got condition history for {}", result.op.probeRef)
-      refs = refs - result.op.probeRef
-      results = results + (result.op.probeRef -> result)
-      if (refs.isEmpty) {
-        val history = results.values.flatMap(_.history).toVector.sortWith((s1,s2) => s1.timestamp.isBefore(s2.timestamp))
-        actionTimeout.cancel()
-        params.ctx.complete(GetProbeSystemConditionHistoryResult(op, history))
-        context.stop(self)
-      }
 
     case failure: ServiceOperationFailed =>
       params.ctx.complete(failure.failure)
@@ -150,19 +137,6 @@ class GetProbeSystemNotificationHistoryAction(params: HttpActionParams, op: GetP
   def receive = {
     case result: MatchProbeSystemResult =>
       log.debug("matched probe refs {}", result.refs.mkString(","))
-      refs = result.refs
-      refs.foreach(ref => params.services ! GetNotificationHistory(ref, op.from, op.to, op.limit))
-
-    case result: GetNotificationHistoryResult =>
-      log.debug("got notification history for {}", result.op.probeRef)
-      refs = refs - result.op.probeRef
-      results = results + (result.op.probeRef -> result)
-      if (refs.isEmpty) {
-        val history = results.values.flatMap(_.history).toVector.sortWith((s1,s2) => s1.timestamp.isBefore(s2.timestamp))
-        actionTimeout.cancel()
-        params.ctx.complete(GetProbeSystemNotificationHistoryResult(op, history))
-        context.stop(self)
-      }
 
     case failure: ServiceOperationFailed =>
       params.ctx.complete(failure.failure)

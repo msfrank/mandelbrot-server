@@ -4,7 +4,7 @@ import com.datastax.driver.core.{BoundStatement, Session}
 import io.mandelbrot.core.notification.ProbeNotification
 import scala.concurrent.{ExecutionContext, Future}
 import scala.collection.JavaConversions._
-import org.joda.time.DateTime
+import org.joda.time.{DateTimeZone, DateTime}
 
 import io.mandelbrot.core.{ApiException, ResourceNotFound}
 import io.mandelbrot.core.state._
@@ -58,6 +58,25 @@ class ProbeStatusDAL(settings: CassandraPersisterSettings,
     executeAsync(statement).map { _ => Unit }
   }
 
+  private val preparedCheckIfEpochExhausted = session.prepare(
+    s"""
+       |SELECT timestamp
+       |FROM $tableName
+       |WHERE probe_ref = ? AND epoch = ? AND timestamp > ?
+       |LIMIT 1
+     """.stripMargin)
+
+  def checkIfEpochExhausted(probeRef: ProbeRef, epoch: Long, timestamp: DateTime): Future[Boolean] = {
+    val _probeRef = probeRef.toString
+    val _epoch: java.lang.Long = epoch
+    val _timestamp = timestamp.toDate
+    val statement = new BoundStatement(preparedCheckIfEpochExhausted)
+    statement.bind(_probeRef, _epoch, _timestamp)
+    executeAsync(statement).map {
+      case resultSet => resultSet.isFullyFetched && resultSet.isExhausted
+    }
+  }
+
   private val preparedGetProbeStatus = session.prepare(
     s"""
        |SELECT timestamp, last_update, last_change, condition, metrics
@@ -75,11 +94,12 @@ class ProbeStatusDAL(settings: CassandraPersisterSettings,
       case resultSet =>
         val row = resultSet.one()
         if (row == null) throw ApiException(ResourceNotFound) else {
-          val timestamp = new DateTime(row.getDate(0))
-          val lastUpdate = Option(row.getDate(1)).map(new DateTime(_))
-          val lastChange = Option(row.getDate(2)).map(new DateTime(_))
+          val timestamp = new DateTime(row.getDate(0), DateTimeZone.UTC)
+          val lastUpdate = Option(row.getDate(1)).map(new DateTime(_, DateTimeZone.UTC))
+          val lastChange = Option(row.getDate(2)).map(new DateTime(_, DateTimeZone.UTC))
           val condition = string2probeCondition(row.getString(3))
-          val metrics = Option(string2probeMetrics(row.getString(4)))
+          val metrics = Option(row.getString(4))
+            .map(string2probeMetrics)
             .map(_.metrics)
             .getOrElse(Map.empty[String,BigDecimal])
           ProbeStatus(timestamp, condition.lifecycle, condition.summary, condition.health, metrics,
@@ -116,7 +136,11 @@ class ProbeStatusDAL(settings: CassandraPersisterSettings,
        |LIMIT ?
      """.stripMargin)
 
-  def getProbeConditionHistory(probeRef: ProbeRef, epoch: Long, from: Option[DateTime], to: Option[DateTime], limit: Int): Future[Vector[ProbeCondition]] = {
+  def getProbeConditionHistory(probeRef: ProbeRef,
+                               epoch: Long,
+                               from: Option[DateTime],
+                               to: Option[DateTime],
+                               limit: Int): Future[(Long,Vector[ProbeCondition])] = {
     val _probeRef = probeRef.toString
     val _epoch: java.lang.Long = epoch
     val start = from.map(_.toDate).getOrElse(EpochUtils.SMALLEST_DATE)
@@ -124,8 +148,10 @@ class ProbeStatusDAL(settings: CassandraPersisterSettings,
     val _limit: java.lang.Integer = limit
     val statement = new BoundStatement(preparedGetProbeConditionHistory)
     statement.bind(_probeRef, _epoch, start, end, _limit)
+    statement.setFetchSize(limit)
     executeAsync(statement).map { resultSet =>
-      resultSet.all().map(row => string2probeCondition(row.getString(0))).toVector
+      val history = resultSet.all().map(row => string2probeCondition(row.getString(0))).toVector
+      (epoch,history)
     }
   }
 
@@ -145,7 +171,11 @@ class ProbeStatusDAL(settings: CassandraPersisterSettings,
     executeAsync(statement).map {
       case resultSet =>
         val row = resultSet.one()
-        if (row == null) throw ApiException(ResourceNotFound) else string2probeNotifications(row.getString(0))
+        if (row == null) throw ApiException(ResourceNotFound) else {
+          Option(row.getString(0))
+            .map(string2probeNotifications)
+            .getOrElse(ProbeNotifications(Vector.empty))
+        }
     }
   }
 
@@ -165,8 +195,12 @@ class ProbeStatusDAL(settings: CassandraPersisterSettings,
     val _limit: java.lang.Integer = limit
     val statement = new BoundStatement(preparedGetProbeNotificationsHistory)
     statement.bind(_probeRef, _epoch, start, end, _limit)
+    statement.setFetchSize(limit)
     executeAsync(statement).map { resultSet =>
-      resultSet.all().map(row => string2probeNotifications(row.getString(0))).toVector
+      resultSet.all()
+        .flatMap(row => Option(row.getString(0)))
+        .map(string2probeNotifications)
+        .toVector
     }
   }
 
@@ -186,7 +220,11 @@ class ProbeStatusDAL(settings: CassandraPersisterSettings,
     executeAsync(statement).map {
       case resultSet =>
         val row = resultSet.one()
-        if (row == null) throw ApiException(ResourceNotFound) else string2probeMetrics(row.getString(0))
+        if (row == null) throw ApiException(ResourceNotFound) else {
+          Option(row.getString(0))
+            .map(string2probeMetrics)
+            .getOrElse(ProbeMetrics(Map.empty))
+        }
     }
   }
 
@@ -206,8 +244,12 @@ class ProbeStatusDAL(settings: CassandraPersisterSettings,
     val _limit: java.lang.Integer = limit
     val statement = new BoundStatement(preparedGetProbeMetricsHistory)
     statement.bind(_probeRef, _epoch, start, end, _limit)
+    statement.setFetchSize(limit)
     executeAsync(statement).map { resultSet =>
-      resultSet.all().map(row => string2probeMetrics(row.getString(0))).toVector
+      resultSet.all()
+        .flatMap(row => Option(row.getString(0)))
+        .map(string2probeMetrics)
+        .toVector
     }
   }
 

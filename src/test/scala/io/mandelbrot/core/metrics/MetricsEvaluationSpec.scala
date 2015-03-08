@@ -83,10 +83,10 @@ class MetricWindowSpec extends WordSpec with ShouldMatchers {
       val window = new MetricWindow(5)
       window.headOption shouldEqual None
       window.get(0) shouldEqual None
-      evaluating { window.head } should produce[NoSuchElementException]
-      evaluating { window(0) } should produce[NoSuchElementException]
-      evaluating { window.get(5) } should produce[IndexOutOfBoundsException]
-      evaluating { window(5) } should produce[IndexOutOfBoundsException]
+      a [NoSuchElementException] should be thrownBy { window.head }
+      a [NoSuchElementException] should be thrownBy { window(0) }
+      an [IndexOutOfBoundsException] should be thrownBy { window.get(5) }
+      an [IndexOutOfBoundsException] should be thrownBy { window(5) }
     }
 
     "append multiple elements into the window" in {
@@ -132,13 +132,13 @@ class MetricWindowSpec extends WordSpec with ShouldMatchers {
       window.get(2) shouldEqual Some(BigDecimal(3L))
       window.get(3) shouldEqual None
       window.get(4) shouldEqual None
-      evaluating { window.get(5) } should produce[IndexOutOfBoundsException]
+      an [IndexOutOfBoundsException] should be thrownBy { window.get(5) }
       window(0) shouldEqual BigDecimal(1L)
       window(1) shouldEqual BigDecimal(2L)
       window(2) shouldEqual BigDecimal(3L)
-      evaluating { window(3) } should produce[NoSuchElementException]
-      evaluating { window(4) } should produce[NoSuchElementException]
-      evaluating { window(5) } should produce[IndexOutOfBoundsException]
+      a [NoSuchElementException] should be thrownBy { window(3) }
+      a [NoSuchElementException] should be thrownBy { window(4) }
+      an [IndexOutOfBoundsException] should be thrownBy { window(5) }
     }
 
     "fold elements" in {
@@ -173,8 +173,8 @@ class MetricWindowSpec extends WordSpec with ShouldMatchers {
       window.get(0) shouldEqual Some(BigDecimal(1L))
       window.get(1) shouldEqual Some(BigDecimal(2L))
       window.get(2) shouldEqual Some(BigDecimal(3L))
-      evaluating { window.get(3) } should produce[IndexOutOfBoundsException]
-      evaluating { window.get(4) } should produce[IndexOutOfBoundsException]
+      an [IndexOutOfBoundsException] should be thrownBy { window.get(3) }
+      an [IndexOutOfBoundsException] should be thrownBy { window.get(4) }
     }
   }
 }

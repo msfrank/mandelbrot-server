@@ -22,4 +22,13 @@ object EpochUtils {
    */
   def timestamp2epoch(timestamp: DateTime): Long = millis2epoch(timestamp.getMillis)
 
+  /**
+   * convert an epoch to a timestamp
+   */
+  def epoch2timestamp(epoch: Long): DateTime = new DateTime(epoch)
+
+  /**
+   * calculate the next epoch from the specified epoch.
+   */
+  def nextEpoch(epoch: Long): Long = epoch + EPOCH_TERM
 }
