@@ -140,7 +140,7 @@ class ProbeStatusDAL(settings: CassandraPersisterSettings,
                                epoch: Long,
                                from: Option[DateTime],
                                to: Option[DateTime],
-                               limit: Int): Future[(Long,Vector[ProbeCondition])] = {
+                               limit: Int): Future[Vector[ProbeCondition]] = {
     val _probeRef = probeRef.toString
     val _epoch: java.lang.Long = epoch
     val start = from.map(_.toDate).getOrElse(EpochUtils.SMALLEST_DATE)
@@ -150,8 +150,7 @@ class ProbeStatusDAL(settings: CassandraPersisterSettings,
     statement.bind(_probeRef, _epoch, start, end, _limit)
     statement.setFetchSize(limit)
     executeAsync(statement).map { resultSet =>
-      val history = resultSet.all().map(row => string2probeCondition(row.getString(0))).toVector
-      (epoch,history)
+      resultSet.all().map(row => string2probeCondition(row.getString(0))).toVector
     }
   }
 

@@ -6,7 +6,7 @@ import akka.actor.{Cancellable, Props, ActorLogging, Actor}
 import akka.pattern.pipe
 import akka.serialization.SerializationExtension
 import com.typesafe.config.Config
-import io.mandelbrot.core.system.{ProbeStatus, ProbeUnknown, ProbeJoining}
+import io.mandelbrot.core.system.{ProbeRef, ProbeStatus, ProbeUnknown, ProbeJoining}
 import io.mandelbrot.core.{ResourceNotFound, BadRequest, ApiException}
 import org.joda.time.{DateTimeZone, DateTime}
 
@@ -19,7 +19,6 @@ import scala.concurrent.Future
  *
  */
 class CassandraPersister(settings: CassandraPersisterSettings) extends Actor with ActorLogging with Persister {
-  import CassandraPersister._
   import context.dispatcher
 
   // config
@@ -64,66 +63,64 @@ class CassandraPersister(settings: CassandraPersisterSettings) extends Actor wit
 
     /* retrieve condition history for the specified ProbeRef */
     case op: GetConditionHistory =>
-      // find the epoch to read
-      val getEpoch: Future[Long] = op.from match {
-        // if last was specified, then use the epoch derived from the last timestamp
-        case _ if op.last.nonEmpty =>
-          val last = op.last.get
-          val epoch = EpochUtils.timestamp2epoch(last)
-          probeStatusDAL.checkIfEpochExhausted(op.probeRef, epoch, last).map {
-            case true => epoch
-            case false => EpochUtils.nextEpoch(epoch)
-          }
-        // if from was specified, then use the epoch derived from the from timestamp
-        case Some(from) =>
-          Future.successful[Long](EpochUtils.timestamp2epoch(from))
-        // if from was not specified, then use the initial timestamp in the committed index
-        case None =>
-          committedIndexDAL.getCommittedIndex(op.probeRef).map {
-            committedIndex => EpochUtils.timestamp2epoch(committedIndex.initial)
-          }
-      }
+      val probeRef = op.probeRef
+      val from = op.from
+      val to = op.to
+      val last = op.last
       val limit = op.limit.getOrElse(defaultLimit)
-      getEpoch.flatMap[(Long,Vector[ProbeCondition])] { epoch =>
-        probeStatusDAL.getProbeConditionHistory(op.probeRef, epoch, op.from, op.to, op.limit.getOrElse(defaultLimit))
+      getEpoch(probeRef, from, to, last).flatMap {
+        case (epoch, committed) =>
+          probeStatusDAL.getProbeConditionHistory(probeRef, epoch, from, to, limit).map {
+            case history => (epoch, committed, history)
+          }
       }.map {
-        case (epoch, history) if history.nonEmpty =>
-          val last = history.last.timestamp
-          val exhausted = if (history.length < limit && atHorizon(last, op.to)) true else false
-          GetConditionHistoryResult(op, history, Some(last), exhausted)
-        case (epoch, history) =>
-          val last = Some(EpochUtils.epoch2timestamp(epoch))
-          val exhausted = if (atHorizon(epoch, op.to)) true else false
-          GetConditionHistoryResult(op, history, last, exhausted)
+        case (epoch, committed, history) =>
+          history.lastOption.map(_.timestamp) match {
+            case Some(timestamp) =>
+              if (history.length < limit && epoch == EpochUtils.timestamp2epoch(committed.current))
+                GetConditionHistoryResult(op, history, Some(timestamp), exhausted = true)
+              else
+                GetConditionHistoryResult(op, history, Some(timestamp), exhausted = false)
+            case None =>
+              val last = Some(EpochUtils.epoch2timestamp(epoch))
+              val exhausted = if (epoch == EpochUtils.timestamp2epoch(committed.current)) true else false
+              GetConditionHistoryResult(op, history, last, exhausted)
+          }
       }.recover {
         case ex: Throwable => StateServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
 //    /* retrieve notification history for the specified ProbeRef */
 //    case op: GetNotificationHistory =>
-//      val getEpoch = op.from match {
-//        case Some(from) => Future.successful[Long](timestamp2epoch(from))
-//        case None => notificationHistory.getFirstNotificationEpoch(op.probeRef).map[Long](_.getOrElse(-1))
-//      }
-//      getEpoch.flatMap[Vector[ProbeNotification]] { epoch =>
-//        notificationHistory.getNotificationHistory(op.probeRef, epoch, op.from, op.to, op.limit.getOrElse(defaultLimit))
-//      }.map { history => GetNotificationHistoryResult(op, history) }.recover {
-//        case ex: Throwable => HistoryServiceOperationFailed(op, ex)
-//      }.pipeTo(sender())
-//
-//    case op: DeleteProbeStatus =>
-//      state.deleteProbeState(op.probeRef).recover {
-//        case ex: Throwable => StateServiceOperationFailed(op, ex)
-//      }.pipeTo(sender())
   }
 
-  def atHorizon(epoch: Long, horizon: Option[DateTime]): Boolean = {
-    val horizonEpoch = EpochUtils.timestamp2epoch(horizon.getOrElse(new DateTime(DateTimeZone.UTC)))
-    epoch == horizonEpoch
-  }
-
-  def atHorizon(timestamp: DateTime, horizon: Option[DateTime]): Boolean = {
-    atHorizon(EpochUtils.timestamp2epoch(timestamp), horizon)
+  /**
+   * determine which epoch to read from, given the specified constraints.
+   */
+  def getEpoch(probeRef: ProbeRef,
+               from: Option[DateTime],
+               to: Option[DateTime],
+               last: Option[DateTime]): Future[(Long,CommittedIndex)] = {
+    committedIndexDAL.getCommittedIndex(probeRef).flatMap[(Long,CommittedIndex)] { committed =>
+      last match {
+        // if last was specified, then return the epoch derived from the last timestamp
+        case Some(timestamp) =>
+          val epoch = EpochUtils.timestamp2epoch(timestamp)
+          probeStatusDAL.checkIfEpochExhausted(probeRef, epoch, timestamp).map {
+            case true => (epoch, committed)
+            case false => (EpochUtils.nextEpoch(epoch), committed)
+          }
+        case None =>
+          from match {
+            // if from was specified, then return the epoch derived from the from timestamp
+            case Some(timestamp) =>
+              Future.successful((EpochUtils.timestamp2epoch(timestamp), committed))
+            // if from was not specified, then use the initial timestamp in the committed index
+            case None =>
+              Future.successful((EpochUtils.timestamp2epoch(committed.initial), committed))
+          }
+      }
+    }
   }
 }
 
@@ -131,14 +128,8 @@ object CassandraPersister {
 
   def props(managerSettings: CassandraPersisterSettings) = Props(classOf[CassandraPersister], managerSettings)
 
-  val LARGEST_DATE = new Date(java.lang.Long.MAX_VALUE)
-  val SMALLEST_DATE = new Date(0)
-  val EPOCH_TERM: Long = 60 * 60 * 24   // 1 day in seconds
-
   case class CassandraPersisterSettings()
   def settings(config: Config): Option[CassandraPersisterSettings] = {
     Some(CassandraPersisterSettings())
   }
-
-  case object CheckEpoch
 }
