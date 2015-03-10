@@ -32,7 +32,6 @@ import java.net.URI
 import io.mandelbrot.core.system._
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.notification._
-import io.mandelbrot.core.history._
 import io.mandelbrot.core.{ServiceOperationFailed, RetryLater, ApiException}
 import JsonProtocol._
 

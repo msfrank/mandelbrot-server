@@ -37,8 +37,6 @@ import io.mandelbrot.core._
 import io.mandelbrot.core.entity._
 import io.mandelbrot.core.system._
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.notification._
-import io.mandelbrot.core.tracking._
 
 /**
  * ApiService contains the REST API logic.

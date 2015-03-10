@@ -2,13 +2,11 @@ package io.mandelbrot.core.system
 
 import akka.actor.{ActorLogging, Props, Actor, ActorRef}
 
-import io.mandelbrot.core.history.HistoryServiceOperation
-import io.mandelbrot.core.notification.NotificationServiceOperation
 import io.mandelbrot.core.registry.RegistryServiceOperation
+import io.mandelbrot.core.notification.NotificationServiceOperation
 import io.mandelbrot.core.state.StateServiceOperation
 
 class TestServiceProxy(registryService: Option[ActorRef],
-                       historyService: Option[ActorRef],
                        notificationService: Option[ActorRef],
                        stateService: Option[ActorRef]) extends Actor with ActorLogging {
 
@@ -41,15 +39,6 @@ class TestServiceProxy(registryService: Option[ActorRef],
           log.debug("dropped {}", op)
       }
 
-    case op: HistoryServiceOperation =>
-      historyService match {
-        case Some(ref) =>
-          ref forward op
-          log.debug("forwarded {}", op)
-        case None =>
-          log.debug("dropped {}", op)
-      }
-
     case op: NotificationServiceOperation =>
       notificationService match {
         case Some(ref) =>
@@ -72,10 +61,8 @@ class TestServiceProxy(registryService: Option[ActorRef],
 
 object TestServiceProxy {
   def props(registryService: Option[ActorRef] = None,
-            trackingService: Option[ActorRef] = None,
-            historyService: Option[ActorRef] = None,
             notificationService: Option[ActorRef] = None,
             stateService: Option[ActorRef] = None) = {
-    Props(classOf[TestServiceProxy], registryService, trackingService, historyService, notificationService, stateService)
+    Props(classOf[TestServiceProxy], registryService, notificationService, stateService)
   }
 }

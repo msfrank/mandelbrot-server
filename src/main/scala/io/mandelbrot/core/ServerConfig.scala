@@ -32,7 +32,6 @@ import io.mandelbrot.core.entity.ClusterSettings
 import io.mandelbrot.core.registry.RegistrySettings
 import io.mandelbrot.core.state.StateSettings
 import io.mandelbrot.core.notification.NotificationSettings
-import io.mandelbrot.core.history.HistorySettings
 import io.mandelbrot.core.http.HttpSettings
 
 /**
@@ -41,7 +40,6 @@ import io.mandelbrot.core.http.HttpSettings
 case class ServerConfigSettings(registry: RegistrySettings,
                                 state: StateSettings,
                                 notification: NotificationSettings,
-                                history: HistorySettings,
                                 cluster: ClusterSettings,
                                 http: HttpSettings,
                                 shutdownTimeout: FiniteDuration)
@@ -66,9 +64,6 @@ class ServerConfigExtension(system: ActorSystem) extends Extension {
     /* parse notification settings */
     val notificationSettings = NotificationSettings.parse(mandelbrotConfig.getConfig("notification"))
 
-    /* parse history settings */
-    val historySettings = HistorySettings.parse(mandelbrotConfig.getConfig("history"))
-
     /* parse tracking settings */
     val clusterSettings = ClusterSettings.parse(mandelbrotConfig.getConfig("cluster"))
 
@@ -76,9 +71,10 @@ class ServerConfigExtension(system: ActorSystem) extends Extension {
     val httpSettings = HttpSettings.parse(mandelbrotConfig.getConfig("http"))
 
     /* */
-    val shutdownTimeout = FiniteDuration(mandelbrotConfig.getDuration("shutdown-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+    val shutdownTimeout = FiniteDuration(mandelbrotConfig.getDuration("shutdown-timeout",
+      TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     ServerConfigSettings(registrySettings, stateSettings, notificationSettings,
-      historySettings, clusterSettings, httpSettings, shutdownTimeout)
+      clusterSettings, httpSettings, shutdownTimeout)
 
   } catch {
     case ex: ServerConfigException =>

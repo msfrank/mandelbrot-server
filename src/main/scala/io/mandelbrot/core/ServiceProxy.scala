@@ -21,7 +21,6 @@ package io.mandelbrot.core
 
 import akka.actor._
 import io.mandelbrot.core.entity._
-import io.mandelbrot.core.history._
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.state._
@@ -40,7 +39,6 @@ class ServiceProxy extends Actor with ActorLogging {
   val deliveryAttempts = settings.cluster.deliveryAttempts
 
   val registryService = context.actorOf(RegistryManager.props(settings.registry), "registry-service")
-  val historyService = context.actorOf(HistoryManager.props(settings.history), "history-service")
   val notificationService = context.actorOf(NotificationManager.props(settings.notification), "notification-service")
   val stateService = context.actorOf(StateManager.props(settings.state), "state-service")
 
@@ -69,9 +67,6 @@ class ServiceProxy extends Actor with ActorLogging {
 
     case op: StateServiceOperation =>
       stateService forward op
-
-    case op: HistoryServiceOperation =>
-      historyService forward op
 
     case op: NotificationServiceOperation =>
       notificationService forward op
