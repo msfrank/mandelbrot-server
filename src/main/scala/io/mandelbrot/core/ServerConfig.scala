@@ -22,19 +22,18 @@ package io.mandelbrot.core
 import akka.actor._
 import com.typesafe.config._
 import com.typesafe.config.ConfigException.WrongType
-import io.mandelbrot.core.entity.ClusterSettings
 import org.slf4j.LoggerFactory
 import scala.collection.JavaConversions._
 import scala.concurrent.duration.FiniteDuration
+import java.util.concurrent.TimeUnit
 import java.io.File
 
+import io.mandelbrot.core.entity.ClusterSettings
 import io.mandelbrot.core.registry.RegistrySettings
 import io.mandelbrot.core.state.StateSettings
 import io.mandelbrot.core.notification.NotificationSettings
 import io.mandelbrot.core.history.HistorySettings
 import io.mandelbrot.core.http.HttpSettings
-import java.util.concurrent.TimeUnit
-import io.mandelbrot.core.tracking.TrackingSettings
 
 /**
  *
@@ -43,7 +42,6 @@ case class ServerConfigSettings(registry: RegistrySettings,
                                 state: StateSettings,
                                 notification: NotificationSettings,
                                 history: HistorySettings,
-                                tracking: TrackingSettings,
                                 cluster: ClusterSettings,
                                 http: HttpSettings,
                                 shutdownTimeout: FiniteDuration)
@@ -72,9 +70,6 @@ class ServerConfigExtension(system: ActorSystem) extends Extension {
     val historySettings = HistorySettings.parse(mandelbrotConfig.getConfig("history"))
 
     /* parse tracking settings */
-    val trackingSettings = TrackingSettings.parse(mandelbrotConfig.getConfig("tracking"))
-
-    /* parse tracking settings */
     val clusterSettings = ClusterSettings.parse(mandelbrotConfig.getConfig("cluster"))
 
     /* parse http settings */
@@ -82,8 +77,8 @@ class ServerConfigExtension(system: ActorSystem) extends Extension {
 
     /* */
     val shutdownTimeout = FiniteDuration(mandelbrotConfig.getDuration("shutdown-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
-    ServerConfigSettings(registrySettings, stateSettings, notificationSettings, historySettings,
-      trackingSettings, clusterSettings, httpSettings, shutdownTimeout)
+    ServerConfigSettings(registrySettings, stateSettings, notificationSettings,
+      historySettings, clusterSettings, httpSettings, shutdownTimeout)
 
   } catch {
     case ex: ServerConfigException =>

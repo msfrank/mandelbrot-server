@@ -26,7 +26,6 @@ import io.mandelbrot.core.notification._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.system._
-import io.mandelbrot.core.tracking._
 
 import scala.util.hashing.MurmurHash3
 
@@ -41,7 +40,6 @@ class ServiceProxy extends Actor with ActorLogging {
   val deliveryAttempts = settings.cluster.deliveryAttempts
 
   val registryService = context.actorOf(RegistryManager.props(settings.registry), "registry-service")
-  val trackingService = context.actorOf(TrackingManager.props(settings.tracking), "tracking-service")
   val historyService = context.actorOf(HistoryManager.props(settings.history), "history-service")
   val notificationService = context.actorOf(NotificationManager.props(settings.notification), "notification-service")
   val stateService = context.actorOf(StateManager.props(settings.state), "state-service")
@@ -77,9 +75,6 @@ class ServiceProxy extends Actor with ActorLogging {
 
     case op: NotificationServiceOperation =>
       notificationService forward op
-
-    case op: TrackingServiceOperation =>
-      trackingService forward op
 
     case op: ServiceOperation if keyExtractor.isDefinedAt(op) =>
       try {

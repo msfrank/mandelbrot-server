@@ -6,10 +6,8 @@ import io.mandelbrot.core.history.HistoryServiceOperation
 import io.mandelbrot.core.notification.NotificationServiceOperation
 import io.mandelbrot.core.registry.RegistryServiceOperation
 import io.mandelbrot.core.state.StateServiceOperation
-import io.mandelbrot.core.tracking.TrackingServiceOperation
 
 class TestServiceProxy(registryService: Option[ActorRef],
-                       trackingService: Option[ActorRef],
                        historyService: Option[ActorRef],
                        notificationService: Option[ActorRef],
                        stateService: Option[ActorRef]) extends Actor with ActorLogging {
@@ -36,15 +34,6 @@ class TestServiceProxy(registryService: Option[ActorRef],
 
     case op: ProbeOperation =>
       registryService match {
-        case Some(ref) =>
-          ref forward op
-          log.debug("forwarded {}", op)
-        case None =>
-          log.debug("dropped {}", op)
-      }
-
-    case op: TrackingServiceOperation =>
-      trackingService match {
         case Some(ref) =>
           ref forward op
           log.debug("forwarded {}", op)
