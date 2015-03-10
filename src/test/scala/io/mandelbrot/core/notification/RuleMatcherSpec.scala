@@ -1,7 +1,7 @@
 package io.mandelbrot.core.notification
 
 import org.scalatest.WordSpec
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.ShouldMatchers
 import org.joda.time.DateTime
 
 import io.mandelbrot.core.system._

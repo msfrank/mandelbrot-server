@@ -2,7 +2,7 @@ package io.mandelbrot.core.notification
 
 import io.mandelbrot.core.system.{MatchAny, PathMatcher, MatchExact, ProbeMatcher}
 import org.scalatest.WordSpec
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.ShouldMatchers
 import java.io.StringReader
 
 import io.mandelbrot.core.system._

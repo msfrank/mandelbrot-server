@@ -1,7 +1,7 @@
 package io.mandelbrot.core.system
 
 import org.scalatest.WordSpec
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.ShouldMatchers
 
 class ProbeMatcherSpec extends WordSpec with ShouldMatchers {
 
