@@ -5,7 +5,6 @@ import java.util.UUID
 import akka.testkit.{ImplicitSender, TestKit}
 import akka.actor.ActorSystem
 import com.datastax.driver.core.Session
-import io.mandelbrot.core.notification.{NotifyHealthAlerts, ProbeNotification}
 import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
 import org.scalatest.ShouldMatchers
 import org.joda.time.DateTime
@@ -14,8 +13,7 @@ import scala.concurrent.Await
 
 import io.mandelbrot.core.AkkaConfig
 import io.mandelbrot.core.ConfigConversions._
-import io.mandelbrot.core.state._
-import io.mandelbrot.core.system._
+import io.mandelbrot.core.model._
 import io.mandelbrot.persistence.cassandra.CassandraPersister.CassandraPersisterSettings
 
 class ProbeStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {

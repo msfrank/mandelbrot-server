@@ -4,6 +4,8 @@ import org.scalatest.Inside._
 import org.scalatest.WordSpec
 import org.scalatest.ShouldMatchers
 
+import io.mandelbrot.core.model._
+
 class ProbeMatcherParserSpec extends WordSpec with ShouldMatchers {
 
   "ProbeMatcherParser" should {

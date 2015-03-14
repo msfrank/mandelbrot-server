@@ -12,6 +12,7 @@ import java.net.URI
 
 import io.mandelbrot.core.{ResourceNotFound, ApiException, AkkaConfig}
 import io.mandelbrot.core.ConfigConversions._
+import io.mandelbrot.core.model._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.persistence.cassandra.CassandraRegistrar.CassandraRegistrarSettings
 
@@ -98,8 +99,8 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       Await.result(dal.createProbeSystem(CreateProbeSystemEntry(uri3, registration), timestamp), 5.seconds)
       val op = ListProbeSystems(10, None)
       val listProbeSystemsResult = Await.result(dal.listProbeSystems(op), 5.seconds)
-      listProbeSystemsResult.systems.keySet shouldEqual Set(uri1, uri2, uri3)
-      listProbeSystemsResult.token shouldEqual None
+      listProbeSystemsResult.page.systems.toSet shouldEqual Set(uri1, uri2, uri3)
+      listProbeSystemsResult.page.last shouldEqual None
     }
 
     "page through probe systems" in withSessionAndDAL { (session,dal) =>
@@ -116,14 +117,14 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       Await.result(dal.createProbeSystem(CreateProbeSystemEntry(uri4, registration), timestamp), 5.seconds)
       Await.result(dal.createProbeSystem(CreateProbeSystemEntry(uri5, registration), timestamp), 5.seconds)
       val listProbeSystemsResult1 = Await.result(dal.listProbeSystems(ListProbeSystems(limit = 2, None)), 5.seconds)
-      listProbeSystemsResult1.systems.keySet shouldEqual Set(uri1, uri2)
-      listProbeSystemsResult1.token shouldEqual Some(uri2)
-      val listProbeSystemsResult2 = Await.result(dal.listProbeSystems(ListProbeSystems(limit = 2, listProbeSystemsResult1.token)), 5.seconds)
-      listProbeSystemsResult2.systems.keySet shouldEqual Set(uri3, uri4)
-      listProbeSystemsResult2.token shouldEqual Some(uri4)
-      val listProbeSystemsResult3 = Await.result(dal.listProbeSystems(ListProbeSystems(limit = 2, listProbeSystemsResult2.token)), 5.seconds)
-      listProbeSystemsResult3.systems.keySet shouldEqual Set(uri5)
-      listProbeSystemsResult3.token shouldEqual None
+      listProbeSystemsResult1.page.systems.toSet shouldEqual Set(uri1, uri2)
+      listProbeSystemsResult1.page.last shouldEqual Some(uri2)
+      val listProbeSystemsResult2 = Await.result(dal.listProbeSystems(ListProbeSystems(limit = 2, listProbeSystemsResult1.page.last)), 5.seconds)
+      listProbeSystemsResult2.page.systems.toSet shouldEqual Set(uri3, uri4)
+      listProbeSystemsResult2.page.last shouldEqual Some(uri4)
+      val listProbeSystemsResult3 = Await.result(dal.listProbeSystems(ListProbeSystems(limit = 2, listProbeSystemsResult2.page.last)), 5.seconds)
+      listProbeSystemsResult3.page.systems.toSet shouldEqual Set(uri5)
+      listProbeSystemsResult3.page.last shouldEqual None
     }
   }
 }

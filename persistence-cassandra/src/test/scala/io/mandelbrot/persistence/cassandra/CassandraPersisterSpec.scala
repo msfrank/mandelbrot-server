@@ -2,13 +2,11 @@ package io.mandelbrot.persistence.cassandra
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit}
-import io.mandelbrot.core.notification.NotifyHealthChanges
-import org.joda.time.format.ISODateTimeFormat
 import org.scalatest.{BeforeAndAfterAll, ShouldMatchers, WordSpecLike}
 import org.joda.time.{DateTimeZone, DateTime}
 
 import io.mandelbrot.core.AkkaConfig
-import io.mandelbrot.core.system._
+import io.mandelbrot.core.model._
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.ConfigConversions._
 import io.mandelbrot.persistence.cassandra.CassandraPersister.CassandraPersisterSettings
@@ -109,29 +107,29 @@ class CassandraPersisterSpec(_system: ActorSystem)
     "retrieve condition history with no windowing parameters" in {
       actor ! GetConditionHistory(probeRef, None, None, Some(100), None)
       val getConditionHistoryResult = expectMsgClass(classOf[GetConditionHistoryResult])
-      getConditionHistoryResult.history shouldEqual Vector(condition1, condition2, condition3, condition4, condition5)
-      getConditionHistoryResult.exhausted shouldEqual true
+      getConditionHistoryResult.page.history shouldEqual Vector(condition1, condition2, condition3, condition4, condition5)
+      getConditionHistoryResult.page.exhausted shouldEqual true
     }
 
     "retrieve condition history with from specified" in {
       actor ! GetConditionHistory(probeRef, Some(timestamp3), None, Some(100), None)
       val getConditionHistoryResult = expectMsgClass(classOf[GetConditionHistoryResult])
-      getConditionHistoryResult.history shouldEqual Vector(condition3, condition4, condition5)
-      getConditionHistoryResult.exhausted shouldEqual true
+      getConditionHistoryResult.page.history shouldEqual Vector(condition3, condition4, condition5)
+      getConditionHistoryResult.page.exhausted shouldEqual true
     }
 
     "retrieve condition history with to specified" in {
       actor ! GetConditionHistory(probeRef, None, Some(timestamp4), Some(100), None)
       val getConditionHistoryResult = expectMsgClass(classOf[GetConditionHistoryResult])
-      getConditionHistoryResult.history shouldEqual Vector(condition1, condition2, condition3)
-      getConditionHistoryResult.exhausted shouldEqual true
+      getConditionHistoryResult.page.history shouldEqual Vector(condition1, condition2, condition3)
+      getConditionHistoryResult.page.exhausted shouldEqual true
     }
 
     "retrieve condition history with from and to specified" in {
       actor ! GetConditionHistory(probeRef, Some(timestamp2), Some(timestamp5), Some(100), None)
       val getConditionHistoryResult = expectMsgClass(classOf[GetConditionHistoryResult])
-      getConditionHistoryResult.history shouldEqual Vector(condition2, condition3, condition4)
-      getConditionHistoryResult.exhausted shouldEqual true
+      getConditionHistoryResult.page.history shouldEqual Vector(condition2, condition3, condition4)
+      getConditionHistoryResult.page.exhausted shouldEqual true
     }
   }
 }

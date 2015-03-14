@@ -5,6 +5,8 @@ import java.net.URI
 import org.scalatest.WordSpec
 import org.scalatest.ShouldMatchers
 
+import io.mandelbrot.core.model._
+
 class ProbeRefSpec extends WordSpec with ShouldMatchers {
 
   "A ProbeRef" should {

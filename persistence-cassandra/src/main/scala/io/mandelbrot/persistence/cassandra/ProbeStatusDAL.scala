@@ -1,14 +1,14 @@
 package io.mandelbrot.persistence.cassandra
 
 import com.datastax.driver.core.{BoundStatement, Session}
-import io.mandelbrot.core.notification.ProbeNotification
 import scala.concurrent.{ExecutionContext, Future}
 import scala.collection.JavaConversions._
 import org.joda.time.{DateTimeZone, DateTime}
+import spray.json._
 
 import io.mandelbrot.core.{ApiException, ResourceNotFound}
-import io.mandelbrot.core.state._
-import io.mandelbrot.core.system._
+import io.mandelbrot.core.model._
+import io.mandelbrot.core.http.json.JsonProtocol._
 import io.mandelbrot.persistence.cassandra.CassandraPersister.CassandraPersisterSettings
 
 /**
@@ -17,7 +17,7 @@ import io.mandelbrot.persistence.cassandra.CassandraPersister.CassandraPersister
 class ProbeStatusDAL(settings: CassandraPersisterSettings,
                      val session: Session,
                      implicit val ec: ExecutionContext) extends AbstractDriver {
-  import spray.json._
+
 
   val tableName: String = "probe_status"
 
@@ -268,8 +268,6 @@ class ProbeStatusDAL(settings: CassandraPersisterSettings,
   def flushProbeStatus(): Future[Unit] = {
     executeAsync(s"TRUNCATE $tableName").map { _ => Unit }
   }
-
-  import io.mandelbrot.core.http.HttpProtocol._
 
   def string2probeCondition(string: String): ProbeCondition = string.parseJson.convertTo[ProbeCondition]
 

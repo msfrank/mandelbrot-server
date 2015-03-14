@@ -1,13 +1,11 @@
 package io.mandelbrot.persistence.cassandra
 
-import akka.util.ByteString
 import com.datastax.driver.core.{BoundStatement, Row, Session}
 import scala.concurrent.{ExecutionContext, Future}
-import org.joda.time.{DateTimeZone, DateTime}
+import org.joda.time.DateTime
 
 import io.mandelbrot.core.{ApiException, ResourceNotFound}
-import io.mandelbrot.core.state._
-import io.mandelbrot.core.system._
+import io.mandelbrot.core.model._
 import io.mandelbrot.persistence.cassandra.CassandraPersister.CassandraPersisterSettings
 
 /**

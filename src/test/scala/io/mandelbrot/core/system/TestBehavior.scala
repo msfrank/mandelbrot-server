@@ -1,8 +1,9 @@
 package io.mandelbrot.core.system
 
 import org.joda.time.{DateTimeZone, DateTime}
-
 import scala.util.{Failure, Try}
+
+import io.mandelbrot.core.model._
 
 case class TestBehavior() extends ProbeBehavior {
   def makeProbeBehavior(): ProbeBehaviorInterface = new TestBehaviorImpl()

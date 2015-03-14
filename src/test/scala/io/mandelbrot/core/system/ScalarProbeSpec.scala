@@ -23,15 +23,14 @@ import java.util.UUID
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
-import io.mandelbrot.core.metrics.MetricsBus
 import org.joda.time.DateTime
 import org.scalatest.ShouldMatchers
 import org.scalatest.{WordSpecLike, BeforeAndAfterAll}
 import scala.concurrent.duration._
 
-import io.mandelbrot.core.notification._
-import io.mandelbrot.core.registry.ProbePolicy
+import io.mandelbrot.core.model._
 import io.mandelbrot.core.state._
+import io.mandelbrot.core.metrics._
 import io.mandelbrot.core.{PersistenceConfig, AkkaConfig, Blackhole}
 import io.mandelbrot.core.ConfigConversions._
 

@@ -1,16 +1,13 @@
 package io.mandelbrot.persistence.cassandra
 
-import java.util.Date
-
-import akka.actor.{Cancellable, Props, ActorLogging, Actor}
+import akka.actor.{Props, ActorLogging, Actor}
 import akka.pattern.pipe
-import akka.serialization.SerializationExtension
 import com.typesafe.config.Config
-import io.mandelbrot.core.system.{ProbeRef, ProbeStatus, ProbeUnknown, ProbeJoining}
-import io.mandelbrot.core.{ResourceNotFound, BadRequest, ApiException}
-import org.joda.time.{DateTimeZone, DateTime}
+import org.joda.time.DateTime
 
 import io.mandelbrot.core.state._
+import io.mandelbrot.core.model._
+import io.mandelbrot.core._
 import io.mandelbrot.persistence.cassandra.CassandraPersister.CassandraPersisterSettings
 
 import scala.concurrent.Future
@@ -26,7 +23,6 @@ class CassandraPersister(settings: CassandraPersisterSettings) extends Actor wit
 
   // state
   val session = Cassandra(context.system).getSession
-  val serialization = SerializationExtension(context.system)
   val committedIndexDAL = new CommittedIndexDAL(settings, session, context.dispatcher)
   val probeStatusDAL = new ProbeStatusDAL(settings, session, context.dispatcher)
 
@@ -78,13 +74,13 @@ class CassandraPersister(settings: CassandraPersisterSettings) extends Actor wit
           history.lastOption.map(_.timestamp) match {
             case Some(timestamp) =>
               if (history.length < limit && epoch == EpochUtils.timestamp2epoch(committed.current))
-                GetConditionHistoryResult(op, history, Some(timestamp), exhausted = true)
+                GetConditionHistoryResult(op, ProbeConditionPage(history, Some(timestamp), exhausted = true))
               else
-                GetConditionHistoryResult(op, history, Some(timestamp), exhausted = false)
+                GetConditionHistoryResult(op, ProbeConditionPage(history, Some(timestamp), exhausted = false))
             case None =>
               val last = Some(EpochUtils.epoch2timestamp(epoch))
               val exhausted = if (epoch == EpochUtils.timestamp2epoch(committed.current)) true else false
-              GetConditionHistoryResult(op, history, last, exhausted)
+              GetConditionHistoryResult(op, ProbeConditionPage(history, last, exhausted))
           }
       }.recover {
         case ex: Throwable => StateServiceOperationFailed(op, ex)

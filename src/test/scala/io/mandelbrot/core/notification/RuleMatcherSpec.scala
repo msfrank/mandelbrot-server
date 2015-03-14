@@ -5,6 +5,7 @@ import org.scalatest.ShouldMatchers
 import org.joda.time.DateTime
 
 import io.mandelbrot.core.system._
+import io.mandelbrot.core.model._
 
 class RuleMatcherSpec extends WordSpec with ShouldMatchers {
 

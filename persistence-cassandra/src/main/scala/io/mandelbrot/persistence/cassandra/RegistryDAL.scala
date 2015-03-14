@@ -2,12 +2,14 @@ package io.mandelbrot.persistence.cassandra
 
 import com.datastax.driver.core.{BoundStatement, Session}
 import org.joda.time.DateTime
+import spray.json._
 import scala.concurrent.{Future, ExecutionContext}
 import scala.collection.JavaConversions._
 import java.net.URI
 
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.http.HttpProtocol
+import io.mandelbrot.core.model._
+import io.mandelbrot.core.http.json.JsonProtocol._
 import io.mandelbrot.core.{ApiException, ResourceNotFound}
 
 import io.mandelbrot.persistence.cassandra.CassandraRegistrar.CassandraRegistrarSettings
@@ -18,8 +20,6 @@ import io.mandelbrot.persistence.cassandra.CassandraRegistrar.CassandraRegistrar
 class RegistryDAL(settings: CassandraRegistrarSettings,
                   val session: Session,
                   implicit val ec: ExecutionContext) extends AbstractDriver {
-  import spray.json._
-  import HttpProtocol._
 
   val tableName: String = "registry"
 
@@ -108,18 +108,18 @@ class RegistryDAL(settings: CassandraRegistrarSettings,
      """.stripMargin)
 
   def listProbeSystems(op: ListProbeSystems): Future[ListProbeSystemsResult] = {
-    val uri = op.token.map(_.toString).getOrElse("")
+    val last = op.last.map(_.toString).getOrElse("")
     val limit: java.lang.Integer = op.limit
-    executeAsync(new BoundStatement(preparedListProbeSystems).bind(uri, limit)).map { resultSet =>
+    executeAsync(new BoundStatement(preparedListProbeSystems).bind(last, limit)).map { resultSet =>
       val systems = resultSet.all().map { row =>
         val uri = new URI(row.getString(0))
         val lsn = row.getLong(1)
         val lastUpdate = new DateTime(row.getDate(2))
         val joinedOn = new DateTime(row.getDate(3))
-        uri -> ProbeSystemMetadata(lastUpdate, joinedOn)
+        ProbeSystemMetadata(uri, lastUpdate, joinedOn)
       }.toVector
-      val token = if (systems.length < limit) None else systems.lastOption.map(_._1)
-      ListProbeSystemsResult(op, systems.toMap, token)
+      val token = if (systems.length < limit) None else systems.lastOption.map(_.uri.toString)
+      ListProbeSystemsResult(op, ProbeSystemsPage(systems, token))
     }
   }
 

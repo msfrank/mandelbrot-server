@@ -3,7 +3,6 @@ package io.mandelbrot.persistence.cassandra
 import akka.testkit.{ImplicitSender, TestKit}
 import akka.actor.ActorSystem
 import com.datastax.driver.core.Session
-import io.mandelbrot.core.system.ProbeRef
 import org.joda.time.DateTime
 import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
 import org.scalatest.ShouldMatchers
@@ -11,6 +10,7 @@ import scala.concurrent.duration._
 import scala.concurrent.Await
 
 import io.mandelbrot.core.{ResourceNotFound, ApiException, AkkaConfig}
+import io.mandelbrot.core.model._
 import io.mandelbrot.core.ConfigConversions._
 import io.mandelbrot.persistence.cassandra.CassandraPersister.CassandraPersisterSettings
 

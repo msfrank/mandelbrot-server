@@ -5,6 +5,8 @@ import org.scalatest.ShouldMatchers
 
 import scala.math.BigDecimal
 
+import io.mandelbrot.core.model._
+
 class MetricsEvaluationParserSpec extends WordSpec with ShouldMatchers {
 
   "MetricsEvaluationParser" should {
