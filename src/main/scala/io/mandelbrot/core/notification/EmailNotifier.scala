@@ -30,6 +30,7 @@ import scala.concurrent.duration._
 import org.slf4j.LoggerFactory
 import scala.util.{Failure, Success, Try}
 
+import io.mandelbrot.core.model._
 /**
  *
  */

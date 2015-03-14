@@ -20,12 +20,11 @@
 package io.mandelbrot.core.notification
 
 import akka.actor.ActorRef
-import io.mandelbrot.core.system.ProbeMatcher
 import scala.util.parsing.combinator.JavaTokenParsers
 import org.slf4j.LoggerFactory
 import java.io._
 
-import io.mandelbrot.core.system._
+import io.mandelbrot.core.model._
 
 /**
  * interface for implementing a rule matcher.

@@ -23,15 +23,8 @@ import org.joda.time.{DateTimeZone, DateTime}
 import scala.util.{Success, Failure, Try}
 import java.util.UUID
 
-import io.mandelbrot.core.notification._
+import io.mandelbrot.core.model._
 import io.mandelbrot.core.{BadRequest, Conflict, ResourceNotFound, ApiException}
-
-/**
- *
- */
-trait ProbeBehavior {
-  def makeProbeBehavior(): ProbeBehaviorInterface
-}
 
 /**
  *
@@ -71,8 +64,10 @@ trait ProbeBehaviorInterface {
         val acknowledgement = UUID.randomUUID()
         val timestamp = DateTime.now(DateTimeZone.UTC)
         val status = probe.getProbeStatus(timestamp).copy(acknowledged = Some(acknowledgement))
+        val condition = ProbeCondition(timestamp, status.lifecycle, status.summary, status.health,
+          status.correlation, status.acknowledged, status.squelched)
         val notifications = Vector(NotifyAcknowledged(probe.probeRef, timestamp, correlation, acknowledgement))
-        Success(CommandEffect(AcknowledgeProbeResult(command, acknowledgement), status, notifications))
+        Success(CommandEffect(AcknowledgeProbeResult(command, condition), status, notifications))
     }
   }
 
@@ -86,8 +81,10 @@ trait ProbeBehaviorInterface {
         val timestamp = DateTime.now(DateTimeZone.UTC)
         val correlation = probe.correlationId.get
         val status = probe.getProbeStatus(timestamp).copy(acknowledged = None)
+        val condition = ProbeCondition(timestamp, status.lifecycle, status.summary, status.health,
+          status.correlation, status.acknowledged, status.squelched)
         val notifications = Vector(NotifyUnacknowledged(probe.probeRef, timestamp, correlation, acknowledgement))
-        Success(CommandEffect(UnacknowledgeProbeResult(command, acknowledgement), status, notifications))
+        Success(CommandEffect(UnacknowledgeProbeResult(command, condition), status, notifications))
     }
   }
 
@@ -96,8 +93,10 @@ trait ProbeBehaviorInterface {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val squelch = command.squelch
       val status = probe.getProbeStatus(timestamp).copy(squelched = squelch)
+      val condition = ProbeCondition(timestamp, status.lifecycle, status.summary, status.health,
+        status.correlation, status.acknowledged, status.squelched)
       val notifications = if (command.squelch) Vector(NotifySquelched(probe.probeRef, timestamp)) else Vector(NotifyUnsquelched(probe.probeRef, timestamp))
-      Success(CommandEffect(SetProbeSquelchResult(command, command.squelch), status, notifications))
+      Success(CommandEffect(SetProbeSquelchResult(command, condition), status, notifications))
     }
   }
 
@@ -111,5 +110,5 @@ trait ProbeBehaviorInterface {
 }
 
 sealed trait ProbeEffect
-case class CommandEffect(result: Any, status: ProbeStatus, notifications: Vector[ProbeNotification]) extends ProbeEffect
+case class CommandEffect(result: ProbeResult, status: ProbeStatus, notifications: Vector[ProbeNotification]) extends ProbeEffect
 case class EventEffect(status: ProbeStatus, notifications: Vector[ProbeNotification]) extends ProbeEffect

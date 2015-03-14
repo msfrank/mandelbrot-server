@@ -23,7 +23,7 @@ import akka.actor.ActorRef
 import org.joda.time.{DateTimeZone, DateTime}
 import java.util.UUID
 
-import io.mandelbrot.core.registry.ProbePolicy
+import io.mandelbrot.core.model._
 import io.mandelbrot.core.util.Timer
 
 /**
@@ -56,38 +56,3 @@ trait ProbeInterface {
   def unsubscribeFromMetrics(probePath: Vector[String]): Unit
 }
 
-/* object lifecycle */
-sealed trait ProbeLifecycle
-case object ProbeInitializing extends ProbeLifecycle { override def toString = "initializing" }
-case object ProbeJoining extends ProbeLifecycle { override def toString = "joining" }
-case object ProbeKnown extends ProbeLifecycle   { override def toString = "known" }
-case object ProbeSynthetic extends ProbeLifecycle { override def toString = "synthetic" }
-case object ProbeRetired extends ProbeLifecycle { override def toString = "retired" }
-
-/* object state */
-sealed trait ProbeHealth
-case object ProbeHealthy extends ProbeHealth  { override def toString = "healthy" }
-case object ProbeDegraded extends ProbeHealth { override def toString = "degraded" }
-case object ProbeFailed extends ProbeHealth   { override def toString = "failed" }
-case object ProbeUnknown extends ProbeHealth  { override def toString = "unknown" }
-
-/* probe status submitted by the agent */
-case class ProbeEvaluation(timestamp: DateTime,
-                           summary: Option[String],
-                           health: Option[ProbeHealth],
-                           metrics: Option[Map[String,BigDecimal]])
-
-/* the complete status of a probe */
-case class ProbeStatus(timestamp: DateTime,
-                       lifecycle: ProbeLifecycle,
-                       summary: Option[String],
-                       health: ProbeHealth,
-                       metrics: Map[String,BigDecimal],
-                       lastUpdate: Option[DateTime],
-                       lastChange: Option[DateTime],
-                       correlation: Option[UUID],
-                       acknowledged: Option[UUID],
-                       squelched: Boolean)
-
-/* key-value pairs describing a probe */
-case class ProbeMetadata(probeRef: ProbeRef, metadata: Map[String,String])

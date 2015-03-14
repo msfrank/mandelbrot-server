@@ -3,7 +3,7 @@ package io.mandelbrot.core.metrics
 import akka.actor.ActorRef
 import akka.event.{LookupClassification, EventBus}
 
-import io.mandelbrot.core.system.ProbeRef
+import io.mandelbrot.core.model._
 
 /**
  *

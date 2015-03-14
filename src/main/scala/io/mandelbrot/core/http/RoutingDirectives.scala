@@ -22,16 +22,21 @@ package io.mandelbrot.core.http
 import akka.actor.{AddressFromURIString, Address}
 import org.joda.time.DateTime
 import org.joda.time.format.ISODateTimeFormat
-import spray.http.{HttpHeader, HttpHeaders}
+import spray.http.{ContentTypes, HttpEntity, HttpHeader, HttpHeaders}
 import spray.http.Uri.Path
 import spray.routing.PathMatcher1
+import spray.routing.PathMatcher.{Unmatched, Matched}
 import spray.util.SSLSessionInfo
+import spray.json._
+import shapeless.HNil
+import java.nio.charset.Charset
 import java.net.URI
 
 import io.mandelbrot.core.{BadRequest, ApiException}
-import spray.routing.PathMatcher.{Unmatched, Matched}
-import shapeless.HNil
 
+/**
+ *
+ */
 object RoutingDirectives {
   import shapeless._
   import spray.routing._
@@ -140,5 +145,15 @@ object ClusterAddress extends PathMatcher1[Address] {
       Matched(tail, AddressFromURIString(segment) :: HNil)
     case _ =>
       Unmatched
+  }
+}
+
+/**
+ *
+ */
+object JsonBody {
+  val charset = Charset.defaultCharset()
+  def apply(js: JsValue): HttpEntity = {
+    HttpEntity(ContentTypes.`application/json`, js.prettyPrint.getBytes(charset))
   }
 }

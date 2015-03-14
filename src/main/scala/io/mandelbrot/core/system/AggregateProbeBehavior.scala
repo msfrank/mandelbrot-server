@@ -21,20 +21,12 @@ package io.mandelbrot.core.system
 
 import java.util.UUID
 
-import io.mandelbrot.core.{BadRequest, ApiException}
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.collection.mutable
-import scala.concurrent.duration.FiniteDuration
 import scala.util.{Try, Failure}
 
-import io.mandelbrot.core.notification._
-
-/**
- *
- */
-case class AggregateProbeBehavior(evaluation: AggregateEvaluation, flapWindow: FiniteDuration, flapDeviations: Int) extends ProbeBehavior {
-  def makeProbeBehavior(): ProbeBehaviorInterface = new AggregateProbeBehaviorImpl(evaluation)
-}
+import io.mandelbrot.core.{BadRequest, ApiException}
+import io.mandelbrot.core.model._
 
 /**
  *

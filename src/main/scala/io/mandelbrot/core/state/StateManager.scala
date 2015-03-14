@@ -24,8 +24,7 @@ import org.joda.time.DateTime
 import java.util.UUID
 
 import io.mandelbrot.core._
-import io.mandelbrot.core.system._
-import io.mandelbrot.core.notification.ProbeNotification
+import io.mandelbrot.core.model._
 
 /**
  *
@@ -68,47 +67,35 @@ object StateManager {
   def props(settings: StateSettings) = Props(classOf[StateManager], settings)
 }
 
-case class ProbeCondition(timestamp: DateTime,
-                          lifecycle: ProbeLifecycle,
-                          summary: Option[String],
-                          health: ProbeHealth,
-                          correlation: Option[UUID],
-                          acknowledged: Option[UUID],
-                          squelched: Boolean)
-
-
-case class ProbeNotifications(notifications: Vector[ProbeNotification])
-
-case class ProbeMetrics(metrics: Map[String,BigDecimal])
-
 /**
  *
  */
 sealed trait StateServiceOperation extends ServiceOperation
 sealed trait StateServiceCommand extends ServiceCommand with StateServiceOperation
 sealed trait StateServiceQuery extends ServiceQuery with StateServiceOperation
+sealed trait StateServiceResult
 case class StateServiceOperationFailed(op: StateServiceOperation, failure: Throwable) extends ServiceOperationFailed
 
 case class InitializeProbeStatus(probeRef: ProbeRef, timestamp: DateTime) extends StateServiceCommand
-case class InitializeProbeStatusResult(op: InitializeProbeStatus, status: Option[ProbeStatus])
+case class InitializeProbeStatusResult(op: InitializeProbeStatus, status: Option[ProbeStatus]) extends StateServiceResult
 
 case class UpdateProbeStatus(probeRef: ProbeRef, status: ProbeStatus, notifications: Vector[ProbeNotification], lastTimestamp: Option[DateTime]) extends StateServiceCommand
-case class UpdateProbeStatusResult(op: UpdateProbeStatus)
+case class UpdateProbeStatusResult(op: UpdateProbeStatus) extends StateServiceResult
 
 case class DeleteProbeStatus(probeRef: ProbeRef, lastStatus: Option[ProbeStatus]) extends StateServiceCommand
-case class DeleteProbeStatusResult(op: DeleteProbeStatus)
+case class DeleteProbeStatusResult(op: DeleteProbeStatus) extends StateServiceResult
 
 case class TrimProbeHistory(probeRef: ProbeRef, until: DateTime) extends StateServiceCommand
-case class TrimProbeHistoryResult(op: TrimProbeHistory)
+case class TrimProbeHistoryResult(op: TrimProbeHistory) extends StateServiceResult
 
 case class GetConditionHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int], last: Option[DateTime]) extends StateServiceQuery
-case class GetConditionHistoryResult(op: GetConditionHistory, history: Vector[ProbeCondition], last: Option[DateTime], exhausted: Boolean)
+case class GetConditionHistoryResult(op: GetConditionHistory, page: ProbeConditionPage) extends StateServiceResult
 
 case class GetNotificationHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int], last: Option[DateTime]) extends StateServiceQuery
-case class GetNotificationHistoryResult(op: GetNotificationHistory, history: Vector[ProbeNotification], last: Option[DateTime], exhausted: Boolean)
+case class GetNotificationHistoryResult(op: GetNotificationHistory, page: ProbeNotificationsPage) extends StateServiceResult
 
-//case class GetMetricHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends StateServiceQuery
-//case class GetMetricHistoryResult(op: GetMetricHistory, history: Vector[ProbeMetric])
+case class GetMetricHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends StateServiceQuery
+case class GetMetricHistoryResult(op: GetMetricHistory, page: ProbeMetricsPage) extends StateServiceResult
 
 /* marker trait for Persister implementations */
 trait Persister

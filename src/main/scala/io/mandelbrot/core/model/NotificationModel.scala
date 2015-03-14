@@ -1,32 +1,16 @@
-/**
- * Copyright 2014 Michael Frank <msfrank@syntaxjockey.com>
- *
- * This file is part of Mandelbrot.
- *
- * Mandelbrot is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Mandelbrot is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
- */
+package io.mandelbrot.core.model
 
-package io.mandelbrot.core.notification
-
-import io.mandelbrot.core.system.{ProbeRef, ProbeLifecycle, ProbeHealth}
-import org.joda.time.DateTime
 import java.util.UUID
+
+import org.joda.time.DateTime
+
+sealed trait NotificationModel
+
 
 /**
  * base trait for Notifications
  */
-sealed trait NotificationEvent extends NotificationServiceOperation {
+sealed trait NotificationEvent extends NotificationModel {
   val timestamp: DateTime
   val kind: String
   val description: String
@@ -163,3 +147,18 @@ extends ProbeNotification(probeRef, timestamp, "probe-squelched", "probe notific
 case class NotifyUnsquelched(override val probeRef: ProbeRef,
                              override val timestamp: DateTime)
 extends ProbeNotification(probeRef, timestamp, "probe-unsquelched", "probe notifications enabled", None)
+
+/**
+ *
+ */
+case class Contact(id: String, name: String, metadata: Map[String,String]) extends NotificationModel
+
+/**
+ *
+ */
+case class ContactGroup(id: String, name: String, metadata: Map[String,String], contacts: Set[Contact]) extends NotificationModel
+
+/**
+ *
+ */
+case class NotifyContact(contact: Contact, notification: NotificationEvent) extends NotificationModel

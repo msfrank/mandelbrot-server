@@ -20,14 +20,15 @@
 package io.mandelbrot.core.notification
 
 import com.typesafe.config.{ConfigObject, ConfigValueType, Config}
-import scala.collection.JavaConversions._
-
-import io.mandelbrot.core.{ServerConfigException, ServiceExtension}
-import scala.collection.mutable
 import org.slf4j.LoggerFactory
-import java.io.File
+import scala.collection.mutable
+import scala.collection.JavaConversions._
 import scala.concurrent.duration.FiniteDuration
 import java.util.concurrent.TimeUnit
+import java.io.File
+
+import io.mandelbrot.core.model._
+import io.mandelbrot.core.{ServerConfigException, ServiceExtension}
 
 /**
  *

@@ -1,90 +1,28 @@
+/**
+ * Copyright 2014 Michael Frank <msfrank@syntaxjockey.com>
+ *
+ * This file is part of Mandelbrot.
+ *
+ * Mandelbrot is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Mandelbrot is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package io.mandelbrot.core.system
 
-import java.util.regex.Pattern
-
 import org.slf4j.LoggerFactory
-
 import scala.util.parsing.combinator.RegexParsers
 
-/**
- * Matches a ProbeRef by individually comparing the uri scheme,  uri location,
- * and path components according to the specified matchers.
- */
-case class ProbeMatcher(scheme: Option[SegmentMatcher], location: Option[SegmentMatcher], path: Option[PathMatcher]) {
-  def matches(probeRef: ProbeRef): Boolean = {
-    for (matcher <- scheme if !matcher.matches(probeRef.uri.getScheme))
-      return false
-    for (matcher <- location if !matcher.matches(probeRef.uri.getRawSchemeSpecificPart))
-      return false
-    for (matcher <- path if !matcher.matches(probeRef.path))
-      return false
-    true
-  }
-  override def toString = if (scheme.isEmpty && location.isEmpty && path.isEmpty) "*" else {
-    val schemestring = if (scheme.isDefined) scheme.get.toString else "*"
-    val locationstring = if (location.isDefined) location.get.toString else "*"
-    if (path.isEmpty) schemestring + ":" + locationstring else {
-      schemestring + ":" + locationstring + "/" + path.get.toString
-    }
-  }
-}
-
-/**
- * Special case object for unconditional matching
- */
-object MatchesAll extends ProbeMatcher(None, None, None) {
-  override def matches(probeRef: ProbeRef): Boolean = true
-  override def toString = "*"
-}
-
-sealed trait SegmentMatcher {
-  def matches(candidate: String): Boolean
-}
-
-case object MatchAny extends SegmentMatcher {
-  def matches(candidate: String) = true
-  override def toString = "*"
-}
-
-case class MatchExact(string: String) extends SegmentMatcher {
-  def matches(candidate: String) = candidate == string
-  override def toString = string
-}
-
-case class MatchPrefix(prefix: String) extends SegmentMatcher {
-  def matches(candidate: String) = candidate.startsWith(prefix)
-  override def toString = prefix + "*"
-}
-
-case class MatchSuffix(suffix: String) extends SegmentMatcher {
-  def matches(candidate: String) = candidate.endsWith(suffix)
-  override def toString = "*" + suffix
-}
-
-case class MatchGlob(tokens: Vector[String]) extends SegmentMatcher {
-  def escape(literal: String): String = """\Q""" + literal + """\E"""
-  val regex = Pattern.compile(tokens.map {
-    case "*" => ".*"
-    case "?" => ".?"
-    case token => escape(token)
-  }.mkString)
-  def matches(candidate: String) = regex.matcher(candidate).matches()
-  override def toString = tokens.mkString
-}
-
-case class PathMatcher(segments: Vector[SegmentMatcher]) {
-  def matches(candidate: Vector[String]): Boolean = {
-    for (i <- 0.until(segments.length)) {
-      if (!candidate.isDefinedAt(i))
-        return false
-      val segment = segments(i)
-      if (!segment.matches(candidate(i)))
-        return false
-    }
-    true
-  }
-  override def toString = segments.mkString("/")
-}
+import io.mandelbrot.core.model._
 
 /**
  *

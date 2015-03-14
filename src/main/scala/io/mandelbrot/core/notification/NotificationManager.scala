@@ -25,7 +25,7 @@ import scala.collection.mutable
 import java.util.UUID
 
 import io.mandelbrot.core._
-import io.mandelbrot.core.system.ProbeMatcher
+import io.mandelbrot.core.model._
 
 /**
  * the notification manager holds notification routing configuration as well as

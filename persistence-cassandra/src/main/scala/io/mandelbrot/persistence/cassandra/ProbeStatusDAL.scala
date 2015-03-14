@@ -269,7 +269,7 @@ class ProbeStatusDAL(settings: CassandraPersisterSettings,
     executeAsync(s"TRUNCATE $tableName").map { _ => Unit }
   }
 
-  import io.mandelbrot.core.http.JsonProtocol._
+  import io.mandelbrot.core.http.HttpProtocol._
 
   def string2probeCondition(string: String): ProbeCondition = string.parseJson.convertTo[ProbeCondition]
 

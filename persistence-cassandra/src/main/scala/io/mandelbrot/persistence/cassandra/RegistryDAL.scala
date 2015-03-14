@@ -7,7 +7,7 @@ import scala.collection.JavaConversions._
 import java.net.URI
 
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.http.JsonProtocol
+import io.mandelbrot.core.http.HttpProtocol
 import io.mandelbrot.core.{ApiException, ResourceNotFound}
 
 import io.mandelbrot.persistence.cassandra.CassandraRegistrar.CassandraRegistrarSettings
@@ -19,7 +19,7 @@ class RegistryDAL(settings: CassandraRegistrarSettings,
                   val session: Session,
                   implicit val ec: ExecutionContext) extends AbstractDriver {
   import spray.json._
-  import JsonProtocol._
+  import HttpProtocol._
 
   val tableName: String = "registry"
 

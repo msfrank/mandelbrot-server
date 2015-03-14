@@ -25,8 +25,8 @@ import scala.concurrent.duration._
 import java.util.UUID
 
 import io.mandelbrot.core._
+import io.mandelbrot.core.model._
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.notification._
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.metrics.MetricsBus
 import io.mandelbrot.core.util.Timer
@@ -521,7 +521,7 @@ object Probe {
 
   sealed trait Mutation { val notifications: Vector[ProbeNotification] }
   sealed trait StatusMutation extends Mutation { val status: ProbeStatus }
-  case class CommandMutation(caller: ActorRef, result: Any, status: ProbeStatus, notifications: Vector[ProbeNotification]) extends StatusMutation
+  case class CommandMutation(caller: ActorRef, result: ProbeResult, status: ProbeStatus, notifications: Vector[ProbeNotification]) extends StatusMutation
   case class EventMutation(status: ProbeStatus, notifications: Vector[ProbeNotification]) extends StatusMutation
   case class ConfigMutation(children: Set[ProbeRef], policy: ProbePolicy, behavior: ProbeBehavior, status: ProbeStatus, notifications: Vector[ProbeNotification]) extends StatusMutation
   case class Deletion(lastStatus: Option[ProbeStatus], notifications: Vector[ProbeNotification], lsn: Long) extends Mutation
@@ -539,22 +539,32 @@ case object ProbeExpiryTimeout extends ProbeEvent
 trait ProbeOperation extends ServiceOperation { val probeRef: ProbeRef }
 sealed trait ProbeCommand extends ServiceCommand with ProbeOperation
 sealed trait ProbeQuery extends ServiceQuery with ProbeOperation
+sealed trait ProbeResult
 case class ProbeOperationFailed(op: ProbeOperation, failure: Throwable) extends ServiceOperationFailed
 
 case class GetProbeStatus(probeRef: ProbeRef) extends ProbeQuery
-case class GetProbeStatusResult(op: GetProbeStatus, status: ProbeStatus)
+case class GetProbeStatusResult(op: GetProbeStatus, status: ProbeStatus) extends ProbeResult
+
+case class GetProbeCondition(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int], last: Option[String]) extends ProbeQuery
+case class GetProbeConditionResult(op: GetProbeCondition, page: ProbeConditionPage) extends ProbeResult
+
+case class GetProbeNotifications(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int], last: Option[String]) extends ProbeQuery
+case class GetProbeNotificationsResult(op: GetProbeNotifications, page: ProbeNotificationsPage) extends ProbeResult
+
+case class GetProbeMetrics(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int], last: Option[String]) extends ProbeQuery
+case class GetProbeMetricsResult(op: GetProbeMetrics, page: ProbeMetricsPage) extends ProbeResult
 
 case class GetProbeConfig(probeRef: ProbeRef) extends ProbeQuery
-case class GetProbeConfigResult(op: GetProbeConfig, children: Set[ProbeRef], policy: ProbePolicy, behavior: ProbeBehavior)
+case class GetProbeConfigResult(op: GetProbeConfig, children: Set[ProbeRef], policy: ProbePolicy, behavior: ProbeBehavior) extends ProbeResult
 
 case class ProcessProbeEvaluation(probeRef: ProbeRef, evaluation: ProbeEvaluation) extends ProbeCommand
-case class ProcessProbeEvaluationResult(op: ProcessProbeEvaluation)
+case class ProcessProbeEvaluationResult(op: ProcessProbeEvaluation) extends ProbeResult
 
 case class SetProbeSquelch(probeRef: ProbeRef, squelch: Boolean) extends ProbeCommand
-case class SetProbeSquelchResult(op: SetProbeSquelch, squelch: Boolean)
+case class SetProbeSquelchResult(op: SetProbeSquelch, condition: ProbeCondition) extends ProbeResult
 
 case class AcknowledgeProbe(probeRef: ProbeRef, correlationId: UUID) extends ProbeCommand
-case class AcknowledgeProbeResult(op: AcknowledgeProbe, acknowledgementId: UUID)
+case class AcknowledgeProbeResult(op: AcknowledgeProbe, condition: ProbeCondition) extends ProbeResult
 
 case class UnacknowledgeProbe(probeRef: ProbeRef, acknowledgementId: UUID) extends ProbeCommand
-case class UnacknowledgeProbeResult(op: UnacknowledgeProbe, acknowledgementId: UUID)
+case class UnacknowledgeProbeResult(op: UnacknowledgeProbe, condition: ProbeCondition) extends ProbeResult

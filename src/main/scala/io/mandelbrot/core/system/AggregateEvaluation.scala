@@ -21,6 +21,8 @@ package io.mandelbrot.core.system
 
 import scala.collection.mutable
 
+import io.mandelbrot.core.model._
+
 /**
  *
  */

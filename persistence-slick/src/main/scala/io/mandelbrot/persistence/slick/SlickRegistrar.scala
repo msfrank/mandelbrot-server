@@ -30,7 +30,7 @@ import java.net.URI
 
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.{Conflict, ResourceNotFound, ApiException}
-import io.mandelbrot.core.http.JsonProtocol
+import io.mandelbrot.core.http.HttpProtocol
 import io.mandelbrot.persistence.slick.H2Registrar.H2RegistrarSettings
 
 /*
@@ -48,7 +48,7 @@ trait RegistryEntriesComponent { this: RegistrarProfile =>
   import profile.simple._
   import RegistryEntries._
   import spray.json._
-  import JsonProtocol._
+  import HttpProtocol._
 
   class RegistryEntries(tag: Tag) extends Table[(String,String,Long,Long,Long)](tag, "registry_entries") {
     def probeSystem = column[String]("probeSystem", O.PrimaryKey)
@@ -145,7 +145,7 @@ trait SlickRegistrar extends Actor with ActorLogging {
   import RegistryManager._
   import spray.json._
   import DefaultJsonProtocol._
-  import JsonProtocol._
+  import HttpProtocol._
 
   // abstract members
   val db: Database

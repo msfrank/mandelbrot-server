@@ -20,19 +20,11 @@
 package io.mandelbrot.core.system
 
 import org.joda.time.{DateTimeZone, DateTime}
-import scala.concurrent.duration._
 import scala.util.{Success, Try}
 import java.util.UUID
 
-import io.mandelbrot.core.notification._
+import io.mandelbrot.core.model._
 import io.mandelbrot.core.metrics._
-
-/**
- * Contains the metrics probe behavior policy.
- */
-case class MetricsProbeBehavior(evaluation: MetricsEvaluation, flapWindow: FiniteDuration, flapDeviations: Int) extends ProbeBehavior {
-  def makeProbeBehavior(): ProbeBehaviorInterface = new MetricsProbeBehaviorImpl(evaluation)
-}
 
 /**
  * Implements metrics probe behavior.

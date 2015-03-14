@@ -25,9 +25,9 @@ import scala.collection.mutable
 import java.net.URI
 
 import io.mandelbrot.core._
+import io.mandelbrot.core.model._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.metrics.MetricsBus
-import io.mandelbrot.core.notification.{ProbeNotification, NotificationEvent}
 
 /**
  * the ProbeSystem manages a collection of Probes underneath a URI.  the ProbeSystem

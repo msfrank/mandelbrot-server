@@ -21,14 +21,10 @@ package io.mandelbrot.core.registry
 
 import akka.actor._
 import com.typesafe.config.Config
-import org.joda.time.DateTime
-import scala.concurrent.duration._
-import scala.collection.JavaConversions._
 import java.net.URI
 
 import io.mandelbrot.core._
-import io.mandelbrot.core.metrics._
-import io.mandelbrot.core.system._
+import io.mandelbrot.core.model._
 
 /**
  * the registry manager holds a map of all probe systems in memory, and is the parent actor
@@ -75,36 +71,6 @@ object RegistryManager {
   def settings(config: Config): Option[Any] = None
 }
 
-/* probe tunable parameters which apply to all probe types */
-case class ProbePolicy(joiningTimeout: FiniteDuration,
-                       probeTimeout: FiniteDuration,
-                       alertTimeout: FiniteDuration,
-                       leavingTimeout: FiniteDuration,
-                       notifications: Option[Set[String]]) extends Serializable
-
-/* probe specification */
-case class ProbeSpec(probeType: String,
-                     metadata: Map[String,String],
-                     policy: ProbePolicy,
-                     behavior: ProbeBehavior,
-                     children: Map[String,ProbeSpec]) extends Serializable
-
-/* metric specification */
-case class MetricSpec(sourceType: SourceType,
-                      metricUnit: MetricUnit,
-                      step: Option[FiniteDuration],
-                      heartbeat: Option[FiniteDuration],
-                      cf: Option[ConsolidationFunction]) extends Serializable
-
-/* a dynamic probe system registration */
-case class ProbeRegistration(systemType: String,
-                             metadata: Map[String,String],
-                             probes: Map[String,ProbeSpec],
-                             metrics: Map[MetricSource,MetricSpec]) extends Serializable
-
-/* */
-case class ProbeSystemMetadata(joinedOn: DateTime, lastUpdate: DateTime)
-
 /* object registry operations */
 sealed trait RegistryServiceOperation extends ServiceOperation
 sealed trait RegistryServiceCommand extends ServiceCommand with RegistryServiceOperation
@@ -120,8 +86,8 @@ case class UpdateProbeSystemEntryResult(op: UpdateProbeSystemEntry, lsn: Long)
 case class DeleteProbeSystemEntry(uri: URI, lsn: Long) extends RegistryServiceCommand
 case class DeleteProbeSystemEntryResult(op: DeleteProbeSystemEntry, lsn: Long)
 
-case class ListProbeSystems(limit: Int, token: Option[URI]) extends RegistryServiceQuery
-case class ListProbeSystemsResult(op: ListProbeSystems, systems: Map[URI,ProbeSystemMetadata], token: Option[URI])
+case class ListProbeSystems(limit: Int, last: Option[String]) extends RegistryServiceQuery
+case class ListProbeSystemsResult(op: ListProbeSystems, page: ProbeSystemsPage)
 
 case class GetProbeSystemEntry(uri: URI) extends RegistryServiceQuery
 case class GetProbeSystemEntryResult(op: GetProbeSystemEntry, registration: ProbeRegistration, lsn: Long)

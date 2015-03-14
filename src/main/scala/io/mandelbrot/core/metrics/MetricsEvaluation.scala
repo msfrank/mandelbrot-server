@@ -21,9 +21,10 @@ package io.mandelbrot.core.metrics
 
 import org.slf4j.LoggerFactory
 import scala.collection.mutable
-import scala.math.BigDecimal
 import scala.util.parsing.combinator.JavaTokenParsers
+import scala.math.BigDecimal
 
+import io.mandelbrot.core.model._
 import io.mandelbrot.core.util.CircularBuffer
 
 /**
