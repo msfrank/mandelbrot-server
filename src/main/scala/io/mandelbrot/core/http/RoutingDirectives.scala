@@ -147,13 +147,3 @@ object ClusterAddress extends PathMatcher1[Address] {
       Unmatched
   }
 }
-
-/**
- *
- */
-object JsonBody {
-  val charset = Charset.defaultCharset()
-  def apply(js: JsValue): HttpEntity = {
-    HttpEntity(ContentTypes.`application/json`, js.prettyPrint.getBytes(charset))
-  }
-}
