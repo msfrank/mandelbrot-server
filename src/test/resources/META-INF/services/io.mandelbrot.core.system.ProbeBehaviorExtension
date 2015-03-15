@@ -1,0 +1,3 @@
+io.mandelbrot.core.system.TestBehavior
+io.mandelbrot.core.system.TestChangeBehavior
+io.mandelbrot.core.system.TestUpdateBehavior

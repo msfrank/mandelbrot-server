@@ -22,6 +22,8 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     TestKit.shutdownActorSystem(system)
   }
 
+  val extensions = ProbeBehavior.extensions
+
   val testBehaviorExtension = new TestBehavior()
   val testChangeBehaviorExtension = new TestChangeBehavior()
   val testUpdateBehaviorExtension = new TestUpdateBehavior()
@@ -73,24 +75,26 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "update behavior" in {
       val ref = ProbeRef("fqdn:local/")
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val processor1 = testUpdateBehaviorExtension.implement(Map.empty)
+      val processor1 = testUpdateBehaviorExtension.implement(Map("key" -> "value1"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, processor1, 0, services, metricsBus))
+      val actor = TestActorRef(new Probe(ref, blackhole, Set.empty, policy, processor1, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
 
-      val processor2 = testUpdateBehaviorExtension.implement(Map.empty)
+      actor.underlyingActor.processor shouldBe a [TestProcessorUpdate]
+      actor.underlyingActor.processor should have ('properties (Map("key" -> "value1")))
+
+      val processor2 = testUpdateBehaviorExtension.implement(Map("key" -> "value2"))
       actor ! UpdateProbe(Set.empty, policy, processor2, 1)
       val update = stateService.expectMsgClass(classOf[UpdateProbeStatus])
       stateService.reply(UpdateProbeStatusResult(update))
 
-//      actor ! GetProbeConfig(ref)
-//      val result = expectMsgClass(classOf[GetProbeConfigResult])
-//      result.behavior shouldEqual TestUpdateBehaviorSpec(2)
+      actor.underlyingActor.processor shouldBe a [TestProcessorUpdate]
+      actor.underlyingActor.processor should have ('properties (Map("key" -> "value2")))
     }
 
     "change behaviors" in {
@@ -105,7 +109,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val policy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
       val processor1 = testBehaviorExtension.implement(Map.empty)
 
-      val actor = system.actorOf(Probe.props(ref, blackhole, children, policy, processor1, 0, services, metricsBus))
+      val actor = TestActorRef(new Probe(ref, blackhole, children, policy, processor1, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
@@ -115,11 +119,9 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val update = stateService.expectMsgClass(classOf[UpdateProbeStatus])
       stateService.reply(UpdateProbeStatusResult(update))
 
-//      actor ! GetProbeConfig(ref)
-//      val result = expectMsgClass(classOf[GetProbeConfigResult])
-//      result.children shouldEqual children
-//      result.policy shouldEqual policy
-//      result.behavior shouldEqual TestChangeBehaviorSpec()
+      actor.underlyingActor.children shouldEqual children
+      actor.underlyingActor.policy shouldEqual policy
+      actor.underlyingActor.processor shouldBe a [TestProcessorChange]
     }
 
     "transition to retired behavior" in {

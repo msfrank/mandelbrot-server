@@ -5,7 +5,7 @@ import scala.util.{Failure, Try}
 
 import io.mandelbrot.core.model._
 
-class TestProcessor() extends BehaviorProcessor {
+class TestProcessor extends BehaviorProcessor {
 
   def enter(probe: ProbeInterface): Option[EventEffect] = None
 
@@ -56,7 +56,7 @@ class TestChangeBehavior extends ProbeBehaviorExtension {
   override def implement(properties: Map[String, String]): BehaviorProcessor = new TestProcessorChange
 }
 
-class TestProcessorUpdate() extends BehaviorProcessor {
+class TestProcessorUpdate(var properties: Map[String,String]) extends BehaviorProcessor {
 
   def enter(probe: ProbeInterface): Option[EventEffect] = None
 
@@ -65,9 +65,14 @@ class TestProcessorUpdate() extends BehaviorProcessor {
   def processChild(probe: ProbeInterface, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
 
   def update(probe: ProbeInterface, processor: BehaviorProcessor): Option[EventEffect] = {
-    val timestamp = DateTime.now(DateTimeZone.UTC)
-    val status = ProbeStatus(timestamp, ProbeKnown, None, ProbeHealthy, Map.empty, Some(timestamp), Some(timestamp), None, None, false)
-    Some(EventEffect(status, Vector.empty))
+    processor match {
+      case update: TestProcessorUpdate =>
+        properties = update.properties
+        val timestamp = DateTime.now(DateTimeZone.UTC)
+        val status = ProbeStatus(timestamp, ProbeKnown, None, ProbeHealthy, Map.empty, Some(timestamp), Some(timestamp), None, None, false)
+        Some(EventEffect(status, Vector.empty))
+      case _ => throw new IllegalArgumentException()
+    }
   }
 
   def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect] = None
@@ -81,5 +86,5 @@ class TestProcessorUpdate() extends BehaviorProcessor {
 }
 
 class TestUpdateBehavior extends ProbeBehaviorExtension {
-  override def implement(properties: Map[String, String]): BehaviorProcessor = new TestProcessorUpdate
+  override def implement(properties: Map[String, String]): BehaviorProcessor = new TestProcessorUpdate(properties)
 }
