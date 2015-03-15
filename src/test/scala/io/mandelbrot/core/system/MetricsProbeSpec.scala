@@ -32,12 +32,12 @@ import scala.math.BigDecimal
 import io.mandelbrot.core.metrics._
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.state._
-import io.mandelbrot.core.{PersistenceConfig, AkkaConfig, Blackhole}
+import io.mandelbrot.core.{AkkaConfig, Blackhole}
 import io.mandelbrot.core.ConfigConversions._
 
 class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
 
-  def this() = this(ActorSystem("MetricsProbeSpec", AkkaConfig ++ PersistenceConfig))
+  def this() = this(ActorSystem("MetricsProbeSpec", AkkaConfig))
 
   // shutdown the actor system
   override def afterAll() {

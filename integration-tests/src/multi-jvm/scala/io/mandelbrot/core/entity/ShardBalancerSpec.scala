@@ -28,8 +28,8 @@ class BalancerTaskSpec extends MultiNodeSpec(RemoteMultiNodeConfig) with Implici
 
       val initialEntities = Vector.empty[Entity]
 
-      val coordinatorSettings = TestCoordinatorSettings(shards, initialEntities, node(node1).address, myAddress)
-      val coordinator = system.actorOf(TestCoordinator.props(coordinatorSettings), "coordinator_1")
+      val coordinatorSettings = TestEntityCoordinatorSettings(shards, initialEntities, node(node1).address, myAddress)
+      val coordinator = system.actorOf(TestEntityCoordinator.props(coordinatorSettings), "coordinator_1")
       val entityManager = system.actorOf(ShardManager.props(coordinator, TestEntity.propsCreator, myAddress, totalShards, self),
         "entities_1")
 
@@ -69,8 +69,8 @@ class BalancerTaskSpec extends MultiNodeSpec(RemoteMultiNodeConfig) with Implici
 
       val initialEntities = Vector.empty[Entity]
 
-      val coordinatorSettings = TestCoordinatorSettings(shards, initialEntities, node(node1).address, myAddress)
-      val coordinator = system.actorOf(TestCoordinator.props(coordinatorSettings), "coordinator_2")
+      val coordinatorSettings = TestEntityCoordinatorSettings(shards, initialEntities, node(node1).address, myAddress)
+      val coordinator = system.actorOf(TestEntityCoordinator.props(coordinatorSettings), "coordinator_2")
       val entityManager = system.actorOf(ShardManager.props(coordinator, TestEntity.propsCreator, myAddress, totalShards, self),
         "entities_2")
 

@@ -60,7 +60,7 @@ trait ApiService extends HttpService {
   val datetimeParser = ISODateTimeFormat.dateTimeParser().withZoneUTC()
 
   /**
-   * Spray routes for managing objects
+   * Spray routes for managing systems
    */
   val systemsRoutes = {
     path("systems") {

@@ -15,7 +15,63 @@ trait ComposableConfig {
 class MergedConfig(val config: Config) extends ComposableConfig
 
 object MandelbrotConfig extends ComposableConfig {
-  val config = ConfigFactory.parseString("mandelbrot {}")
+  val config = ConfigFactory.parseString(
+    """
+      |mandelbrot {
+      |  config {
+      |    file = []
+      |  }
+      |  http {
+      |    interface = localhost
+      |    port = 8080
+      |    backlog = 10
+      |    request-timeout = 10 seconds
+      |    debug-exceptions = false
+      |  }
+      |  cluster {
+      |    enabled = false
+      |    seed-nodes = []
+      |    min-nr-members = 0
+      |    total-shards = 0
+      |    delivery-attempts = 3
+      |    balancer-handover-retries = 10
+      |    balancer-takeover-retries = 5
+      |    balancer-retry-interval = 1 second
+      |    plugin = "io.mandelbrot.core.entity.TestEntityCoordinatorExtension"
+      |    plugin-settings { }
+      |  }
+      |  registry {
+      |    min-joining-timeout = 1 minute
+      |    min-probe-timeout = 1 minute
+      |    min-alert-timeout = 1 minute
+      |    min-leaving-timeout = 1 minute
+      |    plugin = "io.mandelbrot.core.registry.TestRegistryPersisterExtension"
+      |    plugin-settings { }
+      |  }
+      |  state {
+      |    max-summary-size = 1k
+      |    max-detail-size = 64k
+      |    status-history-age = 30 days
+      |    default-search-limit = 100
+      |    snapshot-initial-delay = 1 minute
+      |    snapshot-interval = 1 hour
+      |    plugin = "io.mandelbrot.core.state.TestStatePersisterExtension"
+      |    plugin-settings { }
+      |  }
+      |  notification {
+      |    cleaner-initial-delay = 2 minutes
+      |    cleaner-interval = 5 minutes
+      |    stale-window-overlap = 10 minutes
+      |    snapshot-initial-delay = 1 minute
+      |    snapshot-interval = 1 hour
+      |    contacts {}
+      |    groups {}
+      |    notifiers {}
+      |    notification-rules-file = conf/notification.rules
+      |  }
+      |  shutdown-timeout = 30 seconds
+      |}
+    """.stripMargin)
 }
 
 object AkkaConfig extends ComposableConfig {
@@ -33,23 +89,6 @@ object AkkaConfig extends ComposableConfig {
       |      event-stream = on
       |      unhandled = on
       |      router-misconfiguration = on
-      |    }
-      |  }
-      |}
-    """.stripMargin)
-}
-
-object PersistenceConfig extends ComposableConfig {
-  val config = ConfigFactory.parseString(
-    """
-      |akka {
-      |  persistence {
-      |    journal {
-      |      plugin = "akka.persistence.journal.inmem"
-      |      inmem {
-      |        class = "akka.persistence.journal.inmem.InmemJournal"
-      |        plugin-dispatcher = "akka.actor.default-dispatcher"
-      |      }
       |    }
       |  }
       |}

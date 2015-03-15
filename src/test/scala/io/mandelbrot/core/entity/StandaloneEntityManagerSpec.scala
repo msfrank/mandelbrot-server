@@ -27,8 +27,8 @@ class StandaloneEntityManagerSpec(_system: ActorSystem) extends TestKit(_system)
 
   val initialEntities = Vector.empty[Entity]
 
-  val coordinatorSettings = TestCoordinatorSettings(shards, initialEntities, ShardManager.StandaloneAddress, ShardManager.StandaloneAddress)
-  val coordinatorProps = new TestEntityCoordinator().props(coordinatorSettings)
+  val coordinatorSettings = TestEntityCoordinatorSettings(shards, initialEntities, ShardManager.StandaloneAddress, ShardManager.StandaloneAddress)
+  val coordinatorProps = new TestEntityCoordinatorExtension().props(coordinatorSettings)
   val clusterSettings = new ClusterSettings(enabled = false,
                                             seedNodes = Vector.empty,
                                             minNrMembers = 0,

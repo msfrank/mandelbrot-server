@@ -30,8 +30,8 @@ class ShardManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) with Implic
 
   val initialEntities = Vector.empty[Entity]
 
-  val coordinatorSettings = TestCoordinatorSettings(shardMap, initialEntities, node(node1).address, myAddress)
-  val coordinator = system.actorOf(TestCoordinator.props(coordinatorSettings), "coordinator")
+  val coordinatorSettings = TestEntityCoordinatorSettings(shardMap, initialEntities, node(node1).address, myAddress)
+  val coordinator = system.actorOf(TestEntityCoordinator.props(coordinatorSettings), "coordinator")
   val shardManager = TestActorRef[ShardManager](ShardManager.props(coordinator, TestEntity.propsCreator, myAddress, totalShards, self),
     "entities")
 

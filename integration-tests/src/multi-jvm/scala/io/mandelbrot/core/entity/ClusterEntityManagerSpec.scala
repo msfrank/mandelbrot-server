@@ -29,8 +29,8 @@ class ClusterEntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) wit
 
   val initialEntities = Vector.empty[Entity]
 
-  val coordinatorSettings = TestCoordinatorSettings(shards, initialEntities, node(node1).address, myAddress)
-  val coordinatorProps = new TestEntityCoordinator().props(coordinatorSettings)
+  val coordinatorSettings = TestEntityCoordinatorSettings(shards, initialEntities, node(node1).address, myAddress)
+  val coordinatorProps = new TestEntityCoordinatorExtension().props(coordinatorSettings)
   val clusterSettings = new ClusterSettings(enabled = true,
                                             seedNodes = Vector.empty,
                                             minNrMembers = 5,

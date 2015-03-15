@@ -8,7 +8,7 @@ import io.mandelbrot.core.{ApiException, Conflict, ResourceNotFound}
 
 import scala.collection.JavaConversions._
 
-class TestCoordinator(settings: TestCoordinatorSettings) extends Actor with ActorLogging {
+class TestEntityCoordinator(settings: TestEntityCoordinatorSettings) extends Actor with ActorLogging {
 
   object EntityOrdering extends Ordering[Entity] {
     override def compare(x: Entity, y: Entity): Int = {
@@ -91,14 +91,17 @@ class TestCoordinator(settings: TestCoordinatorSettings) extends Actor with Acto
   }
 }
 
-object TestCoordinator {
-  def props(settings: TestCoordinatorSettings) = Props(classOf[TestCoordinator], settings)
+object TestEntityCoordinator {
+  def props(settings: TestEntityCoordinatorSettings) = Props(classOf[TestEntityCoordinator], settings)
 }
 
-case class TestCoordinatorSettings(shardMap: ShardMap, initialEntities: Vector[Entity], masterAddress: Address, selfAddress: Address)
+case class TestEntityCoordinatorSettings(shardMap: ShardMap, initialEntities: Vector[Entity], masterAddress: Address, selfAddress: Address)
 
-class TestEntityCoordinator extends EntityCoordinatorExtension {
-  type Settings = TestCoordinatorSettings
-  def configure(config: Config): Settings = throw new NotImplementedError()
-  def props(settings: Settings): Props = TestCoordinator.props(settings)
+class TestEntityCoordinatorExtension extends EntityCoordinatorExtension {
+  type Settings = TestEntityCoordinatorSettings
+  def configure(config: Config): Settings = {
+    val myAddress = AddressFromURIString("mandelbrot://local")
+    TestEntityCoordinatorSettings(ShardMap(4), Vector.empty, myAddress, myAddress)
+  }
+  def props(settings: Settings): Props = TestEntityCoordinator.props(settings)
 }
