@@ -20,7 +20,7 @@
 package io.mandelbrot.core.http.json
 
 import spray.json._
-import org.joda.time.DateTime
+import org.joda.time.{DateTimeZone, DateTime}
 import java.util.UUID
 
 import io.mandelbrot.core.model._
@@ -53,9 +53,8 @@ trait NotificationProtocol extends DefaultJsonProtocol with BasicProtocol {
           case unknown => throw new DeserializationException("failed to parse ProbeNotification field 'probeRef'")
         }
         val timestamp = fields.get("timestamp") match {
-          case Some(JsNumber(number)) => new DateTime(number.toLong)
+          case Some(_timestamp) => DateTimeFormat.read(_timestamp)
           case None => throw new DeserializationException("ProbeNotification missing field 'timestamp'")
-          case unknown => throw new DeserializationException("failed to parse ProbeNotification field 'timestamp'")
         }
         val kind = fields.get("kind") match {
           case Some(JsString(string)) => string

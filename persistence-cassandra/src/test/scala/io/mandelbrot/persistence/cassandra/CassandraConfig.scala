@@ -5,15 +5,17 @@ import org.joda.time.DateTime
 
 import io.mandelbrot.core.ComposableConfig
 
+import scala.util.Random
+
 object CassandraConfig extends ComposableConfig {
-  val config = ConfigFactory.parseString(
+  def config = ConfigFactory.parseString(
     s"""
        |mandelbrot {
        |  persistence {
        |    cassandra {
        |      seed-nodes = [ localhost ]
        |      replication-factor = 1
-       |      keyspace-name = scalatest_${DateTime.now().toString("YMD_Hms_S")}
+       |      keyspace-name = scalatest_${DateTime.now().toString("YMDHms")}_${Math.abs(Random.nextLong().toShort)}
        |    }
        |  }
        |}

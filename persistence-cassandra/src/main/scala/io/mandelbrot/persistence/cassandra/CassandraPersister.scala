@@ -38,7 +38,9 @@ class CassandraPersister(settings: CassandraPersisterSettings) extends Actor wit
       }.recover {
         case ex: ApiException if ex.failure == ResourceNotFound =>
           InitializeProbeStatusResult(op, None)
-        case ex: Throwable => StateServiceOperationFailed(op, ex)
+        case ex: Throwable =>
+          log.error(ex, "failed to initialize probe status")
+          StateServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     case op: UpdateProbeStatus =>
@@ -54,7 +56,9 @@ class CassandraPersister(settings: CassandraPersisterSettings) extends Actor wit
           _ => UpdateProbeStatusResult(op)
         }
       }.recover {
-        case ex: Throwable => StateServiceOperationFailed(op, ex)
+        case ex: Throwable =>
+          log.error(ex, "failed to update probe status")
+          StateServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     /* retrieve condition history for the specified ProbeRef */
@@ -83,7 +87,9 @@ class CassandraPersister(settings: CassandraPersisterSettings) extends Actor wit
               GetConditionHistoryResult(op, ProbeConditionPage(history, last, exhausted))
           }
       }.recover {
-        case ex: Throwable => StateServiceOperationFailed(op, ex)
+        case ex: Throwable =>
+          log.error(ex, "failed to update probe status")
+          StateServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
 //    /* retrieve notification history for the specified ProbeRef */

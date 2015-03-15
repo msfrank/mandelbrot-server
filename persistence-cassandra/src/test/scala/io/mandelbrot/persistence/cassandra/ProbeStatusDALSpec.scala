@@ -7,7 +7,7 @@ import akka.actor.ActorSystem
 import com.datastax.driver.core.Session
 import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
 import org.scalatest.ShouldMatchers
-import org.joda.time.DateTime
+import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 import scala.concurrent.Await
 
@@ -53,7 +53,7 @@ class ProbeStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
     "update probe status" in withSessionAndDAL { (session, dal) =>
       val probeRef = ProbeRef("test:1")
-      val timestamp = DateTime.now()
+      val timestamp = DateTime.now(DateTimeZone.UTC)
       val epoch = EpochUtils.timestamp2epoch(timestamp)
       val correlation = UUID.randomUUID()
       val acknowledged = UUID.randomUUID()
@@ -76,7 +76,7 @@ class ProbeStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
     "get probe condition" in withSessionAndDAL { (session, dal) =>
       val probeRef = ProbeRef("test:2")
-      val timestamp = DateTime.now()
+      val timestamp = DateTime.now(DateTimeZone.UTC)
       val epoch = EpochUtils.timestamp2epoch(timestamp)
       val correlation = UUID.randomUUID()
       val acknowledged = UUID.randomUUID()
@@ -96,7 +96,7 @@ class ProbeStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
     "get probe notifications" in withSessionAndDAL { (session, dal) =>
       val probeRef = ProbeRef("test:3")
-      val timestamp = DateTime.now()
+      val timestamp = DateTime.now(DateTimeZone.UTC)
       val epoch = EpochUtils.timestamp2epoch(timestamp)
       val correlation = UUID.randomUUID()
       val acknowledged = UUID.randomUUID()
@@ -110,7 +110,7 @@ class ProbeStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
     "get probe metrics" in withSessionAndDAL { (session, dal) =>
       val probeRef = ProbeRef("test:4")
-      val timestamp = DateTime.now()
+      val timestamp = DateTime.now(DateTimeZone.UTC)
       val epoch = EpochUtils.timestamp2epoch(timestamp)
       val correlation = UUID.randomUUID()
       val acknowledged = UUID.randomUUID()
