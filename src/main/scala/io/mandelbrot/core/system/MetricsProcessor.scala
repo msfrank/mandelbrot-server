@@ -29,7 +29,7 @@ import io.mandelbrot.core.metrics._
 /**
  * Implements metrics probe behavior.
  */
-class MetricsProbeBehaviorImpl(evaluation: MetricsEvaluation) extends ProbeBehaviorInterface {
+class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor {
 
   val metricsStore = new MetricsStore(evaluation)
   val flapQueue: Option[FlapQueue] = None
@@ -50,7 +50,7 @@ class MetricsProbeBehaviorImpl(evaluation: MetricsEvaluation) extends ProbeBehav
    * if the set of direct children has changed, or the probe policy has updated,
    * then update our state.
    */
-  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventEffect] = None
+  def update(probe: ProbeInterface, processor: BehaviorProcessor): Option[EventEffect] = None
 
   /*
    * if we receive a metrics message while joining or known, then update probe state
@@ -205,3 +205,9 @@ class MetricsProbeBehaviorImpl(evaluation: MetricsEvaluation) extends ProbeBehav
   }
 }
 
+class MetricsProbe extends ProbeBehaviorExtension {
+  override def implement(properties: Map[String, String]): BehaviorProcessor = {
+    val parser = new MetricsEvaluationParser
+    new MetricsProcessor(parser.parseMetricsEvaluation(properties("evaluation")))
+  }
+}

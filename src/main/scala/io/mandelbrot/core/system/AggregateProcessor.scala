@@ -31,7 +31,7 @@ import io.mandelbrot.core.model._
 /**
  *
  */
-class AggregateProbeBehaviorImpl(evaluation: AggregateEvaluation) extends ProbeBehaviorInterface {
+class AggregateProcessor(evaluation: AggregateEvaluation) extends BehaviorProcessor {
 
   val children = new mutable.HashMap[ProbeRef,Option[ProbeStatus]]
   val flapQueue: Option[FlapQueue] = None
@@ -51,7 +51,7 @@ class AggregateProbeBehaviorImpl(evaluation: AggregateEvaluation) extends ProbeB
    * if the set of direct children has changed, or the probe policy has updated,
    * then update our state.
    */
-  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventEffect] = {
+  def update(probe: ProbeInterface, processor: BehaviorProcessor): Option[EventEffect] = {
     (children.keySet -- probe.children).foreach { ref => children.remove(ref)}
     (probe.children -- children.keySet).foreach { ref => children.put(ref, None)}
     None
@@ -141,4 +141,8 @@ class AggregateProbeBehaviorImpl(evaluation: AggregateEvaluation) extends ProbeB
     probe.alertTimer.stop()
     None
   }
+}
+
+class AggregateProbe extends ProbeBehaviorExtension {
+  override def implement(properties: Map[String, String]): BehaviorProcessor = new AggregateProcessor(EvaluateWorst)
 }

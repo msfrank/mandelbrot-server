@@ -3,10 +3,12 @@ immediately
 
 0.0.9
 -----
+* don't modify probe timers within the behavior processor
 * implement shard migration
 * implement metrics storage
 * make probe system config changes/updates more resilient to failure
 * implement registration validation logic
+* use java ServiceLoader for loading plugins
 
 0.0.10
 ------

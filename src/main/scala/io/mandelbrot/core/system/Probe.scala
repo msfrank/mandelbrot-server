@@ -41,7 +41,7 @@ class Probe(val probeRef: ProbeRef,
             val parent: ActorRef,
             var children: Set[ProbeRef],
             var policy: ProbePolicy,
-            var behavior: ProbeBehavior,
+            var processor: BehaviorProcessor,
             val probeGeneration: Long,
             val services: ActorRef,
             val metricsBus: MetricsBus) extends LoggingFSM[Probe.State,Probe.Data] with Stash with ProbeInterface {
@@ -52,7 +52,6 @@ class Probe(val probeRef: ProbeRef,
 
   // state
   var lastCommitted: Option[DateTime] = None
-  var processor: ProbeBehaviorInterface = behavior.makeProbeBehavior()
   var _lifecycle: ProbeLifecycle = ProbeInitializing
   var _health: ProbeHealth = ProbeUnknown
   var _summary: Option[String] = None
@@ -86,14 +85,9 @@ class Probe(val probeRef: ProbeRef,
    */
   when(InitializingProbe) {
 
-    /* peek at internal state */
+    /* retrieve the current probe status */
     case Event(query: GetProbeStatus, _) =>
       sender() ! GetProbeStatusResult(query, getProbeStatus)
-      stay()
-
-    /* peek at internal config */
-    case Event(query: GetProbeConfig, _) =>
-      sender() ! GetProbeConfigResult(query, children, policy, behavior)
       stay()
 
     /* ignore result if it doesn't match the in-flight request */
@@ -158,14 +152,9 @@ class Probe(val probeRef: ProbeRef,
    */
   when(RunningProbe) {
 
-    /* peek at internal state */
+    /* retrieve the current probe status */
     case Event(query: GetProbeStatus, _) =>
       sender() ! GetProbeStatusResult(query, getProbeStatus)
-      stay()
-
-    /* peek at internal config */
-    case Event(query: GetProbeConfig, _) =>
-      sender() ! GetProbeConfigResult(query, children, policy, behavior)
       stay()
 
     /* process a probe evaluation from the client */
@@ -232,14 +221,9 @@ class Probe(val probeRef: ProbeRef,
    */
   when(RetiringProbe) {
 
-    /* peek at internal state */
+    /* retrieve the current probe status */
     case Event(query: GetProbeStatus, _) =>
       sender() ! GetProbeStatusResult(query, getProbeStatus)
-      stay()
-
-    /* peek at internal config */
-    case Event(query: GetProbeConfig, _) =>
-      sender() ! GetProbeConfigResult(query, children, policy, behavior)
       stay()
 
     /* probe state has been committed, now we can apply the mutation */
@@ -339,21 +323,19 @@ class Probe(val probeRef: ProbeRef,
           }
 
         case QueuedUpdate(update, timestamp) =>
-          processor.update(this, update.behavior) match {
+          processor.update(this, update.processor) match {
             case Some(EventEffect(status, notifications)) =>
-              Some(ConfigMutation(update.children, update.policy, update.behavior, status, notifications))
+              Some(ConfigMutation(update.children, update.policy, status, notifications))
             case None =>
               children = update.children
               policy = update.policy
-              behavior = update.behavior
               None
           }
 
         case QueuedChange(change, timestamp) =>
           children = change.children
           policy = change.policy
-          behavior = change.behavior
-          processor = behavior.makeProbeBehavior()
+          processor = change.processor
           processor.enter(this).map { effect =>
             EventMutation(effect.status, effect.notifications)
           }
@@ -409,9 +391,7 @@ class Probe(val probeRef: ProbeRef,
       case Some(InflightMutation(op, config: ConfigMutation)) =>
         children = config.children
         policy = config.policy
-        behavior = config.behavior
         setProbeStatus(config.status)
-        processor = behavior.makeProbeBehavior()
         parent ! ChildMutates(probeRef, config.status)
         config.notifications
       case Some(InflightMutation(op, deletion: Deletion)) =>
@@ -489,11 +469,11 @@ object Probe {
             parent: ActorRef,
             children: Set[ProbeRef],
             policy: ProbePolicy,
-            behavior: ProbeBehavior,
+            processor: BehaviorProcessor,
             probeGeneration: Long,
             services: ActorRef,
             metricsBus: MetricsBus) = {
-    Props(classOf[Probe], probeRef, parent, children, policy, behavior, probeGeneration, services, metricsBus)
+    Props(classOf[Probe], probeRef, parent, children, policy, processor, probeGeneration, services, metricsBus)
   }
 
   case class InflightMutation(op: StateServiceCommand, mutation: Mutation)
@@ -523,7 +503,7 @@ object Probe {
   sealed trait StatusMutation extends Mutation { val status: ProbeStatus }
   case class CommandMutation(caller: ActorRef, result: ProbeResult, status: ProbeStatus, notifications: Vector[ProbeNotification]) extends StatusMutation
   case class EventMutation(status: ProbeStatus, notifications: Vector[ProbeNotification]) extends StatusMutation
-  case class ConfigMutation(children: Set[ProbeRef], policy: ProbePolicy, behavior: ProbeBehavior, status: ProbeStatus, notifications: Vector[ProbeNotification]) extends StatusMutation
+  case class ConfigMutation(children: Set[ProbeRef], policy: ProbePolicy, status: ProbeStatus, notifications: Vector[ProbeNotification]) extends StatusMutation
   case class Deletion(lastStatus: Option[ProbeStatus], notifications: Vector[ProbeNotification], lsn: Long) extends Mutation
 }
 
@@ -553,9 +533,6 @@ case class GetProbeNotificationsResult(op: GetProbeNotifications, page: ProbeNot
 
 case class GetProbeMetrics(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int], last: Option[String]) extends ProbeQuery
 case class GetProbeMetricsResult(op: GetProbeMetrics, page: ProbeMetricsPage) extends ProbeResult
-
-case class GetProbeConfig(probeRef: ProbeRef) extends ProbeQuery
-case class GetProbeConfigResult(op: GetProbeConfig, children: Set[ProbeRef], policy: ProbePolicy, behavior: ProbeBehavior) extends ProbeResult
 
 case class ProcessProbeEvaluation(probeRef: ProbeRef, evaluation: ProbeEvaluation) extends ProbeCommand
 case class ProcessProbeEvaluationResult(op: ProcessProbeEvaluation) extends ProbeResult

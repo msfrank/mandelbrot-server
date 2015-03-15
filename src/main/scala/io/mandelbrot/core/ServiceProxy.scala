@@ -21,6 +21,7 @@ package io.mandelbrot.core
 
 import akka.actor._
 import io.mandelbrot.core.entity._
+import io.mandelbrot.core.model.NotificationEvent
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.state._
@@ -70,6 +71,9 @@ class ServiceProxy extends Actor with ActorLogging {
 
     case op: NotificationServiceOperation =>
       notificationService forward op
+
+    case event: NotificationEvent =>
+      notificationService forward event
 
     case op: ServiceOperation if keyExtractor.isDefinedAt(op) =>
       try {

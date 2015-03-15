@@ -21,9 +21,9 @@ case class ProbePolicy(joiningTimeout: FiniteDuration,
 
 /* probe specification */
 case class ProbeSpec(probeType: String,
-                     metadata: Map[String,String],
                      policy: ProbePolicy,
-                     behavior: ProbeBehavior,
+                     properties: Map[String,String],
+                     metadata: Map[String,String],
                      children: Map[String,ProbeSpec]) extends RegistryModel
 
 /* metric specification */
@@ -32,43 +32,6 @@ case class MetricSpec(sourceType: SourceType,
                       step: Option[FiniteDuration],
                       heartbeat: Option[FiniteDuration],
                       cf: Option[ConsolidationFunction]) extends RegistryModel
-
-// FIXME
-import io.mandelbrot.core.system.ProbeBehaviorInterface
-import io.mandelbrot.core.system.ScalarProbeBehaviorImpl
-import io.mandelbrot.core.system.AggregateProbeBehaviorImpl
-import io.mandelbrot.core.system.AggregateEvaluation
-import io.mandelbrot.core.system.MetricsProbeBehaviorImpl
-import io.mandelbrot.core.metrics.MetricsEvaluation
-
-/**
- *
- */
-trait ProbeBehavior {
-  def makeProbeBehavior(): ProbeBehaviorInterface
-}
-
-/**
- *
- */
-case class ScalarProbeBehavior(flapWindow: FiniteDuration, flapDeviations: Int) extends ProbeBehavior {
-  def makeProbeBehavior() = new ScalarProbeBehaviorImpl()
-}
-
-/**
- *
- */
-case class AggregateProbeBehavior(evaluation: AggregateEvaluation, flapWindow: FiniteDuration, flapDeviations: Int) extends ProbeBehavior {
-  def makeProbeBehavior(): ProbeBehaviorInterface = new AggregateProbeBehaviorImpl(evaluation)
-}
-
-
-/**
- * Contains the metrics probe behavior policy.
- */
-case class MetricsProbeBehavior(evaluation: MetricsEvaluation, flapWindow: FiniteDuration, flapDeviations: Int) extends ProbeBehavior {
-  def makeProbeBehavior(): ProbeBehaviorInterface = new MetricsProbeBehaviorImpl(evaluation)
-}
 
 /* */
 case class ProbeSystemMetadata(uri: URI, joinedOn: DateTime, lastUpdate: DateTime) extends RegistryModel

@@ -28,7 +28,7 @@ import io.mandelbrot.core.model._
 /**
  *
  */
-class ScalarProbeBehaviorImpl extends ProbeBehaviorInterface {
+class ScalarProcessor extends BehaviorProcessor {
 
   val flapQueue: Option[FlapQueue] = None
 
@@ -42,7 +42,7 @@ class ScalarProbeBehaviorImpl extends ProbeBehaviorInterface {
     } else None
   }
 
-  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventEffect] = None
+  def update(probe: ProbeInterface, processor: BehaviorProcessor): Option[EventEffect] = None
 
     /*
      * if we receive a status message while joining or known, then update probe state
@@ -177,4 +177,8 @@ class ScalarProbeBehaviorImpl extends ProbeBehaviorInterface {
     probe.expiryTimer.stop()
     None
   }
+}
+
+class ScalarProbe extends ProbeBehaviorExtension {
+  override def implement(properties: Map[String, String]): BehaviorProcessor = new ScalarProcessor
 }

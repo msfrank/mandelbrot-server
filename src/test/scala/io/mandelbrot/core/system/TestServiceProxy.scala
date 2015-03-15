@@ -1,6 +1,7 @@
 package io.mandelbrot.core.system
 
 import akka.actor.{ActorLogging, Props, Actor, ActorRef}
+import io.mandelbrot.core.model.NotificationEvent
 
 import io.mandelbrot.core.registry.RegistryServiceOperation
 import io.mandelbrot.core.notification.NotificationServiceOperation
@@ -48,6 +49,15 @@ class TestServiceProxy(registryService: Option[ActorRef],
           log.debug("dropped {}", op)
       }
 
+    case event: NotificationEvent =>
+      notificationService match {
+        case Some(ref) =>
+          ref forward event
+          log.debug("forwarded {}", event)
+        case None =>
+          log.debug("dropped {}", event)
+      }
+
     case op: StateServiceOperation =>
       stateService match {
         case Some(ref) =>
@@ -56,6 +66,9 @@ class TestServiceProxy(registryService: Option[ActorRef],
         case None =>
           log.debug("dropped {}", op)
       }
+
+    case unhandled =>
+      log.error("received unhandled message {}", unhandled)
   }
 }
 

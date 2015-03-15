@@ -5,17 +5,13 @@ import scala.util.{Failure, Try}
 
 import io.mandelbrot.core.model._
 
-case class TestBehavior() extends ProbeBehavior {
-  def makeProbeBehavior(): ProbeBehaviorInterface = new TestBehaviorImpl()
-}
-
-class TestBehaviorImpl() extends ProbeBehaviorInterface {
+class TestProcessor() extends BehaviorProcessor {
 
   def enter(probe: ProbeInterface): Option[EventEffect] = None
 
   def processChild(probe: ProbeInterface, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
 
-  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventEffect] = None
+  def update(probe: ProbeInterface, processor: BehaviorProcessor): Option[EventEffect] = None
 
   def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect] = None
 
@@ -28,11 +24,11 @@ class TestBehaviorImpl() extends ProbeBehaviorInterface {
   def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
 }
 
-case class TestChangeBehavior() extends ProbeBehavior {
-  def makeProbeBehavior(): ProbeBehaviorInterface = new TestChangeBehaviorImpl()
+class TestBehavior extends ProbeBehaviorExtension {
+  override def implement(properties: Map[String, String]): BehaviorProcessor = new TestProcessor
 }
 
-class TestChangeBehaviorImpl() extends ProbeBehaviorInterface {
+class TestProcessorChange() extends BehaviorProcessor {
 
   def enter(probe: ProbeInterface): Option[EventEffect] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
@@ -44,7 +40,7 @@ class TestChangeBehaviorImpl() extends ProbeBehaviorInterface {
 
   def processChild(probe: ProbeInterface, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
 
-  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventEffect] = None
+  def update(probe: ProbeInterface, processor: BehaviorProcessor): Option[EventEffect] = None
 
   def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect] = None
 
@@ -56,11 +52,11 @@ class TestChangeBehaviorImpl() extends ProbeBehaviorInterface {
 
 }
 
-case class TestUpdateBehavior(param: Int) extends ProbeBehavior {
-  def makeProbeBehavior(): ProbeBehaviorInterface = new TestUpdateBehaviorImpl()
+class TestChangeBehavior extends ProbeBehaviorExtension {
+  override def implement(properties: Map[String, String]): BehaviorProcessor = new TestProcessorChange
 }
 
-class TestUpdateBehaviorImpl() extends ProbeBehaviorInterface {
+class TestProcessorUpdate() extends BehaviorProcessor {
 
   def enter(probe: ProbeInterface): Option[EventEffect] = None
 
@@ -68,7 +64,7 @@ class TestUpdateBehaviorImpl() extends ProbeBehaviorInterface {
 
   def processChild(probe: ProbeInterface, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
 
-  def update(probe: ProbeInterface, policy: ProbeBehavior): Option[EventEffect] = {
+  def update(probe: ProbeInterface, processor: BehaviorProcessor): Option[EventEffect] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val status = ProbeStatus(timestamp, ProbeKnown, None, ProbeHealthy, Map.empty, Some(timestamp), Some(timestamp), None, None, false)
     Some(EventEffect(status, Vector.empty))
@@ -82,4 +78,8 @@ class TestUpdateBehaviorImpl() extends ProbeBehaviorInterface {
 
   def exit(probe: ProbeInterface): Option[EventEffect] = None
 
+}
+
+class TestUpdateBehavior extends ProbeBehaviorExtension {
+  override def implement(properties: Map[String, String]): BehaviorProcessor = new TestProcessorUpdate
 }

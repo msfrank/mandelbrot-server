@@ -1,16 +1,16 @@
 package io.mandelbrot.core.model
 
+import org.joda.time.DateTime
 import java.util.UUID
 
-import org.joda.time.DateTime
+import io.mandelbrot.core.ServiceEvent
 
 sealed trait NotificationModel
-
 
 /**
  * base trait for Notifications
  */
-sealed trait NotificationEvent extends NotificationModel {
+sealed trait NotificationEvent extends ServiceEvent with NotificationModel {
   val timestamp: DateTime
   val kind: String
   val description: String
