@@ -8,8 +8,6 @@ import io.mandelbrot.core.{ApiException, Conflict, ResourceNotFound}
 
 import scala.collection.JavaConversions._
 
-case class TestCoordinatorSettings(shardMap: ShardMap, initialEntities: Vector[Entity], masterAddress: Address, selfAddress: Address)
-
 class TestCoordinator(settings: TestCoordinatorSettings) extends Actor with ActorLogging with Coordinator {
 
   object EntityOrdering extends Ordering[Entity] {
@@ -94,8 +92,13 @@ class TestCoordinator(settings: TestCoordinatorSettings) extends Actor with Acto
 }
 
 object TestCoordinator {
-  def props(settings: TestCoordinatorSettings) = {
-    Props(classOf[TestCoordinator], settings)
-  }
-  def settings(config: Config): Option[Any] = None
+  def props(settings: TestCoordinatorSettings) = Props(classOf[TestCoordinator], settings)
+}
+
+case class TestCoordinatorSettings(shardMap: ShardMap, initialEntities: Vector[Entity], masterAddress: Address, selfAddress: Address)
+
+class TestEntityCoordinator extends EntityCoordinatorExtension {
+  type Settings = TestCoordinatorSettings
+  def configure(config: Config): Settings = throw new NotImplementedError()
+  def props(settings: Settings): Props = TestCoordinator.props(settings)
 }

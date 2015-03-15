@@ -8,7 +8,6 @@ import scala.collection.JavaConversions._
 
 import io.mandelbrot.core.{ResourceNotFound, Conflict, ApiException}
 import io.mandelbrot.core.entity._
-import io.mandelbrot.persistence.cassandra.CassandraCoordinator.CassandraCoordinatorSettings
 
 /**
  *

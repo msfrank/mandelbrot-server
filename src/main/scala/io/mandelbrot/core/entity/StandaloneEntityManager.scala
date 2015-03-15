@@ -33,12 +33,8 @@ import io.mandelbrot.core.system.{ProbeSystem, ProbeSystemOperation, ProbeOperat
  */
 class StandaloneEntityManager(settings: ClusterSettings, propsCreator: PropsCreator) extends Actor with ActorLogging {
 
-  val coordinator = {
-    val props = ServiceExtension.makePluginProps(settings.coordinator.plugin, settings.coordinator.settings)
-    log.info("loading coordinator plugin {}", settings.coordinator.plugin)
-    context.actorOf(props, "coordinator")
-  }
-
+  // state
+  val coordinator = context.actorOf(settings.props, "coordinator")
   val shardManager = context.actorOf(ShardManager.props(context.parent, propsCreator,
     ShardManager.StandaloneAddress, settings.totalShards, ActorRef.noSender), "entity-manager")
 

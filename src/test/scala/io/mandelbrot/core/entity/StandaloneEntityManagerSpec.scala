@@ -28,7 +28,7 @@ class StandaloneEntityManagerSpec(_system: ActorSystem) extends TestKit(_system)
   val initialEntities = Vector.empty[Entity]
 
   val coordinatorSettings = TestCoordinatorSettings(shards, initialEntities, ShardManager.StandaloneAddress, ShardManager.StandaloneAddress)
-
+  val coordinatorProps = new TestEntityCoordinator().props(coordinatorSettings)
   val clusterSettings = new ClusterSettings(enabled = false,
                                             seedNodes = Vector.empty,
                                             minNrMembers = 0,
@@ -38,7 +38,7 @@ class StandaloneEntityManagerSpec(_system: ActorSystem) extends TestKit(_system)
                                             maxHandOverRetries = 10,
                                             maxTakeOverRetries = 5,
                                             retryInterval = 1.second,
-                                            CoordinatorSettings("io.mandelbrot.core.entity.TestCoordinator", Some(coordinatorSettings)))
+                                            coordinatorProps)
 
   val props = Props(classOf[StandaloneEntityManager], clusterSettings, TestEntity.propsCreator)
   val entityManager = system.actorOf(ProxyForwarder.props(props, self, classOf[EntityServiceOperation]), "entity-manager")

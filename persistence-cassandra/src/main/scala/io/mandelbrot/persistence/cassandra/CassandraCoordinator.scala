@@ -6,7 +6,6 @@ import com.typesafe.config.Config
 import org.joda.time.{DateTimeZone, DateTime}
 
 import io.mandelbrot.core.entity._
-import io.mandelbrot.persistence.cassandra.CassandraCoordinator.CassandraCoordinatorSettings
 
 /**
  *
@@ -68,9 +67,12 @@ class CassandraCoordinator(settings: CassandraCoordinatorSettings) extends Actor
 
 object CassandraCoordinator {
   def props(managerSettings: CassandraCoordinatorSettings) = Props(classOf[CassandraCoordinator], managerSettings)
+}
 
-  case class CassandraCoordinatorSettings()
-  def settings(config: Config): Option[CassandraCoordinatorSettings] = {
-    Some(CassandraCoordinatorSettings())
-  }
+case class CassandraCoordinatorSettings()
+
+class CassandraEntityCoordinator extends EntityCoordinatorExtension {
+  type Settings = CassandraCoordinatorSettings
+  def configure(config: Config): Settings = CassandraCoordinatorSettings()
+  def props(settings: Settings): Props = CassandraCoordinator.props(settings)
 }

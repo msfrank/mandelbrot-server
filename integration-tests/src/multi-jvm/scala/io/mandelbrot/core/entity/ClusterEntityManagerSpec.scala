@@ -30,7 +30,7 @@ class ClusterEntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) wit
   val initialEntities = Vector.empty[Entity]
 
   val coordinatorSettings = TestCoordinatorSettings(shards, initialEntities, node(node1).address, myAddress)
-
+  val coordinatorProps = new TestEntityCoordinator().props(coordinatorSettings)
   val clusterSettings = new ClusterSettings(enabled = true,
                                             seedNodes = Vector.empty,
                                             minNrMembers = 5,
@@ -40,7 +40,7 @@ class ClusterEntityManagerSpec extends MultiNodeSpec(ClusterMultiNodeConfig) wit
                                             maxHandOverRetries = 10,
                                             maxTakeOverRetries = 5,
                                             retryInterval = 1.second,
-                                            CoordinatorSettings("io.mandelbrot.core.entity.TestCoordinator", Some(coordinatorSettings)))
+                                            coordinatorProps)
   var entityManager = ActorRef.noSender
 
   def entityEnvelope(op: ServiceOperation): EntityEnvelope = {

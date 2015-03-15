@@ -40,11 +40,7 @@ class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator
   context.system.eventStream.subscribe(self, classOf[ClusterState])
 
   // state
-  val coordinator = {
-    val props = ServiceExtension.makePluginProps(settings.coordinator.plugin, settings.coordinator.settings)
-    log.info("loading coordinator plugin {}", settings.coordinator.plugin)
-    context.actorOf(props, "coordinator")
-  }
+  val coordinator = context.actorOf(settings.props, "coordinator")
   val clusterMonitor = context.actorOf(ClusterMonitor.props(settings.minNrMembers), "cluster-monitor")
 
   // these actors are created when cluster moves to UP

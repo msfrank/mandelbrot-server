@@ -21,7 +21,8 @@ package io.mandelbrot.core.entity
 
 import java.util.concurrent.TimeUnit
 
-import com.typesafe.config.Config
+import akka.actor.Props
+import com.typesafe.config.{ConfigFactory, Config}
 import io.mandelbrot.core.{ServerConfigException, ServiceExtension}
 import scala.collection.JavaConversions._
 import scala.concurrent.duration.FiniteDuration
@@ -37,7 +38,7 @@ class ClusterSettings(val enabled: Boolean,
                       val maxHandOverRetries: Int,
                       val maxTakeOverRetries: Int,
                       val retryInterval: FiniteDuration,
-                      val coordinator: CoordinatorSettings)
+                      val props: Props)
 
 object ClusterSettings {
   def parse(config: Config): ClusterSettings = {
@@ -52,11 +53,13 @@ object ClusterSettings {
     val units = TimeUnit.MILLISECONDS
     val retryInterval = FiniteDuration(config.getDuration("balancer-retry-interval", units), units)
     val plugin = config.getString("plugin")
-    if (!ServiceExtension.pluginImplements(plugin, classOf[Coordinator]))
-      throw new ServerConfigException("%s is not recognized as an Coordinator plugin".format(plugin))
-    val service = if (config.hasPath("plugin-settings")) {
-      ServiceExtension.makePluginSettings(plugin, config.getConfig("plugin-settings"))
-    } else None
+    val pluginSettings = if (config.hasPath("plugin-settings")) config.getConfig("plugin-settings") else ConfigFactory.empty()
+    val props = EntityCoordinator.extensions.get(plugin) match {
+      case None =>
+        throw new ServerConfigException("%s is not recognized as an EntityCoordinatorExtension".format(plugin))
+      case Some(extension) =>
+        extension.props(extension.configure(pluginSettings))
+    }
     new ClusterSettings(enabled,
                         seedNodes.toVector,
                         minNrMembers,
@@ -66,6 +69,6 @@ object ClusterSettings {
                         maxHandOverRetries,
                         maxTakeOverRetries,
                         retryInterval,
-                        CoordinatorSettings(plugin, service))
+                        props)
   }
 }
