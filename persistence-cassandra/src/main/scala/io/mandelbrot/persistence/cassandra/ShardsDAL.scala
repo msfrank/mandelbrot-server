@@ -12,7 +12,7 @@ import io.mandelbrot.core.entity._
 /**
  *
  */
-class ShardsDAL(settings: CassandraCoordinatorSettings,
+class ShardsDAL(settings: CassandraEntityCoordinatorSettings,
                 val session: Session,
                 implicit val ec: ExecutionContext) extends AbstractDriver {
 

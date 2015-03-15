@@ -61,6 +61,3 @@ case class GetClusterStatusResult(op: GetClusterStatus, status: ClusterStatus)
 
 case class GetShardMapStatus() extends EntityServiceQuery
 case class GetShardMapStatusResult(op: GetShardMapStatus, status: ShardMapStatus)
-
-/* marker trait for Coordinator implementations */
-trait Coordinator

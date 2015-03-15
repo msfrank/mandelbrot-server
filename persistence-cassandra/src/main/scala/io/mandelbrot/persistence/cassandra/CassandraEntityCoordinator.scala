@@ -10,7 +10,7 @@ import io.mandelbrot.core.entity._
 /**
  *
  */
-class CassandraCoordinator(settings: CassandraCoordinatorSettings) extends Actor with ActorLogging with Coordinator {
+class CassandraEntityCoordinator(settings: CassandraEntityCoordinatorSettings) extends Actor with ActorLogging {
   import context.dispatcher
 
   val session = Cassandra(context.system).getSession
@@ -65,14 +65,14 @@ class CassandraCoordinator(settings: CassandraCoordinatorSettings) extends Actor
 
 }
 
-object CassandraCoordinator {
-  def props(managerSettings: CassandraCoordinatorSettings) = Props(classOf[CassandraCoordinator], managerSettings)
+object CassandraEntityCoordinator {
+  def props(managerSettings: CassandraEntityCoordinatorSettings) = Props(classOf[CassandraEntityCoordinator], managerSettings)
 }
 
-case class CassandraCoordinatorSettings()
+case class CassandraEntityCoordinatorSettings()
 
-class CassandraEntityCoordinator extends EntityCoordinatorExtension {
-  type Settings = CassandraCoordinatorSettings
-  def configure(config: Config): Settings = CassandraCoordinatorSettings()
-  def props(settings: Settings): Props = CassandraCoordinator.props(settings)
+class CassandraEntityCoordinatorExtension extends EntityCoordinatorExtension {
+  type Settings = CassandraEntityCoordinatorSettings
+  def configure(config: Config): Settings = CassandraEntityCoordinatorSettings()
+  def props(settings: Settings): Props = CassandraEntityCoordinator.props(settings)
 }

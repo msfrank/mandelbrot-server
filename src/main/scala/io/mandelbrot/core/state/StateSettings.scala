@@ -19,11 +19,12 @@
 
 package io.mandelbrot.core.state
 
-import com.typesafe.config.Config
+import akka.actor.Props
+import com.typesafe.config.{ConfigFactory, Config}
 import scala.concurrent.duration.{FiniteDuration, Duration}
 import java.util.concurrent.TimeUnit
 
-import io.mandelbrot.core.{ServerConfigException, ServiceExtension}
+import io.mandelbrot.core.ServerConfigException
 
 /**
  *
@@ -34,7 +35,7 @@ case class StateSettings(maxSummarySize: Long,
                          maxDetailSize: Long,
                          statusHistoryAge: Duration,
                          defaultSearchLimit: Int,
-                         persister: PersisterSettings)
+                         props: Props)
 
 object StateSettings {
   def parse(config: Config): StateSettings = {
@@ -43,15 +44,17 @@ object StateSettings {
     val statusHistoryAge = FiniteDuration(config.getDuration("status-history-age", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     val defaultSearchLimit = config.getInt("default-search-limit")
     val plugin = config.getString("plugin")
-    if (!ServiceExtension.pluginImplements(plugin, classOf[Persister]))
-      throw new ServerConfigException("%s is not recognized as a Persister plugin".format(plugin))
-    val service = if (config.hasPath("plugin-settings")) {
-      ServiceExtension.makePluginSettings(plugin, config.getConfig("plugin-settings"))
-    } else None
+    val pluginSettings = if (config.hasPath("plugin-settings")) config.getConfig("plugin-settings") else ConfigFactory.empty()
+    val props = StatePersister.extensions.get(plugin) match {
+      case None =>
+        throw new ServerConfigException("%s is not recognized as a StatePersisterExtension".format(plugin))
+      case Some(extension) =>
+        extension.props(extension.configure(pluginSettings))
+    }
     StateSettings(maxSummarySize,
                   maxDetailSize,
                   statusHistoryAge,
                   defaultSearchLimit,
-                  PersisterSettings(plugin, service))
+                  props)
   }
 }

@@ -35,11 +35,7 @@ import io.mandelbrot.core.model._
 class RegistryManager(settings: RegistrySettings) extends Actor with ActorLogging {
 
   // state
-  val registrar: ActorRef = {
-    val props = ServiceExtension.makePluginProps(settings.registrar.plugin, settings.registrar.settings)
-    log.info("loading registrar plugin {}", settings.registrar.plugin)
-    context.actorOf(props, "registrar")
-  }
+  val registrar: ActorRef = context.actorOf(settings.props, "registrar")
 
   def receive = {
     case op: CreateProbeSystemEntry =>
@@ -91,6 +87,3 @@ case class ListProbeSystemsResult(op: ListProbeSystems, page: ProbeSystemsPage)
 
 case class GetProbeSystemEntry(uri: URI) extends RegistryServiceQuery
 case class GetProbeSystemEntryResult(op: GetProbeSystemEntry, registration: ProbeRegistration, lsn: Long)
-
-/* marker trait for Registrar implementations */
-trait Registrar

@@ -9,9 +9,8 @@ import io.mandelbrot.core.AkkaConfig
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.ConfigConversions._
-import io.mandelbrot.persistence.cassandra.CassandraPersister.CassandraPersisterSettings
 
-class CassandraPersisterSpec(_system: ActorSystem)
+class CassandraStatePersisterSpec(_system: ActorSystem)
   extends TestKit(_system)
   with ImplicitSender
   with WordSpecLike
@@ -26,10 +25,10 @@ class CassandraPersisterSpec(_system: ActorSystem)
     TestKit.shutdownActorSystem(system)
   }
 
-  val settings = CassandraPersisterSettings()
-  val actor = system.actorOf(CassandraPersister.props(settings))
+  val settings = CassandraStatePersisterSettings()
+  val actor = system.actorOf(CassandraStatePersister.props(settings))
 
-  "A CassandraPersister" should {
+  "A CassandraStatePersister" should {
 
     "initialize probe status when probe doesn't exist" in {
       val probeRef = ProbeRef("test1")
@@ -58,7 +57,7 @@ class CassandraPersisterSpec(_system: ActorSystem)
     }
   }
 
-  "A CassandraPersister containing probe status within a single epoch" should {
+  "A CassandraStatePersister containing probe status within a single epoch" should {
 
     val today = new DateTime(DateTimeZone.UTC).toDateMidnight
 

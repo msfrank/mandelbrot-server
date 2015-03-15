@@ -12,7 +12,6 @@ import scala.concurrent.Await
 import io.mandelbrot.core.{ResourceNotFound, ApiException, AkkaConfig}
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.ConfigConversions._
-import io.mandelbrot.persistence.cassandra.CassandraPersister.CassandraPersisterSettings
 
 class CommittedIndexDALSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
 
@@ -22,7 +21,7 @@ class CommittedIndexDALSpec(_system: ActorSystem) extends TestKit(_system) with 
     Cassandra(system).dropKeyspace()
   }
 
-  val settings = CassandraPersisterSettings()
+  val settings = CassandraStatePersisterSettings()
 
   "A CommittedIndexDAL" should {
 

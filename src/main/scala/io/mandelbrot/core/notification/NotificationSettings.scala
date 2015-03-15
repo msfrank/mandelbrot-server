@@ -19,7 +19,8 @@
 
 package io.mandelbrot.core.notification
 
-import com.typesafe.config.{ConfigObject, ConfigValueType, Config}
+import akka.actor.Props
+import com.typesafe.config.{ConfigFactory, ConfigObject, ConfigValueType, Config}
 import org.slf4j.LoggerFactory
 import scala.collection.mutable
 import scala.collection.JavaConversions._
@@ -28,12 +29,12 @@ import java.util.concurrent.TimeUnit
 import java.io.File
 
 import io.mandelbrot.core.model._
-import io.mandelbrot.core.{ServerConfigException, ServiceExtension}
+import io.mandelbrot.core.ServerConfigException
 
 /**
  *
  */
-case class NotifierSettings(plugin: String, settings: Option[Any])
+case class NotifierSettings(plugin: String, props: Props)
 
 /**
  *
@@ -109,17 +110,14 @@ object NotificationSettings {
       case (name,configValue) if configValue.valueType() == ConfigValueType.OBJECT =>
         val notifierConfig = configValue.asInstanceOf[ConfigObject].toConfig
         val plugin = notifierConfig.getString("plugin")
-        if (!ServiceExtension.pluginImplements(plugin, classOf[Notifier]))
-          throw new ServerConfigException("%s is not recognized as a Notifier plugin".format(plugin))
-        val settings = if (notifierConfig.hasPath("plugin-settings")) {
-          notifierContacts.get(name) match {
-            case Some(params) =>
-              ServiceExtension.makePluginSettings(plugin, notifierConfig.getConfig("plugin-settings"), Some(params.toMap))
-            case None =>
-              ServiceExtension.makePluginSettings(plugin, notifierConfig.getConfig("plugin-settings"), Some(Map.empty[Contact, Config]))
-          }
-        } else None
-        Some(name -> NotifierSettings(plugin, settings))
+        val pluginSettings = if (notifierConfig.hasPath("plugin-settings")) notifierConfig.getConfig("plugin-settings") else ConfigFactory.empty()
+        val props = NotificationEmitter.extensions.get(plugin) match {
+          case None =>
+            throw new ServerConfigException("%s is not recognized as a NotificationEmitterExtension".format(plugin))
+          case Some(extension) =>
+            extension.props(extension.configure(pluginSettings))
+        }
+        Some(name -> NotifierSettings(plugin, props))
       case unknown =>
         None
     }.toMap

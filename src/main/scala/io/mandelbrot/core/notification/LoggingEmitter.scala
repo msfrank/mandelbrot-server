@@ -27,7 +27,7 @@ import io.mandelbrot.core.model._
 /**
  *
  */
-class LoggingNotifier extends Actor with Notifier with ActorLogging {
+class LoggingEmitter(settings: LoggingEmitterSettings) extends Actor with ActorLogging {
 
   def receive = {
 
@@ -36,7 +36,15 @@ class LoggingNotifier extends Actor with Notifier with ActorLogging {
   }
 }
 
-object LoggingNotifier {
-  def props() = Props(classOf[LoggingNotifier])
+object LoggingEmitter {
+  def props(settings: LoggingEmitterSettings) = Props(classOf[LoggingEmitter], settings)
   def settings(config: Config, unused: Any): Option[Any] = None
+}
+
+case class LoggingEmitterSettings()
+
+class LoggingNotificationEmitter extends NotificationEmitterExtension {
+  type Settings = LoggingEmitterSettings
+  def configure(config: Config): Settings = LoggingEmitterSettings()
+  def props(settings: Settings): Props = LoggingEmitter.props(settings)
 }

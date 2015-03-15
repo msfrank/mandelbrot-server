@@ -19,22 +19,21 @@
 
 package io.mandelbrot.core.registry
 
-import com.typesafe.config.Config
+import akka.actor.Props
+import com.typesafe.config.{ConfigFactory, Config}
 import scala.concurrent.duration._
 import java.util.concurrent.TimeUnit
 
-import io.mandelbrot.core.{ServerConfigException, ServiceExtension}
+import io.mandelbrot.core.ServerConfigException
 
 case class PolicyDefaults(joiningTimeout: Option[FiniteDuration],
                           probeTimeout: Option[FiniteDuration],
                           alertTimeout: Option[FiniteDuration],
                           leavingTimeout: Option[FiniteDuration])
 
-case class RegistrarSettings(plugin: String, settings: Option[Any])
-
 case class RegistrySettings(policyMin: PolicyDefaults,
                             policyMax: PolicyDefaults,
-                            registrar: RegistrarSettings)
+                            props: Props)
 
 object RegistrySettings {
   def parse(config: Config): RegistrySettings = {
@@ -69,12 +68,14 @@ object RegistrySettings {
       PolicyDefaults(joiningTimeoutMax, probeTimeoutMax, alertTimeoutMax, leavingTimeoutMax)
     }
     val plugin = config.getString("plugin")
-    if (!ServiceExtension.pluginImplements(plugin, classOf[Registrar]))
-      throw new ServerConfigException("%s is not recognized as an Registrar plugin".format(plugin))
-    val service = if (config.hasPath("plugin-settings")) {
-      ServiceExtension.makePluginSettings(plugin, config.getConfig("plugin-settings"))
-    } else None
-    new RegistrySettings(policyMin, policyMax, RegistrarSettings(plugin, service))
+    val pluginSettings = if (config.hasPath("plugin-settings")) config.getConfig("plugin-settings") else ConfigFactory.empty()
+    val props = RegistryPersister.extensions.get(plugin) match {
+      case None =>
+        throw new ServerConfigException("%s is not recognized as a RegistryPersisterExtension".format(plugin))
+      case Some(extension) =>
+        extension.props(extension.configure(pluginSettings))
+    }
+    RegistrySettings(policyMin, policyMax, props)
   }
 }
 

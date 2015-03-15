@@ -6,12 +6,11 @@ import com.typesafe.config.Config
 import org.joda.time.{DateTimeZone, DateTime}
 
 import io.mandelbrot.core.registry._
-import io.mandelbrot.persistence.cassandra.CassandraRegistrar.CassandraRegistrarSettings
 
 /**
  *
  */
-class CassandraRegistrar(settings: CassandraRegistrarSettings) extends Actor with ActorLogging with Registrar {
+class CassandraRegistryPersister(settings: CassandraRegistryPersisterSettings) extends Actor with ActorLogging {
   import context.dispatcher
 
   val session = Cassandra(context.system).getSession
@@ -48,11 +47,18 @@ class CassandraRegistrar(settings: CassandraRegistrarSettings) extends Actor wit
   }
 }
 
-object CassandraRegistrar {
-  def props(managerSettings: CassandraRegistrarSettings) = Props(classOf[CassandraRegistrar], managerSettings)
+object CassandraRegistryPersister {
+  def props(managerSettings: CassandraRegistryPersisterSettings) = Props(classOf[CassandraRegistryPersister], managerSettings)
 
-  case class CassandraRegistrarSettings()
-  def settings(config: Config): Option[CassandraRegistrarSettings] = {
-    Some(CassandraRegistrarSettings())
+  def settings(config: Config): Option[CassandraRegistryPersisterSettings] = {
+    Some(CassandraRegistryPersisterSettings())
   }
+}
+
+case class CassandraRegistryPersisterSettings()
+
+class CassandraRegistryPersisterExtension extends RegistryPersisterExtension {
+  type Settings = CassandraRegistryPersisterSettings
+  def configure(config: Config): Settings = CassandraRegistryPersisterSettings()
+  def props(settings: Settings): Props = CassandraRegistryPersister.props(settings)
 }

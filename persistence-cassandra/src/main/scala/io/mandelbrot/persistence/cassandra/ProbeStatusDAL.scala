@@ -9,12 +9,11 @@ import spray.json._
 import io.mandelbrot.core.{ApiException, ResourceNotFound}
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.http.json.JsonProtocol._
-import io.mandelbrot.persistence.cassandra.CassandraPersister.CassandraPersisterSettings
 
 /**
  *
  */
-class ProbeStatusDAL(settings: CassandraPersisterSettings,
+class ProbeStatusDAL(settings: CassandraStatePersisterSettings,
                      val session: Session,
                      implicit val ec: ExecutionContext) extends AbstractDriver {
 

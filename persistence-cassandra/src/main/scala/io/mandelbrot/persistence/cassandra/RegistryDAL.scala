@@ -12,12 +12,10 @@ import io.mandelbrot.core.model._
 import io.mandelbrot.core.http.json.JsonProtocol._
 import io.mandelbrot.core.{ApiException, ResourceNotFound}
 
-import io.mandelbrot.persistence.cassandra.CassandraRegistrar.CassandraRegistrarSettings
-
 /**
  *
  */
-class RegistryDAL(settings: CassandraRegistrarSettings,
+class RegistryDAL(settings: CassandraRegistryPersisterSettings,
                   val session: Session,
                   implicit val ec: ExecutionContext) extends AbstractDriver {
 

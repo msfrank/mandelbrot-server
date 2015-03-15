@@ -31,11 +31,12 @@ import org.slf4j.LoggerFactory
 import scala.util.{Failure, Success, Try}
 
 import io.mandelbrot.core.model._
+
 /**
  *
  */
-class EmailNotifier(notifierSettings: EmailNotifier.NotifierSettings) extends LoggingFSM[EmailNotifier.State,EmailNotifier.Data] with Notifier {
-  import EmailNotifier._
+class EmailEmitter(notifierSettings: EmailEmitterSettings) extends LoggingFSM[EmailEmitter.State,EmailEmitter.Data] {
+  import EmailEmitter._
   import context.dispatcher
 
   // config
@@ -45,6 +46,9 @@ class EmailNotifier(notifierSettings: EmailNotifier.NotifierSettings) extends Lo
   val connectTimeout = 10.seconds
   val readTimeout = 10.seconds
   val writeTimeout = 10.seconds
+
+  // state
+  val emailContacts: Map[String,EmailContact] = Map.empty
 
   // configure the session and underlying transport
   val props = new java.util.Properties()
@@ -72,7 +76,7 @@ class EmailNotifier(notifierSettings: EmailNotifier.NotifierSettings) extends Lo
 
     // buffer notifications until we are connected
     case Event(command: NotifyContact, CommandBuffer(buffer)) =>
-      if (notifierSettings.contacts.contains(command.contact.id)) {
+      if (emailContacts.contains(command.contact.id)) {
         stay() using CommandBuffer(buffer :+ command)
       } else stay()
 
@@ -99,7 +103,7 @@ class EmailNotifier(notifierSettings: EmailNotifier.NotifierSettings) extends Lo
   when(Connected) {
 
     // if the notifier isn't configured to handle the contact, then ignore
-    case Event(NotifyContact(contact, _), _) if !notifierSettings.contacts.contains(contact.id) =>
+    case Event(NotifyContact(contact, _), _) if !emailContacts.contains(contact.id) =>
       stay()
 
     // if transport isn't connected, then buffer the notification and move to Connecting state
@@ -134,7 +138,7 @@ class EmailNotifier(notifierSettings: EmailNotifier.NotifierSettings) extends Lo
 
     // buffer notifications until we are connected
     case Event(command: NotifyContact, CommandBuffer(buffer)) =>
-      if (notifierSettings.contacts.contains(command.contact.id)) {
+      if (emailContacts.contains(command.contact.id)) {
         stay() using CommandBuffer(buffer :+ command)
       } else stay()
 
@@ -162,7 +166,7 @@ class EmailNotifier(notifierSettings: EmailNotifier.NotifierSettings) extends Lo
     try {
       val msg = new MimeMessage(session)
       msg.setFrom(senderAddress)
-      val recipientAddress = new InternetAddress(notifierSettings.contacts(message.contact.id).address)
+      val recipientAddress = new InternetAddress(emailContacts(message.contact.id).address)
       msg.setRecipient(Message.RecipientType.TO, recipientAddress)
       msg.setSubject("Mandelbrot notification")
       msg.setText(message.notification.toString)
@@ -176,28 +180,8 @@ class EmailNotifier(notifierSettings: EmailNotifier.NotifierSettings) extends Lo
   }
 }
 
-object EmailNotifier {
-  def props(notifierSettings: NotifierSettings) = Props(classOf[EmailNotifier], notifierSettings)
-
-  case class EmailContact(contact: Contact, address: String)
-  case class NotifierSettings(smtpServer: String,
-                              smtpPort: Int,
-                              enableTls: Boolean,
-                              requireAuth: Boolean,
-                              senderAddress: String,
-                              contacts: Map[String,EmailContact])
-
-  def settings(config: Config, contacts: Map[Contact,Config]): Option[NotifierSettings] = {
-    val smtpServer = config.getString("smtp-server")
-    val smtpPort = config.getInt("smtp-port")
-    val enableTls = config.getBoolean("enable-tls")
-    val requireAuth = config.getBoolean("require-auth")
-    val senderAddress = config.getString("sender-address")
-    val emailContacts = contacts.map { case (contact,contactConfig) =>
-      contact.id -> EmailContact(contact, contactConfig.getString("email-address"))
-    }.toMap
-    Some(NotifierSettings(smtpServer, smtpPort, enableTls, requireAuth, senderAddress, emailContacts))
-  }
+object EmailEmitter {
+  def props(settings: EmailEmitterSettings) = Props(classOf[EmailEmitter], settings)
 
   sealed trait State
   case object Sleeping extends State
@@ -209,6 +193,28 @@ object EmailNotifier {
 
   case object ProcessCommand
   case object SleepExpires
+}
+
+case class EmailContact(contact: Contact, address: String)
+
+case class EmailEmitterSettings(smtpServer: String,
+                                smtpPort: Int,
+                                enableTls: Boolean,
+                                requireAuth: Boolean,
+                                senderAddress: String)
+
+
+class EmailNotificationEmitter extends NotificationEmitterExtension {
+  type Settings = EmailEmitterSettings
+  def configure(config: Config): Settings = {
+    val smtpServer = config.getString("smtp-server")
+    val smtpPort = config.getInt("smtp-port")
+    val enableTls = config.getBoolean("enable-tls")
+    val requireAuth = config.getBoolean("require-auth")
+    val senderAddress = config.getString("sender-address")
+    EmailEmitterSettings(smtpServer, smtpPort, enableTls, requireAuth, senderAddress)
+  }
+  def props(settings: Settings): Props = EmailEmitter.props(settings)
 }
 
 /**

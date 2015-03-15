@@ -23,9 +23,10 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.Props
 import com.typesafe.config.{ConfigFactory, Config}
-import io.mandelbrot.core.{ServerConfigException, ServiceExtension}
 import scala.collection.JavaConversions._
 import scala.concurrent.duration.FiniteDuration
+
+import io.mandelbrot.core.ServerConfigException
 
 case class CoordinatorSettings(plugin: String, settings: Option[Any])
 

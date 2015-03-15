@@ -32,11 +32,7 @@ import io.mandelbrot.core.model._
 class StateManager(settings: StateSettings) extends Actor with ActorLogging {
 
   // config
-  val persister: ActorRef = {
-    val props = ServiceExtension.makePluginProps(settings.persister.plugin, settings.persister.settings)
-    log.info("loading persister plugin {}", settings.persister.plugin)
-    context.actorOf(props, "persister")
-  }
+  val persister: ActorRef = context.actorOf(settings.props, "persister")
 
   def receive = {
 
@@ -96,6 +92,3 @@ case class GetNotificationHistoryResult(op: GetNotificationHistory, page: ProbeN
 
 case class GetMetricHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int]) extends StateServiceQuery
 case class GetMetricHistoryResult(op: GetMetricHistory, page: ProbeMetricsPage) extends StateServiceResult
-
-/* marker trait for Persister implementations */
-trait Persister

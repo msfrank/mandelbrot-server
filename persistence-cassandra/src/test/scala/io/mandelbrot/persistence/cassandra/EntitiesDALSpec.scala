@@ -21,7 +21,7 @@ class EntitiesDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
     Cassandra(system).dropKeyspace()
   }
 
-  val settings = CassandraCoordinatorSettings()
+  val settings = CassandraEntityCoordinatorSettings()
 
   "A EntitiesDAL" should {
 

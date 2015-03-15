@@ -1,1 +1,1 @@
-io.mandelbrot.persistence.cassandra.CassandraEntityCoordinator
+io.mandelbrot.persistence.cassandra.CassandraEntityCoordinatorExtension

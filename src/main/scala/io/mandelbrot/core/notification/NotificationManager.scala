@@ -38,10 +38,8 @@ class NotificationManager(settings: NotificationSettings) extends Actor with Act
   import context.dispatcher
 
   // config
-  val notifiers: Map[String,ActorRef] = settings.notifiers.map { case (name, notifierSettings) =>
-    val props = ServiceExtension.makePluginProps(notifierSettings.plugin, notifierSettings.settings)
-    log.info("loading notifier plugin {}", name)
-    name -> context.actorOf(props, name)
+  val notifiers: Map[String,ActorRef] = settings.notifiers.map {
+    case (name, NotifierSettings(plugin, props)) => name -> context.actorOf(props, name)
   }
   val historyService = context.parent
 
@@ -124,7 +122,3 @@ case class ListMaintenanceWindowsResult(op: ListMaintenanceWindows, windows: Vec
 
 case class UnregisterMaintenanceWindow(id: UUID) extends NotificationServiceCommand
 case class UnregisterMaintenanceWindowResult(op: UnregisterMaintenanceWindow, id: UUID)
-
-
-/* marker trait for Notifier implementations */
-trait Notifier

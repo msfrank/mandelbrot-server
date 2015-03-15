@@ -4,18 +4,16 @@ import akka.actor.{Props, ActorLogging, Actor}
 import akka.pattern.pipe
 import com.typesafe.config.Config
 import org.joda.time.DateTime
+import scala.concurrent.Future
 
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.model._
 import io.mandelbrot.core._
-import io.mandelbrot.persistence.cassandra.CassandraPersister.CassandraPersisterSettings
-
-import scala.concurrent.Future
 
 /**
  *
  */
-class CassandraPersister(settings: CassandraPersisterSettings) extends Actor with ActorLogging with Persister {
+class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends Actor with ActorLogging {
   import context.dispatcher
 
   // config
@@ -126,12 +124,14 @@ class CassandraPersister(settings: CassandraPersisterSettings) extends Actor wit
   }
 }
 
-object CassandraPersister {
+object CassandraStatePersister {
+  def props(settings: CassandraStatePersisterSettings) = Props(classOf[CassandraStatePersister], settings)
+}
 
-  def props(managerSettings: CassandraPersisterSettings) = Props(classOf[CassandraPersister], managerSettings)
+case class CassandraStatePersisterSettings()
 
-  case class CassandraPersisterSettings()
-  def settings(config: Config): Option[CassandraPersisterSettings] = {
-    Some(CassandraPersisterSettings())
-  }
+class CassandraStatePersisterExtension extends StatePersisterExtension {
+  type Settings = CassandraStatePersisterSettings
+  def configure(config: Config): Settings = CassandraStatePersisterSettings()
+  def props(settings: Settings): Props = CassandraStatePersister.props(settings)
 }

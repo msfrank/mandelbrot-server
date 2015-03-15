@@ -1,0 +1,2 @@
+io.mandelbrot.core.notification.EmailNotificationEmitter
+io.mandelbrot.core.notification.LoggingNotificationEmitter

@@ -6,12 +6,11 @@ import org.joda.time.DateTime
 
 import io.mandelbrot.core.{ApiException, ResourceNotFound}
 import io.mandelbrot.core.model._
-import io.mandelbrot.persistence.cassandra.CassandraPersister.CassandraPersisterSettings
 
 /**
  *
  */
-class CommittedIndexDAL(settings: CassandraPersisterSettings,
+class CommittedIndexDAL(settings: CassandraStatePersisterSettings,
                         val session: Session,
                         implicit val ec: ExecutionContext) extends AbstractDriver {
 

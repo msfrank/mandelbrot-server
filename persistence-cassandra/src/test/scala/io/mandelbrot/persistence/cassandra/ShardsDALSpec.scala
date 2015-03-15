@@ -21,7 +21,7 @@ class ShardsDALSpec(_system: ActorSystem) extends TestKit(_system) with Implicit
     Cassandra(system).dropKeyspace()
   }
 
-  val settings = CassandraCoordinatorSettings()
+  val settings = CassandraEntityCoordinatorSettings()
 
   "A ShardsDAL" should {
 

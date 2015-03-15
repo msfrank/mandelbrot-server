@@ -11,7 +11,7 @@ import io.mandelbrot.core.entity._
 /**
  *
  */
-class EntitiesDAL(settings: CassandraCoordinatorSettings,
+class EntitiesDAL(settings: CassandraEntityCoordinatorSettings,
                   val session: Session,
                   implicit val ec: ExecutionContext) extends AbstractDriver {
 

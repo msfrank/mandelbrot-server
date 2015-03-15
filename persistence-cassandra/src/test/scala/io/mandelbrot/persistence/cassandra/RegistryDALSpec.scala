@@ -14,7 +14,6 @@ import io.mandelbrot.core.{ResourceNotFound, ApiException, AkkaConfig}
 import io.mandelbrot.core.ConfigConversions._
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.registry._
-import io.mandelbrot.persistence.cassandra.CassandraRegistrar.CassandraRegistrarSettings
 
 class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
 
@@ -24,7 +23,7 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
     Cassandra(system).dropKeyspace()
   }
 
-  val settings = CassandraRegistrarSettings()
+  val settings = CassandraRegistryPersisterSettings()
 
   "A RegistryDAL" should {
 

@@ -8,7 +8,7 @@ import io.mandelbrot.core.{ApiException, Conflict, ResourceNotFound}
 
 import scala.collection.JavaConversions._
 
-class TestCoordinator(settings: TestCoordinatorSettings) extends Actor with ActorLogging with Coordinator {
+class TestCoordinator(settings: TestCoordinatorSettings) extends Actor with ActorLogging {
 
   object EntityOrdering extends Ordering[Entity] {
     override def compare(x: Entity, y: Entity): Int = {
