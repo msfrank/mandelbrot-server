@@ -32,7 +32,7 @@ object MandelbrotConfig extends ComposableConfig {
       |    enabled = false
       |    seed-nodes = []
       |    min-nr-members = 0
-      |    total-shards = 0
+      |    total-shards = 4
       |    delivery-attempts = 3
       |    balancer-handover-retries = 10
       |    balancer-takeover-retries = 5

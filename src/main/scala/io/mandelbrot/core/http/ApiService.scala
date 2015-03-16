@@ -70,7 +70,7 @@ trait ApiService extends HttpService {
           complete {
             serviceProxy.ask(registerProbeSystem).map {
               case result: RegisterProbeSystemResult =>
-                HttpResponse(StatusCodes.Accepted,
+                HttpResponse(StatusCodes.OK,
                              headers = List(Location("/v2/systems/" + registerProbeSystem.uri.toString)),
                              entity = JsonBody(result.op.uri.toJson))
               case failure: ServiceOperationFailed =>
