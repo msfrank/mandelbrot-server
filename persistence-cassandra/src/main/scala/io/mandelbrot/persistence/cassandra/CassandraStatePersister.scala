@@ -16,9 +16,6 @@ import io.mandelbrot.core._
 class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends Actor with ActorLogging {
   import context.dispatcher
 
-  // config
-  val defaultLimit = 100
-
   // state
   val session = Cassandra(context.system).getSession
   val committedIndexDAL = new CommittedIndexDAL(settings, session, context.dispatcher)
@@ -65,7 +62,7 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
       val from = op.from
       val to = op.to
       val last = op.last
-      val limit = op.limit.getOrElse(defaultLimit)
+      val limit = op.limit
       getEpoch(probeRef, from, to, last).flatMap {
         case (epoch, committed) =>
           probeStatusDAL.getProbeConditionHistory(probeRef, epoch, from, to, limit).map {

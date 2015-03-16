@@ -104,28 +104,28 @@ class CassandraStatePersisterSpec(_system: ActorSystem)
       status5.correlation, status5.acknowledged, status5.squelched)
 
     "retrieve condition history with no windowing parameters" in {
-      actor ! GetConditionHistory(probeRef, None, None, Some(100), None)
+      actor ! GetConditionHistory(probeRef, None, None, 100, None)
       val getConditionHistoryResult = expectMsgClass(classOf[GetConditionHistoryResult])
       getConditionHistoryResult.page.history shouldEqual Vector(condition1, condition2, condition3, condition4, condition5)
       getConditionHistoryResult.page.exhausted shouldEqual true
     }
 
     "retrieve condition history with from specified" in {
-      actor ! GetConditionHistory(probeRef, Some(timestamp3), None, Some(100), None)
+      actor ! GetConditionHistory(probeRef, Some(timestamp3), None, 100, None)
       val getConditionHistoryResult = expectMsgClass(classOf[GetConditionHistoryResult])
       getConditionHistoryResult.page.history shouldEqual Vector(condition3, condition4, condition5)
       getConditionHistoryResult.page.exhausted shouldEqual true
     }
 
     "retrieve condition history with to specified" in {
-      actor ! GetConditionHistory(probeRef, None, Some(timestamp4), Some(100), None)
+      actor ! GetConditionHistory(probeRef, None, Some(timestamp4), 100, None)
       val getConditionHistoryResult = expectMsgClass(classOf[GetConditionHistoryResult])
       getConditionHistoryResult.page.history shouldEqual Vector(condition1, condition2, condition3)
       getConditionHistoryResult.page.exhausted shouldEqual true
     }
 
     "retrieve condition history with from and to specified" in {
-      actor ! GetConditionHistory(probeRef, Some(timestamp2), Some(timestamp5), Some(100), None)
+      actor ! GetConditionHistory(probeRef, Some(timestamp2), Some(timestamp5), 100, None)
       val getConditionHistoryResult = expectMsgClass(classOf[GetConditionHistoryResult])
       getConditionHistoryResult.page.history shouldEqual Vector(condition2, condition3, condition4)
       getConditionHistoryResult.page.exhausted shouldEqual true
