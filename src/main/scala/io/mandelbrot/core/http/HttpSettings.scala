@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit
 class HttpSettings(val interface: String,
                    val port: Int,
                    val backlog: Int,
+                   val pageLimit: Int,
                    val requestTimeout: FiniteDuration,
                    val debugExceptions: Boolean,
                    val tls: Option[TlsSettings])
@@ -35,10 +36,11 @@ object HttpSettings {
     val port = config.getInt("port")
     val interface = config.getString("interface")
     val backlog = config.getInt("backlog")
+    val pageLimit = config.getInt("page-limit")
     val requestTimeout = FiniteDuration(config.getDuration("request-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     val debugExceptions = config.getBoolean("debug-exceptions")
     val tls = if (config.hasPath("tls")) Some(TlsSettings.parse(config.getConfig("tls"))) else None
-    new HttpSettings(interface, port, backlog, requestTimeout, debugExceptions, tls)
+    new HttpSettings(interface, port, backlog, pageLimit, requestTimeout, debugExceptions, tls)
   }
 }
 

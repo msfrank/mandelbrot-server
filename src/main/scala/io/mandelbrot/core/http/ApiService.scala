@@ -83,7 +83,7 @@ trait ApiService extends HttpService {
       get {
         pagingParams { paging =>
           complete {
-            val limit = paging.limit.getOrElse(100)
+            val limit = paging.limit.getOrElse(settings.pageLimit)
             serviceProxy.ask(ListProbeSystems(limit, paging.last)).map {
               case result: ListProbeSystemsResult =>
                 result.page
@@ -166,7 +166,8 @@ trait ApiService extends HttpService {
             timeseriesParams { timeseries =>
             pagingParams { paging =>
                complete {
-                serviceProxy.ask(GetProbeCondition(ProbeRef(system, probe), timeseries.from, timeseries.to, paging.limit, paging.last)).map {
+                val limit = paging.limit.getOrElse(settings.pageLimit)
+                serviceProxy.ask(GetProbeCondition(ProbeRef(system, probe), timeseries.from, timeseries.to, limit, paging.last)).map {
                   case result: GetProbeConditionResult =>
                     result.page
                   case failure: ServiceOperationFailed =>
@@ -181,7 +182,8 @@ trait ApiService extends HttpService {
             timeseriesParams { timeseries =>
             pagingParams { paging =>
               complete {
-                serviceProxy.ask(GetProbeNotifications(ProbeRef(system, probe), timeseries.from, timeseries.to, paging.limit, paging.last)).map {
+                val limit = paging.limit.getOrElse(settings.pageLimit)
+                serviceProxy.ask(GetProbeNotifications(ProbeRef(system, probe), timeseries.from, timeseries.to, limit, paging.last)).map {
                   case result: GetProbeNotificationsResult =>
                     result.page
                   case failure: ServiceOperationFailed =>
@@ -196,7 +198,8 @@ trait ApiService extends HttpService {
             timeseriesParams { timeseries =>
             pagingParams { paging =>
               complete {
-                serviceProxy.ask(GetProbeMetrics(ProbeRef(system, probe), timeseries.from, timeseries.to, paging.limit, paging.last)).map {
+                val limit = paging.limit.getOrElse(settings.pageLimit)
+                serviceProxy.ask(GetProbeMetrics(ProbeRef(system, probe), timeseries.from, timeseries.to, limit, paging.last)).map {
                   case result: GetProbeMetricsResult =>
                     result.page
                   case failure: ServiceOperationFailed =>

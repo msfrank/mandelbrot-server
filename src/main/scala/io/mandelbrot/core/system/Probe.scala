@@ -525,13 +525,13 @@ case class ProbeOperationFailed(op: ProbeOperation, failure: Throwable) extends 
 case class GetProbeStatus(probeRef: ProbeRef) extends ProbeQuery
 case class GetProbeStatusResult(op: GetProbeStatus, status: ProbeStatus) extends ProbeResult
 
-case class GetProbeCondition(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int], last: Option[String]) extends ProbeQuery
+case class GetProbeCondition(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends ProbeQuery
 case class GetProbeConditionResult(op: GetProbeCondition, page: ProbeConditionPage) extends ProbeResult
 
-case class GetProbeNotifications(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int], last: Option[String]) extends ProbeQuery
+case class GetProbeNotifications(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends ProbeQuery
 case class GetProbeNotificationsResult(op: GetProbeNotifications, page: ProbeNotificationsPage) extends ProbeResult
 
-case class GetProbeMetrics(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Option[Int], last: Option[String]) extends ProbeQuery
+case class GetProbeMetrics(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends ProbeQuery
 case class GetProbeMetricsResult(op: GetProbeMetrics, page: ProbeMetricsPage) extends ProbeResult
 
 case class ProcessProbeEvaluation(probeRef: ProbeRef, evaluation: ProbeEvaluation) extends ProbeCommand

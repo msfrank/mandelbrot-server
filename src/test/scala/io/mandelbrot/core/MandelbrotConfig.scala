@@ -25,6 +25,7 @@ object MandelbrotConfig extends ComposableConfig {
       |    interface = localhost
       |    port = 8080
       |    backlog = 10
+      |    page-limit = 100
       |    request-timeout = 10 seconds
       |    debug-exceptions = false
       |  }
