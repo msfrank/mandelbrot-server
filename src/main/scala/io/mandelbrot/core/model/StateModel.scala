@@ -33,10 +33,10 @@ case class ProbeCondition(timestamp: DateTime,
 
 case class ProbeConditionPage(history: Vector[ProbeCondition], last: Option[DateTime], exhausted: Boolean) extends StateModel
 
-case class ProbeNotifications(notifications: Vector[ProbeNotification]) extends StateModel
+case class ProbeNotifications(timestamp: DateTime, notifications: Vector[ProbeNotification]) extends StateModel
 
 case class ProbeNotificationsPage(history: Vector[ProbeNotifications], last: Option[DateTime], exhausted: Boolean) extends StateModel
 
-case class ProbeMetrics(metrics: Map[String,BigDecimal]) extends StateModel
+case class ProbeMetrics(timestamp: DateTime, metrics: Map[String,BigDecimal]) extends StateModel
 
 case class ProbeMetricsPage(history: Vector[ProbeMetrics], last: Option[DateTime], exhausted: Boolean) extends StateModel

@@ -58,21 +58,16 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
 
     /* retrieve condition history for the specified ProbeRef */
     case op: GetConditionHistory =>
-      val probeRef = op.probeRef
-      val from = op.from
-      val to = op.to
-      val last = op.last
-      val limit = op.limit
-      getEpoch(probeRef, from, to, last).flatMap {
+      getEpoch(op.probeRef, op.from, op.to, op.last).flatMap {
         case (epoch, committed) =>
-          probeStatusDAL.getProbeConditionHistory(probeRef, epoch, from, to, limit).map {
+          probeStatusDAL.getProbeConditionHistory(op.probeRef, epoch, op.from, op.to, op.limit).map {
             case history => (epoch, committed, history)
           }
       }.map {
         case (epoch, committed, history) =>
           history.lastOption.map(_.timestamp) match {
             case Some(timestamp) =>
-              if (history.length < limit && epoch == EpochUtils.timestamp2epoch(committed.current))
+              if (history.length < op.limit && epoch == EpochUtils.timestamp2epoch(committed.current))
                 GetConditionHistoryResult(op, ProbeConditionPage(history, Some(timestamp), exhausted = true))
               else
                 GetConditionHistoryResult(op, ProbeConditionPage(history, Some(timestamp), exhausted = false))
@@ -87,8 +82,31 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
           StateServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
-//    /* retrieve notification history for the specified ProbeRef */
-//    case op: GetNotificationHistory =>
+    /* retrieve notification history for the specified ProbeRef */
+    case op: GetNotificationHistory =>
+      getEpoch(op.probeRef, op.from, op.to, op.last).flatMap {
+        case (epoch, committed) =>
+          probeStatusDAL.getProbeNotificationsHistory(op.probeRef, epoch, op.from, op.to, op.limit).map {
+            case history => (epoch, committed, history)
+          }
+      }.map {
+        case (epoch, committed, history) =>
+          history.lastOption.map(_.timestamp) match {
+            case Some(timestamp) =>
+              if (history.length < op.limit && epoch == EpochUtils.timestamp2epoch(committed.current))
+                GetNotificationHistoryResult(op, ProbeNotificationsPage(history, Some(timestamp), exhausted = true))
+              else
+                GetNotificationHistoryResult(op, ProbeNotificationsPage(history, Some(timestamp), exhausted = false))
+            case None =>
+              val last = Some(EpochUtils.epoch2timestamp(epoch))
+              val exhausted = if (epoch == EpochUtils.timestamp2epoch(committed.current)) true else false
+              GetNotificationHistoryResult(op, ProbeNotificationsPage(history, last, exhausted))
+          }
+      }.recover {
+        case ex: Throwable =>
+          log.error(ex, "failed to update probe status")
+          StateServiceOperationFailed(op, ex)
+      }.pipeTo(sender())
   }
 
   /**

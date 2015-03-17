@@ -64,41 +64,51 @@ class CassandraStatePersisterSpec(_system: ActorSystem)
     val probeRef = ProbeRef("test3")
 
     val timestamp1 = today.toDateTime.plusMinutes(1)
+    val metrics1 = Map("load" -> BigDecimal(1))
     val status1 = ProbeStatus(timestamp1, ProbeKnown, Some("healthy1"), ProbeHealthy,
-      Map.empty, None, None, None, None, squelched = false)
-    actor ! UpdateProbeStatus(probeRef, status1, Vector.empty, None)
+      metrics1, None, None, None, None, squelched = false)
+    val notifications1 = ProbeNotifications(timestamp1, Vector(NotifyLifecycleChanges(probeRef, timestamp1, ProbeJoining, ProbeKnown)))
+    actor ! UpdateProbeStatus(probeRef, status1, notifications1.notifications, None)
     expectMsgClass(classOf[UpdateProbeStatusResult])
     val condition1 = ProbeCondition(status1.timestamp, status1.lifecycle, status1.summary, status1.health,
       status1.correlation, status1.acknowledged, status1.squelched)
 
     val timestamp2 = today.toDateTime.plusMinutes(2)
+    val metrics2 = Map("load" -> BigDecimal(2))
     val status2 = ProbeStatus(timestamp2, ProbeKnown, Some("healthy2"), ProbeHealthy,
-      Map.empty, None, None, None, None, squelched = false)
-    actor ! UpdateProbeStatus(probeRef, status2, Vector.empty, None)
+      metrics2, None, None, None, None, squelched = false)
+    val notifications2 = ProbeNotifications(timestamp2, Vector(NotifyLifecycleChanges(probeRef, timestamp1, ProbeJoining, ProbeKnown)))
+    actor ! UpdateProbeStatus(probeRef, status2, notifications2.notifications, Some(timestamp1))
     expectMsgClass(classOf[UpdateProbeStatusResult])
     val condition2 = ProbeCondition(status2.timestamp, status2.lifecycle, status2.summary, status2.health,
       status2.correlation, status2.acknowledged, status2.squelched)
 
     val timestamp3 = today.toDateTime.plusMinutes(3)
+    val metrics3 = Map("load" -> BigDecimal(3))
     val status3 = ProbeStatus(timestamp3, ProbeKnown, Some("healthy3"), ProbeHealthy,
-      Map.empty, None, None, None, None, squelched = false)
-    actor ! UpdateProbeStatus(probeRef, status3, Vector.empty, None)
+      metrics3, None, None, None, None, squelched = false)
+    val notifications3 = ProbeNotifications(timestamp3, Vector(NotifyLifecycleChanges(probeRef, timestamp1, ProbeJoining, ProbeKnown)))
+    actor ! UpdateProbeStatus(probeRef, status3, notifications3.notifications, Some(timestamp2))
     expectMsgClass(classOf[UpdateProbeStatusResult])
     val condition3 = ProbeCondition(status3.timestamp, status3.lifecycle, status3.summary, status3.health,
       status3.correlation, status3.acknowledged, status3.squelched)
 
     val timestamp4 = today.toDateTime.plusMinutes(4)
+    val metrics4 = Map("load" -> BigDecimal(4))
     val status4 = ProbeStatus(timestamp4, ProbeKnown, Some("healthy4"), ProbeHealthy,
-      Map.empty, None, None, None, None, squelched = false)
-    actor ! UpdateProbeStatus(probeRef, status4, Vector.empty, None)
+      metrics4, None, None, None, None, squelched = false)
+    val notifications4 = ProbeNotifications(timestamp4, Vector(NotifyLifecycleChanges(probeRef, timestamp1, ProbeJoining, ProbeKnown)))
+    actor ! UpdateProbeStatus(probeRef, status4, notifications4.notifications, Some(timestamp3))
     expectMsgClass(classOf[UpdateProbeStatusResult])
     val condition4 = ProbeCondition(status4.timestamp, status4.lifecycle, status4.summary, status4.health,
       status4.correlation, status4.acknowledged, status4.squelched)
 
     val timestamp5 = today.toDateTime.plusMinutes(5)
+    val metrics5 = Map("load" -> BigDecimal(5))
     val status5 = ProbeStatus(timestamp5, ProbeKnown, Some("healthy3"), ProbeHealthy,
-      Map.empty, None, None, None, None, squelched = false)
-    actor ! UpdateProbeStatus(probeRef, status5, Vector.empty, None)
+      metrics5, None, None, None, None, squelched = false)
+    val notifications5 = ProbeNotifications(timestamp5, Vector(NotifyLifecycleChanges(probeRef, timestamp1, ProbeJoining, ProbeKnown)))
+    actor ! UpdateProbeStatus(probeRef, status5, notifications5.notifications, Some(timestamp4))
     expectMsgClass(classOf[UpdateProbeStatusResult])
     val condition5 = ProbeCondition(status5.timestamp, status5.lifecycle, status5.summary, status5.health,
       status5.correlation, status5.acknowledged, status5.squelched)
@@ -129,6 +139,34 @@ class CassandraStatePersisterSpec(_system: ActorSystem)
       val getConditionHistoryResult = expectMsgClass(classOf[GetConditionHistoryResult])
       getConditionHistoryResult.page.history shouldEqual Vector(condition2, condition3, condition4)
       getConditionHistoryResult.page.exhausted shouldEqual true
+    }
+
+    "retrieve notifications history with no windowing parameters" in {
+      actor ! GetNotificationHistory(probeRef, None, None, 100, None)
+      val getNotificationHistoryResult = expectMsgClass(classOf[GetNotificationHistoryResult])
+      getNotificationHistoryResult.page.history shouldEqual Vector(notifications1, notifications2, notifications3, notifications4, notifications5)
+      getNotificationHistoryResult.page.exhausted shouldEqual true
+    }
+
+    "retrieve notifications history with from specified" in {
+      actor ! GetNotificationHistory(probeRef, Some(timestamp3), None, 100, None)
+      val getNotificationHistoryResult = expectMsgClass(classOf[GetNotificationHistoryResult])
+      getNotificationHistoryResult.page.history shouldEqual Vector(notifications3, notifications4, notifications5)
+      getNotificationHistoryResult.page.exhausted shouldEqual true
+    }
+
+    "retrieve notifications history with to specified" in {
+      actor ! GetNotificationHistory(probeRef, None, Some(timestamp4), 100, None)
+      val getNotificationHistoryResult = expectMsgClass(classOf[GetNotificationHistoryResult])
+      getNotificationHistoryResult.page.history shouldEqual Vector(notifications1, notifications2, notifications3)
+      getNotificationHistoryResult.page.exhausted shouldEqual true
+    }
+
+    "retrieve notifications history with from and to specified" in {
+      actor ! GetNotificationHistory(probeRef, Some(timestamp2), Some(timestamp5), 100, None)
+      val getNotificationHistoryResult = expectMsgClass(classOf[GetNotificationHistoryResult])
+      getNotificationHistoryResult.page.history shouldEqual Vector(notifications2, notifications3, notifications4)
+      getNotificationHistoryResult.page.exhausted shouldEqual true
     }
   }
 }

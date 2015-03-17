@@ -104,7 +104,7 @@ class ProbeStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val notifications = Vector(NotifyHealthAlerts(probeRef, timestamp, ProbeFailed, correlation, Some(acknowledged)))
       Await.result(dal.updateProbeStatus(probeRef, epoch, status, notifications), 5.seconds)
       val getProbeNotificationsResult = Await.result(dal.getProbeNotifications(probeRef, epoch, timestamp), 5.seconds)
-      getProbeNotificationsResult shouldEqual ProbeNotifications(notifications)
+      getProbeNotificationsResult shouldEqual ProbeNotifications(timestamp, notifications)
     }
 
     "get probe metrics" in withSessionAndDAL { (session, dal) =>
@@ -118,7 +118,7 @@ class ProbeStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val notifications = Vector.empty[ProbeNotification]
       Await.result(dal.updateProbeStatus(probeRef, epoch, status, notifications), 5.seconds)
       val getProbeMetricsResult = Await.result(dal.getProbeMetrics(probeRef, epoch, timestamp), 5.seconds)
-      getProbeMetricsResult shouldEqual ProbeMetrics(status.metrics)
+      getProbeMetricsResult shouldEqual ProbeMetrics(timestamp, status.metrics)
     }
   }
 }

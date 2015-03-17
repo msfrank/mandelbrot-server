@@ -38,10 +38,10 @@ trait StateProtocol extends DefaultJsonProtocol with BasicProtocol with Notifica
   implicit val ProbeConditionFormat = jsonFormat7(ProbeCondition)
 
   /* convert ProbeNotifications class */
-  implicit val ProbeNotificationsFormat = jsonFormat1(ProbeNotifications)
+  implicit val ProbeNotificationsFormat = jsonFormat2(ProbeNotifications)
 
   /* convert ProbeMetrics class */
-  implicit val ProbeMetricsFormat = jsonFormat1(ProbeMetrics)
+  implicit val ProbeMetricsFormat = jsonFormat2(ProbeMetrics)
 
   /* convert ProbeCondition class */
   implicit val ProbeConditionPageFormat = jsonFormat3(ProbeConditionPage)

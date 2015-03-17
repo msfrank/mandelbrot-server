@@ -50,8 +50,8 @@ class ProbeStatusDAL(settings: CassandraStatePersisterSettings,
     val condition = ProbeCondition(probeStatus.timestamp, probeStatus.lifecycle, probeStatus.summary,
       probeStatus.health, probeStatus.correlation, probeStatus.acknowledged, probeStatus.squelched)
     val _condition = probeCondition2string(condition)
-    val _notifications = if (notifications.nonEmpty) probeNotifications2string(ProbeNotifications(notifications)) else null
-    val _metrics = if (probeStatus.metrics.nonEmpty) probeMetrics2string(ProbeMetrics(probeStatus.metrics)) else null
+    val _notifications = if (notifications.nonEmpty) probeNotifications2string(ProbeNotifications(probeStatus.timestamp, notifications)) else null
+    val _metrics = if (probeStatus.metrics.nonEmpty) probeMetrics2string(ProbeMetrics(probeStatus.timestamp, probeStatus.metrics)) else null
     val statement = new BoundStatement(preparedUpdateProbeStatus)
     statement.bind(_probeRef, _epoch, timestamp, lastUpdate, lastChange, _condition, _notifications, _metrics)
     executeAsync(statement).map { _ => Unit }
@@ -172,7 +172,7 @@ class ProbeStatusDAL(settings: CassandraStatePersisterSettings,
         if (row == null) throw ApiException(ResourceNotFound) else {
           Option(row.getString(0))
             .map(string2probeNotifications)
-            .getOrElse(ProbeNotifications(Vector.empty))
+            .getOrElse(ProbeNotifications(timestamp, Vector.empty))
         }
     }
   }
@@ -221,7 +221,7 @@ class ProbeStatusDAL(settings: CassandraStatePersisterSettings,
         if (row == null) throw ApiException(ResourceNotFound) else {
           Option(row.getString(0))
             .map(string2probeMetrics)
-            .getOrElse(ProbeMetrics(Map.empty))
+            .getOrElse(ProbeMetrics(timestamp, Map.empty))
         }
     }
   }
