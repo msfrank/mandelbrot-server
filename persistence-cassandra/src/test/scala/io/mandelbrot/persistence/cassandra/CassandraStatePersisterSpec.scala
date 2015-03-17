@@ -64,9 +64,9 @@ class CassandraStatePersisterSpec(_system: ActorSystem)
     val probeRef = ProbeRef("test3")
 
     val timestamp1 = today.toDateTime.plusMinutes(1)
-    val metrics1 = Map("load" -> BigDecimal(1))
+    val metrics1 = ProbeMetrics(timestamp1, Map("load" -> BigDecimal(1)))
     val status1 = ProbeStatus(timestamp1, ProbeKnown, Some("healthy1"), ProbeHealthy,
-      metrics1, None, None, None, None, squelched = false)
+      metrics1.metrics, None, None, None, None, squelched = false)
     val notifications1 = ProbeNotifications(timestamp1, Vector(NotifyLifecycleChanges(probeRef, timestamp1, ProbeJoining, ProbeKnown)))
     actor ! UpdateProbeStatus(probeRef, status1, notifications1.notifications, None)
     expectMsgClass(classOf[UpdateProbeStatusResult])
@@ -74,9 +74,9 @@ class CassandraStatePersisterSpec(_system: ActorSystem)
       status1.correlation, status1.acknowledged, status1.squelched)
 
     val timestamp2 = today.toDateTime.plusMinutes(2)
-    val metrics2 = Map("load" -> BigDecimal(2))
+    val metrics2 = ProbeMetrics(timestamp2, Map("load" -> BigDecimal(2)))
     val status2 = ProbeStatus(timestamp2, ProbeKnown, Some("healthy2"), ProbeHealthy,
-      metrics2, None, None, None, None, squelched = false)
+      metrics2.metrics, None, None, None, None, squelched = false)
     val notifications2 = ProbeNotifications(timestamp2, Vector(NotifyLifecycleChanges(probeRef, timestamp1, ProbeJoining, ProbeKnown)))
     actor ! UpdateProbeStatus(probeRef, status2, notifications2.notifications, Some(timestamp1))
     expectMsgClass(classOf[UpdateProbeStatusResult])
@@ -84,9 +84,9 @@ class CassandraStatePersisterSpec(_system: ActorSystem)
       status2.correlation, status2.acknowledged, status2.squelched)
 
     val timestamp3 = today.toDateTime.plusMinutes(3)
-    val metrics3 = Map("load" -> BigDecimal(3))
+    val metrics3 = ProbeMetrics(timestamp3, Map("load" -> BigDecimal(3)))
     val status3 = ProbeStatus(timestamp3, ProbeKnown, Some("healthy3"), ProbeHealthy,
-      metrics3, None, None, None, None, squelched = false)
+      metrics3.metrics, None, None, None, None, squelched = false)
     val notifications3 = ProbeNotifications(timestamp3, Vector(NotifyLifecycleChanges(probeRef, timestamp1, ProbeJoining, ProbeKnown)))
     actor ! UpdateProbeStatus(probeRef, status3, notifications3.notifications, Some(timestamp2))
     expectMsgClass(classOf[UpdateProbeStatusResult])
@@ -94,9 +94,9 @@ class CassandraStatePersisterSpec(_system: ActorSystem)
       status3.correlation, status3.acknowledged, status3.squelched)
 
     val timestamp4 = today.toDateTime.plusMinutes(4)
-    val metrics4 = Map("load" -> BigDecimal(4))
+    val metrics4 = ProbeMetrics(timestamp4, Map("load" -> BigDecimal(4)))
     val status4 = ProbeStatus(timestamp4, ProbeKnown, Some("healthy4"), ProbeHealthy,
-      metrics4, None, None, None, None, squelched = false)
+      metrics4.metrics, None, None, None, None, squelched = false)
     val notifications4 = ProbeNotifications(timestamp4, Vector(NotifyLifecycleChanges(probeRef, timestamp1, ProbeJoining, ProbeKnown)))
     actor ! UpdateProbeStatus(probeRef, status4, notifications4.notifications, Some(timestamp3))
     expectMsgClass(classOf[UpdateProbeStatusResult])
@@ -104,9 +104,9 @@ class CassandraStatePersisterSpec(_system: ActorSystem)
       status4.correlation, status4.acknowledged, status4.squelched)
 
     val timestamp5 = today.toDateTime.plusMinutes(5)
-    val metrics5 = Map("load" -> BigDecimal(5))
+    val metrics5 = ProbeMetrics(timestamp5, Map("load" -> BigDecimal(5)))
     val status5 = ProbeStatus(timestamp5, ProbeKnown, Some("healthy3"), ProbeHealthy,
-      metrics5, None, None, None, None, squelched = false)
+      metrics5.metrics, None, None, None, None, squelched = false)
     val notifications5 = ProbeNotifications(timestamp5, Vector(NotifyLifecycleChanges(probeRef, timestamp1, ProbeJoining, ProbeKnown)))
     actor ! UpdateProbeStatus(probeRef, status5, notifications5.notifications, Some(timestamp4))
     expectMsgClass(classOf[UpdateProbeStatusResult])
@@ -167,6 +167,34 @@ class CassandraStatePersisterSpec(_system: ActorSystem)
       val getNotificationHistoryResult = expectMsgClass(classOf[GetNotificationHistoryResult])
       getNotificationHistoryResult.page.history shouldEqual Vector(notifications2, notifications3, notifications4)
       getNotificationHistoryResult.page.exhausted shouldEqual true
+    }
+
+    "retrieve metrics history with no windowing parameters" in {
+      actor ! GetMetricHistory(probeRef, None, None, 100, None)
+      val getMetricHistoryResult = expectMsgClass(classOf[GetMetricHistoryResult])
+      getMetricHistoryResult.page.history shouldEqual Vector(metrics1, metrics2, metrics3, metrics4, metrics5)
+      getMetricHistoryResult.page.exhausted shouldEqual true
+    }
+
+    "retrieve metrics history with from specified" in {
+      actor ! GetMetricHistory(probeRef, Some(timestamp3), None, 100, None)
+      val getMetricHistoryResult = expectMsgClass(classOf[GetMetricHistoryResult])
+      getMetricHistoryResult.page.history shouldEqual Vector(metrics3, metrics4, metrics5)
+      getMetricHistoryResult.page.exhausted shouldEqual true
+    }
+
+    "retrieve metrics history with to specified" in {
+      actor ! GetMetricHistory(probeRef, None, Some(timestamp4), 100, None)
+      val getMetricHistoryResult = expectMsgClass(classOf[GetMetricHistoryResult])
+      getMetricHistoryResult.page.history shouldEqual Vector(metrics1, metrics2, metrics3)
+      getMetricHistoryResult.page.exhausted shouldEqual true
+    }
+
+    "retrieve metrics history with from and to specified" in {
+      actor ! GetMetricHistory(probeRef, Some(timestamp2), Some(timestamp5), 100, None)
+      val getMetricHistoryResult = expectMsgClass(classOf[GetMetricHistoryResult])
+      getMetricHistoryResult.page.history shouldEqual Vector(metrics2, metrics3, metrics4)
+      getMetricHistoryResult.page.exhausted shouldEqual true
     }
   }
 }

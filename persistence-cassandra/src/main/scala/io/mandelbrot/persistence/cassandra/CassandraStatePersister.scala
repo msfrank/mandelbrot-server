@@ -107,6 +107,32 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
           log.error(ex, "failed to update probe status")
           StateServiceOperationFailed(op, ex)
       }.pipeTo(sender())
+
+    /* retrieve metrics history for the specified ProbeRef */
+    case op: GetMetricHistory =>
+      getEpoch(op.probeRef, op.from, op.to, op.last).flatMap {
+        case (epoch, committed) =>
+          probeStatusDAL.getProbeMetricsHistory(op.probeRef, epoch, op.from, op.to, op.limit).map {
+            case history => (epoch, committed, history)
+          }
+      }.map {
+        case (epoch, committed, history) =>
+          history.lastOption.map(_.timestamp) match {
+            case Some(timestamp) =>
+              if (history.length < op.limit && epoch == EpochUtils.timestamp2epoch(committed.current))
+                GetMetricHistoryResult(op, ProbeMetricsPage(history, Some(timestamp), exhausted = true))
+              else
+                GetMetricHistoryResult(op, ProbeMetricsPage(history, Some(timestamp), exhausted = false))
+            case None =>
+              val last = Some(EpochUtils.epoch2timestamp(epoch))
+              val exhausted = if (epoch == EpochUtils.timestamp2epoch(committed.current)) true else false
+              GetMetricHistoryResult(op, ProbeMetricsPage(history, last, exhausted))
+          }
+      }.recover {
+        case ex: Throwable =>
+          log.error(ex, "failed to update probe status")
+          StateServiceOperationFailed(op, ex)
+      }.pipeTo(sender())
   }
 
   /**
