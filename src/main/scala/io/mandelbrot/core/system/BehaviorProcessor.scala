@@ -109,6 +109,18 @@ trait BehaviorProcessor {
   }
 }
 
+sealed trait TimerEffect
+case object StartTimer extends TimerEffect
+case object StopTimer extends TimerEffect
+case object PreserveTimer extends TimerEffect
+case object RestartTimer extends TimerEffect
+case object ResetTimer extends TimerEffect
+
 sealed trait ProbeEffect
-case class CommandEffect(result: ProbeResult, status: ProbeStatus, notifications: Vector[ProbeNotification]) extends ProbeEffect
-case class EventEffect(status: ProbeStatus, notifications: Vector[ProbeNotification]) extends ProbeEffect
+case class CommandEffect(result: ProbeResult,
+                         status: ProbeStatus,
+                         notifications: Vector[ProbeNotification]) extends ProbeEffect
+
+case class EventEffect(status: ProbeStatus,
+                       notifications: Vector[ProbeNotification]) extends ProbeEffect
+

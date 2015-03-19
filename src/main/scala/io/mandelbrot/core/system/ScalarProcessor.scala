@@ -33,8 +33,6 @@ class ScalarProcessor extends BehaviorProcessor {
   val flapQueue: Option[FlapQueue] = None
 
   def enter(probe: ProbeInterface): Option[EventEffect] = {
-    probe.alertTimer.stop()
-    probe.expiryTimer.restart(probe.policy.joiningTimeout)
     if (probe.lifecycle == ProbeInitializing) {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val status = probe.getProbeStatus.copy(lifecycle = ProbeJoining, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
@@ -62,11 +60,12 @@ class ScalarProcessor extends BehaviorProcessor {
       var lastChange = probe.lastChange
       var correlationId = probe.correlationId
       var acknowledgementId = probe.acknowledgementId
+      var alertTimer: TimerEffect = PreserveTimer
+      // reset the expiry timer
+      var expiryTimer: TimerEffect = ResetTimer
       // update lifecycle
       if (lifecycle == ProbeJoining)
         lifecycle = ProbeKnown
-      // reset the expiry timer
-      probe.expiryTimer.reset(probe.policy.probeTimeout)
       if (health != probe.health) {
         lastChange = Some(timestamp)
         flapQueue.foreach(_.push(command.evaluation.timestamp))
@@ -75,14 +74,13 @@ class ScalarProcessor extends BehaviorProcessor {
       if (health == ProbeHealthy) {
         correlationId = None
         acknowledgementId = None
-        probe.alertTimer.stop()
+        alertTimer = StopTimer
       }
       // we are non-healthy
       else {
         if (probe.correlationId.isEmpty)
           correlationId = Some(UUID.randomUUID())
-        if (!probe.alertTimer.isRunning)
-          probe.alertTimer.start(probe.policy.alertTimeout)
+        alertTimer = StartTimer
       }
 
       val status = ProbeStatus(timestamp, lifecycle, summary, health, metrics, lastUpdate, lastChange, correlationId, acknowledgementId, probe.squelch)
@@ -125,10 +123,6 @@ class ScalarProcessor extends BehaviorProcessor {
         lastChange = Some(timestamp)
         flapQueue.foreach(_.push(timestamp))
       }
-      if (!probe.alertTimer.isRunning)
-        probe.alertTimer.start(probe.policy.alertTimeout)
-      // reset the expiry timer
-      probe.expiryTimer.restart(probe.policy.probeTimeout)
       val status = probe.getProbeStatus(timestamp).copy(health = health, summary = None, lastChange = lastChange, correlation = correlationId)
       println("expiry status is " + status.toString)
       // append health notification
@@ -150,8 +144,6 @@ class ScalarProcessor extends BehaviorProcessor {
   def processAlertTimeout(probe: ProbeInterface): Option[EventEffect] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val status = probe.getProbeStatus(timestamp)
-    // restart the alert timer
-    probe.alertTimer.restart(probe.policy.alertTimeout)
     // send alert notification
     val notifications = probe.correlationId.map { correlation =>
       NotifyHealthAlerts(probe.probeRef, timestamp, probe.health, correlation, probe.acknowledgementId)
@@ -165,17 +157,14 @@ class ScalarProcessor extends BehaviorProcessor {
    * are stopped, then the actor itself is stopped.
    */
   def retire(probe: ProbeInterface, lsn: Long): Option[EventEffect] = {
-    probe.expiryTimer.stop()
-    probe.alertTimer.stop()
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val status = probe.getProbeStatus(timestamp).copy(lifecycle = ProbeRetired, lastChange = Some(timestamp), lastUpdate = Some(timestamp))
     val notifications = Vector(NotifyLifecycleChanges(probe.probeRef, timestamp, probe.lifecycle, ProbeRetired))
-    Some(EventEffect(status, notifications))  }
+    Some(EventEffect(status, notifications))
+  }
 
   def exit(probe: ProbeInterface): Option[EventEffect] = {
-    probe.alertTimer.stop()
-    probe.expiryTimer.stop()
-    None
+    Some(EventEffect(probe.getProbeStatus, Vector.empty))
   }
 }
 

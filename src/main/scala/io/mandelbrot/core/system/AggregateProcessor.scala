@@ -38,8 +38,6 @@ class AggregateProcessor(evaluation: AggregateEvaluation) extends BehaviorProces
 
   def enter(probe: ProbeInterface): Option[EventEffect] = {
     probe.children.foreach(child => children.put(child, None))
-    probe.alertTimer.stop()
-    probe.expiryTimer.restart(probe.policy.joiningTimeout)
     val status = if (probe.lifecycle == ProbeInitializing) {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       probe.getProbeStatus.copy(lifecycle = ProbeSynthetic, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
@@ -75,21 +73,23 @@ class AggregateProcessor(evaluation: AggregateEvaluation) extends BehaviorProces
       Some(timestamp)
     }
 
+    var alertTimer: TimerEffect = PreserveTimer
+    var acknowledgementId: Option[UUID] = None
+
     // we are healthy
-    val acknowledgementId = if (health == ProbeHealthy) {
-      probe.alertTimer.stop()
-      None
+    if (health == ProbeHealthy) {
+      alertTimer = StopTimer
+      acknowledgementId = None
     }
     // we are non-healthy
     else {
-      if (!probe.alertTimer.isRunning)
-        probe.alertTimer.start(probe.policy.alertTimeout)
-      probe.acknowledgementId
+      alertTimer = StartTimer
+      acknowledgementId = probe.acknowledgementId
     }
 
     val status = ProbeStatus(timestamp, probe.lifecycle, None, health, Map.empty, lastUpdate, lastChange, correlationId, acknowledgementId, probe.squelch)
-
     var notifications = Vector.empty[ProbeNotification]
+
     // append health notification
     flapQueue match {
       case Some(flapDetector) if flapDetector.isFlapping =>
@@ -113,8 +113,6 @@ class AggregateProcessor(evaluation: AggregateEvaluation) extends BehaviorProces
   def processAlertTimeout(probe: ProbeInterface): Option[EventEffect] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val status = probe.getProbeStatus(timestamp)
-    // restart the alert timer
-    probe.alertTimer.restart(probe.policy.alertTimeout)
     // send alert notification
     val notifications = probe.correlationId.map { correlation =>
       NotifyHealthAlerts(probe.probeRef, timestamp, probe.health, correlation, probe.acknowledgementId)
@@ -128,8 +126,6 @@ class AggregateProcessor(evaluation: AggregateEvaluation) extends BehaviorProces
    * are stopped, then the actor itself is stopped.
    */
   def retire(probe: ProbeInterface, lsn: Long): Option[EventEffect] = {
-    probe.expiryTimer.stop()
-    probe.alertTimer.stop()
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val status = probe.getProbeStatus(timestamp).copy(lifecycle = ProbeRetired, lastChange = Some(timestamp), lastUpdate = Some(timestamp))
     val notifications = Vector(NotifyLifecycleChanges(probe.probeRef, timestamp, probe.lifecycle, ProbeRetired))
@@ -137,9 +133,7 @@ class AggregateProcessor(evaluation: AggregateEvaluation) extends BehaviorProces
   }
 
   def exit(probe: ProbeInterface): Option[EventEffect] = {
-    // stop timers
-    probe.alertTimer.stop()
-    None
+    Some(EventEffect(probe.getProbeStatus, Vector.empty))
   }
 }
 

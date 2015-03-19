@@ -53,9 +53,9 @@ class StateManager(settings: StateSettings) extends Actor with ActorLogging {
     case op: GetNotificationHistory =>
       persister forward op
 
-//    /* retrieve metric history */
-//    case op: GetMetricHistory =>
-//      persister forward op
+    /* retrieve metric history */
+    case op: GetMetricHistory =>
+      persister forward op
   }
 }
 

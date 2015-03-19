@@ -34,8 +34,6 @@ trait ProbeInterface {
   val probeRef: ProbeRef
   val parent: ActorRef
   val probeGeneration: Long
-  val expiryTimer: Timer
-  val alertTimer: Timer
 
   def children: Set[ProbeRef]
   def policy: ProbePolicy

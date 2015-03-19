@@ -35,8 +35,6 @@ class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor 
   val flapQueue: Option[FlapQueue] = None
 
   def enter(probe: ProbeInterface): Option[EventEffect] = {
-    probe.alertTimer.stop()
-    probe.expiryTimer.restart(probe.policy.joiningTimeout)
     metricsStore.sources.map(_.probePath).toSet.foreach(probe.subscribeToMetrics)
     if (probe.lifecycle == ProbeInitializing) {
       val timestamp = DateTime.now(DateTimeZone.UTC)
@@ -70,6 +68,7 @@ class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor 
     var lastChange = probe.lastChange
     var correlationId = probe.correlationId
     var acknowledgementId = probe.acknowledgementId
+    var alertTimer: TimerEffect = PreserveTimer
 
     // push new metrics into the store
     metrics.foreach { case (metricName, metricValue) =>
@@ -86,11 +85,9 @@ class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor 
       if (probe.correlationId.isDefined) probe.correlationId else Some(UUID.randomUUID())
     }
     // update lifecycle
-    if (probe.lifecycle == ProbeJoining)
+    if (probe.lifecycle == ProbeJoining) {
       lifecycle = ProbeKnown
-
-    // reset the expiry timer
-    probe.expiryTimer.reset(probe.policy.probeTimeout)
+    }
 
     // update last change
     if (health != probe.health) {
@@ -102,12 +99,13 @@ class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor 
     if (health == ProbeHealthy) {
       correlationId = None
       acknowledgementId = None
-      probe.alertTimer.stop()
+      alertTimer = StopTimer
     }
     // we are non-healthy
     else {
-      if (probe.correlationId != correlationId)
-        probe.alertTimer.start(probe.policy.alertTimeout)
+      if (probe.correlationId != correlationId) {
+        alertTimer = StartTimer
+      }
     }
 
     val status = ProbeStatus(timestamp, lifecycle, None, health, metrics, lastUpdate, lastChange, correlationId, acknowledgementId, probe.squelch)
@@ -150,11 +148,6 @@ class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor 
       flapQueue.foreach(_.push(timestamp))
       Some(timestamp)
     }
-    // we transition from healthy to non-healthy
-    if (!probe.alertTimer.isRunning)
-      probe.alertTimer.start(probe.policy.alertTimeout)
-    // reset the expiry timer
-    probe.expiryTimer.reset(probe.policy.probeTimeout)
     val status = probe.getProbeStatus(timestamp).copy(health = health, lastChange = lastChange, correlation = correlationId)
     // append health notification
     val notifications = flapQueue match {
@@ -174,8 +167,6 @@ class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor 
   def processAlertTimeout(probe: ProbeInterface): Option[EventEffect] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val status = probe.getProbeStatus(timestamp)
-    // restart the alert timer
-    probe.alertTimer.restart(probe.policy.alertTimeout)
     // send alert notification
     val notifications = probe.correlationId.map { correlation =>
       NotifyHealthAlerts(probe.probeRef, timestamp, probe.health, correlation, probe.acknowledgementId)
@@ -189,8 +180,6 @@ class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor 
    * are stopped, then the actor itself is stopped.
    */
   def retire(probe: ProbeInterface, lsn: Long): Option[EventEffect] = {
-    probe.expiryTimer.stop()
-    probe.alertTimer.stop()
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val status = probe.getProbeStatus(timestamp).copy(lifecycle = ProbeRetired, lastChange = Some(timestamp), lastUpdate = Some(timestamp))
     val notifications = Vector(NotifyLifecycleChanges(probe.probeRef, timestamp, probe.lifecycle, ProbeRetired))
@@ -198,10 +187,8 @@ class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor 
   }
 
   def exit(probe: ProbeInterface): Option[EventEffect] = {
-    // stop timers
-    probe.alertTimer.stop()
     metricsStore.sources.map(_.probePath).toSet.foreach(probe.unsubscribeFromMetrics)
-    None
+    Some(EventEffect(probe.getProbeStatus, Vector.empty))
   }
 }
 
