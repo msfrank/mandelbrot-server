@@ -124,7 +124,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       actor.underlyingActor.processor shouldBe a [TestProcessorChange]
     }
 
-    "transition to retired behavior" in {
+    "transition to retired behavior" ignore {
       val ref = ProbeRef("fqdn:local/")
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val processor = testBehaviorExtension.implement(Map.empty)
