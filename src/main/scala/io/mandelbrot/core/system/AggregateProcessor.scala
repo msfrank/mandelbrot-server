@@ -28,20 +28,23 @@ import scala.util.{Try, Failure}
 import io.mandelbrot.core.{BadRequest, ApiException}
 import io.mandelbrot.core.model._
 
+case class AggregateProbeSettings(evaluation: AggregateEvaluation)
+
 /**
  *
  */
-class AggregateProcessor(evaluation: AggregateEvaluation) extends BehaviorProcessor {
+class AggregateProcessor(settings: AggregateProbeSettings) extends BehaviorProcessor {
 
+  val evaluation = settings.evaluation
   val children = new mutable.HashMap[ProbeRef,Option[ProbeStatus]]
 
-  def enter(probe: ProbeInterface): Option[EventEffect] = {
+  def enter(probe: ProbeInterface, initial: ProbeStatus): Option[ConfigEffect] = {
     probe.children.foreach(child => children.put(child, None))
     val status = if (probe.lifecycle == ProbeInitializing) {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       probe.getProbeStatus.copy(lifecycle = ProbeSynthetic, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
     } else probe.getProbeStatus
-    Some(EventEffect(status, Vector.empty))
+    Some(ConfigEffect(status, Vector.empty, probe.children, Set.empty))
   }
 
   /*
@@ -114,5 +117,11 @@ class AggregateProcessor(evaluation: AggregateEvaluation) extends BehaviorProces
 }
 
 class AggregateProbe extends ProbeBehaviorExtension {
-  override def implement(properties: Map[String, String]): BehaviorProcessor = new AggregateProcessor(EvaluateWorst)
+  type Settings = AggregateProbeSettings
+  class AggregateProcessorFactory(val settings: AggregateProbeSettings) extends DependentProcessorFactory {
+    def implement() = new AggregateProcessor(settings)
+  }
+  def configure(properties: Map[String,String]) = {
+    new AggregateProcessorFactory(AggregateProbeSettings(EvaluateWorst))
+  }
 }

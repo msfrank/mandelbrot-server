@@ -2,11 +2,19 @@ package io.mandelbrot.core.system
 
 import java.util.ServiceLoader
 import org.slf4j.LoggerFactory
-
 import scala.collection.JavaConversions._
 
+trait ProcessorFactory {
+  def implement(): BehaviorProcessor
+}
+
 abstract class ProbeBehaviorExtension {
-  def implement(properties: Map[String,String]): BehaviorProcessor
+  type Settings
+  trait DependentProcessorFactory extends ProcessorFactory {
+    val settings: Settings
+    def implement(): BehaviorProcessor
+  }
+  def configure(properties: Map[String,String]): DependentProcessorFactory
 }
 
 object ProbeBehavior {

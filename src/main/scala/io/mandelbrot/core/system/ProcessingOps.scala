@@ -17,8 +17,8 @@ trait ProcessingOps extends Actor with MutationOps {
 
   val services: ActorRef
 
-  var processor: BehaviorProcessor
   var policy: ProbePolicy
+  var processor: BehaviorProcessor
   var children: Set[ProbeRef]
   var lastCommitted: Option[DateTime]
 
@@ -64,25 +64,29 @@ trait ProcessingOps extends Actor with MutationOps {
             EventMutation(effect.status, notifications)
           }
 
+        // the processor properties have changed
         case QueuedUpdate(update, timestamp) =>
           processor.update(this, update.processor) match {
-            case Some(effect: EventEffect) =>
+            case Some(effect: ConfigEffect) =>
               val notifications = filterNotifications(effect.notifications)
-              Some(ConfigMutation(update.children, update.policy, effect.status, notifications))
+              Some(ConfigMutation(update.policy, effect.children, effect.metrics, effect.status, notifications))
             case None =>
               children = update.children
               policy = update.policy
               None
           }
 
+        // the processor type has changed
         case QueuedChange(change, timestamp) =>
           children = change.children
           policy = change.policy
           processor = change.processor
-          // FIXME: reset status
-          processor.enter(this).map { effect =>
-            val notifications = filterNotifications(effect.notifications)
-            EventMutation(effect.status, notifications)
+          val initial = getProbeStatus.copy(lifecycle = ProbeInitializing, health = ProbeUnknown)
+          processor.enter(this, initial) match {
+            case Some(effect: ConfigEffect) =>
+              val notifications = filterNotifications(effect.notifications)
+              Some(ConfigMutation(change.policy, effect.children, effect.metrics, effect.status, notifications))
+            case None =>
           }
 
         case QueuedRetire(retire, timestamp) =>
@@ -177,8 +181,9 @@ case class CommandMutation(caller: ActorRef,
                            notifications: Vector[ProbeNotification]) extends Mutation
 case class EventMutation(status: ProbeStatus,
                          notifications: Vector[ProbeNotification]) extends Mutation
-case class ConfigMutation(children: Set[ProbeRef],
-                          policy: ProbePolicy,
+case class ConfigMutation(policy: ProbePolicy,
+                          children: Set[ProbeRef],
+                          metrics: Set[MetricSource],
                           status: ProbeStatus,
                           notifications: Vector[ProbeNotification]) extends Mutation
 case class Deletion(status: ProbeStatus,

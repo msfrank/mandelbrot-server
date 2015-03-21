@@ -98,6 +98,7 @@ trait MutationOps extends ProbeInterface {
   }
 
   /* shortcut to get the current time */
+  // FIXME: use Timestamp instead
   def now() = DateTime.now(DateTimeZone.UTC)
 
 }

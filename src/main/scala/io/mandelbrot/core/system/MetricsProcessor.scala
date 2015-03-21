@@ -26,21 +26,22 @@ import java.util.UUID
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.metrics._
 
+case class MetricsProbeSettings(evaluation: MetricsEvaluation)
+
 /**
  * Implements metrics probe behavior.
  */
-class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor {
+class MetricsProcessor(settings: MetricsProbeSettings) extends BehaviorProcessor {
 
-  val metricsStore = new MetricsStore(evaluation)
+  val evaluation = settings.evaluation
+  val metricsStore = new MetricsStore(settings.evaluation)
 
-  def enter(probe: ProbeInterface): Option[EventEffect] = {
-    // FIXME: subscribe to metrics
-    //metricsStore.sources.map(_.probePath).toSet.foreach(probe.subscribeToMetrics)
-    if (probe.lifecycle == ProbeInitializing) {
+  def enter(probe: ProbeInterface, initial: ProbeStatus): Option[ConfigEffect] = {
+    if (initial.lifecycle == ProbeInitializing) {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val status = probe.getProbeStatus.copy(lifecycle = ProbeJoining, health = ProbeUnknown,
         summary = Some(evaluation.toString), lastUpdate = Some(timestamp), lastChange = Some(timestamp))
-      Some(EventEffect(status, Vector.empty))
+      Some(ConfigEffect(status, Vector.empty, Set.empty, evaluation.sources))
     } else None
   }
 
@@ -48,7 +49,7 @@ class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor 
    * if the set of direct children has changed, or the probe policy has updated,
    * then update our state.
    */
-  def update(probe: ProbeInterface, processor: BehaviorProcessor): Option[EventEffect] = None
+  def update(probe: ProbeInterface, processor: BehaviorProcessor): Option[ConfigEffect] = None
 
   /*
    * if we receive a metrics message while joining or known, then update probe state
@@ -161,8 +162,14 @@ class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor 
 }
 
 class MetricsProbe extends ProbeBehaviorExtension {
-  override def implement(properties: Map[String, String]): BehaviorProcessor = {
-    val parser = new MetricsEvaluationParser
-    new MetricsProcessor(parser.parseMetricsEvaluation(properties("evaluation")))
+  type Settings = MetricsProbeSettings
+  class MetricsProcessorFactory(val settings: MetricsProbeSettings) extends DependentProcessorFactory {
+    def implement() = new MetricsProcessor(settings)
+  }
+  def configure(properties: Map[String,String]) = {
+    if (!properties.contains("evaluation"))
+      throw new IllegalArgumentException("missing evaluation")
+    val evaluation = MetricsEvaluationParser.parseMetricsEvaluation(properties("evaluation"))
+    new MetricsProcessorFactory(MetricsProbeSettings(evaluation))
   }
 }

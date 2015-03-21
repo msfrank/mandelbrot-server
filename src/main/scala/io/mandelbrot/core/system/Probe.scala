@@ -41,7 +41,7 @@ class Probe(val probeRef: ProbeRef,
             val parent: ActorRef,
             var children: Set[ProbeRef],
             var policy: ProbePolicy,
-            var processor: BehaviorProcessor,
+            var factory: ProcessorFactory,
             val probeGeneration: Long,
             val services: ActorRef,
             val metricsBus: MetricsBus) extends LoggingFSM[Probe.State,Probe.Data] with Stash with ProcessingOps {
@@ -51,6 +51,7 @@ class Probe(val probeRef: ProbeRef,
   val commitTimeout = 5.seconds
 
   // state
+  var processor: BehaviorProcessor = factory.implement()
   var lastCommitted: Option[DateTime] = None
   val alertTimer = new Timer(context, self, ProbeAlertTimeout)
   val commitTimer = new Timer(context, self, ProbeCommitTimeout)
@@ -104,7 +105,7 @@ class Probe(val probeRef: ProbeRef,
       }
       // otherwise replay any stashed messages and transition to initialized
       else {
-        enqueue(QueuedEvent(ProbeEnters, now()))
+        //enqueue(QueuedEvent(ProbeEnters, now()))
         unstashAll()
         goto(RunningProbe) using RunningProbe()
       }
@@ -257,11 +258,11 @@ object Probe {
             parent: ActorRef,
             children: Set[ProbeRef],
             policy: ProbePolicy,
-            processor: BehaviorProcessor,
+            factory: ProcessorFactory,
             probeGeneration: Long,
             services: ActorRef,
             metricsBus: MetricsBus) = {
-    Props(classOf[Probe], probeRef, parent, children, policy, processor, probeGeneration, services, metricsBus)
+    Props(classOf[Probe], probeRef, parent, children, policy, factory, probeGeneration, services, metricsBus)
   }
 
 
@@ -283,7 +284,6 @@ object Probe {
 
 sealed trait ProbeEvent
 case class ChildMutates(probeRef: ProbeRef, status: ProbeStatus) extends ProbeEvent
-case object ProbeEnters extends ProbeEvent
 case object ProbeCommitTimeout extends ProbeEvent
 case object ProbeAlertTimeout extends ProbeEvent
 case object ProbeExpiryTimeout extends ProbeEvent

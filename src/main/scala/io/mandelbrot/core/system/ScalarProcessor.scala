@@ -30,15 +30,15 @@ import io.mandelbrot.core.model._
  */
 class ScalarProcessor extends BehaviorProcessor {
 
-  def enter(probe: ProbeInterface): Option[EventEffect] = {
+  def enter(probe: ProbeInterface, initial: ProbeStatus): Option[ConfigEffect] = {
     if (probe.lifecycle == ProbeInitializing) {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val status = probe.getProbeStatus.copy(lifecycle = ProbeJoining, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
-      Some(EventEffect(status, Vector.empty))
+      Some(ConfigEffect(status, Vector.empty, Set.empty, Set.empty))
     } else None
   }
 
-  def update(probe: ProbeInterface, processor: BehaviorProcessor): Option[EventEffect] = None
+  def update(probe: ProbeInterface, processor: BehaviorProcessor): Option[ConfigEffect] = None
 
     /*
      * if we receive a status message while joining or known, then update probe state
@@ -141,6 +141,12 @@ class ScalarProcessor extends BehaviorProcessor {
 
 }
 
+case class ScalarProbeSettings()
+
 class ScalarProbe extends ProbeBehaviorExtension {
-  override def implement(properties: Map[String, String]): BehaviorProcessor = new ScalarProcessor
+  type Settings = ScalarProbeSettings
+  class ScalarProcessorFactory(val settings: ScalarProbeSettings) extends DependentProcessorFactory {
+    def implement() = new ScalarProcessor
+  }
+  def configure(properties: Map[String,String]) = new ScalarProcessorFactory(ScalarProbeSettings())
 }

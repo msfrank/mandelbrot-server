@@ -316,3 +316,8 @@ class MetricsEvaluationParser extends JavaTokenParsers {
     case failure : NoSuccess => throw new Exception("failed to parse MetricsEvaluation: " + failure.msg)
   }
 }
+
+object MetricsEvaluationParser {
+  val parser = new MetricsEvaluationParser
+  def parseMetricsEvaluation(input: String): MetricsEvaluation = parser.parseMetricsEvaluation(input)
+}
