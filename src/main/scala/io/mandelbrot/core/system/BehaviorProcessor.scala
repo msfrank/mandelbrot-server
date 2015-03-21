@@ -126,3 +126,8 @@ case class CommandEffect(result: ProbeResult,
 case class EventEffect(status: ProbeStatus,
                        notifications: Vector[ProbeNotification]) extends ProbeEffect
 
+case class ConfigEffect(status: ProbeStatus,
+                        notifications: Vector[ProbeNotification],
+                        children: Set[ProbeRef],
+                        metrics: Set[MetricSource]) extends ProbeEffect
+

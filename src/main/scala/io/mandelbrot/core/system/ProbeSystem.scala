@@ -295,6 +295,7 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
         case Some(parent) => parent == ref
         case None => false
       }}
+      // FIXME: dunno how i feel about passing mutable state
       val processor = ProbeBehavior.extensions(probeSpec.probeType).implement(probeSpec.properties)
       val actor = ref.parentOption match {
         case Some(parent) if parent.path.nonEmpty =>
@@ -326,6 +327,7 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
           case None => false
         }}
         val ProbeActor(prevSpec, actor) = probes(ref)
+        // FIXME: i don't like passing mutable state in a message
         val processor = ProbeBehavior.extensions(probeSpec.probeType).implement(probeSpec.properties)
         probes = probes + (ref -> ProbeActor(probeSpec, actor))
         if (probeSpec.probeType.equals(prevSpec.probeType))

@@ -34,7 +34,6 @@ import io.mandelbrot.core.model._
 class AggregateProcessor(evaluation: AggregateEvaluation) extends BehaviorProcessor {
 
   val children = new mutable.HashMap[ProbeRef,Option[ProbeStatus]]
-  val flapQueue: Option[FlapQueue] = None
 
   def enter(probe: ProbeInterface): Option[EventEffect] = {
     probe.children.foreach(child => children.put(child, None))
@@ -69,7 +68,6 @@ class AggregateProcessor(evaluation: AggregateEvaluation) extends BehaviorProces
     }
     val lastUpdate = Some(timestamp)
     val lastChange = if (health == probe.health) probe.lastChange else {
-      flapQueue.foreach(_.push(timestamp))
       Some(timestamp)
     }
 
@@ -88,16 +86,13 @@ class AggregateProcessor(evaluation: AggregateEvaluation) extends BehaviorProces
     var notifications = Vector.empty[ProbeNotification]
 
     // append health notification
-    flapQueue match {
-      case Some(flapDetector) if flapDetector.isFlapping =>
-        notifications = notifications :+ NotifyHealthFlaps(probe.probeRef, timestamp, correlationId, flapDetector.flapStart)
-      case _ if probe.health != health =>
-        notifications = notifications :+ NotifyHealthChanges(probe.probeRef, timestamp, correlationId, probe.health, health)
-      case _ => // do nothing
+    if (probe.health != health) {
+      notifications = notifications :+ NotifyHealthChanges(probe.probeRef, timestamp, correlationId, probe.health, health)
     }
     // append recovery notification
-    if (health == ProbeHealthy && probe.acknowledgementId.isDefined)
+    if (health == ProbeHealthy && probe.acknowledgementId.isDefined) {
       notifications = notifications :+ NotifyRecovers(probe.probeRef, timestamp, probe.correlationId.get, probe.acknowledgementId.get)
+    }
     Some(EventEffect(status, notifications))
   }
 

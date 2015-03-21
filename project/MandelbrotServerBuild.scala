@@ -80,6 +80,7 @@ object MandelbrotServerBuild extends Build {
 
       libraryDependencies ++= Seq(
         "com.datastax.cassandra" % "cassandra-driver-core" % datastaxVersion,
+        "org.cassandraunit" % "cassandra-unit" % "2.0.2.2" % "test",
         "org.scalatest" %% "scalatest" % scalatestVersion % "test",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
       ),
@@ -93,9 +94,12 @@ object MandelbrotServerBuild extends Build {
       // don't run tests when building assembly jar
       test in assembly := {},
 
-      // simply discard any files in META-INF/maven/
       assemblyMergeStrategy in assembly := {
+        // concatenate service loader files
+        case PathList("META-INF", "services", xs @_*) => MergeStrategy.concat
+        // discard any files in META-INF/maven/
         case PathList("META-INF", "maven", xs @_*) => MergeStrategy.discard
+        // use the default for anything else
         case otherwise => (assemblyMergeStrategy in assembly).value(otherwise)
       }
 

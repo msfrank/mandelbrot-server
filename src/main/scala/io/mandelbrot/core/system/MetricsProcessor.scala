@@ -32,7 +32,6 @@ import io.mandelbrot.core.metrics._
 class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor {
 
   val metricsStore = new MetricsStore(evaluation)
-  val flapQueue: Option[FlapQueue] = None
 
   def enter(probe: ProbeInterface): Option[EventEffect] = {
     // FIXME: subscribe to metrics
@@ -91,7 +90,6 @@ class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor 
 
     // update last change
     if (health != probe.health) {
-      flapQueue.foreach(_.push(command.evaluation.timestamp))
       lastChange = Some(timestamp)
     }
 
@@ -108,17 +106,15 @@ class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor 
     if (probe.lifecycle != lifecycle)
       notifications = notifications :+ NotifyLifecycleChanges(probe.probeRef, command.evaluation.timestamp, probe.lifecycle, lifecycle)
     // append health notification
-    flapQueue match {
-      case Some(flapDetector) if flapDetector.isFlapping =>
-        notifications = notifications :+ NotifyHealthFlaps(probe.probeRef, command.evaluation.timestamp, correlationId, flapDetector.flapStart)
-      case _ if health != probe.health =>
-        notifications = notifications :+ NotifyHealthChanges(probe.probeRef, command.evaluation.timestamp, correlationId, probe.health, health)
-      case _ =>
-        notifications = notifications :+ NotifyHealthUpdates(probe.probeRef, command.evaluation.timestamp, correlationId, health)
+    if (health != probe.health) {
+      notifications = notifications :+ NotifyHealthChanges(probe.probeRef, command.evaluation.timestamp, correlationId, probe.health, health)
+    } else {
+      notifications = notifications :+ NotifyHealthUpdates(probe.probeRef, command.evaluation.timestamp, correlationId, health)
     }
     // append recovery notification
-    if (probe.health == ProbeHealthy && probe.acknowledgementId.isDefined)
+    if (probe.health == ProbeHealthy && probe.acknowledgementId.isDefined) {
       notifications = notifications :+ NotifyRecovers(probe.probeRef, timestamp, probe.correlationId.get, probe.acknowledgementId.get)
+    }
 
     Success(CommandEffect(ProcessProbeEvaluationResult(command), status, notifications))
   }
@@ -138,18 +134,14 @@ class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor 
     // update health
     val health = ProbeUnknown
     val lastChange = if (probe.health == health) probe.lastChange else {
-      flapQueue.foreach(_.push(timestamp))
       Some(timestamp)
     }
     val status = probe.getProbeStatus(timestamp).copy(health = health, lastChange = lastChange, correlation = correlationId)
     // append health notification
-    val notifications = flapQueue match {
-      case Some(flapDetector) if flapDetector.isFlapping =>
-        Vector(NotifyHealthFlaps(probe.probeRef, timestamp, probe.correlationId, flapDetector.flapStart))
-      case _ if health != probe.health =>
-        Vector(NotifyHealthChanges(probe.probeRef, timestamp, probe.correlationId, probe.health, health))
-      case _ =>
-        Vector(NotifyHealthExpires(probe.probeRef, timestamp, probe.correlationId))
+    val notifications = if (health != probe.health) {
+      Vector(NotifyHealthChanges(probe.probeRef, timestamp, probe.correlationId, probe.health, health))
+    } else {
+      Vector(NotifyHealthExpires(probe.probeRef, timestamp, probe.correlationId))
     }
     Some(EventEffect(status, notifications))
   }

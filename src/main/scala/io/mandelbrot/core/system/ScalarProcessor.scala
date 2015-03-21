@@ -30,8 +30,6 @@ import io.mandelbrot.core.model._
  */
 class ScalarProcessor extends BehaviorProcessor {
 
-  val flapQueue: Option[FlapQueue] = None
-
   def enter(probe: ProbeInterface): Option[EventEffect] = {
     if (probe.lifecycle == ProbeInitializing) {
       val timestamp = DateTime.now(DateTimeZone.UTC)
@@ -66,7 +64,6 @@ class ScalarProcessor extends BehaviorProcessor {
         lifecycle = ProbeKnown
       if (health != probe.health) {
         lastChange = Some(timestamp)
-        flapQueue.foreach(_.push(command.evaluation.timestamp))
       }
       // we are healthy
       if (health == ProbeHealthy) {
@@ -83,20 +80,19 @@ class ScalarProcessor extends BehaviorProcessor {
 
       var notifications = Vector.empty[ProbeNotification]
       // append lifecycle notification
-      if (lifecycle != probe.lifecycle)
+      if (lifecycle != probe.lifecycle) {
         notifications = notifications :+ NotifyLifecycleChanges(probe.probeRef, command.evaluation.timestamp, probe.lifecycle, lifecycle)
+      }
       // append health notification
-      flapQueue match {
-        case Some(flapDetector) if flapDetector.isFlapping =>
-          notifications = notifications :+ NotifyHealthFlaps(probe.probeRef, command.evaluation.timestamp, correlationId, flapDetector.flapStart)
-        case _ if probe.health != health =>
-          notifications = notifications :+ NotifyHealthChanges(probe.probeRef, command.evaluation.timestamp, correlationId, probe.health, health)
-        case _ =>
-          notifications = notifications :+ NotifyHealthUpdates(probe.probeRef, command.evaluation.timestamp, correlationId, health)
+      if (probe.health != health) {
+        notifications = notifications :+ NotifyHealthChanges(probe.probeRef, command.evaluation.timestamp, correlationId, probe.health, health)
+      } else {
+        notifications = notifications :+ NotifyHealthUpdates(probe.probeRef, command.evaluation.timestamp, correlationId, health)
       }
       // append recovery notification
-      if (health == ProbeHealthy && probe.acknowledgementId.isDefined)
+      if (health == ProbeHealthy && probe.acknowledgementId.isDefined) {
         notifications = notifications :+ NotifyRecovers(probe.probeRef, timestamp, probe.correlationId.get, probe.acknowledgementId.get)
+      }
 
       Success(CommandEffect(ProcessProbeEvaluationResult(command), status, notifications))
   }
@@ -117,18 +113,14 @@ class ScalarProcessor extends BehaviorProcessor {
       var lastChange = probe.lastChange
       if (health != probe.health) {
         lastChange = Some(timestamp)
-        flapQueue.foreach(_.push(timestamp))
       }
       val status = probe.getProbeStatus(timestamp).copy(health = health, summary = None, lastChange = lastChange, correlation = correlationId)
       println("expiry status is " + status.toString)
       // append health notification
-      val notifications = flapQueue match {
-        case Some(flapDetector) if flapDetector.isFlapping =>
-          Vector(NotifyHealthFlaps(probe.probeRef, timestamp, correlationId, flapDetector.flapStart))
-        case _ if probe.health != health =>
-          Vector(NotifyHealthChanges(probe.probeRef, timestamp, correlationId, probe.health, health))
-        case _ =>
-          Vector(NotifyHealthExpires(probe.probeRef, timestamp, correlationId))
+      val notifications = if (probe.health != health) {
+        Vector(NotifyHealthChanges(probe.probeRef, timestamp, correlationId, probe.health, health))
+      } else {
+        Vector(NotifyHealthExpires(probe.probeRef, timestamp, correlationId))
       }
       // update state and send notifications
       Some(EventEffect(status, notifications))
