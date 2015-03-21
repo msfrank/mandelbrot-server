@@ -35,7 +35,8 @@ class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor 
   val flapQueue: Option[FlapQueue] = None
 
   def enter(probe: ProbeInterface): Option[EventEffect] = {
-    metricsStore.sources.map(_.probePath).toSet.foreach(probe.subscribeToMetrics)
+    // FIXME: subscribe to metrics
+    //metricsStore.sources.map(_.probePath).toSet.foreach(probe.subscribeToMetrics)
     if (probe.lifecycle == ProbeInitializing) {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val status = probe.getProbeStatus.copy(lifecycle = ProbeJoining, health = ProbeUnknown,
@@ -68,7 +69,6 @@ class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor 
     var lastChange = probe.lastChange
     var correlationId = probe.correlationId
     var acknowledgementId = probe.acknowledgementId
-    var alertTimer: TimerEffect = PreserveTimer
 
     // push new metrics into the store
     metrics.foreach { case (metricName, metricValue) =>
@@ -99,13 +99,6 @@ class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor 
     if (health == ProbeHealthy) {
       correlationId = None
       acknowledgementId = None
-      alertTimer = StopTimer
-    }
-    // we are non-healthy
-    else {
-      if (probe.correlationId != correlationId) {
-        alertTimer = StartTimer
-      }
     }
 
     val status = ProbeStatus(timestamp, lifecycle, None, health, metrics, lastUpdate, lastChange, correlationId, acknowledgementId, probe.squelch)
@@ -172,23 +165,6 @@ class MetricsProcessor(evaluation: MetricsEvaluation) extends BehaviorProcessor 
       NotifyHealthAlerts(probe.probeRef, timestamp, probe.health, correlation, probe.acknowledgementId)
     }.toVector
     Some(EventEffect(status, notifications))
-  }
-
-  /*
-   * probe lifecycle is leaving and the leaving timeout has expired.  probe lifecycle is set to
-   * retired, state is updated, and lifecycle-changes notification is sent.  finally, all timers
-   * are stopped, then the actor itself is stopped.
-   */
-  def retire(probe: ProbeInterface, lsn: Long): Option[EventEffect] = {
-    val timestamp = DateTime.now(DateTimeZone.UTC)
-    val status = probe.getProbeStatus(timestamp).copy(lifecycle = ProbeRetired, lastChange = Some(timestamp), lastUpdate = Some(timestamp))
-    val notifications = Vector(NotifyLifecycleChanges(probe.probeRef, timestamp, probe.lifecycle, ProbeRetired))
-    Some(EventEffect(status, notifications))
-  }
-
-  def exit(probe: ProbeInterface): Option[EventEffect] = {
-    metricsStore.sources.map(_.probePath).toSet.foreach(probe.unsubscribeFromMetrics)
-    Some(EventEffect(probe.getProbeStatus, Vector.empty))
   }
 }
 

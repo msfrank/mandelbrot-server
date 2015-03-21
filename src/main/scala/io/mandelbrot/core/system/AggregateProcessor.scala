@@ -73,17 +73,14 @@ class AggregateProcessor(evaluation: AggregateEvaluation) extends BehaviorProces
       Some(timestamp)
     }
 
-    var alertTimer: TimerEffect = PreserveTimer
     var acknowledgementId: Option[UUID] = None
 
     // we are healthy
     if (health == ProbeHealthy) {
-      alertTimer = StopTimer
       acknowledgementId = None
     }
     // we are non-healthy
     else {
-      alertTimer = StartTimer
       acknowledgementId = probe.acknowledgementId
     }
 
@@ -118,22 +115,6 @@ class AggregateProcessor(evaluation: AggregateEvaluation) extends BehaviorProces
       NotifyHealthAlerts(probe.probeRef, timestamp, probe.health, correlation, probe.acknowledgementId)
     }.toVector
     Some(EventEffect(status, notifications))
-  }
-
-  /*
-   * probe lifecycle is leaving and the leaving timeout has expired.  probe lifecycle is set to
-   * retired, state is updated, and lifecycle-changes notification is sent.  finally, all timers
-   * are stopped, then the actor itself is stopped.
-   */
-  def retire(probe: ProbeInterface, lsn: Long): Option[EventEffect] = {
-    val timestamp = DateTime.now(DateTimeZone.UTC)
-    val status = probe.getProbeStatus(timestamp).copy(lifecycle = ProbeRetired, lastChange = Some(timestamp), lastUpdate = Some(timestamp))
-    val notifications = Vector(NotifyLifecycleChanges(probe.probeRef, timestamp, probe.lifecycle, ProbeRetired))
-    Some(EventEffect(status, notifications))
-  }
-
-  def exit(probe: ProbeInterface): Option[EventEffect] = {
-    Some(EventEffect(probe.getProbeStatus, Vector.empty))
   }
 }
 

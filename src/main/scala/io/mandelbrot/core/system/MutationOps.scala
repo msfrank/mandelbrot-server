@@ -1,5 +1,6 @@
 package io.mandelbrot.core.system
 
+import akka.event.LoggingAdapter
 import org.joda.time.{DateTimeZone, DateTime}
 import java.util.UUID
 
@@ -10,6 +11,8 @@ import io.mandelbrot.core.util.Timer
  *
  */
 trait MutationOps extends ProbeInterface {
+
+  implicit def log: LoggingAdapter
 
   val expiryTimer: Timer
   val alertTimer: Timer
@@ -42,27 +45,40 @@ trait MutationOps extends ProbeInterface {
 
   override def squelch: Boolean = _squelch
 
-  def applyExpiry(status: ProbeStatus): Unit = {
-    lifecycle match {
-      case ProbeInitializing => // ignore
-      case ProbeSynthetic => // ignore
+  def applyStatus(status: ProbeStatus): Unit = {
+    // we don't alert if lifecycle is not known
+    if (status.lifecycle != ProbeKnown) {
+      alertTimer.stop()
+    }
+    // if health transitions from unhealthy to healthy, then stop the alert timer
+    else if (health != ProbeHealthy && status.health == ProbeHealthy) {
+      alertTimer.stop()
+    }
+    // if health is acknowledged, then stop the alert timer
+    else if (status.acknowledged.nonEmpty) {
+      alertTimer.stop()
+    }
+    // if unhealthy and the alert timer is not running, then start the alert timer
+    else if (health != ProbeHealthy && !alertTimer.isRunning) {
+      alertTimer.start(policy.alertTimeout)
+    }
+    log.debug("alert timer => {}", alertTimer)
+    status.lifecycle match {
+      // if lifecycle is initializing or synthetic, then stop the expiry timer
+      case ProbeInitializing | ProbeSynthetic =>
+        expiryTimer.stop()
+      // if lifecycle is joining, start the expiry timer using joining timeout
       case ProbeJoining =>
         expiryTimer.restart(policy.joiningTimeout)
+      // if lifecycle is known, start the expiry timer using probe timeout
       case ProbeKnown =>
         expiryTimer.restart(policy.probeTimeout)
+      // if lifecycle is retired, start the expiry timer using leaving timeout
       case ProbeRetired =>
         expiryTimer.restart(policy.leavingTimeout)
     }
-    alertTimer.start(policy.alertTimeout)
-    applyStatus(status)
-  }
-
-  def applyAlert(status: ProbeStatus): Unit = {
-    alertTimer.restart(policy.alertTimeout)
-    applyStatus(status)
-  }
-
-  def applyStatus(status: ProbeStatus): Unit = {
+    log.debug("expiry timer => {}", expiryTimer)
+    // modify internal status fields
     _lifecycle = status.lifecycle
     _health = status.health
     _summary = status.summary
@@ -71,6 +87,7 @@ trait MutationOps extends ProbeInterface {
     _correlationId = status.correlation
     _acknowledgementId = status.acknowledged
     _squelch = status.squelched
+    log.debug("applied:\n\n    {}\n", status)
   }
 
   /* shortcut to get the current time */

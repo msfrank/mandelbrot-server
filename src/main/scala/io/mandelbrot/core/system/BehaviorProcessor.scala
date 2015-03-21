@@ -37,8 +37,6 @@ trait BehaviorProcessor {
   def processChild(probe: ProbeInterface, child: ProbeRef, status: ProbeStatus): Option[EventEffect]
   def processAlertTimeout(probe: ProbeInterface): Option[EventEffect]
   def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect]
-  def retire(probe: ProbeInterface, lsn: Long): Option[EventEffect]
-  def exit(probe: ProbeInterface): Option[EventEffect]
 
   /**
    *
@@ -48,7 +46,6 @@ trait BehaviorProcessor {
     case ChildMutates(child, status) => processChild(probe, child, status)
     case ProbeAlertTimeout => processAlertTimeout(probe)
     case ProbeExpiryTimeout => processExpiryTimeout(probe)
-    case ProbeExits => exit(probe)
     case _ => throw new IllegalArgumentException()
   }
 
@@ -107,14 +104,19 @@ trait BehaviorProcessor {
     case cmd: SetProbeSquelch => processSetSquelch(probe, cmd)
     case _ => throw new IllegalArgumentException()
   }
-}
 
-sealed trait TimerEffect
-case object StartTimer extends TimerEffect
-case object StopTimer extends TimerEffect
-case object PreserveTimer extends TimerEffect
-case object RestartTimer extends TimerEffect
-case object ResetTimer extends TimerEffect
+  /*
+   * probe lifecycle is leaving and the leaving timeout has expired.  probe lifecycle is set to
+   * retired, state is updated, and lifecycle-changes notification is sent.  finally, all timers
+   * are stopped, then the actor itself is stopped.
+   */
+  def retire(probe: ProbeInterface, lsn: Long): Option[EventEffect] = {
+    val timestamp = DateTime.now(DateTimeZone.UTC)
+    val status = probe.getProbeStatus(timestamp).copy(lifecycle = ProbeRetired, lastChange = Some(timestamp), lastUpdate = Some(timestamp))
+    val notifications = Vector(NotifyLifecycleChanges(probe.probeRef, timestamp, probe.lifecycle, ProbeRetired))
+    Some(EventEffect(status, notifications))
+  }
+}
 
 sealed trait ProbeEffect
 case class CommandEffect(result: ProbeResult,

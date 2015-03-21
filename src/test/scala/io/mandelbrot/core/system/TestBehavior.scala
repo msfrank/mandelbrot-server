@@ -15,11 +15,7 @@ class TestProcessor extends BehaviorProcessor {
 
   def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect] = None
 
-  def retire(probe: ProbeInterface, lsn: Long): Option[EventEffect] = None
-
   def processAlertTimeout(probe: ProbeInterface): Option[EventEffect] = None
-
-  def exit(probe: ProbeInterface): Option[EventEffect] = None
 
   def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
 }
@@ -44,12 +40,7 @@ class TestProcessorChange() extends BehaviorProcessor {
 
   def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect] = None
 
-  def retire(probe: ProbeInterface, lsn: Long): Option[EventEffect] = None
-
   def processAlertTimeout(probe: ProbeInterface): Option[EventEffect] = None
-
-  def exit(probe: ProbeInterface): Option[EventEffect] = None
-
 }
 
 class TestChangeBehavior extends ProbeBehaviorExtension {
@@ -77,12 +68,7 @@ class TestProcessorUpdate(var properties: Map[String,String]) extends BehaviorPr
 
   def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect] = None
 
-  def retire(probe: ProbeInterface, lsn: Long): Option[EventEffect] = None
-
   def processAlertTimeout(probe: ProbeInterface): Option[EventEffect] = None
-
-  def exit(probe: ProbeInterface): Option[EventEffect] = None
-
 }
 
 class TestUpdateBehavior extends ProbeBehaviorExtension {

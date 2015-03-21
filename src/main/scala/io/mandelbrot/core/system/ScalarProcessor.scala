@@ -60,9 +60,7 @@ class ScalarProcessor extends BehaviorProcessor {
       var lastChange = probe.lastChange
       var correlationId = probe.correlationId
       var acknowledgementId = probe.acknowledgementId
-      var alertTimer: TimerEffect = PreserveTimer
-      // reset the expiry timer
-      var expiryTimer: TimerEffect = ResetTimer
+
       // update lifecycle
       if (lifecycle == ProbeJoining)
         lifecycle = ProbeKnown
@@ -74,13 +72,11 @@ class ScalarProcessor extends BehaviorProcessor {
       if (health == ProbeHealthy) {
         correlationId = None
         acknowledgementId = None
-        alertTimer = StopTimer
       }
       // we are non-healthy
       else {
         if (probe.correlationId.isEmpty)
           correlationId = Some(UUID.randomUUID())
-        alertTimer = StartTimer
       }
 
       val status = ProbeStatus(timestamp, lifecycle, summary, health, metrics, lastUpdate, lastChange, correlationId, acknowledgementId, probe.squelch)
@@ -151,21 +147,6 @@ class ScalarProcessor extends BehaviorProcessor {
     Some(EventEffect(status, notifications))
   }
 
-  /*
-   * probe lifecycle is leaving and the leaving timeout has expired.  probe lifecycle is set to
-   * retired, state is updated, and lifecycle-changes notification is sent.  finally, all timers
-   * are stopped, then the actor itself is stopped.
-   */
-  def retire(probe: ProbeInterface, lsn: Long): Option[EventEffect] = {
-    val timestamp = DateTime.now(DateTimeZone.UTC)
-    val status = probe.getProbeStatus(timestamp).copy(lifecycle = ProbeRetired, lastChange = Some(timestamp), lastUpdate = Some(timestamp))
-    val notifications = Vector(NotifyLifecycleChanges(probe.probeRef, timestamp, probe.lifecycle, ProbeRetired))
-    Some(EventEffect(status, notifications))
-  }
-
-  def exit(probe: ProbeInterface): Option[EventEffect] = {
-    Some(EventEffect(probe.getProbeStatus, Vector.empty))
-  }
 }
 
 class ScalarProbe extends ProbeBehaviorExtension {

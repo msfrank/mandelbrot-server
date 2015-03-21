@@ -48,9 +48,5 @@ trait ProbeInterface {
 
   def getProbeStatus(timestamp: DateTime) = ProbeStatus(timestamp, lifecycle, summary, health, Map.empty, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
   def getProbeStatus: ProbeStatus = getProbeStatus(DateTime.now(DateTimeZone.UTC))
-
-  /* */
-  def subscribeToMetrics(probePath: Vector[String]): Unit
-  def unsubscribeFromMetrics(probePath: Vector[String]): Unit
 }
 
