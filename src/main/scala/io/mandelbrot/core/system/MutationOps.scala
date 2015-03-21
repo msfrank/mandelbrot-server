@@ -8,7 +8,10 @@ import io.mandelbrot.core.model._
 import io.mandelbrot.core.util.Timer
 
 /**
- *
+ * MutationOps trait encapsulates the mutable state of a probe.  the actual modification
+ * of probe state only occurs in the applyStatus method.  MutationOps also implements the
+ * ProbeInterface trait, which is a read-only view of probe state that a BehaviorProcessor
+ * can access.
  */
 trait MutationOps extends ProbeInterface {
 
@@ -45,9 +48,13 @@ trait MutationOps extends ProbeInterface {
 
   override def squelch: Boolean = _squelch
 
+  /**
+   * apply the updated status to the probe, and update alert and expiry
+   * timers as necessary.
+   */
   def applyStatus(status: ProbeStatus): Unit = {
-    // we don't alert if lifecycle is not known
-    if (status.lifecycle != ProbeKnown) {
+    // we don't alert if lifecycle is not known or synthetic
+    if (status.lifecycle != ProbeKnown && status.lifecycle != ProbeSynthetic) {
       alertTimer.stop()
     }
     // if health transitions from unhealthy to healthy, then stop the alert timer
