@@ -22,22 +22,17 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     TestKit.shutdownActorSystem(system)
   }
 
-  val extensions = ProbeBehavior.extensions
-
-  val testBehaviorExtension = new TestBehavior()
-  val testChangeBehaviorExtension = new TestChangeBehavior()
-  val testUpdateBehaviorExtension = new TestUpdateBehavior()
-
   val blackhole = system.actorOf(Blackhole.props())
 
   "A Probe" should {
 
     "have an initial state" in {
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val processor = testBehaviorExtension.implement(Map.empty)
+      val probeType = "io.mandelbrot.core.system.TestBehavior"
+      val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
       val services = system.actorOf(TestServiceProxy.props())
       val metricsBus = new MetricsBus()
-      val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), blackhole, Set.empty, policy, processor, 0, services, metricsBus))
+      val actor = TestActorRef(new Probe(ProbeRef("fqdn:local/"), blackhole, probeType, Set.empty, policy, factory, 0, services, metricsBus))
       val probe = actor.underlyingActor
       probe.lifecycle shouldEqual ProbeInitializing
       probe.health shouldEqual ProbeUnknown
@@ -52,12 +47,13 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "initialize and transition to running behavior" in {
       val ref = ProbeRef("fqdn:local/")
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val processor = testBehaviorExtension.implement(Map.empty)
+      val probeType = "io.mandelbrot.core.system.TestBehavior"
+      val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, processor, 0, services, metricsBus))
+      val actor = system.actorOf(Probe.props(ref, blackhole, probeType, Set.empty, policy, factory, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
@@ -75,25 +71,27 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "update behavior" in {
       val ref = ProbeRef("fqdn:local/")
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val processor1 = testUpdateBehaviorExtension.implement(Map("key" -> "value1"))
+      val probeType = "io.mandelbrot.core.system.TestBehavior"
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val actor = TestActorRef(new Probe(ref, blackhole, Set.empty, policy, processor1, 0, services, metricsBus))
+      val factory1 = ProbeBehavior.extensions(probeType).configure(Map("key" -> "value1"))
+
+      val actor = TestActorRef(new Probe(ref, blackhole, probeType, Set.empty, policy, factory1, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
 
-      actor.underlyingActor.processor shouldBe a [TestProcessorUpdate]
+      actor.underlyingActor.processor shouldBe a [TestProcessor]
       actor.underlyingActor.processor should have ('properties (Map("key" -> "value1")))
 
-      val processor2 = testUpdateBehaviorExtension.implement(Map("key" -> "value2"))
-      actor ! UpdateProbe(Set.empty, policy, processor2, 1)
+      val factory2 = ProbeBehavior.extensions(probeType).configure(Map("key" -> "value2"))
+      actor ! ChangeProbe(probeType, policy, factory2, Set.empty, 1)
       val update = stateService.expectMsgClass(classOf[UpdateProbeStatus])
       stateService.reply(UpdateProbeStatusResult(update))
 
-      actor.underlyingActor.processor shouldBe a [TestProcessorUpdate]
+      actor.underlyingActor.processor shouldBe a [TestProcessor]
       actor.underlyingActor.processor should have ('properties (Map("key" -> "value2")))
     }
 
@@ -107,15 +105,17 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
       val policy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
-      val processor1 = testBehaviorExtension.implement(Map.empty)
+      val probeType1 = "io.mandelbrot.core.system.TestBehavior"
+      val factory1 = ProbeBehavior.extensions(probeType1).configure(Map.empty)
 
-      val actor = TestActorRef(new Probe(ref, blackhole, children, policy, processor1, 0, services, metricsBus))
+      val actor = TestActorRef(new Probe(ref, blackhole, probeType1, children, policy, factory1, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
 
-      val processor2 = testChangeBehaviorExtension.implement(Map.empty)
-      actor ! ChangeProbe(children, policy, processor2, 1)
+      val probeType2 = "io.mandelbrot.core.system.TestBehavior"
+      val factory2 = ProbeBehavior.extensions(probeType2).configure(Map.empty)
+      actor ! ChangeProbe(probeType2, policy, factory2, children, 1)
       val update = stateService.expectMsgClass(classOf[UpdateProbeStatus])
       stateService.reply(UpdateProbeStatusResult(update))
 
@@ -127,12 +127,13 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "transition to retired behavior" ignore {
       val ref = ProbeRef("fqdn:local/")
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val processor = testBehaviorExtension.implement(Map.empty)
+      val probeType = "io.mandelbrot.core.system.TestBehavior"
+      val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val actor = system.actorOf(Probe.props(ref, blackhole, Set.empty, policy, processor, 0, services, metricsBus))
+      val actor = system.actorOf(Probe.props(ref, blackhole, probeType, Set.empty, policy, factory, 0, services, metricsBus))
       watch(actor)
 
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])

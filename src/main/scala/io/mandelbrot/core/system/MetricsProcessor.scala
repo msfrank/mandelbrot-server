@@ -36,20 +36,14 @@ class MetricsProcessor(settings: MetricsProbeSettings) extends BehaviorProcessor
   val evaluation = settings.evaluation
   val metricsStore = new MetricsStore(settings.evaluation)
 
-  def enter(probe: ProbeInterface, initial: ProbeStatus): Option[ConfigEffect] = {
-    if (initial.lifecycle == ProbeInitializing) {
-      val timestamp = DateTime.now(DateTimeZone.UTC)
-      val status = probe.getProbeStatus.copy(lifecycle = ProbeJoining, health = ProbeUnknown,
-        summary = Some(evaluation.toString), lastUpdate = Some(timestamp), lastChange = Some(timestamp))
-      Some(ConfigEffect(status, Vector.empty, Set.empty, evaluation.sources))
-    } else None
+  def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigEffect = {
+    val timestamp = DateTime.now(DateTimeZone.UTC)
+    val initial = if (status.lifecycle == ProbeInitializing) {
+      status.copy(lifecycle = ProbeJoining, health = ProbeUnknown, summary = Some(evaluation.toString),
+        lastUpdate = Some(timestamp), lastChange = Some(timestamp))
+    } else status
+    ConfigEffect(initial, Vector.empty, Set.empty, evaluation.sources)
   }
-
-  /*
-   * if the set of direct children has changed, or the probe policy has updated,
-   * then update our state.
-   */
-  def update(probe: ProbeInterface, processor: BehaviorProcessor): Option[ConfigEffect] = None
 
   /*
    * if we receive a metrics message while joining or known, then update probe state

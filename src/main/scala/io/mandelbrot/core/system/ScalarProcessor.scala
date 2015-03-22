@@ -30,24 +30,22 @@ import io.mandelbrot.core.model._
  */
 class ScalarProcessor extends BehaviorProcessor {
 
-  def enter(probe: ProbeInterface, initial: ProbeStatus): Option[ConfigEffect] = {
-    if (probe.lifecycle == ProbeInitializing) {
-      val timestamp = DateTime.now(DateTimeZone.UTC)
-      val status = probe.getProbeStatus.copy(lifecycle = ProbeJoining, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
-      Some(ConfigEffect(status, Vector.empty, Set.empty, Set.empty))
-    } else None
+  def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigEffect = {
+    val timestamp = DateTime.now(DateTimeZone.UTC)
+    val initial = if (status.lifecycle == ProbeInitializing) {
+      status.copy(lifecycle = ProbeJoining, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
+    } else status
+    ConfigEffect(initial, Vector.empty, Set.empty, Set.empty)
   }
 
-  def update(probe: ProbeInterface, processor: BehaviorProcessor): Option[ConfigEffect] = None
-
-    /*
-     * if we receive a status message while joining or known, then update probe state
-     * and send notifications.  if the previous lifecycle was joining, then we move to
-     * known.  if we transition from non-healthy to healthy, then we clear the correlation
-     * and acknowledgement (if set).  if we transition from healthy to non-healthy, then
-     * we set the correlation if it is different from the current correlation, and we start
-     * the alert timer.
-     */
+  /*
+   * if we receive a status message while joining or known, then update probe state
+   * and send notifications.  if the previous lifecycle was joining, then we move to
+   * known.  if we transition from non-healthy to healthy, then we clear the correlation
+   * and acknowledgement (if set).  if we transition from healthy to non-healthy, then
+   * we set the correlation if it is different from the current correlation, and we start
+   * the alert timer.
+   */
   def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect] = {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val summary = command.evaluation.summary.orElse(probe.summary)

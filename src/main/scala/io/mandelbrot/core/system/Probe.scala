@@ -39,6 +39,7 @@ import scala.util.{Failure, Success}
  */
 class Probe(val probeRef: ProbeRef,
             val parent: ActorRef,
+            var probeType: String,
             var children: Set[ProbeRef],
             var policy: ProbePolicy,
             var factory: ProcessorFactory,
@@ -105,7 +106,8 @@ class Probe(val probeRef: ProbeRef,
       }
       // otherwise replay any stashed messages and transition to initialized
       else {
-        //enqueue(QueuedEvent(ProbeEnters, now()))
+        val change = ChangeProbe(probeType, policy, factory, children, probeGeneration)
+        enqueue(QueuedChange(change, now()))
         unstashAll()
         goto(RunningProbe) using RunningProbe()
       }
@@ -113,6 +115,7 @@ class Probe(val probeRef: ProbeRef,
     case Event(result: StateServiceOperationFailed, state: InitializingProbe) if result.op != state.command =>
       stay()
 
+    // FIXME: is this needed?  i don't think so.
     case Event(StateServiceOperationFailed(_, failure: ApiException), _) if failure.failure == ResourceNotFound =>
       log.debug("probe {} becomes retired", probeRef)
       commitTimer.stop()
@@ -158,11 +161,6 @@ class Probe(val probeRef: ProbeRef,
     /* if the probe behavior has changed, then transition to a new state */
     case Event(change: ChangeProbe, state: RunningProbe) =>
       enqueue(QueuedChange(change, now()))
-      stay()
-
-    /* if the probe behavior has updated, then update our state */
-    case Event(update: UpdateProbe, state: RunningProbe) =>
-      enqueue(QueuedUpdate(update, now()))
       stay()
 
     /* if the probe behavior has retired, then update our state */
@@ -256,13 +254,14 @@ class Probe(val probeRef: ProbeRef,
 object Probe {
   def props(probeRef: ProbeRef,
             parent: ActorRef,
+            probeType: String,
             children: Set[ProbeRef],
             policy: ProbePolicy,
             factory: ProcessorFactory,
             probeGeneration: Long,
             services: ActorRef,
             metricsBus: MetricsBus) = {
-    Props(classOf[Probe], probeRef, parent, children, policy, factory, probeGeneration, services, metricsBus)
+    Props(classOf[Probe], probeRef, parent, probeType, children, policy, factory, probeGeneration, services, metricsBus)
   }
 
 

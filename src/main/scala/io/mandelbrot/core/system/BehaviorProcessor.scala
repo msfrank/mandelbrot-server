@@ -31,8 +31,8 @@ import io.mandelbrot.core.{BadRequest, Conflict, ResourceNotFound, ApiException}
  */
 trait BehaviorProcessor {
 
-  def enter(probe: ProbeInterface, initial: ProbeStatus): Option[ConfigEffect]
-  def update(probe: ProbeInterface, processor: BehaviorProcessor): Option[ConfigEffect]
+  def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigEffect
+
   def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect]
   def processChild(probe: ProbeInterface, child: ProbeRef, status: ProbeStatus): Option[EventEffect]
   def processAlertTimeout(probe: ProbeInterface): Option[EventEffect]

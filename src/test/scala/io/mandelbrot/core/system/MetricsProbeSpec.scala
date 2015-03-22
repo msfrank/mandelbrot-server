@@ -53,12 +53,13 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val probeRef = ProbeRef("fqdn:local/")
       val source = MetricSource(Vector.empty, "foo")
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val processor = ProbeBehavior.extensions("io.mandelbrot.core.system.MetricsProbe").implement(Map("evaluation" -> "when foo > 10"))
+      val probeType = "io.mandelbrot.core.system.MetricsProbe"
+      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val actor = system.actorOf(Probe.props(probeRef, blackhole, Set.empty, policy, processor, 0, services, metricsBus))
+      val actor = system.actorOf(Probe.props(probeRef, blackhole, probeType, Set.empty, policy, factory, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
@@ -83,14 +84,14 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
     "transition to ProbeKnown/ProbeFailed when a failed MetricsMessage is received" in {
       val probeRef = ProbeRef("fqdn:local/")
       val source = MetricSource(Vector.empty, "foo")
-      val evaluation = parser.parseMetricsEvaluation("when foo > 10")
       val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val processor = ProbeBehavior.extensions("io.mandelbrot.core.system.MetricsProbe").implement(Map("evaluation" -> "when foo > 10"))
+      val probeType = "io.mandelbrot.core.system.MetricsProbe"
+      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val actor = system.actorOf(Probe.props(probeRef, blackhole, Set.empty, policy, processor, 0, services, metricsBus))
+      val actor = system.actorOf(Probe.props(probeRef, blackhole, probeType, Set.empty, policy, factory, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
@@ -115,14 +116,14 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
     "notify StateService when the joining timeout expires" in {
       val probeRef = ProbeRef("fqdn:local/")
       val source = MetricSource(Vector.empty, "foo")
-      val evaluation = parser.parseMetricsEvaluation("when foo > 10")
       val policy = ProbePolicy(2.seconds, 1.minute, 1.minute, 1.minute, None)
-      val processor = ProbeBehavior.extensions("io.mandelbrot.core.system.MetricsProbe").implement(Map("evaluation" -> "when foo > 10"))
+      val probeType = "io.mandelbrot.core.system.MetricsProbe"
+      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val actor = system.actorOf(Probe.props(probeRef, blackhole, Set.empty, policy, processor, 0, services, metricsBus))
+      val actor = system.actorOf(Probe.props(probeRef, blackhole, probeType, Set.empty, policy, factory, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
@@ -146,12 +147,13 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val source = MetricSource(Vector.empty, "foo")
       val evaluation = parser.parseMetricsEvaluation("when foo > 10")
       val policy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
-      val processor = ProbeBehavior.extensions("io.mandelbrot.core.system.MetricsProbe").implement(Map("evaluation" -> "when foo > 10"))
+      val probeType = "io.mandelbrot.core.system.MetricsProbe"
+      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val actor = system.actorOf(Probe.props(probeRef, blackhole, Set.empty, policy, processor, 0, services, metricsBus))
+      val actor = system.actorOf(Probe.props(probeRef, blackhole, probeType, Set.empty, policy, factory, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
@@ -184,13 +186,14 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val probeRef = ProbeRef("fqdn:local/")
       val source = MetricSource(Vector.empty, "foo")
       val policy = ProbePolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)
-      val processor = ProbeBehavior.extensions("io.mandelbrot.core.system.MetricsProbe").implement(Map("evaluation" -> "when foo > 10"))
+      val probeType = "io.mandelbrot.core.system.MetricsProbe"
+      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo > 10"))
       val notificationService = new TestProbe(_system)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref), notificationService = Some(notificationService.ref)))
       val metricsBus = new MetricsBus()
 
-      val actor = system.actorOf(Probe.props(probeRef, blackhole, Set.empty, policy, processor, 0, services, metricsBus))
+      val actor = system.actorOf(Probe.props(probeRef, blackhole, probeType, Set.empty, policy, factory, 0, services, metricsBus))
       val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))

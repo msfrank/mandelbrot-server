@@ -295,12 +295,13 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
         case Some(parent) => parent == ref
         case None => false
       }}
+      val probeType = probeSpec.probeType
       val factory = ProbeBehavior.extensions(probeSpec.probeType).configure(probeSpec.properties)
       val actor = ref.parentOption match {
         case Some(parent) if parent.path.nonEmpty =>
-          context.actorOf(Probe.props(ref, probes(parent).actor, directChildren, probeSpec.policy, factory, lsn, services, metricsBus))
+          context.actorOf(Probe.props(ref, probes(parent).actor, probeType, directChildren, probeSpec.policy, factory, lsn, services, metricsBus))
         case _ =>
-          context.actorOf(Probe.props(ref, self, directChildren, probeSpec.policy, factory, lsn, services, metricsBus))
+          context.actorOf(Probe.props(ref, self, probeType, directChildren, probeSpec.policy, factory, lsn, services, metricsBus))
       }
       context.watch(actor)
       log.debug("probe {} joins", ref)
@@ -328,10 +329,7 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
         val ProbeActor(prevSpec, actor) = probes(ref)
         val factory = ProbeBehavior.extensions(probeSpec.probeType).configure(probeSpec.properties)
         probes = probes + (ref -> ProbeActor(probeSpec, actor))
-        if (probeSpec.probeType.equals(prevSpec.probeType))
-          actor ! UpdateProbe(directChildren, probeSpec.policy, factory, lsn)
-        else
-          actor ! ChangeProbe(directChildren, probeSpec.policy, factory, lsn)
+        actor ! ChangeProbe(probeSpec.probeType, probeSpec.policy, factory, directChildren, lsn)
     }
   }
 
@@ -379,8 +377,7 @@ object ProbeSystem {
   case class SystemError(ex: Throwable) extends Data
 }
 
-case class UpdateProbe(children: Set[ProbeRef], policy: ProbePolicy, factory: ProcessorFactory, lsn: Long)
-case class ChangeProbe(children: Set[ProbeRef], policy: ProbePolicy, factory: ProcessorFactory, lsn: Long)
+case class ChangeProbe(probeType: String, policy: ProbePolicy, factory: ProcessorFactory, children: Set[ProbeRef], lsn: Long)
 case class RetireProbe(lsn: Long)
 
 /**

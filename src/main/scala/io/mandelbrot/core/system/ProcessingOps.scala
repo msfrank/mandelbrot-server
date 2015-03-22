@@ -17,6 +17,7 @@ trait ProcessingOps extends Actor with MutationOps {
 
   val services: ActorRef
 
+  var probeType: String
   var policy: ProbePolicy
   var processor: BehaviorProcessor
   var children: Set[ProbeRef]
@@ -64,31 +65,18 @@ trait ProcessingOps extends Actor with MutationOps {
             EventMutation(effect.status, notifications)
           }
 
-        // the processor properties have changed
-        case QueuedUpdate(update, timestamp) =>
-          processor.update(this, update.processor) match {
-            case Some(effect: ConfigEffect) =>
-              val notifications = filterNotifications(effect.notifications)
-              Some(ConfigMutation(update.policy, effect.children, effect.metrics, effect.status, notifications))
-            case None =>
-              children = update.children
-              policy = update.policy
-              None
-          }
-
-        // the processor type has changed
+        // the processor has changed
         case QueuedChange(change, timestamp) =>
-          children = change.children
-          policy = change.policy
-          processor = change.processor
-          val initial = getProbeStatus.copy(lifecycle = ProbeInitializing, health = ProbeUnknown)
-          processor.enter(this, initial) match {
-            case Some(effect: ConfigEffect) =>
-              val notifications = filterNotifications(effect.notifications)
-              Some(ConfigMutation(change.policy, effect.children, effect.metrics, effect.status, notifications))
-            case None =>
+          val _processor = change.factory.implement()
+          var initial: ProbeStatus = getProbeStatus
+          if (!change.probeType.equals(probeType)) {
+            initial = initial.copy(lifecycle = ProbeInitializing, health = ProbeUnknown)
           }
+          val effect = _processor.configure(initial, change.children)
+          val notifications = filterNotifications(effect.notifications)
+          Some(ConfigMutation(change.policy, effect.children, effect.metrics, effect.status, notifications))
 
+        // the probe is retiring
         case QueuedRetire(retire, timestamp) =>
           processor.retire(this, retire.lsn).map { effect =>
             val notifications = filterNotifications(effect.notifications)
@@ -193,6 +181,5 @@ case class Deletion(status: ProbeStatus,
 sealed trait QueuedMessage
 case class QueuedEvent(event: ProbeEvent, timestamp: DateTime) extends QueuedMessage
 case class QueuedCommand(command: ProbeCommand, caller: ActorRef) extends QueuedMessage
-case class QueuedUpdate(update: UpdateProbe, timestamp: DateTime) extends QueuedMessage
 case class QueuedChange(change: ChangeProbe, timestamp: DateTime) extends QueuedMessage
 case class QueuedRetire(retire: RetireProbe, timestamp: DateTime) extends QueuedMessage

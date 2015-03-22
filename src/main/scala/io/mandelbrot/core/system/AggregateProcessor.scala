@@ -36,25 +36,15 @@ case class AggregateProbeSettings(evaluation: AggregateEvaluation)
 class AggregateProcessor(settings: AggregateProbeSettings) extends BehaviorProcessor {
 
   val evaluation = settings.evaluation
-  val children = new mutable.HashMap[ProbeRef,Option[ProbeStatus]]
+  val childrenStatus = new mutable.HashMap[ProbeRef,Option[ProbeStatus]]
 
-  def enter(probe: ProbeInterface, initial: ProbeStatus): Option[ConfigEffect] = {
-    probe.children.foreach(child => children.put(child, None))
-    val status = if (probe.lifecycle == ProbeInitializing) {
+  def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigEffect = {
+    children.foreach(child => childrenStatus.put(child, None))
+    val initial = if (status.lifecycle == ProbeInitializing) {
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      probe.getProbeStatus.copy(lifecycle = ProbeSynthetic, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
-    } else probe.getProbeStatus
-    Some(ConfigEffect(status, Vector.empty, probe.children, Set.empty))
-  }
-
-  /*
-   * if the set of direct children has changed, or the probe policy has updated,
-   * then update our state.
-   */
-  def update(probe: ProbeInterface, processor: BehaviorProcessor): Option[EventEffect] = {
-    (children.keySet -- probe.children).foreach { ref => children.remove(ref)}
-    (probe.children -- children.keySet).foreach { ref => children.put(ref, None)}
-    None
+      status.copy(lifecycle = ProbeSynthetic, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
+    } else status
+    ConfigEffect(initial, Vector.empty, childrenStatus.keySet.toSet, Set.empty)
   }
 
   /* ignore probe evaluations from client */
@@ -62,10 +52,10 @@ class AggregateProcessor(settings: AggregateProbeSettings) extends BehaviorProce
 
   /* process the status of a child probe */
   def processChild(probe: ProbeInterface, childRef: ProbeRef, childStatus: ProbeStatus): Option[EventEffect] = {
-    children.put(childRef, Some(childStatus))
+    childrenStatus.put(childRef, Some(childStatus))
 
     val timestamp = DateTime.now(DateTimeZone.UTC)
-    val health = evaluation.evaluate(children)
+    val health = evaluation.evaluate(childrenStatus)
     val correlationId = if (health == ProbeHealthy) None else {
       if (probe.correlationId.isDefined) probe.correlationId else Some(UUID.randomUUID())
     }
