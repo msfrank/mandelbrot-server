@@ -22,7 +22,7 @@ object MandelbrotServerBuild extends Build {
   val scalatestVersion = "2.2.4"
 
   val commonScalacOptions = Seq("-feature", "-deprecation")
-  val commonJavacOptions = Seq("-source", "1.7")
+  val commonJavacOptions = Seq("-source", "1.8")
 
   lazy val mandelbrotCore = (project in file("."))
     .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)

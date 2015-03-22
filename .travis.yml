@@ -2,6 +2,6 @@ language: scala
 scala:
   - "2.11.5"
 jdk:
-  - oraclejdk7
+  - oraclejdk8
 script:
   - sbt ++$TRAVIS_SCALA_VERSION "set logLevel in compile := Level.Warn" mandelbrotCore/test
