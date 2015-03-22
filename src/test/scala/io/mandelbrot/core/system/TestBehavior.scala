@@ -7,10 +7,10 @@ import io.mandelbrot.core.model._
 
 case class TestProcessorSettings(properties: Map[String,String])
 
-class TestProcessor(settings: TestProcessorSettings) extends BehaviorProcessor {
+class TestProcessor(val properties: Map[String,String]) extends BehaviorProcessor {
 
   def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigEffect = {
-    ConfigEffect(status, Vector.empty, Set.empty, Set.empty)
+    ConfigEffect(status, Vector.empty, children, Set.empty)
   }
 
   def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
@@ -25,19 +25,19 @@ class TestProcessor(settings: TestProcessorSettings) extends BehaviorProcessor {
 class TestBehavior extends ProbeBehaviorExtension {
   type Settings = TestProcessorSettings
   class TestProcessorFactory(val settings: TestProcessorSettings) extends DependentProcessorFactory {
-    def implement() = new TestProcessor(settings)
+    def implement() = new TestProcessor(settings.properties)
   }
   def configure(properties: Map[String, String]) = {
     new TestProcessorFactory(TestProcessorSettings(properties))
   }
 }
 
-class TestProcessorChange(settings: TestProcessorSettings) extends BehaviorProcessor {
+class TestProcessorChange(val properties: Map[String,String]) extends BehaviorProcessor {
 
   def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigEffect = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val status = ProbeStatus(timestamp, ProbeKnown, None, ProbeHealthy, Map.empty, Some(timestamp), Some(timestamp), None, None, false)
-    ConfigEffect(status, Vector.empty, Set.empty, Set.empty)
+    ConfigEffect(status, Vector.empty, children, Set.empty)
   }
 
   def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
@@ -52,7 +52,7 @@ class TestProcessorChange(settings: TestProcessorSettings) extends BehaviorProce
 class TestChangeBehavior extends ProbeBehaviorExtension {
   type Settings = TestProcessorSettings
   class TestProcessorFactory(val settings: TestProcessorSettings) extends DependentProcessorFactory {
-    def implement() = new TestProcessorChange(settings)
+    def implement() = new TestProcessorChange(settings.properties)
   }
   def configure(properties: Map[String, String]) = {
     new TestProcessorFactory(TestProcessorSettings(properties))

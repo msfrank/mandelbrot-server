@@ -54,18 +54,18 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val metricsBus = new MetricsBus()
 
       val actor = system.actorOf(Probe.props(ref, blackhole, probeType, Set.empty, policy, factory, 0, services, metricsBus))
-      val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
+      val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
+      stateService.reply(InitializeProbeStatusResult(initializeProbeStatus, Some(status)))
 
       actor ! GetProbeStatus(ref)
-      val result = expectMsgClass(classOf[GetProbeStatusResult])
-      result.status.lifecycle shouldEqual ProbeKnown
-      result.status.health shouldEqual ProbeHealthy
-      result.status.summary shouldEqual None
-      result.status.correlation shouldEqual None
-      result.status.acknowledged shouldEqual None
-      result.status.squelched shouldEqual false
+      val getProbeStatusResult = expectMsgClass(classOf[GetProbeStatusResult])
+      getProbeStatusResult.status.lifecycle shouldEqual ProbeKnown
+      getProbeStatusResult.status.health shouldEqual ProbeHealthy
+      getProbeStatusResult.status.summary shouldEqual None
+      getProbeStatusResult.status.correlation shouldEqual None
+      getProbeStatusResult.status.acknowledged shouldEqual None
+      getProbeStatusResult.status.squelched shouldEqual false
     }
 
     "update behavior" in {
@@ -79,17 +79,20 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val factory1 = ProbeBehavior.extensions(probeType).configure(Map("key" -> "value1"))
 
       val actor = TestActorRef(new Probe(ref, blackhole, probeType, Set.empty, policy, factory1, 0, services, metricsBus))
-      val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
+      val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
+      stateService.reply(InitializeProbeStatusResult(initializeProbeStatus, Some(status)))
+
+      val updateProbeStatus1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus1))
 
       actor.underlyingActor.processor shouldBe a [TestProcessor]
       actor.underlyingActor.processor should have ('properties (Map("key" -> "value1")))
 
       val factory2 = ProbeBehavior.extensions(probeType).configure(Map("key" -> "value2"))
       actor ! ChangeProbe(probeType, policy, factory2, Set.empty, 1)
-      val update = stateService.expectMsgClass(classOf[UpdateProbeStatus])
-      stateService.reply(UpdateProbeStatusResult(update))
+      val updateProbeStatus2 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus2))
 
       actor.underlyingActor.processor shouldBe a [TestProcessor]
       actor.underlyingActor.processor should have ('properties (Map("key" -> "value2")))
@@ -109,15 +112,18 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val factory1 = ProbeBehavior.extensions(probeType1).configure(Map.empty)
 
       val actor = TestActorRef(new Probe(ref, blackhole, probeType1, children, policy, factory1, 0, services, metricsBus))
-      val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
+      val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
+      stateService.reply(InitializeProbeStatusResult(initializeProbeStatus, Some(status)))
 
-      val probeType2 = "io.mandelbrot.core.system.TestBehavior"
+      val updateProbeStatus1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus1))
+
+      val probeType2 = "io.mandelbrot.core.system.TestChangeBehavior"
       val factory2 = ProbeBehavior.extensions(probeType2).configure(Map.empty)
       actor ! ChangeProbe(probeType2, policy, factory2, children, 1)
-      val update = stateService.expectMsgClass(classOf[UpdateProbeStatus])
-      stateService.reply(UpdateProbeStatusResult(update))
+      val updateProbeStatus2 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus2))
 
       actor.underlyingActor.children shouldEqual children
       actor.underlyingActor.policy shouldEqual policy
@@ -136,13 +142,13 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val actor = system.actorOf(Probe.props(ref, blackhole, probeType, Set.empty, policy, factory, 0, services, metricsBus))
       watch(actor)
 
-      val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
+      val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
+      stateService.reply(InitializeProbeStatusResult(initializeProbeStatus, Some(status)))
 
       actor ! RetireProbe(0)
-      val retire = stateService.expectMsgClass(classOf[DeleteProbeStatus])
-      stateService.reply(DeleteProbeStatusResult(retire))
+      val deleteProbeStatus = stateService.expectMsgClass(classOf[DeleteProbeStatus])
+      stateService.reply(DeleteProbeStatusResult(deleteProbeStatus))
 
       val result = expectMsgClass(classOf[Terminated])
       result.actor shouldEqual actor

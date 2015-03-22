@@ -59,30 +59,32 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Probe.props(probeRef, blackhole, probeType, children, initialPolicy, factory, 0, services, metricsBus))
-      val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
+      val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
+      stateService.reply(InitializeProbeStatusResult(initializeProbeStatus, Some(status)))
 
       // probe sets its lifecycle to synthetic
-      val update1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
-      stateService.reply(UpdateProbeStatusResult(update1))
-      update1.status.lifecycle shouldEqual ProbeSynthetic
+      val updateProbeStatus1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus1))
+      updateProbeStatus1.status.lifecycle shouldEqual ProbeSynthetic
+      updateProbeStatus1.status.health shouldEqual ProbeUnknown
 
       val timestamp = DateTime.now()
+
       probe ! ChildMutates(child1, ProbeStatus(timestamp, ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false))
-      val update2 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
-      stateService.reply(UpdateProbeStatusResult(update2))
-      update2.status.health shouldEqual ProbeUnknown
+      val updateProbeStatus2 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus2))
+      updateProbeStatus2.status.health shouldEqual ProbeUnknown
 
       probe ! ChildMutates(child2, ProbeStatus(timestamp, ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false))
-      val update3 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
-      stateService.reply(UpdateProbeStatusResult(update3))
-      update3.status.health shouldEqual ProbeUnknown
+      val updateProbeStatus3 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus3))
+      updateProbeStatus3.status.health shouldEqual ProbeUnknown
 
       probe ! ChildMutates(child3, ProbeStatus(timestamp, ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false))
-      val update4 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
-      stateService.reply(UpdateProbeStatusResult(update4))
-      update4.status.health shouldEqual ProbeHealthy
+      val updateProbeStatus4 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus4))
+      updateProbeStatus4.status.health shouldEqual ProbeHealthy
     }
 
     "transition to ProbeSynthetic/ProbeDegraded when one child has notified of degraded status" in {
@@ -96,30 +98,31 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Probe.props(probeRef, blackhole, probeType, children, initialPolicy, factory, 0, services, metricsBus))
-      val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
+      val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
+      stateService.reply(InitializeProbeStatusResult(initializeProbeStatus, Some(status)))
 
       // probe sets its lifecycle to synthetic
-      val update1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
-      stateService.reply(UpdateProbeStatusResult(update1))
-      update1.status.lifecycle shouldEqual ProbeSynthetic
+      val updateProbeStatus1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus1))
+      updateProbeStatus1.status.lifecycle shouldEqual ProbeSynthetic
 
       val timestamp = DateTime.now()
+
       probe ! ChildMutates(child1, ProbeStatus(timestamp, ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false))
-      val update2 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
-      stateService.reply(UpdateProbeStatusResult(update2))
-      update2.status.health shouldEqual ProbeUnknown
+      val updateProbeStatus2 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus2))
+      updateProbeStatus2.status.health shouldEqual ProbeUnknown
 
       probe ! ChildMutates(child2, ProbeStatus(timestamp, ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false))
-      val update3 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
-      stateService.reply(UpdateProbeStatusResult(update3))
-      update3.status.health shouldEqual ProbeUnknown
+      val updateProbeStatus3 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus3))
+      updateProbeStatus3.status.health shouldEqual ProbeUnknown
 
       probe ! ChildMutates(child3, ProbeStatus(timestamp, ProbeKnown, None, ProbeDegraded, Map.empty, None, None, None, None, false))
-      val update4 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
-      stateService.reply(UpdateProbeStatusResult(update4))
-      update4.status.health shouldEqual ProbeDegraded
+      val updateProbeStatus4 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus4))
+      updateProbeStatus4.status.health shouldEqual ProbeDegraded
     }
 
     "transition to ProbeSynthetic/ProbeFailed when one child has notified of failed status" in {
@@ -133,30 +136,31 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Probe.props(probeRef, blackhole, probeType, children, initialPolicy, factory, 0, services, metricsBus))
-      val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
+      val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
+      stateService.reply(InitializeProbeStatusResult(initializeProbeStatus, Some(status)))
 
       // probe sets its lifecycle to synthetic
-      val update1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
-      stateService.reply(UpdateProbeStatusResult(update1))
-      update1.status.lifecycle shouldEqual ProbeSynthetic
+      val updateProbeStatus1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus1))
+      updateProbeStatus1.status.lifecycle shouldEqual ProbeSynthetic
 
       val timestamp = DateTime.now()
+
       probe ! ChildMutates(child1, ProbeStatus(timestamp, ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false))
-      val update2 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
-      stateService.reply(UpdateProbeStatusResult(update2))
-      update2.status.health shouldEqual ProbeUnknown
+      val updateProbeStatus2 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus2))
+      updateProbeStatus2.status.health shouldEqual ProbeUnknown
 
       probe ! ChildMutates(child2, ProbeStatus(timestamp, ProbeKnown, None, ProbeDegraded, Map.empty, None, None, None, None, false))
-      val update3 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
-      stateService.reply(UpdateProbeStatusResult(update3))
-      update3.status.health shouldEqual ProbeUnknown
+      val updateProbeStatus3 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus3))
+      updateProbeStatus3.status.health shouldEqual ProbeUnknown
 
       probe ! ChildMutates(child3, ProbeStatus(timestamp, ProbeKnown, None, ProbeFailed, Map.empty, None, None, None, None, false))
-      val update4 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
-      stateService.reply(UpdateProbeStatusResult(update4))
-      update4.status.health shouldEqual ProbeFailed
+      val updateProbeStatus4 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus4))
+      updateProbeStatus4.status.health shouldEqual ProbeFailed
     }
 
     "notify NotificationService when the alert timeout expires" in {
@@ -171,39 +175,40 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Probe.props(probeRef, blackhole, probeType, children, initialPolicy, factory, 0, services, metricsBus))
-      val initialize = stateService.expectMsgClass(classOf[InitializeProbeStatus])
+      val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeProbeStatusResult(initialize, Some(status)))
+      stateService.reply(InitializeProbeStatusResult(initializeProbeStatus, Some(status)))
 
       // probe sets its lifecycle to synthetic
-      val update1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
-      stateService.reply(UpdateProbeStatusResult(update1))
-      update1.status.lifecycle shouldEqual ProbeSynthetic
+      val updateProbeStatus1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus1))
+      updateProbeStatus1.status.lifecycle shouldEqual ProbeSynthetic
+
       val timestamp = DateTime.now()
 
       probe ! ChildMutates(child1, ProbeStatus(timestamp, ProbeKnown, None, ProbeFailed, Map.empty, None, None, None, None, false))
-      val update2 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
-      stateService.reply(UpdateProbeStatusResult(update2))
-      update2.status.health shouldEqual ProbeUnknown
+      val updateProbeStatus2 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus2))
+      updateProbeStatus2.status.health shouldEqual ProbeUnknown
 
       probe ! ChildMutates(child2, ProbeStatus(timestamp, ProbeKnown, None, ProbeFailed, Map.empty, None, None, None, None, false))
-      val update3 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
-      stateService.reply(UpdateProbeStatusResult(update3))
-      update3.status.health shouldEqual ProbeUnknown
+      val updateProbeStatus3 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus3))
+      updateProbeStatus3.status.health shouldEqual ProbeUnknown
 
       probe ! ChildMutates(child3, ProbeStatus(timestamp, ProbeKnown, None, ProbeFailed, Map.empty, None, None, None, None, false))
-      val update4 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
-      stateService.reply(UpdateProbeStatusResult(update4))
-      update4.status.health shouldEqual ProbeFailed
+      val updateProbeStatus4 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus4))
+      updateProbeStatus4.status.health shouldEqual ProbeFailed
       notificationService.expectMsgClass(classOf[NotifyHealthChanges])
 
       // alert timer should fire within 5 seconds
-      val update5 = stateService.expectMsgClass(5.seconds, classOf[UpdateProbeStatus])
-      stateService.reply(UpdateProbeStatusResult(update5))
+      val updateProbeStatus5 = stateService.expectMsgClass(5.seconds, classOf[UpdateProbeStatus])
+      stateService.reply(UpdateProbeStatusResult(updateProbeStatus5))
       val notification = notificationService.expectMsgClass(classOf[NotifyHealthAlerts])
       notification.probeRef shouldEqual probeRef
       notification.health shouldEqual ProbeFailed
-      notification.correlation shouldEqual update4.status.correlation
+      notification.correlation shouldEqual updateProbeStatus4.status.correlation
     }
 
   }

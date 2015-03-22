@@ -74,7 +74,7 @@ trait ProcessingOps extends Actor with MutationOps {
           }
           val effect = _processor.configure(initial, change.children)
           val notifications = filterNotifications(effect.notifications)
-          Some(ConfigMutation(change.policy, effect.children, effect.metrics, effect.status, notifications))
+          Some(ConfigMutation(change.policy, _processor, effect.children, effect.metrics, effect.status, notifications))
 
         // the probe is retiring
         case QueuedRetire(retire, timestamp) =>
@@ -116,8 +116,9 @@ trait ProcessingOps extends Actor with MutationOps {
         command.caller ! command.result
         command.notifications
       case Some(config: ConfigMutation) =>
-        children = config.children
         policy = config.policy
+        processor = config.processor
+        children = config.children
         applyStatus(config.status)
         parent ! ChildMutates(probeRef, config.status)
         config.notifications
@@ -170,6 +171,7 @@ case class CommandMutation(caller: ActorRef,
 case class EventMutation(status: ProbeStatus,
                          notifications: Vector[ProbeNotification]) extends Mutation
 case class ConfigMutation(policy: ProbePolicy,
+                          processor: BehaviorProcessor,
                           children: Set[ProbeRef],
                           metrics: Set[MetricSource],
                           status: ProbeStatus,

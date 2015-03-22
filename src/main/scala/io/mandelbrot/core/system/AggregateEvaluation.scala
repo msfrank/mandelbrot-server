@@ -27,7 +27,7 @@ import io.mandelbrot.core.model._
  *
  */
 sealed trait AggregateEvaluation {
-  def evaluate(children: mutable.HashMap[ProbeRef,Option[ProbeStatus]]): ProbeHealth
+  def evaluate(children: Map[ProbeRef,Option[ProbeStatus]]): ProbeHealth
 }
 
 /**
@@ -35,7 +35,7 @@ sealed trait AggregateEvaluation {
  * of severity is defined as Unknown, Failed, Degraded, Healthy).
  */
 case object EvaluateWorst extends AggregateEvaluation {
-  def evaluate(children: mutable.HashMap[ProbeRef,Option[ProbeStatus]]): ProbeHealth = {
+  def evaluate(children: Map[ProbeRef,Option[ProbeStatus]]): ProbeHealth = {
     children.values.foldLeft[ProbeHealth](ProbeHealthy) {
       case (ProbeUnknown, _) => ProbeUnknown
       case (curr, None) => ProbeUnknown

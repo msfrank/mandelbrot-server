@@ -52,7 +52,7 @@ class Probe(val probeRef: ProbeRef,
   val commitTimeout = 5.seconds
 
   // state
-  var processor: BehaviorProcessor = factory.implement()
+  var processor: BehaviorProcessor = null
   var lastCommitted: Option[DateTime] = None
   val alertTimer = new Timer(context, self, ProbeAlertTimeout)
   val commitTimer = new Timer(context, self, ProbeCommitTimeout)
