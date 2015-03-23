@@ -153,10 +153,10 @@ class Probe(val probeRef: ProbeRef,
     case Event(result: UpdateProbeStatusResult, state: Configuring) =>
       commitTimer.stop()
       val status = state.inflight.status
-      applyStatus(status)
       processor = state.proposed
       policy = state.change.policy
       children = state.change.children
+      applyStatus(status)
       parent ! ChildMutates(probeRef, status)
       notify(state.inflight.notifications)
       lastCommitted = Some(status.timestamp)

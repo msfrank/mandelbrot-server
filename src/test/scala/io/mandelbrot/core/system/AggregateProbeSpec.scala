@@ -52,13 +52,15 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val probeRef = ProbeRef("fqdn:local/")
       val probeType = "io.mandelbrot.core.system.AggregateProbe"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
-      val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val children = Set(child1, child2, child3)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val probe = system.actorOf(Probe.props(probeRef, blackhole, probeType, children, initialPolicy, factory, 0, services, metricsBus))
+      val probe = system.actorOf(Probe.props(probeRef, blackhole, services, metricsBus))
+      probe ! ChangeProbe(probeType, policy, factory, children, 0)
+
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeProbeStatusResult(initializeProbeStatus, Some(status)))
@@ -91,13 +93,15 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val probeRef = ProbeRef("fqdn:local/")
       val probeType = "io.mandelbrot.core.system.AggregateProbe"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
-      val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val children = Set(child1, child2, child3)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val probe = system.actorOf(Probe.props(probeRef, blackhole, probeType, children, initialPolicy, factory, 0, services, metricsBus))
+      val probe = system.actorOf(Probe.props(probeRef, blackhole, services, metricsBus))
+      probe ! ChangeProbe(probeType, policy, factory, children, 0)
+
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeProbeStatusResult(initializeProbeStatus, Some(status)))
@@ -129,13 +133,15 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val probeRef = ProbeRef("fqdn:local/")
       val probeType = "io.mandelbrot.core.system.AggregateProbe"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
-      val initialPolicy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val children = Set(child1, child2, child3)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val probe = system.actorOf(Probe.props(probeRef, blackhole, probeType, children, initialPolicy, factory, 0, services, metricsBus))
+      val probe = system.actorOf(Probe.props(probeRef, blackhole, services, metricsBus))
+      probe ! ChangeProbe(probeType, policy, factory, children, 0)
+
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeProbeStatusResult(initializeProbeStatus, Some(status)))
@@ -167,14 +173,16 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val probeRef = ProbeRef("fqdn:local/")
       val probeType = "io.mandelbrot.core.system.AggregateProbe"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
-      val initialPolicy = ProbePolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)
+      val policy = ProbePolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)
       val children = Set(child1, child2, child3)
       val notificationService = new TestProbe(_system)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref), notificationService = Some(notificationService.ref)))
       val metricsBus = new MetricsBus()
 
-      val probe = system.actorOf(Probe.props(probeRef, blackhole, probeType, children, initialPolicy, factory, 0, services, metricsBus))
+      val probe = system.actorOf(Probe.props(probeRef, blackhole, services, metricsBus))
+      probe ! ChangeProbe(probeType, policy, factory, children, 0)
+
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeProbeStatusResult(initializeProbeStatus, Some(status)))

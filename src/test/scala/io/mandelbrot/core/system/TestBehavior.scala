@@ -9,6 +9,8 @@ case class TestProcessorSettings(properties: Map[String,String])
 
 class TestProcessor(val properties: Map[String,String]) extends BehaviorProcessor {
 
+  def initialize(): InitializeEffect = InitializeEffect(None)
+
   def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigureEffect = {
     ConfigureEffect(status, Vector.empty, children, Set.empty)
   }
@@ -33,6 +35,8 @@ class TestBehavior extends ProbeBehaviorExtension {
 }
 
 class TestProcessorChange(val properties: Map[String,String]) extends BehaviorProcessor {
+
+  def initialize(): InitializeEffect = InitializeEffect(None)
 
   def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigureEffect = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
