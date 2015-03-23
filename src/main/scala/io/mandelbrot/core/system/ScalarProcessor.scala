@@ -30,12 +30,14 @@ import io.mandelbrot.core.model._
  */
 class ScalarProcessor extends BehaviorProcessor {
 
-  def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigEffect = {
+  def initialize(): InitializeEffect = InitializeEffect(None)
+
+  def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigureEffect = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val initial = if (status.lifecycle == ProbeInitializing) {
       status.copy(lifecycle = ProbeJoining, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
     } else status
-    ConfigEffect(initial, Vector.empty, Set.empty, Set.empty)
+    ConfigureEffect(initial, Vector.empty, Set.empty, Set.empty)
   }
 
   /*

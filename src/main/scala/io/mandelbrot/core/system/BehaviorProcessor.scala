@@ -31,7 +31,9 @@ import io.mandelbrot.core.{BadRequest, Conflict, ResourceNotFound, ApiException}
  */
 trait BehaviorProcessor {
 
-  def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigEffect
+  def initialize(): InitializeEffect
+
+  def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigureEffect
 
   def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect]
   def processChild(probe: ProbeInterface, child: ProbeRef, status: ProbeStatus): Option[EventEffect]
@@ -118,15 +120,15 @@ trait BehaviorProcessor {
 }
 
 sealed trait ProbeEffect
+case class InitializeEffect(from: Option[DateTime]) extends ProbeEffect
+case class ConfigureEffect(status: ProbeStatus,
+                           notifications: Vector[ProbeNotification],
+                           children: Set[ProbeRef],
+                           metrics: Set[MetricSource]) extends ProbeEffect
 case class CommandEffect(result: ProbeResult,
                          status: ProbeStatus,
                          notifications: Vector[ProbeNotification]) extends ProbeEffect
 
 case class EventEffect(status: ProbeStatus,
                        notifications: Vector[ProbeNotification]) extends ProbeEffect
-
-case class ConfigEffect(status: ProbeStatus,
-                        notifications: Vector[ProbeNotification],
-                        children: Set[ProbeRef],
-                        metrics: Set[MetricSource]) extends ProbeEffect
 

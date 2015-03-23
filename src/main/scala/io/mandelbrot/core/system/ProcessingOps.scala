@@ -27,6 +27,11 @@ trait ProcessingOps extends Actor with MutationOps {
   private var queued: Vector[QueuedMessage] = Vector.empty
 
   /**
+   * returns true if no processing is in-flight, otherwise false.
+   */
+  def idle: Boolean = inflight.isEmpty
+
+  /**
    * if the message queue is empty then immediately start processing the message,
    * otherwise append the message to the queue.
    */
@@ -51,8 +56,7 @@ trait ProcessingOps extends Actor with MutationOps {
         case QueuedCommand(command, caller) =>
           processor.processCommand(this, command) match {
             case Success(effect) =>
-              val notifications = filterNotifications(effect.notifications)
-              Some(CommandMutation(caller, effect.result, effect.status, notifications))
+              Some(CommandMutation(caller, effect.result, effect.status, effect.notifications))
             case Failure(ex) =>
               caller ! ProbeOperationFailed(command, ex)
               None
@@ -61,26 +65,13 @@ trait ProcessingOps extends Actor with MutationOps {
         // process the ProbeEvent
         case QueuedEvent(event, timestamp) =>
           processor.processEvent(this, event).map { effect =>
-            val notifications = filterNotifications(effect.notifications)
-            EventMutation(effect.status, notifications)
+            EventMutation(effect.status, effect.notifications)
           }
-
-        // the processor has changed
-        case QueuedChange(change, timestamp) =>
-          val _processor = change.factory.implement()
-          var initial: ProbeStatus = getProbeStatus
-          if (!change.probeType.equals(probeType)) {
-            initial = initial.copy(lifecycle = ProbeInitializing, health = ProbeUnknown)
-          }
-          val effect = _processor.configure(initial, change.children)
-          val notifications = filterNotifications(effect.notifications)
-          Some(ConfigMutation(change.policy, _processor, effect.children, effect.metrics, effect.status, notifications))
 
         // the probe is retiring
         case QueuedRetire(retire, timestamp) =>
           processor.retire(this, retire.lsn).map { effect =>
-            val notifications = filterNotifications(effect.notifications)
-            Deletion(effect.status, notifications, retire.lsn)
+            Deletion(effect.status, effect.notifications, retire.lsn)
           }
       }
 
@@ -104,31 +95,23 @@ trait ProcessingOps extends Actor with MutationOps {
    */
   def commit(): Option[UpdateProbeStatus] = {
     // apply the mutation to the probe
-    val notifications: Vector[ProbeNotification] = inflight.map(_._1) match {
+    inflight.map(_._1) match {
       case None => Vector.empty
       case Some(event: EventMutation) =>
         applyStatus(event.status)
         parent ! ChildMutates(probeRef, event.status)
-        event.notifications
+        notify(event.notifications)
       case Some(command: CommandMutation) =>
         applyStatus(command.status)
         parent ! ChildMutates(probeRef, command.status)
         command.caller ! command.result
-        command.notifications
-      case Some(config: ConfigMutation) =>
-        policy = config.policy
-        processor = config.processor
-        children = config.children
-        applyStatus(config.status)
-        parent ! ChildMutates(probeRef, config.status)
-        config.notifications
+        notify(command.notifications)
+
       case Some(deletion: Deletion) =>
         applyStatus(deletion.status)
         parent ! ChildMutates(probeRef, deletion.status)
-        deletion.notifications
+        notify(deletion.notifications)
     }
-    // send notifications
-    notifications.foreach { notification => services ! notification }
     // done processing inflight
     inflight = None
     // process the next queued message
@@ -143,20 +126,22 @@ trait ProcessingOps extends Actor with MutationOps {
   def recover(): Option[UpdateProbeStatus] = process()
 
   /**
-   * filter out notifications if they don't match the current policy
+   * send notifications if they match the current policy
    */
-  private def filterNotifications(notifications: Vector[ProbeNotification]): Vector[ProbeNotification] = notifications.filter {
-    // always allow alerts
-    case alert: Alert => true
-    // if there is no explicit policy, or the kind matches the current policy, then allow
-    case notification: ProbeNotification =>
-      policy.notifications match {
-        case None => true
-        case Some(kind) if kind.contains(notification.kind) => true
-        case _ => false
-      }
-    // drop anything else
-    case _ => false
+  def notify(notifications: Vector[ProbeNotification]): Unit = {
+    notifications.filter {
+      // always allow alerts
+      case alert: Alert => true
+      // if there is no explicit policy, or the kind matches the current policy, then allow
+      case notification: ProbeNotification =>
+        policy.notifications match {
+          case None => true
+          case Some(kind) if kind.contains(notification.kind) => true
+          case _ => false
+        }
+      // drop anything else
+      case _ => false
+    }.foreach(notification => services ! notification)
   }
 }
 
@@ -170,12 +155,6 @@ case class CommandMutation(caller: ActorRef,
                            notifications: Vector[ProbeNotification]) extends Mutation
 case class EventMutation(status: ProbeStatus,
                          notifications: Vector[ProbeNotification]) extends Mutation
-case class ConfigMutation(policy: ProbePolicy,
-                          processor: BehaviorProcessor,
-                          children: Set[ProbeRef],
-                          metrics: Set[MetricSource],
-                          status: ProbeStatus,
-                          notifications: Vector[ProbeNotification]) extends Mutation
 case class Deletion(status: ProbeStatus,
                     notifications: Vector[ProbeNotification],
                     lsn: Long) extends Mutation
@@ -183,5 +162,4 @@ case class Deletion(status: ProbeStatus,
 sealed trait QueuedMessage
 case class QueuedEvent(event: ProbeEvent, timestamp: DateTime) extends QueuedMessage
 case class QueuedCommand(command: ProbeCommand, caller: ActorRef) extends QueuedMessage
-case class QueuedChange(change: ChangeProbe, timestamp: DateTime) extends QueuedMessage
 case class QueuedRetire(retire: RetireProbe, timestamp: DateTime) extends QueuedMessage

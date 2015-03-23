@@ -9,8 +9,8 @@ case class TestProcessorSettings(properties: Map[String,String])
 
 class TestProcessor(val properties: Map[String,String]) extends BehaviorProcessor {
 
-  def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigEffect = {
-    ConfigEffect(status, Vector.empty, children, Set.empty)
+  def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigureEffect = {
+    ConfigureEffect(status, Vector.empty, children, Set.empty)
   }
 
   def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
@@ -34,10 +34,10 @@ class TestBehavior extends ProbeBehaviorExtension {
 
 class TestProcessorChange(val properties: Map[String,String]) extends BehaviorProcessor {
 
-  def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigEffect = {
+  def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigureEffect = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val status = ProbeStatus(timestamp, ProbeKnown, None, ProbeHealthy, Map.empty, Some(timestamp), Some(timestamp), None, None, false)
-    ConfigEffect(status, Vector.empty, children, Set.empty)
+    ConfigureEffect(status, Vector.empty, children, Set.empty)
   }
 
   def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())

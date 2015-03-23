@@ -295,15 +295,15 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
         case Some(parent) => parent == ref
         case None => false
       }}
-      val probeType = probeSpec.probeType
       val factory = ProbeBehavior.extensions(probeSpec.probeType).configure(probeSpec.properties)
       val actor = ref.parentOption match {
         case Some(parent) if parent.path.nonEmpty =>
-          context.actorOf(Probe.props(ref, probes(parent).actor, probeType, directChildren, probeSpec.policy, factory, lsn, services, metricsBus))
+          context.actorOf(Probe.props(ref, probes(parent).actor, services, metricsBus))
         case _ =>
-          context.actorOf(Probe.props(ref, self, probeType, directChildren, probeSpec.policy, factory, lsn, services, metricsBus))
+          context.actorOf(Probe.props(ref, self, services, metricsBus))
       }
       context.watch(actor)
+      actor ! ChangeProbe(probeSpec.probeType, probeSpec.policy, factory, directChildren, lsn)
       log.debug("probe {} joins", ref)
       probes = probes + (ref -> ProbeActor(probeSpec, actor))
     }

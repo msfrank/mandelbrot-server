@@ -39,11 +39,6 @@ import scala.util.{Failure, Success}
  */
 class Probe(val probeRef: ProbeRef,
             val parent: ActorRef,
-            var probeType: String,
-            var children: Set[ProbeRef],
-            var policy: ProbePolicy,
-            var factory: ProcessorFactory,
-            val probeGeneration: Long,
             val services: ActorRef,
             val metricsBus: MetricsBus) extends LoggingFSM[Probe.State,Probe.Data] with Stash with ProcessingOps {
   import Probe._
@@ -52,163 +47,254 @@ class Probe(val probeRef: ProbeRef,
   val commitTimeout = 5.seconds
 
   // state
+  var probeType: String = null
   var processor: BehaviorProcessor = null
+  var factory: ProcessorFactory = null
+  var policy: ProbePolicy = null
+  var children: Set[ProbeRef] = null
+  var probeGeneration: Long = 0L
   var lastCommitted: Option[DateTime] = None
   val alertTimer = new Timer(context, self, ProbeAlertTimeout)
   val commitTimer = new Timer(context, self, ProbeCommitTimeout)
   val expiryTimer = new Timer(context, self, ProbeExpiryTimeout)
 
-  /**
-   * before starting the FSM, request the ProbeStatus from the state service.  the result
-   * of this query determines which FSM state we transition to from Initializing.
+  startWith(Incubating, NoData)
+
+  /*
+   *
    */
-  override def preStart(): Unit = {
-    // ask state service what our current status is
-    val op = InitializeProbeStatus(probeRef, now())
-    services ! op
-    commitTimer.start(commitTimeout)
-    startWith(InitializingProbe, InitializingProbe(op))
-    /* perform FSM initialization at the last possible moment */
-    initialize()
+  when(Incubating) {
+
+    /* initialize the probe using parameters from the proposed processor */
+    case Event(change: ChangeProbe, NoData) =>
+      val proposed = change.factory.implement()
+      val params = proposed.initialize()
+      val op = InitializeProbeStatus(probeRef, now())
+      goto(Initializing) using Initializing(change, proposed, op)
+
+    /* stash any other messages for processing later */
+    case Event(_, NoData) =>
+      stash()
+      stay()
+  }
+
+  onTransition {
+    case _ -> Initializing =>
+      nextStateData match {
+        case state: Initializing => services ! state.inflight
+        case _ =>
+      }
+      commitTimer.restart(commitTimeout)
   }
 
   /*
-   * wait for ProbeState from state service.  if the lsn returned equals the probe
-   * generation, then transition to the appropriate behavior, otherwise transition
-   * directly to Retired.
+   *
    */
-  when(InitializingProbe) {
-
-    /* retrieve the current probe status */
-    case Event(query: GetProbeStatus, _) =>
-      sender() ! GetProbeStatusResult(query, getProbeStatus)
-      stay()
+  when(Initializing) {
 
     /* ignore result if it doesn't match the in-flight request */
-    case Event(result: InitializeProbeStatusResult, state: InitializingProbe) if result.op != state.command =>
+    case Event(result: InitializeProbeStatusResult, state: Initializing) if result.op != state.inflight =>
       stay()
 
-    case Event(result: InitializeProbeStatusResult, state: InitializingProbe) =>
-      commitTimer.stop()
-      result.status match {
-        // rehydrate probe status from state service
-        case Some(status) =>
-          log.debug("gen {}: received initial status: {}", probeGeneration, status)
-          applyStatus(status)
-          lastCommitted = Some(status.timestamp)
-        case None =>
-          // there is no previous probe status, do nothing
-      }
-      // switch to retired behavior if latest probe status is retired
-      if (lifecycle == ProbeRetired) {
-        log.debug("gen {}: probe becomes retired", probeGeneration, probeRef)
-        goto(StaleProbe) using NoData
-      }
-      // otherwise replay any stashed messages and transition to initialized
-      else {
-        val change = ChangeProbe(probeType, policy, factory, children, probeGeneration)
-        enqueue(QueuedChange(change, now()))
-        unstashAll()
-        goto(RunningProbe) using RunningProbe()
-      }
-
-    case Event(result: StateServiceOperationFailed, state: InitializingProbe) if result.op != state.command =>
+    /* ignore failure if it doesn't match the in-flight request */
+    case Event(result: StateServiceOperationFailed, state: Initializing) if result.op != state.inflight =>
       stay()
 
-    // FIXME: is this needed?  i don't think so.
-    case Event(StateServiceOperationFailed(_, failure: ApiException), _) if failure.failure == ResourceNotFound =>
-      log.debug("probe {} becomes retired", probeRef)
+    /* configure processor using initial state */
+    case Event(result: InitializeProbeStatusResult, state: Initializing) =>
       commitTimer.stop()
-      goto(StaleProbe) using NoData
+      val effect = state.proposed.configure(result.status.getOrElse(getProbeStatus), state.change.children)
+      lastCommitted = result.status.map(_.timestamp)
+      val op = UpdateProbeStatus(probeRef, effect.status, effect.notifications, lastCommitted)
+      goto(Configuring) using Configuring(state.change, state.proposed, op)
 
-    case Event(StateServiceOperationFailed(op, failure), _) =>
+    /* timed out waiting for initialization from state service */
+    case Event(ProbeCommitTimeout, state: Initializing) =>
+      log.debug("gen {}: timeout while receiving initial state", probeGeneration)
+      services ! state.inflight
+      commitTimer.restart(commitTimeout)
+      stay()
+
+    /* received an unhandled exception, so bail out */
+    case Event(StateServiceOperationFailed(op, failure), state: Initializing) =>
       log.debug("gen {}: failure receiving initial state: {}", probeGeneration, failure)
       commitTimer.stop()
       throw failure
 
-    /* timed out waiting for initialization from state service */
-    case Event(ProbeCommitTimeout, _) =>
-      log.debug("gen {}: timeout while receiving initial state", probeGeneration)
-      val op = InitializeProbeStatus(probeRef, now())
-      services ! op
-      commitTimer.restart(commitTimeout)
-      stay() using InitializingProbe(op)
-
-    /* tell client to retry probe operations */
-    case Event(op: ProbeOperation, _) =>
-      stay() replying ProbeOperationFailed(op, ApiException(RetryLater))
-
     /* stash any other messages for processing later */
-    case Event(other, _) =>
+    case Event(other, state: Initializing) =>
       stash()
       stay()
+  }
+
+  onTransition {
+    case _ -> Configuring =>
+      nextStateData match {
+        case state: Configuring => services ! state.inflight
+        case _ =>
+      }
+      commitTimer.restart(commitTimeout)
+  }
+
+  /*
+   *
+   */
+  when(Configuring) {
+
+    /* ignore result if it doesn't match the in-flight request */
+    case Event(result: UpdateProbeStatusResult, state: Configuring) if result.op != state.inflight =>
+      stay()
+
+    /* ignore failure if it doesn't match the in-flight request */
+    case Event(result: StateServiceOperationFailed, state: Configuring) if result.op != state.inflight =>
+      stay()
+
+    /* apply status processor using initial state */
+    case Event(result: UpdateProbeStatusResult, state: Configuring) =>
+      commitTimer.stop()
+      val status = state.inflight.status
+      applyStatus(status)
+      processor = state.proposed
+      policy = state.change.policy
+      children = state.change.children
+      parent ! ChildMutates(probeRef, status)
+      notify(state.inflight.notifications)
+      lastCommitted = Some(status.timestamp)
+      goto(Running) using NoData
+
+    /* timed out waiting for initialization from state service */
+    case Event(ProbeCommitTimeout, state: Configuring) =>
+      log.debug("gen {}: timeout while updating configured state", probeGeneration)
+      services ! state.inflight
+      commitTimer.restart(commitTimeout)
+      stay()
+
+    /* received an unhandled exception, so bail out */
+    case Event(StateServiceOperationFailed(op, failure), state: Configuring) =>
+      log.debug("gen {}: failure updating configured state: {}", probeGeneration, failure)
+      commitTimer.stop()
+      throw failure
+
+    /* stash any other messages for processing later */
+    case Event(_, state: Configuring) =>
+      stash()
+      stay()
+  }
+
+  onTransition {
+    case Configuring -> Running => unstashAll()
   }
 
   /*
    * probe is ready to process messages.
    */
-  when(RunningProbe) {
+  when(Running) {
 
     /* retrieve the current probe status */
-    case Event(query: GetProbeStatus, _) =>
+    case Event(query: GetProbeStatus, NoData) =>
       stay() replying GetProbeStatusResult(query, getProbeStatus)
 
     /* process a probe evaluation from the client */
-    case Event(command: ProcessProbeEvaluation, state: RunningProbe) =>
+    case Event(command: ProcessProbeEvaluation, NoData) =>
       enqueue(QueuedCommand(command, sender()))
       stay()
 
     /* if the probe behavior has changed, then transition to a new state */
-    case Event(change: ChangeProbe, state: RunningProbe) =>
-      enqueue(QueuedChange(change, now()))
-      stay()
+    case Event(change: ChangeProbe, NoData) =>
+      // if queue is empty, put the message back in the mailbox to reprocess in Incubating state
+      if (idle) {
+        self ! change
+        goto(Incubating) using NoData
+      }
+      // otherwise hold onto the change and drain the queue first
+      else {
+        goto(Changing) using Changing(change)
+      }
 
     /* if the probe behavior has retired, then update our state */
-    case Event(retire: RetireProbe, state: RunningProbe) =>
+    case Event(retire: RetireProbe, NoData) =>
       enqueue(QueuedRetire(retire, now()))
-      goto(RetiringProbe)
+      goto(Retiring)
 
     /* process child status and update state */
-    case Event(event: ChildMutates, state: RunningProbe) =>
+    case Event(event: ChildMutates, NoData) =>
       if (children.contains(event.probeRef)) { enqueue(QueuedEvent(event, now())) }
       stay()
 
     /* process alert timeout and update state */
-    case Event(ProbeAlertTimeout, state: RunningProbe) =>
+    case Event(ProbeAlertTimeout, NoData) =>
       enqueue(QueuedEvent(ProbeAlertTimeout, now()))
       stay()
 
     /* process expiry timeout and update state */
-    case Event(ProbeExpiryTimeout, state: RunningProbe) =>
+    case Event(ProbeExpiryTimeout, NoData) =>
       enqueue(QueuedEvent(ProbeExpiryTimeout, now()))
       stay()
 
     /* process probe commands */
-    case Event(command: ProbeCommand, state: RunningProbe) =>
+    case Event(command: ProbeCommand, NoData) =>
       enqueue(QueuedCommand(command, sender()))
       stay()
 
     /* probe state has been committed, now we can apply the mutation */
-    case Event(result: UpdateProbeStatusResult, state: RunningProbe) =>
+    case Event(result: UpdateProbeStatusResult, NoData) =>
       commit()
       stay()
 
     /* state failed to commit */
-    case Event(failure: StateServiceOperationFailed, state: RunningProbe) =>
+    case Event(failure: StateServiceOperationFailed, NoData) =>
       recover()
       stay()
 
     /* timeout waiting to commit */
-    case Event(ProbeCommitTimeout, state: RunningProbe) =>
+    case Event(ProbeCommitTimeout, NoData) =>
       recover()
       stay()
   }
 
   /*
+   *
+   */
+  when(Changing) {
+
+    /* retrieve the current probe status */
+    case Event(query: GetProbeStatus, state: Changing) =>
+      sender() ! GetProbeStatusResult(query, getProbeStatus)
+      stay()
+
+    /* probe state has been committed, now we can apply the mutation */
+    case Event(result: UpdateProbeStatusResult, state: Changing) =>
+      commit()
+      if (idle) goto(Incubating) using NoData else stay()
+
+    /* state failed to commit */
+    case Event(failure: StateServiceOperationFailed, state: Changing) =>
+      recover()
+      if (idle) goto(Incubating) using NoData else stay()
+
+    /* timeout waiting to commit */
+    case Event(ProbeCommitTimeout, state: Changing) =>
+      recover()
+      if (idle) goto(Incubating) using NoData else stay()
+
+    /* drop any other messages */
+    case Event(_, state: Changing) =>
+      stash()
+      stay()
+  }
+
+  onTransition {
+    case Changing -> Incubating =>
+      stateData match {
+        case state: Changing => self ! state.pending
+        case _ =>
+      }
+  }
+  /*
    * probe is transitioning from running to retired.  once the probe state is deleted
    * from the state service, the probe is stopped.
    */
-  when(RetiringProbe) {
+  when(Retiring) {
 
     /* retrieve the current probe status */
     case Event(query: GetProbeStatus, _) =>
@@ -216,22 +302,22 @@ class Probe(val probeRef: ProbeRef,
       stay()
 
     /* probe state has been committed, now we can apply the mutation */
-    case Event(result: UpdateProbeStatusResult, state: RunningProbe) =>
+    case Event(result: UpdateProbeStatusResult, NoData) =>
       commit()
       stay()
 
     /* probe delete has completed, stop the actor */
-    case Event(result: DeleteProbeStatusResult, state: RunningProbe) =>
+    case Event(result: DeleteProbeStatusResult, NoData) =>
       commit()
       stop()
 
     /* state failed to commit */
-    case Event(failure: StateServiceOperationFailed, state: RunningProbe) =>
+    case Event(failure: StateServiceOperationFailed, NoData) =>
       recover()
       stay()
 
     /* timeout waiting to commit */
-    case Event(ProbeCommitTimeout, state: RunningProbe) =>
+    case Event(ProbeCommitTimeout, NoData) =>
       recover()
       stay()
 
@@ -249,34 +335,34 @@ class Probe(val probeRef: ProbeRef,
     commitTimer.stop()
     expiryTimer.stop()
   }
+
+  initialize()
 }
 
 object Probe {
   def props(probeRef: ProbeRef,
             parent: ActorRef,
-            probeType: String,
-            children: Set[ProbeRef],
-            policy: ProbePolicy,
-            factory: ProcessorFactory,
-            probeGeneration: Long,
             services: ActorRef,
             metricsBus: MetricsBus) = {
-    Props(classOf[Probe], probeRef, parent, probeType, children, policy, factory, probeGeneration, services, metricsBus)
+    Props(classOf[Probe], probeRef, parent, services, metricsBus)
   }
 
 
   sealed trait State
-  case object InitializingProbe extends State
-  case object ChangingProbe extends State
-  case object RunningProbe extends State
-  case object RetiringProbe extends State
-  case object StaleProbe extends State
+  case object Incubating extends State
+  case object Initializing extends State
+  case object Configuring extends State
+  case object Changing extends State
+  case object Running extends State
+  case object Retiring extends State
+  case object Retired extends State
 
   sealed trait Data
-  case class InitializingProbe(command: InitializeProbeStatus) extends Data
-  case class RunningProbe() extends Data
-  case class ChangingProbe(command: ChangeProbe) extends Data
-  case class RetiringProbe(lsn: Long) extends Data
+  case class Initializing(change: ChangeProbe, proposed: BehaviorProcessor, inflight: InitializeProbeStatus) extends Data
+  case class Configuring(change: ChangeProbe, proposed: BehaviorProcessor, inflight: UpdateProbeStatus) extends Data
+  case class Changing(pending: ChangeProbe) extends Data
+  case class Retiring(lsn: Long) extends Data
+  case class Retired(lsn: Long) extends Data
   case object NoData extends Data
 
 }

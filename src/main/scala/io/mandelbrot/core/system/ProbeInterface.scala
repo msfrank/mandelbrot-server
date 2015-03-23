@@ -33,7 +33,6 @@ trait ProbeInterface {
 
   val probeRef: ProbeRef
   val parent: ActorRef
-  val probeGeneration: Long
 
   def children: Set[ProbeRef]
   def policy: ProbePolicy

@@ -38,13 +38,15 @@ class AggregateProcessor(settings: AggregateProbeSettings) extends BehaviorProce
   val evaluation = settings.evaluation
   var childrenStatus: Map[ProbeRef,Option[ProbeStatus]] = Map.empty
 
-  def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigEffect = {
+  def initialize(): InitializeEffect = InitializeEffect(None)
+
+  def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigureEffect = {
     childrenStatus = children.map(child => child -> None).toMap
     val initial = if (status.lifecycle == ProbeInitializing) {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       status.copy(lifecycle = ProbeSynthetic, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
     } else status
-    ConfigEffect(initial, Vector.empty, childrenStatus.keySet, Set.empty)
+    ConfigureEffect(initial, Vector.empty, childrenStatus.keySet, Set.empty)
   }
 
   /* ignore probe evaluations from client */
