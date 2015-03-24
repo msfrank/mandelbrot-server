@@ -19,6 +19,8 @@
 
 package io.mandelbrot.core
 
+import java.net.URI
+
 import akka.actor._
 import io.mandelbrot.core.entity._
 import io.mandelbrot.core.model.NotificationEvent
@@ -55,8 +57,11 @@ class ServiceProxy extends Actor with ActorLogging {
     case op: RegisterProbeSystem => ProbeSystem.props(self)
     case entity: Entity => ProbeSystem.props(self)
   }
+  val entityReviver: EntityFunctions.EntityReviver = {
+    case key => ReviveProbeSystem(new URI(key))
+  }
 
-  val entityService = context.actorOf(EntityManager.props(settings.cluster, propsCreator), "entity-service")
+  val entityService = context.actorOf(EntityManager.props(settings.cluster, propsCreator, entityReviver), "entity-service")
 
   def receive = {
 
@@ -88,6 +93,7 @@ class ServiceProxy extends Actor with ActorLogging {
 
 object ServiceProxy {
   def props() =  Props(classOf[ServiceProxy])
+
 }
 
 trait ServiceOperation

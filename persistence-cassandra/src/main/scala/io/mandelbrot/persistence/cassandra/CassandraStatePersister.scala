@@ -78,7 +78,7 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
           }
       }.recover {
         case ex: Throwable =>
-          log.error(ex, "failed to update probe status")
+          log.error(ex, "failed to get condition history")
           StateServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
@@ -104,7 +104,7 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
           }
       }.recover {
         case ex: Throwable =>
-          log.error(ex, "failed to update probe status")
+          log.error(ex, "failed to get notification history")
           StateServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
@@ -130,7 +130,7 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
           }
       }.recover {
         case ex: Throwable =>
-          log.error(ex, "failed to update probe status")
+          log.error(ex, "failed to get metric history")
           StateServiceOperationFailed(op, ex)
       }.pipeTo(sender())
   }

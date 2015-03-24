@@ -22,15 +22,16 @@ package io.mandelbrot.core.entity
 import akka.actor._
 import akka.cluster.{UniqueAddress, Cluster}
 import akka.contrib.pattern.DistributedPubSubMediator
-import scala.collection.immutable.SortedSet
 
 import io.mandelbrot.core._
-import io.mandelbrot.core.entity.EntityFunctions.PropsCreator
+import io.mandelbrot.core.entity.EntityFunctions.{EntityReviver, PropsCreator}
 
 /**
  * 
  */
-class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator) extends Actor with ActorLogging {
+class ClusterEntityManager(settings: ClusterSettings,
+                           propsCreator: PropsCreator,
+                           entityReviver: EntityReviver) extends Actor with ActorLogging {
 
   // config
   val selfAddress: Address = Cluster(context.system).selfAddress
@@ -79,12 +80,17 @@ class ClusterEntityManager(settings: ClusterSettings, propsCreator: PropsCreator
     case state: ClusterUp =>
       clusterState =  state
       // create actors if they don't exist.  this should happen only once.
-      if (gossiper == null)
+      if (gossiper == null) {
         gossiper = context.actorOf(DistributedPubSubMediator.props(None), "cluster-gossiper")
-      if (shardManager == null)
-        shardManager = context.actorOf(ShardManager.props(context.parent, propsCreator, selfAddress, settings.totalShards, gossiper), "entity-manager")
-      if (shardBalancer == null)
-        shardBalancer = context.actorOf(ClusterBalancer.props(settings, context.parent, shardManager.path.elements), "shard-balancer")
+      }
+      if (shardManager == null) {
+        shardManager = context.actorOf(ShardManager.props(context.parent, propsCreator,
+          entityReviver, selfAddress, settings.totalShards, gossiper), "entity-manager")
+      }
+      if (shardBalancer == null) {
+        shardBalancer = context.actorOf(ClusterBalancer.props(settings, context.parent,
+          shardManager.path.elements), "shard-balancer")
+      }
       log.debug("cluster becomes UP")
       context.become(up)
 

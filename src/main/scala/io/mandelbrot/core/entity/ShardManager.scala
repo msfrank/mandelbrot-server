@@ -25,7 +25,7 @@ import akka.contrib.pattern.DistributedPubSubMediator.SendToAll
 import scala.concurrent.duration._
 import java.util
 
-import io.mandelbrot.core.entity.EntityFunctions.PropsCreator
+import io.mandelbrot.core.entity.EntityFunctions.{PropsCreator,EntityReviver}
 import io.mandelbrot.core._
 
 /**
@@ -43,6 +43,7 @@ import io.mandelbrot.core._
  */
 class ShardManager(services: ActorRef,
                    propsCreator: PropsCreator,
+                   entityReviver: EntityReviver,
                    selfAddress: Address,
                    totalShards: Int,
                    gossiper: ActorRef) extends Actor with ActorLogging {
@@ -91,7 +92,7 @@ class ShardManager(services: ActorRef,
         }
         // if shard is local and entity map doesn't exist, create a new entity map
         else if (selfAddress.equals(StandaloneAddress) || address.equals(selfAddress)) {
-          val shardEntities = context.actorOf(ShardEntities.props(services, propsCreator, shardId))
+          val shardEntities = context.actorOf(ShardEntities.props(services, propsCreator, entityReviver, shardId))
           entitiesByShard.put(shardId, shardEntities)
           shardForEntities.put(shardEntities, shardId)
           log.debug("created entity map for shard {}", shardId)
@@ -164,7 +165,7 @@ class ShardManager(services: ActorRef,
         case entry: PreparingShardEntry =>
           log.debug("{} says recover shardId {}", sender().path, op.shardId)
           shardMap.assign(op.shardId, selfAddress)
-          val shardEntities = context.actorOf(ShardEntities.props(services, propsCreator, entry.shardId))
+          val shardEntities = context.actorOf(ShardEntities.props(services, propsCreator, entityReviver, entry.shardId))
           entitiesByShard.put(op.shardId, shardEntities)
           shardForEntities.put(shardEntities, op.shardId)
           log.debug("created entity map for shard {}", entry.shardId)
@@ -192,7 +193,7 @@ class ShardManager(services: ActorRef,
         shardMap.assign(result.shardId, result.address)
         // if shard is local and entity map doesn't exist, create a new entity map
         if (result.address.equals(selfAddress) && !entitiesByShard.containsKey(result.shardId)) {
-          val shardEntities = context.actorOf(ShardEntities.props(services, propsCreator, result.shardId))
+          val shardEntities = context.actorOf(ShardEntities.props(services, propsCreator, entityReviver, result.shardId))
           entitiesByShard.put(result.shardId, shardEntities)
           shardForEntities.put(shardEntities, result.shardId)
           log.debug("created entity map for shard {}", result.shardId)
@@ -335,10 +336,11 @@ object ShardManager {
 
   def props(services: ActorRef,
             propsCreator: PropsCreator,
+            entityReviver: EntityReviver,
             selfAddress: Address,
             totalShards: Int,
             gossiper: ActorRef) = {
-    Props(classOf[ShardManager], services, propsCreator, selfAddress, totalShards, gossiper)
+    Props(classOf[ShardManager], services, propsCreator, entityReviver, selfAddress, totalShards, gossiper)
   }
 
   case object Retry
@@ -351,6 +353,7 @@ object EntityFunctions {
   type KeyExtractor = PartialFunction[Any,String]
   type ShardResolver = PartialFunction[Any,Int]
   type PropsCreator = PartialFunction[Any,Props]
+  type EntityReviver = PartialFunction[String,Any]
 }
 
 case class EntityEnvelope(sender: ActorRef, op: ServiceOperation, shardKey: Int, entityKey: String, attemptsLeft: Int, maxAttempts: Int)

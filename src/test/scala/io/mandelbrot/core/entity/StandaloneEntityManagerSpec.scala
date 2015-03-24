@@ -40,7 +40,7 @@ class StandaloneEntityManagerSpec(_system: ActorSystem) extends TestKit(_system)
                                             retryInterval = 1.second,
                                             coordinatorProps)
 
-  val props = Props(classOf[StandaloneEntityManager], clusterSettings, TestEntity.propsCreator)
+  val props = Props(classOf[StandaloneEntityManager], clusterSettings, TestEntity.propsCreator, TestEntity.entityReviver)
   val entityManager = system.actorOf(ProxyForwarder.props(props, self, classOf[EntityServiceOperation]), "entity-manager")
 
   def entityEnvelope(op: ServiceOperation): EntityEnvelope = {

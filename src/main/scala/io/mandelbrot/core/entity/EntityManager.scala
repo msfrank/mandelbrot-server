@@ -4,17 +4,17 @@ import akka.actor.{Address, Props}
 import akka.cluster.{UniqueAddress, MemberStatus}
 
 import io.mandelbrot.core.{ServiceQuery, ServiceCommand, ServiceOperationFailed, ServiceOperation}
-import io.mandelbrot.core.entity.EntityFunctions.PropsCreator
+import io.mandelbrot.core.entity.EntityFunctions.{EntityReviver, PropsCreator}
 
 /**
  *
  */
 object EntityManager {
-  def props(settings: ClusterSettings, propsCreator: PropsCreator) = {
+  def props(settings: ClusterSettings, propsCreator: PropsCreator, entityReviver: EntityReviver) = {
     if (settings.enabled)
-      Props(classOf[ClusterEntityManager], settings, propsCreator)
+      Props(classOf[ClusterEntityManager], settings, propsCreator, entityReviver)
     else
-      Props(classOf[StandaloneEntityManager], settings, propsCreator)
+      Props(classOf[StandaloneEntityManager], settings, propsCreator, entityReviver)
   }
 }
 

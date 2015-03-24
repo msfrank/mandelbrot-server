@@ -30,6 +30,9 @@ object TestEntity {
   val propsCreator: EntityFunctions.PropsCreator = {
     case m: TestEntityCreate => TestEntity.props()
   }
+  val entityReviver: EntityFunctions.EntityReviver = {
+    case m: String => TestEntityRevive()
+  }
 }
 
 case class TestEntityCreate(key: String, shard: Int, message: Any) extends ServiceCommand
@@ -37,3 +40,5 @@ case class TestCreateReply(message: Any)
 
 case class TestEntityMessage(key: String, shard: Int, message: Any) extends ServiceCommand
 case class TestMessageReply(message: Any)
+
+case class TestEntityRevive()

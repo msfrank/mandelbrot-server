@@ -20,13 +20,10 @@
 package io.mandelbrot.core.entity
 
 import akka.actor._
-import akka.pattern.ask
-import akka.pattern.pipe
-import scala.concurrent.Future
 import java.util
 
 import io.mandelbrot.core.{ResourceNotFound, ApiException}
-import io.mandelbrot.core.entity.EntityFunctions.{ShardResolver, PropsCreator, KeyExtractor}
+import io.mandelbrot.core.entity.EntityFunctions._
 
 /**
  * ShardEntities manages entities for a single shard.  The ShardEntities actor
@@ -38,6 +35,7 @@ import io.mandelbrot.core.entity.EntityFunctions.{ShardResolver, PropsCreator, K
  */
 class ShardEntities(services: ActorRef,
                     propsCreator: PropsCreator,
+                    entityReviver: EntityReviver,
                     shardId: Int) extends Actor with ActorLogging with Stash {
 
   // config
@@ -61,12 +59,12 @@ class ShardEntities(services: ActorRef,
       log.debug("received {} entities for shard {}", result.entities.length, result.op.shardId)
       result.entities.foreach { entity =>
         val props = propsCreator(entity)
+        val reviver = entityReviver(entity.entityKey)
         val actor = context.actorOf(props)
         context.watch(actor)
         refsByKey.put(entity.entityKey, actor)
         entitiesByRef.put(actor, entity)
-        // send the envelope message to the entity
-        actor ! entity
+        actor ! reviver
       }
       result.token match {
         case None =>
@@ -144,7 +142,8 @@ class ShardEntities(services: ActorRef,
 object ShardEntities {
   def props(services: ActorRef,
             propsCreator: PropsCreator,
+            entityReviver: EntityReviver,
             shardId: Int) = {
-    Props(classOf[ShardEntities], services, propsCreator, shardId)
+    Props(classOf[ShardEntities], services, propsCreator, entityReviver, shardId)
   }
 }

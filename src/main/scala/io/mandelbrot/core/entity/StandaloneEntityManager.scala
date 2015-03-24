@@ -21,7 +21,7 @@ package io.mandelbrot.core.entity
 
 import akka.actor._
 import io.mandelbrot.core._
-import io.mandelbrot.core.entity.EntityFunctions.{ShardResolver, KeyExtractor, PropsCreator}
+import io.mandelbrot.core.entity.EntityFunctions.{EntityReviver, ShardResolver, KeyExtractor, PropsCreator}
 import scala.collection.mutable
 import java.net.URI
 
@@ -31,12 +31,15 @@ import io.mandelbrot.core.system.{ProbeSystem, ProbeSystemOperation, ProbeOperat
 /**
  *
  */
-class StandaloneEntityManager(settings: ClusterSettings, propsCreator: PropsCreator) extends Actor with ActorLogging {
+class StandaloneEntityManager(settings: ClusterSettings,
+                              propsCreator: PropsCreator,
+                              entityReviver: EntityReviver) extends Actor with ActorLogging {
 
   // state
   val coordinator = context.actorOf(settings.props, "coordinator")
   val shardManager = context.actorOf(ShardManager.props(context.parent, propsCreator,
-    ShardManager.StandaloneAddress, settings.totalShards, ActorRef.noSender), "entity-manager")
+    entityReviver, ShardManager.StandaloneAddress, settings.totalShards, ActorRef.noSender),
+    "entity-manager")
 
   log.info("initializing standalone mode")
 

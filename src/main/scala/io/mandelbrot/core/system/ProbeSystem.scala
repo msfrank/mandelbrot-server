@@ -58,12 +58,12 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
       services ! CreateProbeSystemEntry(op.uri, op.registration)
       goto(SystemRegistering) using SystemRegistering(op, sender())
 
-    case Event(entity: Entity, _) =>
-      val uri = new URI(entity.entityKey)
-      services ! GetProbeSystemEntry(uri)
-      goto(SystemInitializing) using SystemInitializing(uri)
+    case Event(revive: ReviveProbeSystem, _) =>
+      services ! GetProbeSystemEntry(revive.uri)
+      goto(SystemInitializing) using SystemInitializing(revive.uri)
       
-    case _: Event => stop()
+    case Event(unhandled, _) =>
+      throw new IllegalStateException("illegal message %s while in Incubating state".format(unhandled))
   }
 
   when(SystemRegistering) {
@@ -113,10 +113,6 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
   }
 
   when (SystemRunning) {
-
-    /* get the ProbeSystem lsn */
-    case Event(op: ReviveProbeSystem, state: SystemRunning) =>
-      stay() replying ReviveProbeSystemResult(op, state.lsn)
 
     /* get the ProbeSystem spec */
     case Event(query: DescribeProbeSystem, state: SystemRunning) =>
@@ -377,6 +373,7 @@ object ProbeSystem {
   case class SystemError(ex: Throwable) extends Data
 }
 
+case class ReviveProbeSystem(uri: URI)
 case class ChangeProbe(probeType: String, policy: ProbePolicy, factory: ProcessorFactory, children: Set[ProbeRef], lsn: Long)
 case class RetireProbe(lsn: Long)
 
@@ -396,9 +393,6 @@ case class UpdateProbeSystemResult(op: UpdateProbeSystem, lsn: Long)
 
 case class RetireProbeSystem(uri: URI) extends ProbeSystemCommand
 case class RetireProbeSystemResult(op: RetireProbeSystem, lsn: Long)
-
-case class ReviveProbeSystem(uri: URI) extends ProbeSystemQuery
-case class ReviveProbeSystemResult(op: ReviveProbeSystem, lsn: Long)
 
 case class DescribeProbeSystem(uri: URI) extends ProbeSystemQuery
 case class DescribeProbeSystemResult(op: DescribeProbeSystem, registration: ProbeRegistration, lsn: Long)
