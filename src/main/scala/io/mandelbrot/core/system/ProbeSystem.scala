@@ -55,11 +55,11 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
   when(SystemIncubating) {
 
     case Event(op: RegisterProbeSystem, _) =>
-      services ! CreateProbeSystemEntry(op.uri, op.registration)
+      services ! CreateRegistration(op.uri, op.registration)
       goto(SystemRegistering) using SystemRegistering(op, sender())
 
     case Event(revive: ReviveProbeSystem, _) =>
-      services ! GetProbeSystemEntry(revive.uri)
+      services ! GetRegistration(revive.uri)
       goto(SystemInitializing) using SystemInitializing(revive.uri)
       
     case Event(unhandled, _) =>
@@ -68,7 +68,7 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
 
   when(SystemRegistering) {
 
-    case Event(result: CreateProbeSystemEntryResult, state: SystemRegistering) =>
+    case Event(result: CreateRegistrationResult, state: SystemRegistering) =>
       state.sender ! RegisterProbeSystemResult(state.op, result.lsn)
       goto(SystemRunning) using SystemRunning(state.op.uri, result.op.registration, 0)
 
@@ -87,7 +87,7 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
 
   when(SystemInitializing) {
 
-    case Event(result: GetProbeSystemEntryResult, state: SystemInitializing) =>
+    case Event(result: GetRegistrationResult, state: SystemInitializing) =>
       goto(SystemRunning) using SystemRunning(state.uri, result.registration, 0)
 
     case Event(failure: RegistryServiceOperationFailed, state: SystemInitializing) =>
@@ -171,13 +171,13 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
 
   onTransition {
     case _ -> SystemUpdating => nextStateData match  {
-      case state: SystemUpdating => services ! UpdateProbeSystemEntry(state.op.uri, state.op.registration, state.prev.lsn)
+      case state: SystemUpdating => services ! UpdateRegistration(state.op.uri, state.op.registration, state.prev.lsn)
       case _ =>
     }
   }
 
   when(SystemUpdating) {
-    case Event(result: UpdateProbeSystemEntryResult, state: SystemUpdating) =>
+    case Event(result: UpdateRegistrationResult, state: SystemUpdating) =>
       state.sender ! UpdateProbeSystemResult(state.op, result.lsn)
       goto(SystemRunning) using SystemRunning(state.op.uri, state.op.registration, result.lsn)
     case Event(failure: RegistryServiceOperationFailed, state: SystemUpdating) =>
@@ -190,13 +190,13 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
 
   onTransition {
     case _ -> SystemRetiring => nextStateData match {
-      case state: SystemRetiring => services ! DeleteProbeSystemEntry(state.op.uri, state.prev.lsn)
+      case state: SystemRetiring => services ! DeleteRegistration(state.op.uri, state.prev.lsn)
       case _ =>
     }
   }
 
   when(SystemRetiring) {
-    case Event(result: DeleteProbeSystemEntryResult, state: SystemRetiring) =>
+    case Event(result: DeleteRegistrationResult, state: SystemRetiring) =>
       state.sender ! RetireProbeSystemResult(state.op, result.lsn)
       goto(SystemRetired) using SystemRetired(state.prev.uri, state.prev.registration, result.lsn)
     case Event(failure: RegistryServiceOperationFailed, state: SystemRetiring) =>

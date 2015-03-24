@@ -84,8 +84,8 @@ trait ApiService extends HttpService {
         pagingParams { paging =>
           complete {
             val limit = paging.limit.getOrElse(settings.pageLimit)
-            serviceProxy.ask(ListProbeSystems(limit, paging.last)).map {
-              case result: ListProbeSystemsResult =>
+            serviceProxy.ask(ListRegistrations(limit, paging.last)).map {
+              case result: ListRegistrationsResult =>
                 result.page
               case failure: ServiceOperationFailed =>
                 throw failure.failure
@@ -99,8 +99,8 @@ trait ApiService extends HttpService {
         /* retrieve the spec for the specified probe system */
         get {
           complete {
-            serviceProxy.ask(GetProbeSystemEntry(system)).map {
-              case result: GetProbeSystemEntryResult =>
+            serviceProxy.ask(GetRegistration(system)).map {
+              case result: GetRegistrationResult =>
                 result.registration
               case failure: ServiceOperationFailed =>
                 throw failure.failure

@@ -15,15 +15,15 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
 
   def receive = {
 
-    case op: CreateProbeSystemEntry =>
+    case op: CreateRegistration =>
       if (!registrations.containsKey(op.uri)) {
         val timestamp = DateTime.now(DateTimeZone.UTC)
         val metadata = ProbeSystemMetadata(op.uri, timestamp, timestamp)
         registrations.put(op.uri, (metadata, op.registration, 0))
-        sender() ! CreateProbeSystemEntryResult(op, 0)
+        sender() ! CreateRegistrationResult(op, 0)
       } else sender() ! RegistryServiceOperationFailed(op, ApiException(Conflict))
 
-    case op: UpdateProbeSystemEntry =>
+    case op: UpdateRegistration =>
       registrations.get(op.uri) match {
         case null =>
           sender() ! RegistryServiceOperationFailed(op, ApiException(ResourceNotFound))
@@ -32,18 +32,18 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
           val metadata = entry._1.copy(lastUpdate = timestamp)
           val lsn = entry._3 + 1
           registrations.put(op.uri, (metadata, op.registration, lsn))
-          sender() ! UpdateProbeSystemEntryResult(op, lsn)
+          sender() ! UpdateRegistrationResult(op, lsn)
       }
 
-    case op: DeleteProbeSystemEntry =>
+    case op: DeleteRegistration =>
       registrations.remove(op.uri) match {
         case null =>
           sender() ! RegistryServiceOperationFailed(op, ApiException(ResourceNotFound))
         case entry: (ProbeSystemMetadata,ProbeRegistration,Long) =>
-          sender() ! DeleteProbeSystemEntryResult(op, entry._3)
+          sender() ! DeleteRegistrationResult(op, entry._3)
       }
 
-    case op: ListProbeSystems =>
+    case op: ListRegistrations =>
       op.last match {
         case None =>
           val systems = registrations.values()
@@ -51,7 +51,7 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
             .map(_._1).toVector
           val last = if (systems.length < op.limit) None else systems.lastOption.map(_.uri.toString)
           val page = ProbeSystemsPage(systems, last)
-          sender() ! ListProbeSystemsResult(op, page)
+          sender() ! ListRegistrationsResult(op, page)
         case Some(prev) =>
           val systems = registrations.tailMap(new URI(prev), false)
             .values()
@@ -59,15 +59,15 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
             .map(_._1).toVector
           val last = if (systems.length < op.limit) None else systems.lastOption.map(_.uri.toString)
           val page = ProbeSystemsPage(systems, last)
-          sender() ! ListProbeSystemsResult(op, page)
+          sender() ! ListRegistrationsResult(op, page)
       }
 
-    case op: GetProbeSystemEntry =>
+    case op: GetRegistration =>
       registrations.get(op.uri) match {
         case null =>
           sender() ! RegistryServiceOperationFailed(op, ApiException(ResourceNotFound))
         case entry: (ProbeSystemMetadata,ProbeRegistration,Long) =>
-          sender() ! GetProbeSystemEntryResult(op, entry._2, entry._3)
+          sender() ! GetRegistrationResult(op, entry._2, entry._3)
       }
   }
 }

@@ -40,12 +40,12 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
        |VALUES (0, ?, ?, 1, ?, ?)
      """.stripMargin)
 
-  def createProbeSystem(op: CreateProbeSystemEntry, timestamp: DateTime): Future[CreateProbeSystemEntryResult] = {
+  def createProbeSystem(op: CreateRegistration, timestamp: DateTime): Future[CreateRegistrationResult] = {
     val uri = op.uri.toString
     val registration = op.registration.toJson.toString()
     val _timestamp = timestamp.toDate
     executeAsync(new BoundStatement(preparedCreateProbeSystem).bind(uri, registration, _timestamp, _timestamp)).map {
-      resultSet => CreateProbeSystemEntryResult(op, 1)
+      resultSet => CreateRegistrationResult(op, 1)
     }
   }
 
@@ -56,13 +56,13 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
        |WHERE p = 0 AND uri = ?
      """.stripMargin)
 
-  def updateProbeSystem(op: UpdateProbeSystemEntry, timestamp: DateTime): Future[UpdateProbeSystemEntryResult] = {
+  def updateProbeSystem(op: UpdateRegistration, timestamp: DateTime): Future[UpdateRegistrationResult] = {
     val uri = op.uri.toString
     val registration = op.registration.toJson.toString()
     val _timestamp = timestamp.toDate
     val lsn: java.lang.Long = op.lsn + 1
     executeAsync(new BoundStatement(preparedUpdateProbeSystem).bind(registration, lsn, _timestamp, uri)).map {
-      resultSet => UpdateProbeSystemEntryResult(op, lsn)
+      resultSet => UpdateRegistrationResult(op, lsn)
     }
   }
 
@@ -72,10 +72,10 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
        |WHERE p = 0 AND uri = ?
      """.stripMargin)
 
-  def deleteProbeSystem(op: DeleteProbeSystemEntry): Future[DeleteProbeSystemEntryResult] = {
+  def deleteProbeSystem(op: DeleteRegistration): Future[DeleteRegistrationResult] = {
     val uri = op.uri.toString
     executeAsync(new BoundStatement(preparedDeleteProbeSystem).bind(uri)).map {
-      resultSet => DeleteProbeSystemEntryResult(op, op.lsn)
+      resultSet => DeleteRegistrationResult(op, op.lsn)
     }
   }
 
@@ -85,14 +85,14 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
        |WHERE p = 0 AND uri = ?
      """.stripMargin)
 
-  def getProbeSystem(op: GetProbeSystemEntry): Future[GetProbeSystemEntryResult] = {
+  def getProbeSystem(op: GetRegistration): Future[GetRegistrationResult] = {
     val uri = op.uri.toString
     executeAsync(new BoundStatement(preparedGetProbeSystem).bind(uri)).map { resultSet =>
       val row = resultSet.one()
       if (row != null) {
         val registration = JsonParser(row.getString(0)).convertTo[ProbeRegistration]
         val lsn = row.getLong(1)
-        GetProbeSystemEntryResult(op, registration, lsn)
+        GetRegistrationResult(op, registration, lsn)
       } else throw ApiException(ResourceNotFound)
     }
   }
@@ -105,7 +105,7 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
        |LIMIT ?
      """.stripMargin)
 
-  def listProbeSystems(op: ListProbeSystems): Future[ListProbeSystemsResult] = {
+  def listProbeSystems(op: ListRegistrations): Future[ListRegistrationsResult] = {
     val last = op.last.map(_.toString).getOrElse("")
     val limit: java.lang.Integer = op.limit
     executeAsync(new BoundStatement(preparedListProbeSystems).bind(last, limit)).map { resultSet =>
@@ -117,7 +117,7 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
         ProbeSystemMetadata(uri, lastUpdate, joinedOn)
       }.toVector
       val token = if (systems.length < limit) None else systems.lastOption.map(_.uri.toString)
-      ListProbeSystemsResult(op, ProbeSystemsPage(systems, token))
+      ListRegistrationsResult(op, ProbeSystemsPage(systems, token))
     }
   }
 

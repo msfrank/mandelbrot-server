@@ -5,7 +5,7 @@ import java.net.URI
 import akka.actor.ActorSystem
 import akka.testkit.{TestProbe, ImplicitSender, TestKit}
 import io.mandelbrot.core.entity.Entity
-import io.mandelbrot.core.registry.{CreateProbeSystemEntryResult, CreateProbeSystemEntry}
+import io.mandelbrot.core.registry.{CreateRegistrationResult, CreateRegistration}
 import org.scalatest.{BeforeAndAfterAll, ShouldMatchers, WordSpecLike}
 import scala.concurrent.duration._
 
@@ -57,8 +57,8 @@ class ProbeSystemSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val metrics = Map.empty[MetricSource,MetricSpec]
       val registration = ProbeRegistration("io.mandelbrot.core.system.ProbeSystem", Map.empty, probes, metrics)
 
-      services ! CreateProbeSystemEntry(uri, registration)
-      expectMsgClass(classOf[CreateProbeSystemEntryResult])
+      services ! CreateRegistration(uri, registration)
+      expectMsgClass(classOf[CreateRegistrationResult])
 
       val probeSystem = system.actorOf(ProbeSystem.props(services))
 

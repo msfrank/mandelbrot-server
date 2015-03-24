@@ -54,10 +54,10 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
     "create a probe system" in withSessionAndDAL { (session, dal) =>
       val uri = new URI("test:foo")
       val registration = ProbeRegistration("test", Map.empty, Map.empty, Map.empty)
-      val op = CreateProbeSystemEntry(uri, registration)
+      val op = CreateRegistration(uri, registration)
       val timestamp = DateTime.now()
       Await.result(dal.createProbeSystem(op, timestamp), 5.seconds)
-      val getProbeSystemResult = Await.result(dal.getProbeSystem(GetProbeSystemEntry(uri)), 5.seconds)
+      val getProbeSystemResult = Await.result(dal.getProbeSystem(GetRegistration(uri)), 5.seconds)
       getProbeSystemResult.registration shouldEqual registration
       getProbeSystemResult.lsn shouldEqual 1
     }
@@ -65,10 +65,10 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
     "update a probe system" in withSessionAndDAL { (session, dal) =>
       val uri = new URI("test:foo")
       val registration = ProbeRegistration("test", Map.empty, Map.empty, Map.empty)
-      val op = UpdateProbeSystemEntry(uri, registration, lsn = 2)
+      val op = UpdateRegistration(uri, registration, lsn = 2)
       val timestamp = DateTime.now()
       Await.result(dal.updateProbeSystem(op, timestamp), 5.seconds)
-      val getProbeSystemResult = Await.result(dal.getProbeSystem(GetProbeSystemEntry(uri)), 5.seconds)
+      val getProbeSystemResult = Await.result(dal.getProbeSystem(GetRegistration(uri)), 5.seconds)
       getProbeSystemResult.registration shouldEqual registration
       getProbeSystemResult.lsn shouldEqual 3
     }
@@ -77,12 +77,12 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val uri = new URI("test:foo")
       val registration = ProbeRegistration("test", Map.empty, Map.empty, Map.empty)
       val timestamp = DateTime.now()
-      Await.result(dal.createProbeSystem(CreateProbeSystemEntry(uri, registration), timestamp), 5.seconds)
-      val getProbeSystemResult = Await.result(dal.getProbeSystem(GetProbeSystemEntry(uri)), 5.seconds)
-      val op = DeleteProbeSystemEntry(uri, lsn = 1)
+      Await.result(dal.createProbeSystem(CreateRegistration(uri, registration), timestamp), 5.seconds)
+      val getProbeSystemResult = Await.result(dal.getProbeSystem(GetRegistration(uri)), 5.seconds)
+      val op = DeleteRegistration(uri, lsn = 1)
       val deleteEntityResult = Await.result(dal.deleteProbeSystem(op), 5.seconds)
       val ex = the[ApiException] thrownBy {
-        Await.result(dal.getProbeSystem(GetProbeSystemEntry(uri)), 5.seconds)
+        Await.result(dal.getProbeSystem(GetRegistration(uri)), 5.seconds)
       }
       ex.failure shouldEqual ResourceNotFound
     }
@@ -93,10 +93,10 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val uri1 = new URI("test:1")
       val uri2 = new URI("test:2")
       val uri3 = new URI("test:3")
-      Await.result(dal.createProbeSystem(CreateProbeSystemEntry(uri1, registration), timestamp), 5.seconds)
-      Await.result(dal.createProbeSystem(CreateProbeSystemEntry(uri2, registration), timestamp), 5.seconds)
-      Await.result(dal.createProbeSystem(CreateProbeSystemEntry(uri3, registration), timestamp), 5.seconds)
-      val op = ListProbeSystems(10, None)
+      Await.result(dal.createProbeSystem(CreateRegistration(uri1, registration), timestamp), 5.seconds)
+      Await.result(dal.createProbeSystem(CreateRegistration(uri2, registration), timestamp), 5.seconds)
+      Await.result(dal.createProbeSystem(CreateRegistration(uri3, registration), timestamp), 5.seconds)
+      val op = ListRegistrations(10, None)
       val listProbeSystemsResult = Await.result(dal.listProbeSystems(op), 5.seconds)
       listProbeSystemsResult.page.systems.map(_.uri).toSet shouldEqual Set(uri1, uri2, uri3)
       listProbeSystemsResult.page.last shouldEqual None
@@ -110,18 +110,18 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val uri3 = new URI("test:3")
       val uri4 = new URI("test:4")
       val uri5 = new URI("test:5")
-      Await.result(dal.createProbeSystem(CreateProbeSystemEntry(uri1, registration), timestamp), 5.seconds)
-      Await.result(dal.createProbeSystem(CreateProbeSystemEntry(uri2, registration), timestamp), 5.seconds)
-      Await.result(dal.createProbeSystem(CreateProbeSystemEntry(uri3, registration), timestamp), 5.seconds)
-      Await.result(dal.createProbeSystem(CreateProbeSystemEntry(uri4, registration), timestamp), 5.seconds)
-      Await.result(dal.createProbeSystem(CreateProbeSystemEntry(uri5, registration), timestamp), 5.seconds)
-      val listProbeSystemsResult1 = Await.result(dal.listProbeSystems(ListProbeSystems(limit = 2, None)), 5.seconds)
+      Await.result(dal.createProbeSystem(CreateRegistration(uri1, registration), timestamp), 5.seconds)
+      Await.result(dal.createProbeSystem(CreateRegistration(uri2, registration), timestamp), 5.seconds)
+      Await.result(dal.createProbeSystem(CreateRegistration(uri3, registration), timestamp), 5.seconds)
+      Await.result(dal.createProbeSystem(CreateRegistration(uri4, registration), timestamp), 5.seconds)
+      Await.result(dal.createProbeSystem(CreateRegistration(uri5, registration), timestamp), 5.seconds)
+      val listProbeSystemsResult1 = Await.result(dal.listProbeSystems(ListRegistrations(limit = 2, None)), 5.seconds)
       listProbeSystemsResult1.page.systems.map(_.uri).toSet shouldEqual Set(uri1, uri2)
       listProbeSystemsResult1.page.last shouldEqual Some(uri2.toString)
-      val listProbeSystemsResult2 = Await.result(dal.listProbeSystems(ListProbeSystems(limit = 2, listProbeSystemsResult1.page.last)), 5.seconds)
+      val listProbeSystemsResult2 = Await.result(dal.listProbeSystems(ListRegistrations(limit = 2, listProbeSystemsResult1.page.last)), 5.seconds)
       listProbeSystemsResult2.page.systems.map(_.uri).toSet shouldEqual Set(uri3, uri4)
       listProbeSystemsResult2.page.last shouldEqual Some(uri4.toString)
-      val listProbeSystemsResult3 = Await.result(dal.listProbeSystems(ListProbeSystems(limit = 2, listProbeSystemsResult2.page.last)), 5.seconds)
+      val listProbeSystemsResult3 = Await.result(dal.listProbeSystems(ListRegistrations(limit = 2, listProbeSystemsResult2.page.last)), 5.seconds)
       listProbeSystemsResult3.page.systems.map(_.uri).toSet shouldEqual Set(uri5)
       listProbeSystemsResult3.page.last shouldEqual None
     }

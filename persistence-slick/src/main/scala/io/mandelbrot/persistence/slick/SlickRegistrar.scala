@@ -153,44 +153,44 @@ trait SlickRegistrar extends Actor with ActorLogging {
 
   def receive = {
 
-    case command: CreateProbeSystemEntry =>
+    case command: CreateRegistration =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       db.withSession { implicit session =>
         dal.insert(command.uri, command.registration, timestamp) match {
-          case Success(lsn) => sender() ! CreateProbeSystemEntryResult(command, 1)
+          case Success(lsn) => sender() ! CreateRegistrationResult(command, 1)
           case Failure(ex) => sender() ! RegistryServiceOperationFailed(command, ex)
         }
       }
 
-    case command: UpdateProbeSystemEntry =>
+    case command: UpdateRegistration =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       db.withSession { implicit session =>
         dal.update(command.uri, command.registration, timestamp) match {
-          case Success(lsn) => sender() ! UpdateProbeSystemEntryResult(command, 1)
+          case Success(lsn) => sender() ! UpdateRegistrationResult(command, 1)
           case Failure(ex) => sender() ! RegistryServiceOperationFailed(command, ex)
         }
       }
 
-    case command: DeleteProbeSystemEntry =>
+    case command: DeleteRegistration =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       db.withSession { implicit session =>
         dal.delete(command.uri, timestamp) match {
-          case Success(lsn) => sender() ! DeleteProbeSystemEntryResult(command, 1)
+          case Success(lsn) => sender() ! DeleteRegistrationResult(command, 1)
           case Failure(ex) => sender() ! RegistryServiceOperationFailed(command, ex)
         }
       }
 
-    case query: GetProbeSystemEntry =>
+    case query: GetRegistration =>
       db.withSession { implicit session =>
         dal.get(query.uri) match {
           case Some((_, registration, lsn, _, _)) =>
-            sender() ! GetProbeSystemEntryResult(query, JsonParser(registration).convertTo[ProbeRegistration], lsn)
+            sender() ! GetRegistrationResult(query, JsonParser(registration).convertTo[ProbeRegistration], lsn)
           case None =>
             sender() ! RegistryServiceOperationFailed(query, ApiException(ResourceNotFound))
         }
       }
 
-    case query: ListProbeSystems =>
+    case query: ListRegistrations =>
       db.withSession { implicit session =>
         val entries = dal.list(query.limit, query.token).toVector
         val systems = entries.map { case (probeSystem,_,lsn,joinedOn,lastUpdate) =>
@@ -198,9 +198,9 @@ trait SlickRegistrar extends Actor with ActorLogging {
         }.toMap
         entries.lastOption match {
           case Some((probeSystem, _, _, _, _)) =>
-            sender() ! ListProbeSystemsResult(query, systems, Some(new URI(probeSystem)))
+            sender() ! ListRegistrationsResult(query, systems, Some(new URI(probeSystem)))
           case None =>
-            sender() ! ListProbeSystemsResult(query, Map.empty, None)
+            sender() ! ListRegistrationsResult(query, Map.empty, None)
         }
       }
   }

@@ -38,12 +38,12 @@ class RegistryManager(settings: RegistrySettings) extends Actor with ActorLoggin
   val registrar: ActorRef = context.actorOf(settings.props, "registrar")
 
   def receive = {
-    case op: CreateProbeSystemEntry =>
+    case op: CreateRegistration =>
       if (!registrationValid(op.registration))
         sender() ! RegistryServiceOperationFailed(op, ApiException(BadRequest))
       else registrar forward op
 
-    case op: UpdateProbeSystemEntry =>
+    case op: UpdateRegistration =>
       if (!registrationValid(op.registration))
         sender() ! RegistryServiceOperationFailed(op, ApiException(BadRequest))
       else registrar forward op
@@ -67,23 +67,23 @@ object RegistryManager {
   def settings(config: Config): Option[Any] = None
 }
 
-/* object registry operations */
+/* registry operations */
 sealed trait RegistryServiceOperation extends ServiceOperation
 sealed trait RegistryServiceCommand extends ServiceCommand with RegistryServiceOperation
 sealed trait RegistryServiceQuery extends ServiceQuery with RegistryServiceOperation
 case class RegistryServiceOperationFailed(op: RegistryServiceOperation, failure: Throwable) extends ServiceOperationFailed
 
-case class CreateProbeSystemEntry(uri: URI, registration: ProbeRegistration) extends RegistryServiceCommand
-case class CreateProbeSystemEntryResult(op: CreateProbeSystemEntry, lsn: Long)
+case class CreateRegistration(uri: URI, registration: ProbeRegistration) extends RegistryServiceCommand
+case class CreateRegistrationResult(op: CreateRegistration, lsn: Long)
 
-case class UpdateProbeSystemEntry(uri: URI, registration: ProbeRegistration, lsn: Long) extends RegistryServiceCommand
-case class UpdateProbeSystemEntryResult(op: UpdateProbeSystemEntry, lsn: Long)
+case class UpdateRegistration(uri: URI, registration: ProbeRegistration, lsn: Long) extends RegistryServiceCommand
+case class UpdateRegistrationResult(op: UpdateRegistration, lsn: Long)
 
-case class DeleteProbeSystemEntry(uri: URI, lsn: Long) extends RegistryServiceCommand
-case class DeleteProbeSystemEntryResult(op: DeleteProbeSystemEntry, lsn: Long)
+case class DeleteRegistration(uri: URI, lsn: Long) extends RegistryServiceCommand
+case class DeleteRegistrationResult(op: DeleteRegistration, lsn: Long)
 
-case class ListProbeSystems(limit: Int, last: Option[String]) extends RegistryServiceQuery
-case class ListProbeSystemsResult(op: ListProbeSystems, page: ProbeSystemsPage)
+case class ListRegistrations(limit: Int, last: Option[String]) extends RegistryServiceQuery
+case class ListRegistrationsResult(op: ListRegistrations, page: ProbeSystemsPage)
 
-case class GetProbeSystemEntry(uri: URI) extends RegistryServiceQuery
-case class GetProbeSystemEntryResult(op: GetProbeSystemEntry, registration: ProbeRegistration, lsn: Long)
+case class GetRegistration(uri: URI) extends RegistryServiceQuery
+case class GetRegistrationResult(op: GetRegistration, registration: ProbeRegistration, lsn: Long)
