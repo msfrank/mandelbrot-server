@@ -28,17 +28,17 @@ import io.mandelbrot.core.system._
 /**
  *
  */
-trait RegistryProtocol extends DefaultJsonProtocol with BasicProtocol with MetricsProtocol {
+trait RegistryProtocol extends DefaultJsonProtocol with ConstantsProtocol with ResourceProtocol with MetricsProtocol {
 
   /* convert MetricSpec class */
   implicit val MetricSpecFormat = jsonFormat5(MetricSpec)
 
-  /* a little extra magic here- we use lazyFormat because ProbeSpec has a recursive definition */
-  implicit val _ProbeSpecFormat: JsonFormat[ProbeSpec] = lazyFormat(jsonFormat(ProbeSpec, "probeType", "policy", "properties", "metadata", "children"))
+  /* a little extra magic here- we use lazyFormat because CheckSpec has a recursive definition */
+  implicit val _ProbeSpecFormat: JsonFormat[CheckSpec] = lazyFormat(jsonFormat(CheckSpec, "probeType", "policy", "properties", "metadata", "children"))
   implicit val ProbeSpecFormat = rootFormat(_ProbeSpecFormat)
 
-  /* convert ProbeRegistration class */
-  implicit val ProbeRegistrationFormat = jsonFormat4(ProbeRegistration)
+  /* convert AgentRegistration class */
+  implicit val AgentRegistrationFormat = jsonFormat5(AgentRegistration)
 
   /* convert AggregateEvaluation class */
   implicit object AggregateEvaluationFormat extends RootJsonFormat[AggregateEvaluation] {
@@ -59,14 +59,14 @@ trait RegistryProtocol extends DefaultJsonProtocol with BasicProtocol with Metri
     }
   }
 
-  /* convert ProbePolicy class */
-  implicit val ProbePolicyFormat = jsonFormat5(ProbePolicy)
+  /* convert CheckPolicy class */
+  implicit val ProbePolicyFormat = jsonFormat5(CheckPolicy)
 
-  /* convert ProbeSystemMetadata class */
-  implicit val ProbeSystemMetadataFormat = jsonFormat3(ProbeSystemMetadata)
+  /* convert AgentMetadata class */
+  implicit val ProbeSystemMetadataFormat = jsonFormat3(AgentMetadata)
 
-  /* convert ProbeSystemsPage class */
-  implicit val ProbeSystemsPageFormat = jsonFormat2(ProbeSystemsPage)
+  /* convert AgentsPage class */
+  implicit val ProbeSystemsPageFormat = jsonFormat2(AgentsPage)
 
   /* registry operations */
   implicit val RegisterProbeSystemFormat = jsonFormat2(RegisterProbeSystem)

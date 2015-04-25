@@ -7,16 +7,7 @@ import io.mandelbrot.core.model._
 /**
  *
  */
-trait BasicProtocol extends DefaultJsonProtocol with StandardProtocol {
-
-  /* convert ProbeRef class */
-  implicit object ProbeRefFormat extends RootJsonFormat[ProbeRef] {
-    def write(ref: ProbeRef) = JsString(ref.toString)
-    def read(value: JsValue) = value match {
-      case JsString(string) => ProbeRef(string)
-      case _ => throw new DeserializationException("expected ProbeRef")
-    }
-  }
+trait ConstantsProtocol extends DefaultJsonProtocol with StandardProtocol {
 
   /* convert ProbeHealth class */
   implicit object ProbeHealthFormat extends RootJsonFormat[ProbeHealth] {
@@ -53,15 +44,6 @@ trait BasicProtocol extends DefaultJsonProtocol with StandardProtocol {
       case JsString("synthetic") => ProbeSynthetic
       case JsString("retired") => ProbeRetired
       case unknown => throw new DeserializationException("unknown ProbeLifecycle state " + unknown)
-    }
-  }
-
-  /* convert MetricSource class */
-  implicit object MetricSourceFormat extends RootJsonFormat[MetricSource] {
-    def write(source: MetricSource) = JsString(source.toString)
-    def read(value: JsValue) = value match {
-      case JsString(string) => MetricSource(string)
-      case _ => throw new DeserializationException("expected ProbeRef")
     }
   }
 

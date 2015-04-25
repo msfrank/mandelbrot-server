@@ -33,14 +33,14 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
 
   "/v2/systems" should {
 
-    val policy = ProbePolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
+    val policy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
     val properties = Map.empty[String,String]
     val metadata = Map.empty[String,String]
-    val children = Map.empty[String,ProbeSpec]
-    val probe = ProbeSpec("io.mandelbrot.core.system.ScalarProbe", policy, properties, metadata, children)
+    val children = Map.empty[String,CheckSpec]
+    val probe = CheckSpec("io.mandelbrot.core.system.ScalarProbe", policy, properties, metadata, children)
     val probes = Map("load" -> probe)
     val metrics = Map.empty[MetricSource,MetricSpec]
-    val registration = ProbeRegistration("io.mandelbrot.core.system.ProbeSystem", Map.empty, probes, metrics)
+    val registration = AgentRegistration(Resource("agent"), "mandelbrot", Map.empty, probes, metrics)
 
     "register a system" in {
       val op = RegisterProbeSystem(new URI("test:1"), registration)
@@ -64,7 +64,7 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
 
       Get("/v2/systems") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        val page = responseAs[ProbeSystemsPage]
+        val page = responseAs[AgentsPage]
         page.systems.map(_.uri) shouldEqual Vector(uri1, uri2, uri3, uri4, uri5)
         page.last shouldEqual None
       }
@@ -84,7 +84,7 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
 
       val last = Get("/v2/systems?limit=3") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        val page = responseAs[ProbeSystemsPage]
+        val page = responseAs[AgentsPage]
         page.systems.map(_.uri) shouldEqual Vector(uri1, uri2, uri3)
         page.last shouldEqual Some(uri3.toString)
         page.last.get.toString
@@ -92,7 +92,7 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
 
       Get("/v2/systems?last=%s&limit=3".format(last)) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        val page = responseAs[ProbeSystemsPage]
+        val page = responseAs[AgentsPage]
         page.systems.map(_.uri) shouldEqual Vector(uri4, uri5)
         page.last shouldEqual None
       }

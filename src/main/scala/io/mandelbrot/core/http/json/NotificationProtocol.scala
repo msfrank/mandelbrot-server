@@ -29,7 +29,7 @@ import io.mandelbrot.core.notification._
 /**
  *
  */
-trait NotificationProtocol extends DefaultJsonProtocol with BasicProtocol {
+trait NotificationProtocol extends DefaultJsonProtocol with ConstantsProtocol with ResourceProtocol {
 
   /* convert ProbeNotification class */
   implicit object ProbeNotificationFormat extends RootJsonFormat[ProbeNotification] {

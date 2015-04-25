@@ -27,7 +27,7 @@ import spray.json._
 /**
  *
  */
-trait EntityProtocol extends DefaultJsonProtocol with BasicProtocol {
+trait EntityProtocol extends DefaultJsonProtocol with ConstantsProtocol {
 
   /* convert Address class */
   implicit object ClusterAddressFormat extends RootJsonFormat[Address] {

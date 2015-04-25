@@ -49,7 +49,7 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "transition to ProbeKnown/ProbeHealthy when a healthy StatusMessage is received" in {
       val probeRef = ProbeRef("fqdn:local/")
-      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val probeType = "io.mandelbrot.core.system.ScalarProbe"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
       val stateService = new TestProbe(_system)
@@ -84,7 +84,7 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "transition to ProbeKnown/ProbeDegraded when a degraded StatusMessage is received" in {
       val probeRef = ProbeRef("fqdn:local/")
-      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val probeType = "io.mandelbrot.core.system.ScalarProbe"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
       val stateService = new TestProbe(_system)
@@ -119,7 +119,7 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "transition to ProbeKnown/ProbeFailed when a failed StatusMessage is received" in {
       val probeRef = ProbeRef("fqdn:local/")
-      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val probeType = "io.mandelbrot.core.system.ScalarProbe"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
       val stateService = new TestProbe(_system)
@@ -154,7 +154,7 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "transition to ProbeKnown/ProbeUnknown when a unknown StatusMessage is received" in {
       val probeRef = ProbeRef("fqdn:local/")
-      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val probeType = "io.mandelbrot.core.system.ScalarProbe"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
       val stateService = new TestProbe(_system)
@@ -189,7 +189,7 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "notify StateService when the joining timeout expires" in {
       val probeRef = ProbeRef("fqdn:local/")
-      val policy = ProbePolicy(2.seconds, 1.minute, 1.minute, 1.minute, None)
+      val policy = CheckPolicy(2.seconds, 1.minute, 1.minute, 1.minute, None)
       val probeType = "io.mandelbrot.core.system.ScalarProbe"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
       val stateService = new TestProbe(_system)
@@ -221,7 +221,7 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "notify StateService when the probe timeout expires" in {
       val probeRef = ProbeRef("fqdn:local/")
-      val policy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
+      val policy = CheckPolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
       val probeType = "io.mandelbrot.core.system.ScalarProbe"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
       val stateService = new TestProbe(_system)
@@ -258,7 +258,7 @@ class ScalarProbeSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "notify NotificationService when the alert timeout expires" in {
       val probeRef = ProbeRef("fqdn:local/")
-      val policy = ProbePolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)
+      val policy = CheckPolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)
       val probeType = "io.mandelbrot.core.system.ScalarProbe"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
       val notificationService = new TestProbe(_system)

@@ -7,18 +7,18 @@ import scala.collection.JavaConversions._
 import java.net.URI
 
 import io.mandelbrot.core.{ResourceNotFound, Conflict, ApiException}
-import io.mandelbrot.core.model.{ProbeSystemsPage, ProbeRegistration, ProbeSystemMetadata}
+import io.mandelbrot.core.model.{AgentsPage, AgentRegistration, AgentMetadata}
 
 class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Actor with ActorLogging {
 
-  val registrations = new java.util.TreeMap[URI, (ProbeSystemMetadata,ProbeRegistration,Long)]
+  val registrations = new java.util.TreeMap[URI, (AgentMetadata,AgentRegistration,Long)]
 
   def receive = {
 
     case op: CreateRegistration =>
       if (!registrations.containsKey(op.uri)) {
         val timestamp = DateTime.now(DateTimeZone.UTC)
-        val metadata = ProbeSystemMetadata(op.uri, timestamp, timestamp)
+        val metadata = AgentMetadata(op.uri, timestamp, timestamp)
         registrations.put(op.uri, (metadata, op.registration, 0))
         sender() ! CreateRegistrationResult(op, 0)
       } else sender() ! RegistryServiceOperationFailed(op, ApiException(Conflict))
@@ -27,7 +27,7 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
       registrations.get(op.uri) match {
         case null =>
           sender() ! RegistryServiceOperationFailed(op, ApiException(ResourceNotFound))
-        case entry: (ProbeSystemMetadata,ProbeRegistration,Long) =>
+        case entry: (AgentMetadata,AgentRegistration,Long) =>
           val timestamp = DateTime.now(DateTimeZone.UTC)
           val metadata = entry._1.copy(lastUpdate = timestamp)
           val lsn = entry._3 + 1
@@ -39,7 +39,7 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
       registrations.remove(op.uri) match {
         case null =>
           sender() ! RegistryServiceOperationFailed(op, ApiException(ResourceNotFound))
-        case entry: (ProbeSystemMetadata,ProbeRegistration,Long) =>
+        case entry: (AgentMetadata,AgentRegistration,Long) =>
           sender() ! DeleteRegistrationResult(op, entry._3)
       }
 
@@ -50,7 +50,7 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
             .take(op.limit)
             .map(_._1).toVector
           val last = if (systems.length < op.limit) None else systems.lastOption.map(_.uri.toString)
-          val page = ProbeSystemsPage(systems, last)
+          val page = AgentsPage(systems, last)
           sender() ! ListRegistrationsResult(op, page)
         case Some(prev) =>
           val systems = registrations.tailMap(new URI(prev), false)
@@ -58,7 +58,7 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
             .take(op.limit)
             .map(_._1).toVector
           val last = if (systems.length < op.limit) None else systems.lastOption.map(_.uri.toString)
-          val page = ProbeSystemsPage(systems, last)
+          val page = AgentsPage(systems, last)
           sender() ! ListRegistrationsResult(op, page)
       }
 
@@ -66,7 +66,7 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
       registrations.get(op.uri) match {
         case null =>
           sender() ! RegistryServiceOperationFailed(op, ApiException(ResourceNotFound))
-        case entry: (ProbeSystemMetadata,ProbeRegistration,Long) =>
+        case entry: (AgentMetadata,AgentRegistration,Long) =>
           sender() ! GetRegistrationResult(op, entry._2, entry._3)
       }
   }

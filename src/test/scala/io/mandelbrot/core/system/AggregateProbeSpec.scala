@@ -52,7 +52,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val probeRef = ProbeRef("fqdn:local/")
       val probeType = "io.mandelbrot.core.system.AggregateProbe"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
-      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val children = Set(child1, child2, child3)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
@@ -93,7 +93,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val probeRef = ProbeRef("fqdn:local/")
       val probeType = "io.mandelbrot.core.system.AggregateProbe"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
-      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val children = Set(child1, child2, child3)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
@@ -133,7 +133,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val probeRef = ProbeRef("fqdn:local/")
       val probeType = "io.mandelbrot.core.system.AggregateProbe"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
-      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val children = Set(child1, child2, child3)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
@@ -173,7 +173,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val probeRef = ProbeRef("fqdn:local/")
       val probeType = "io.mandelbrot.core.system.AggregateProbe"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
-      val policy = ProbePolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)
+      val policy = CheckPolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)
       val children = Set(child1, child2, child3)
       val notificationService = new TestProbe(_system)
       val stateService = new TestProbe(_system)

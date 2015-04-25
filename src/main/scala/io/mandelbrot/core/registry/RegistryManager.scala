@@ -56,7 +56,7 @@ class RegistryManager(settings: RegistrySettings) extends Actor with ActorLoggin
    * Returns true if the specified registration parameters adhere to server
    * policy, otherwise returns false.
    */
-  def registrationValid(registration: ProbeRegistration): Boolean = {
+  def registrationValid(registration: AgentRegistration): Boolean = {
     // FIXME: implement validation logic
     true
   }
@@ -73,17 +73,17 @@ sealed trait RegistryServiceCommand extends ServiceCommand with RegistryServiceO
 sealed trait RegistryServiceQuery extends ServiceQuery with RegistryServiceOperation
 case class RegistryServiceOperationFailed(op: RegistryServiceOperation, failure: Throwable) extends ServiceOperationFailed
 
-case class CreateRegistration(uri: URI, registration: ProbeRegistration) extends RegistryServiceCommand
+case class CreateRegistration(uri: URI, registration: AgentRegistration) extends RegistryServiceCommand
 case class CreateRegistrationResult(op: CreateRegistration, lsn: Long)
 
-case class UpdateRegistration(uri: URI, registration: ProbeRegistration, lsn: Long) extends RegistryServiceCommand
+case class UpdateRegistration(uri: URI, registration: AgentRegistration, lsn: Long) extends RegistryServiceCommand
 case class UpdateRegistrationResult(op: UpdateRegistration, lsn: Long)
 
 case class DeleteRegistration(uri: URI, lsn: Long) extends RegistryServiceCommand
 case class DeleteRegistrationResult(op: DeleteRegistration, lsn: Long)
 
 case class ListRegistrations(limit: Int, last: Option[String]) extends RegistryServiceQuery
-case class ListRegistrationsResult(op: ListRegistrations, page: ProbeSystemsPage)
+case class ListRegistrationsResult(op: ListRegistrations, page: AgentsPage)
 
 case class GetRegistration(uri: URI) extends RegistryServiceQuery
-case class GetRegistrationResult(op: GetRegistration, registration: ProbeRegistration, lsn: Long)
+case class GetRegistrationResult(op: GetRegistration, registration: AgentRegistration, lsn: Long)

@@ -26,7 +26,7 @@ import io.mandelbrot.core.model._
 /**
  *
  */
-trait StateProtocol extends DefaultJsonProtocol with BasicProtocol with NotificationProtocol {
+trait StateProtocol extends DefaultJsonProtocol with ConstantsProtocol with NotificationProtocol {
 
   /* convert ProbeEvaluation class */
   implicit val ProbeEvaluationFormat = jsonFormat4(ProbeEvaluation)

@@ -53,7 +53,7 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "create a probe system" in withSessionAndDAL { (session, dal) =>
       val uri = new URI("test:foo")
-      val registration = ProbeRegistration("test", Map.empty, Map.empty, Map.empty)
+      val registration = AgentRegistration(Resource("test"), "mandelbrot", Map.empty, Map.empty, Map.empty)
       val op = CreateRegistration(uri, registration)
       val timestamp = DateTime.now()
       Await.result(dal.createProbeSystem(op, timestamp), 5.seconds)
@@ -64,7 +64,7 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "update a probe system" in withSessionAndDAL { (session, dal) =>
       val uri = new URI("test:foo")
-      val registration = ProbeRegistration("test", Map.empty, Map.empty, Map.empty)
+      val registration = AgentRegistration(Resource("test"), "mandelbrot", Map.empty, Map.empty, Map.empty)
       val op = UpdateRegistration(uri, registration, lsn = 2)
       val timestamp = DateTime.now()
       Await.result(dal.updateProbeSystem(op, timestamp), 5.seconds)
@@ -75,7 +75,7 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "delete a probe system" in withSessionAndDAL { (session, dal) =>
       val uri = new URI("test:foo")
-      val registration = ProbeRegistration("test", Map.empty, Map.empty, Map.empty)
+      val registration = AgentRegistration(Resource("test"), "mandelbrot", Map.empty, Map.empty, Map.empty)
       val timestamp = DateTime.now()
       Await.result(dal.createProbeSystem(CreateRegistration(uri, registration), timestamp), 5.seconds)
       val getProbeSystemResult = Await.result(dal.getProbeSystem(GetRegistration(uri)), 5.seconds)
@@ -89,7 +89,7 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "list probe systems" in withSessionAndDAL { (session,dal) =>
       val timestamp = DateTime.now()
-      val registration = ProbeRegistration("test", Map.empty, Map.empty, Map.empty)
+      val registration = AgentRegistration(Resource("test"), "mandelbrot", Map.empty, Map.empty, Map.empty)
       val uri1 = new URI("test:1")
       val uri2 = new URI("test:2")
       val uri3 = new URI("test:3")
@@ -104,7 +104,7 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     "page through probe systems" in withSessionAndDAL { (session,dal) =>
       val timestamp = DateTime.now()
-      val registration = ProbeRegistration("test", Map.empty, Map.empty, Map.empty)
+      val registration = AgentRegistration(Resource("test"), "mandelbrot", Map.empty, Map.empty, Map.empty)
       val uri1 = new URI("test:1")
       val uri2 = new URI("test:2")
       val uri3 = new URI("test:3")

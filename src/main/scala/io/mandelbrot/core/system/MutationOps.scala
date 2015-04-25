@@ -21,7 +21,7 @@ trait MutationOps extends ProbeInterface {
   val alertTimer: Timer
 
   def children: Set[ProbeRef]
-  def policy: ProbePolicy
+  def policy: CheckPolicy
 
   private var _lifecycle: ProbeLifecycle = ProbeInitializing
   private var _health: ProbeHealth = ProbeUnknown

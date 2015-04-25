@@ -90,7 +90,7 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
     executeAsync(new BoundStatement(preparedGetProbeSystem).bind(uri)).map { resultSet =>
       val row = resultSet.one()
       if (row != null) {
-        val registration = JsonParser(row.getString(0)).convertTo[ProbeRegistration]
+        val registration = JsonParser(row.getString(0)).convertTo[AgentRegistration]
         val lsn = row.getLong(1)
         GetRegistrationResult(op, registration, lsn)
       } else throw ApiException(ResourceNotFound)
@@ -114,10 +114,10 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
         val lsn = row.getLong(1)
         val lastUpdate = new DateTime(row.getDate(2))
         val joinedOn = new DateTime(row.getDate(3))
-        ProbeSystemMetadata(uri, lastUpdate, joinedOn)
+        AgentMetadata(uri, lastUpdate, joinedOn)
       }.toVector
       val token = if (systems.length < limit) None else systems.lastOption.map(_.uri.toString)
-      ListRegistrationsResult(op, ProbeSystemsPage(systems, token))
+      ListRegistrationsResult(op, AgentsPage(systems, token))
     }
   }
 

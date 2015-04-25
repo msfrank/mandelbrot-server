@@ -15,7 +15,7 @@ import io.mandelbrot.core.ConfigConversions._
 
 class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
 
-  def this() = this(ActorSystem("ProbeSpec", AkkaConfig))
+  def this() = this(ActorSystem("CheckSpec", AkkaConfig))
 
   // shutdown the actor system
   override def afterAll() {
@@ -27,7 +27,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
   "A Probe" should {
 
     "have an initial state" in {
-      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val probeType = "io.mandelbrot.core.system.TestBehavior"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
       val services = system.actorOf(TestServiceProxy.props())
@@ -47,7 +47,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
     "initialize and transition to running behavior" in {
       val ref = ProbeRef("fqdn:local/")
-      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val probeType = "io.mandelbrot.core.system.TestBehavior"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
       val stateService = new TestProbe(_system)
@@ -76,7 +76,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
     "update behavior" in {
       val ref = ProbeRef("fqdn:local/")
-      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val probeType = "io.mandelbrot.core.system.TestBehavior"
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
@@ -120,7 +120,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
-      val policy = ProbePolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
+      val policy = CheckPolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
       val probeType1 = "io.mandelbrot.core.system.TestBehavior"
       val factory1 = ProbeBehavior.extensions(probeType1).configure(Map.empty)
 
@@ -152,7 +152,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
     "transition to retired behavior" ignore {
       val ref = ProbeRef("fqdn:local/")
-      val policy = ProbePolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
+      val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val probeType = "io.mandelbrot.core.system.TestBehavior"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
       val stateService = new TestProbe(_system)

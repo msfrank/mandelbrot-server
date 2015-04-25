@@ -17,7 +17,7 @@ class CassandraStatePersisterSpec(_system: ActorSystem)
   with ShouldMatchers
   with BeforeAndAfterAll {
 
-  def this() = this(ActorSystem("ProbeSpec", AkkaConfig ++ CassandraConfig))
+  def this() = this(ActorSystem("CheckSpec", AkkaConfig ++ CassandraConfig))
 
   // shutdown the actor system
   override def afterAll() {

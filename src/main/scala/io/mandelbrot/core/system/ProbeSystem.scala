@@ -251,36 +251,36 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
   }
 
   /**
-   * flatten ProbeRegistration into a Set of ProbeRefs
+   * flatten AgentRegistration into a Set of ProbeRefs
    */
-  def spec2RefSet(uri: URI, path: Vector[String], spec: ProbeSpec): Set[ProbeRef] = {
+  def spec2RefSet(uri: URI, path: Vector[String], spec: CheckSpec): Set[ProbeRef] = {
     val iterChildren = spec.children.toSet
-    val childRefs = iterChildren.map { case (name: String, childSpec: ProbeSpec) =>
+    val childRefs = iterChildren.map { case (name: String, childSpec: CheckSpec) =>
       spec2RefSet(uri, path :+ name, childSpec)
     }.flatten
     childRefs + ProbeRef(uri, path)
   }
-  def registration2RefSet(uri: URI, registration: ProbeRegistration): Set[ProbeRef] = {
+  def registration2RefSet(uri: URI, registration: AgentRegistration): Set[ProbeRef] = {
     registration.probes.flatMap { case (name,spec) =>
       spec2RefSet(uri, Vector(name), spec)
     }.toSet
   }
 
   /**
-   * find the ProbeSpec referenced by path.  NOTE: It is assumed that the specified
+   * find the CheckSpec referenced by path.  NOTE: It is assumed that the specified
    * ProbeRef exists!  if it doesn't, this code will throw an exception.
    */
-  def findProbeSpec(spec: ProbeSpec, path: Vector[String]): ProbeSpec = {
+  def findProbeSpec(spec: CheckSpec, path: Vector[String]): CheckSpec = {
     if (path.isEmpty) spec else findProbeSpec(spec.children(path.head), path.tail)
   }
-  def findProbeSpec(registration: ProbeRegistration, path: Vector[String]): ProbeSpec = {
+  def findProbeSpec(registration: AgentRegistration, path: Vector[String]): CheckSpec = {
     findProbeSpec(registration.probes(path.head), path.tail)
   }
 
   /**
    * apply the spec to the probe system, adding and removing probes as necessary
    */
-  def applyProbeRegistration(uri: URI, registration: ProbeRegistration, lsn: Long): Unit = {
+  def applyProbeRegistration(uri: URI, registration: AgentRegistration, lsn: Long): Unit = {
     val specSet = registration2RefSet(uri, registration)
     val probeSet = probes.keySet
     // add new probes
@@ -350,7 +350,7 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
 object ProbeSystem {
   def props(services: ActorRef) = Props(classOf[ProbeSystem], services)
 
-  case class ProbeActor(spec: ProbeSpec, actor: ActorRef)
+  case class ProbeActor(spec: CheckSpec, actor: ActorRef)
 
   sealed trait State
   case object SystemIncubating extends State
@@ -366,15 +366,15 @@ object ProbeSystem {
   case object SystemWaiting extends Data
   case class SystemInitializing(uri: URI) extends Data
   case class SystemRegistering(op: RegisterProbeSystem, sender: ActorRef) extends Data
-  case class SystemRunning(uri: URI, registration: ProbeRegistration, lsn: Long) extends Data
+  case class SystemRunning(uri: URI, registration: AgentRegistration, lsn: Long) extends Data
   case class SystemUpdating(op: UpdateProbeSystem, sender: ActorRef, prev: SystemRunning) extends Data
   case class SystemRetiring(op: RetireProbeSystem, sender: ActorRef, prev: SystemRunning) extends Data
-  case class SystemRetired(uri: URI, registration: ProbeRegistration, lsn: Long) extends Data
+  case class SystemRetired(uri: URI, registration: AgentRegistration, lsn: Long) extends Data
   case class SystemError(ex: Throwable) extends Data
 }
 
 case class ReviveProbeSystem(uri: URI)
-case class ChangeProbe(probeType: String, policy: ProbePolicy, factory: ProcessorFactory, children: Set[ProbeRef], lsn: Long)
+case class ChangeProbe(probeType: String, policy: CheckPolicy, factory: ProcessorFactory, children: Set[ProbeRef], lsn: Long)
 case class RetireProbe(lsn: Long)
 
 /**
@@ -385,17 +385,17 @@ sealed trait ProbeSystemCommand extends ServiceCommand with ProbeSystemOperation
 sealed trait ProbeSystemQuery extends ServiceQuery with ProbeSystemOperation
 case class ProbeSystemOperationFailed(op: ProbeSystemOperation, failure: Throwable) extends ServiceOperationFailed
 
-case class RegisterProbeSystem(uri: URI, registration: ProbeRegistration) extends ProbeSystemCommand
+case class RegisterProbeSystem(uri: URI, registration: AgentRegistration) extends ProbeSystemCommand
 case class RegisterProbeSystemResult(op: RegisterProbeSystem, lsn: Long)
 
-case class UpdateProbeSystem(uri: URI, registration: ProbeRegistration) extends ProbeSystemCommand
+case class UpdateProbeSystem(uri: URI, registration: AgentRegistration) extends ProbeSystemCommand
 case class UpdateProbeSystemResult(op: UpdateProbeSystem, lsn: Long)
 
 case class RetireProbeSystem(uri: URI) extends ProbeSystemCommand
 case class RetireProbeSystemResult(op: RetireProbeSystem, lsn: Long)
 
 case class DescribeProbeSystem(uri: URI) extends ProbeSystemQuery
-case class DescribeProbeSystemResult(op: DescribeProbeSystem, registration: ProbeRegistration, lsn: Long)
+case class DescribeProbeSystemResult(op: DescribeProbeSystem, registration: AgentRegistration, lsn: Long)
 
 case class MatchProbeSystem(uri: URI, matchers: Set[ProbeMatcher]) extends ProbeSystemQuery
 case class MatchProbeSystemResult(op: MatchProbeSystem, refs: Set[ProbeRef])

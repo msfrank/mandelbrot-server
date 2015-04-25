@@ -18,7 +18,7 @@ trait ProcessingOps extends Actor with MutationOps {
   val services: ActorRef
 
   var probeType: String
-  var policy: ProbePolicy
+  var policy: CheckPolicy
   var processor: BehaviorProcessor
   var children: Set[ProbeRef]
   var lastCommitted: Option[DateTime]

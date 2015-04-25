@@ -35,7 +35,7 @@ trait ProbeInterface {
   val parent: ActorRef
 
   def children: Set[ProbeRef]
-  def policy: ProbePolicy
+  def policy: CheckPolicy
   def lifecycle: ProbeLifecycle
   def health: ProbeHealth
   def summary: Option[String]

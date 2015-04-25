@@ -50,7 +50,7 @@ class Probe(val probeRef: ProbeRef,
   var probeType: String = null
   var processor: BehaviorProcessor = null
   var factory: ProcessorFactory = null
-  var policy: ProbePolicy = null
+  var policy: CheckPolicy = null
   var children: Set[ProbeRef] = null
   var probeGeneration: Long = 0L
   var lastCommitted: Option[DateTime] = None

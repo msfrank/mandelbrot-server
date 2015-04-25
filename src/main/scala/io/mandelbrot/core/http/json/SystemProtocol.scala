@@ -27,7 +27,7 @@ import io.mandelbrot.core.system._
 /**
  *
  */
-trait SystemProtocol extends DefaultJsonProtocol with BasicProtocol with StateProtocol {
+trait SystemProtocol extends DefaultJsonProtocol with ConstantsProtocol with StateProtocol {
 
   /* convert ProbeMatcher class */
   implicit object ProbeMatcherFormat extends RootJsonFormat[ProbeMatcher] {
