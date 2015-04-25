@@ -94,6 +94,9 @@ class ProbeSystemSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       probeSystem ! UpdateProbeSystem(uri, registration2)
       val updateProbeSystemResult = expectMsgClass(classOf[UpdateProbeSystemResult])
       updateProbeSystemResult.lsn shouldEqual 1
+
+      probeSystem ! GetProbeStatus(ProbeRef("test:3/probe2"))
+      val getProbeStatusResult = expectMsgClass(classOf[GetProbeStatusResult])
     }
   }
 }
