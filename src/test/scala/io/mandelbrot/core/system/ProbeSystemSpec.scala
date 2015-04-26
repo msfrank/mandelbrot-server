@@ -70,7 +70,7 @@ class ProbeSystemSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       describeProbeSystemResult.lsn shouldEqual 0
     }
 
-    "update probes when the registration changes" in {
+    "update checks when the registration changes" in {
 
       val uri = new URI("test:3")
       val policy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)

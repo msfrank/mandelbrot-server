@@ -30,12 +30,14 @@ import io.mandelbrot.core.system._
  */
 trait RegistryProtocol extends DefaultJsonProtocol with ConstantsProtocol with ResourceProtocol with MetricsProtocol {
 
+  /* convert CheckPolicy class */
+  implicit val CheckPolicyFormat = jsonFormat5(CheckPolicy)
+
   /* convert MetricSpec class */
   implicit val MetricSpecFormat = jsonFormat5(MetricSpec)
 
   /* a little extra magic here- we use lazyFormat because CheckSpec has a recursive definition */
-  implicit val _ProbeSpecFormat: JsonFormat[CheckSpec] = lazyFormat(jsonFormat(CheckSpec, "probeType", "policy", "properties", "metadata", "children"))
-  implicit val ProbeSpecFormat = rootFormat(_ProbeSpecFormat)
+  implicit val CheckSpecFormat = jsonFormat4(CheckSpec)
 
   /* convert AgentRegistration class */
   implicit val AgentRegistrationFormat = jsonFormat5(AgentRegistration)
@@ -59,14 +61,11 @@ trait RegistryProtocol extends DefaultJsonProtocol with ConstantsProtocol with R
     }
   }
 
-  /* convert CheckPolicy class */
-  implicit val ProbePolicyFormat = jsonFormat5(CheckPolicy)
-
   /* convert AgentMetadata class */
-  implicit val ProbeSystemMetadataFormat = jsonFormat3(AgentMetadata)
+  implicit val AgentMetadataFormat = jsonFormat4(AgentMetadata)
 
   /* convert AgentsPage class */
-  implicit val ProbeSystemsPageFormat = jsonFormat2(AgentsPage)
+  implicit val AgentsPageFormat = jsonFormat2(AgentsPage)
 
   /* registry operations */
   implicit val RegisterProbeSystemFormat = jsonFormat2(RegisterProbeSystem)

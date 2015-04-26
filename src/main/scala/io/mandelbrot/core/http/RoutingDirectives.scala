@@ -20,6 +20,7 @@
 package io.mandelbrot.core.http
 
 import akka.actor.{AddressFromURIString, Address}
+import io.mandelbrot.core.model.{CheckId, AgentId}
 import org.joda.time.DateTime
 import org.joda.time.format.ISODateTimeFormat
 import spray.http.{ContentTypes, HttpEntity, HttpHeader, HttpHeaders}
@@ -115,10 +116,10 @@ object RoutingDirectives {
 /**
  *
  */
-object SystemUri extends PathMatcher1[URI] {
+object AgentIdMatcher extends PathMatcher1[AgentId] {
   def apply(path: Path) = path match {
     case Path.Segment(segment, tail) =>
-      Matched(tail, new URI(segment) :: HNil)
+      Matched(tail, AgentId(segment) :: HNil)
     case _ =>
       Unmatched
   }
@@ -127,10 +128,10 @@ object SystemUri extends PathMatcher1[URI] {
 /**
  *
  */
-object ProbePath extends PathMatcher1[Vector[String]] {
+object CheckIdMatcher extends PathMatcher1[CheckId] {
   def apply(path: Path) = path match {
     case Path.Segment(segment, tail) =>
-      Matched(tail, segment.split('.').toVector :: HNil)
+      Matched(tail, CheckId(segment) :: HNil)
     case _ =>
       Unmatched
   }

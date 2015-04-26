@@ -15,12 +15,13 @@ case class ProbeMatcher(scheme: Option[SegmentMatcher],
                         location: Option[SegmentMatcher],
                         path: Option[PathMatcher]) extends SystemModel {
   def matches(probeRef: ProbeRef): Boolean = {
-    for (matcher <- scheme if !matcher.matches(probeRef.uri.getScheme))
-      return false
-    for (matcher <- location if !matcher.matches(probeRef.uri.getRawSchemeSpecificPart))
-      return false
-    for (matcher <- path if !matcher.matches(probeRef.path))
-      return false
+    // FIXME!
+//    for (matcher <- scheme if !matcher.matches(probeRef.uri.getScheme))
+//      return false
+//    for (matcher <- location if !matcher.matches(probeRef.uri.getRawSchemeSpecificPart))
+//      return false
+//    for (matcher <- path if !matcher.matches(probeRef.path))
+//      return false
     true
   }
   override def toString = if (scheme.isEmpty && location.isEmpty && path.isEmpty) "*" else {

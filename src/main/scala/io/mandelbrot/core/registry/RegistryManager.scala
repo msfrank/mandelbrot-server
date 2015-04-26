@@ -73,17 +73,17 @@ sealed trait RegistryServiceCommand extends ServiceCommand with RegistryServiceO
 sealed trait RegistryServiceQuery extends ServiceQuery with RegistryServiceOperation
 case class RegistryServiceOperationFailed(op: RegistryServiceOperation, failure: Throwable) extends ServiceOperationFailed
 
-case class CreateRegistration(uri: URI, registration: AgentRegistration) extends RegistryServiceCommand
-case class CreateRegistrationResult(op: CreateRegistration, lsn: Long)
+case class CreateRegistration(agentId: AgentId, registration: AgentRegistration) extends RegistryServiceCommand
+case class CreateRegistrationResult(op: CreateRegistration, metadata: AgentMetadata)
 
-case class UpdateRegistration(uri: URI, registration: AgentRegistration, lsn: Long) extends RegistryServiceCommand
-case class UpdateRegistrationResult(op: UpdateRegistration, lsn: Long)
+case class UpdateRegistration(agentId: AgentId, registration: AgentRegistration, lsn: Long) extends RegistryServiceCommand
+case class UpdateRegistrationResult(op: UpdateRegistration, metadata: AgentMetadata)
 
-case class DeleteRegistration(uri: URI, lsn: Long) extends RegistryServiceCommand
+case class DeleteRegistration(agentId: AgentId, lsn: Long) extends RegistryServiceCommand
 case class DeleteRegistrationResult(op: DeleteRegistration, lsn: Long)
 
 case class ListRegistrations(limit: Int, last: Option[String]) extends RegistryServiceQuery
 case class ListRegistrationsResult(op: ListRegistrations, page: AgentsPage)
 
-case class GetRegistration(uri: URI) extends RegistryServiceQuery
+case class GetRegistration(agentId: AgentId) extends RegistryServiceQuery
 case class GetRegistrationResult(op: GetRegistration, registration: AgentRegistration, lsn: Long)

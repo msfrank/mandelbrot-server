@@ -6,14 +6,14 @@ import java.net.URI
 
 sealed trait RegistryModel
 
-/* a dynamic probe system registration */
-case class AgentRegistration(agentId: Resource,
+/* a dynamic agent registration */
+case class AgentRegistration(agentId: AgentId,
                              agentType: String,
                              metadata: Map[String,String],
-                             probes: Map[String,CheckSpec],
-                             metrics: Map[MetricSource,MetricSpec]) extends RegistryModel
+                             checks: Map[CheckId,CheckSpec],
+                             metrics: Map[CheckId,Map[String,MetricSpec]]) extends RegistryModel
 
-/* probe tunable parameters which apply to all probe types */
+/* tunable parameters which apply to all check types */
 case class CheckPolicy(joiningTimeout: FiniteDuration,
                        probeTimeout: FiniteDuration,
                        alertTimeout: FiniteDuration,
@@ -24,8 +24,7 @@ case class CheckPolicy(joiningTimeout: FiniteDuration,
 case class CheckSpec(probeType: String,
                      policy: CheckPolicy,
                      properties: Map[String,String],
-                     metadata: Map[String,String],
-                     children: Map[String,CheckSpec]) extends RegistryModel
+                     metadata: Map[String,String]) extends RegistryModel
 
 /* metric specification */
 case class MetricSpec(sourceType: SourceType,
@@ -34,8 +33,8 @@ case class MetricSpec(sourceType: SourceType,
                       heartbeat: Option[FiniteDuration],
                       cf: Option[ConsolidationFunction]) extends RegistryModel
 
-/* */
-case class AgentMetadata(uri: URI, joinedOn: DateTime, lastUpdate: DateTime) extends RegistryModel
+/* metadata about an agent */
+case class AgentMetadata(agentId: AgentId, joinedOn: DateTime, lastUpdate: DateTime, lsn: Long) extends RegistryModel
 
-/* */
-case class AgentsPage(systems: Vector[AgentMetadata], last: Option[String]) extends RegistryModel
+/* a page of agent metadata */
+case class AgentsPage(agents: Vector[AgentMetadata], last: Option[String]) extends RegistryModel

@@ -4,110 +4,122 @@ import java.net.{URI, IDN}
 
 sealed trait ResourceModel
 
+trait Hierarchical[T <: Resource] {
+
+  val segments: Vector[String]
+  def parentOption: Option[T]
+
+  def hasParent: Boolean = segments.nonEmpty
+  def isRoot: Boolean = segments.isEmpty
+  def isParentOf(that: T): Boolean = segments.equals(that.segments.take(segments.length))
+  def isDirectParentOf(that: T): Boolean = segments.equals(that.segments.init)
+  def isChildOf(that: T): Boolean = segments.take(that.segments.length).equals(that.segments)
+  def isDirectChildOf(that: T): Boolean = segments.init.equals(that.segments)
+  def compare(that: T): Int = toString.compareTo(that.toString)
+
+  override def toString = segments.map(IDN.toASCII(_, IDN.USE_STD3_ASCII_RULES)).mkString(".")
+  override def hashCode() = toString.hashCode
+}
 /**
  * A resource locator
  */
-class Resource(val segments: Vector[String]) extends Ordered[Resource] with ResourceModel {
-
-  def parentOption: Option[Resource] = if (segments.isEmpty) None else Some(new Resource(segments.init))
-  def hasParent: Boolean = segments.nonEmpty
-  def isRoot: Boolean = segments.isEmpty
-  def isParentOf(that: Resource): Boolean = segments.equals(that.segments.take(segments.length))
-  def isDirectParentOf(that: Resource): Boolean = segments.equals(that.segments.init)
-  def isChildOf(that: Resource): Boolean = segments.take(that.segments.length).equals(that.segments)
-  def isDirectChildOf(that: Resource): Boolean = segments.init.equals(that.segments)
-  def compare(that: Resource): Int = toString.compareTo(that.toString)
-
-  override def hashCode() = toString.hashCode
-  override def toString = segments.map(IDN.toASCII(_, IDN.USE_STD3_ASCII_RULES)).mkString(".")
-  override def equals(other: Any): Boolean = other match {
-    case otherRef: Resource => segments.equals(otherRef.segments)
-    case _ => false
-  }
-}
+class Resource(val segments: Vector[String]) extends ResourceModel
 
 object Resource {
-  def apply(string: String): Resource = {
-    val segments = IDN.toUnicode(string, IDN.USE_STD3_ASCII_RULES).split('.').toVector
-    new Resource(segments)
+  def stringToSegments(string: String): Vector[String] = {
+    IDN.toUnicode(string, IDN.USE_STD3_ASCII_RULES).split('.').toVector
   }
-  def unapply(resource: Resource): Option[Vector[String]] = Some(resource.segments)
 }
 
 /**
  *
  */
-class ProbeRef(val uri: URI, val path: Vector[String]) extends Ordered[ProbeRef] with ResourceModel {
+class AgentId(segments: Vector[String]) extends Resource(segments) with Hierarchical[AgentId] with Ordered[AgentId] {
+  def parentOption: Option[AgentId] = if (segments.isEmpty) None else Some(new AgentId(segments.init))
+  override def equals(other: Any): Boolean = other match {
+    case otherAgent: AgentId => segments.equals(otherAgent.segments)
+    case _ => false
+  }
+}
+object AgentId {
+  def apply(string: String): AgentId = new AgentId(Resource.stringToSegments(string))
+  def unapply(agentId: AgentId): Option[Vector[String]] = Some(agentId.segments)
+}
 
-  def parentOption: Option[ProbeRef] = if (path.isEmpty) None else Some(new ProbeRef(uri, path.init))
-  def hasParent: Boolean = path.nonEmpty
-  def isRoot: Boolean = path.isEmpty
-  def isParentOf(that: ProbeRef): Boolean = uri.equals(that.uri) && path.equals(that.path.take(path.length))
-  def isDirectParentOf(that: ProbeRef): Boolean = uri.equals(that.uri) && path.equals(that.path.init)
-  def isChildOf(that: ProbeRef): Boolean = uri.equals(that.uri) && path.take(that.path.length).equals(that.path)
-  def isDirectChildOf(that: ProbeRef): Boolean = uri.equals(that.uri) && path.init.equals(that.path)
+/**
+ *
+ */
+class CheckId(segments: Vector[String]) extends Resource(segments) with Hierarchical[CheckId] with Ordered[CheckId] {
+  def parentOption: Option[CheckId] = if (segments.isEmpty) None else Some(new CheckId(segments.init))
+  override def equals(other: Any): Boolean = other match {
+    case otherCheck: CheckId => segments.equals(otherCheck.segments)
+    case _ => false
+  }
+}
+object CheckId {
+  def apply(string: String): CheckId = new CheckId(Resource.stringToSegments(string))
+  def unapply(checkId: CheckId): Option[Vector[String]] = Some(checkId.segments)
+}
+
+/**
+ *
+ */
+class ProbeRef(val agentId: AgentId, val checkId: CheckId) extends Ordered[ProbeRef] with ResourceModel {
+
+  def parentOption: Option[ProbeRef] = checkId.parentOption.map(parent => new ProbeRef(agentId, parent))
+  def isRoot: Boolean = checkId.isRoot
+  def hasParent: Boolean = !isRoot
+  def isParentOf(that: ProbeRef): Boolean = agentId.equals(that.agentId) && checkId.isParentOf(that.checkId)
+  def isDirectParentOf(that: ProbeRef): Boolean = agentId.equals(that.agentId) && checkId.isDirectParentOf(that.checkId)
+  def isChildOf(that: ProbeRef): Boolean = agentId.equals(that.agentId) && checkId.isChildOf(that.checkId)
+  def isDirectChildOf(that: ProbeRef): Boolean = agentId.equals(that.agentId) && checkId.isDirectChildOf(that.checkId)
   def compare(that: ProbeRef): Int = toString.compareTo(that.toString)
 
   override def hashCode() = toString.hashCode
-  override def toString = uri.toString + "/" + path.mkString("/")
+  override def toString = agentId.toString + ":" + checkId.toString
   override def equals(other: Any): Boolean = other match {
-    case otherRef: ProbeRef => uri.equals(otherRef.uri) && path.equals(otherRef.path)
+    case otherRef: ProbeRef => agentId.equals(otherRef.agentId) && checkId.equals(otherRef.checkId)
     case _ => false
   }
 }
 
 object ProbeRef {
-
-  def apply(uri: URI, path: Vector[String]): ProbeRef = new ProbeRef(uri, path)
-
+  def apply(agentId: AgentId, checkId: CheckId): ProbeRef = new ProbeRef(agentId, checkId)
+  def apply(agentId: String, checkId: String): ProbeRef = new ProbeRef(AgentId(agentId), CheckId(checkId))
   def apply(string: String): ProbeRef = {
-    val index = string.indexOf('/')
-    if (index == -1) new ProbeRef(new URI(string), Vector.empty) else {
-      val (uri,path) = string.splitAt(index)
-      if (path.length == 1) new ProbeRef(new URI(uri), Vector.empty) else new ProbeRef(new URI(uri), path.tail.split('/').toVector)
-    }
+    val index = string.indexOf(':')
+    val (agentId,checkId) = string.splitAt(index)
+    ProbeRef(AgentId(agentId), CheckId(checkId))
   }
-
-  def apply(uri: URI): ProbeRef = apply(uri, Vector.empty)
-
-  def apply(uri: URI, path: String): ProbeRef = {
-    val segments = path.split('/').filter(_ != "").toVector
-    new ProbeRef(uri, segments)
-  }
-
-  def apply(uri: String, path: String): ProbeRef = apply(new URI(uri), path)
-
-  def unapply(probeRef: ProbeRef): Option[(URI,Vector[String])] = Some((probeRef.uri, probeRef.path))
+  //def apply(uri: URI): ProbeRef = apply(uri, Vector.empty)
+  def unapply(probeRef: ProbeRef): Option[(AgentId,CheckId)] = Some((probeRef.agentId, probeRef.checkId))
 }
 
 /**
  * A MetricSource uniquely identifies a metric within a ProbeSystem.
  */
-class MetricSource(val probePath: Vector[String], val metricName: String) extends Ordered[MetricSource] with ResourceModel {
+class MetricSource(val checkId: CheckId, val metricName: String) extends Ordered[MetricSource] with ResourceModel {
 
   def compare(that: MetricSource): Int = toString.compareTo(that.toString)
 
   override def hashCode() = toString.hashCode
-  override def toString = if (probePath.isEmpty) metricName else probePath.mkString("/", "/", ":") + metricName
+  override def toString = checkId.toString + ":" + metricName
   override def equals(other: Any): Boolean = other match {
-    case other: MetricSource => probePath.equals(other.probePath) && metricName.equals(other.metricName)
+    case other: MetricSource => checkId.equals(other.checkId) && metricName.equals(other.metricName)
     case _ => false
   }
 }
 
 object MetricSource {
-  def apply(probePath: Vector[String], metricName: String): MetricSource = new MetricSource(probePath, metricName)
+  def apply(checkId: CheckId, metricName: String): MetricSource = new MetricSource(checkId, metricName)
 
   def apply(string: String): MetricSource = {
     val index = string.indexOf(':')
-    if (index == -1) new MetricSource(Vector.empty, string) else {
-      if (string.head != '/')
-        throw new IllegalArgumentException()
-      val (path,name) = string.splitAt(index)
-      new MetricSource(path.tail.split('/').toVector, name.tail)
-    }
+    if (index == -1) throw new IllegalArgumentException()
+    val (checkId,metricName) = string.splitAt(index)
+    new MetricSource(CheckId(checkId), metricName.tail)
   }
 
-  def unapply(source: MetricSource): Option[(Vector[String], String)] = Some((source.probePath, source.metricName))
+  def unapply(source: MetricSource): Option[(CheckId, String)] = Some((source.checkId, source.metricName))
 }
 

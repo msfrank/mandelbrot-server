@@ -236,13 +236,15 @@ class MetricsEvaluationParser extends JavaTokenParsers {
 
   def valueComparison: Parser[ValueComparison] = equals | notEquals | lessThanEqual | lessThan | greaterThanEqual | greaterThan
 
-  def bareSource: Parser[MetricSource] = regex("[a-zA-Z][a-zA-Z0-9_]*".r) ^^ { MetricSource(Vector.empty, _) }
-
-  def qualifiedSource: Parser[MetricSource] = rep1(regex("""/[^:/]+""".r)) ~ literal(":") ~ bareSource ^^ {
-    case (segments: List[String]) ~ ":" ~ MetricSource(_, name) => MetricSource(segments.toVector.map(_.tail), name)
+  def checkId: Parser[CheckId] = rep1sep(regex("""[^.]+""".r), literal(".")) ^^ {
+    case segments: List[String] => new CheckId(segments.toVector)
   }
 
-  def metricSource: Parser[MetricSource] = bareSource | qualifiedSource
+  def metricName: Parser[String] = regex("[a-zA-Z][a-zA-Z0-9_]*".r)
+
+  def metricSource: Parser[MetricSource] = checkId ~ literal(":") ~ metricName ^^ {
+    case (checkId: CheckId) ~ ":" ~ (metricName: String) => MetricSource(checkId, metricName)
+  }
 
   def headFunction: Parser[EvaluationExpression] = metricSource ~ literal(".") ~ literal("head") ~ valueComparison ^^ {
     case source ~ "." ~ "head" ~ comparison => EvaluateSource(source, HeadFunction(comparison))

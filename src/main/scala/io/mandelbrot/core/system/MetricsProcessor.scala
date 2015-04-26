@@ -68,7 +68,7 @@ class MetricsProcessor(settings: MetricsProbeSettings) extends BehaviorProcessor
 
     // push new metrics into the store
     metrics.foreach { case (metricName, metricValue) =>
-      val source = MetricSource(probe.probeRef.path, metricName)
+      val source = MetricSource(probe.probeRef.checkId, metricName)
       metricsStore.append(source, metricValue)
     }
 

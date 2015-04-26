@@ -23,7 +23,7 @@ import java.net.URI
 
 import akka.actor._
 import io.mandelbrot.core.entity._
-import io.mandelbrot.core.model.NotificationEvent
+import io.mandelbrot.core.model.{AgentId, NotificationEvent}
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.state._
@@ -47,8 +47,8 @@ class ServiceProxy extends Actor with ActorLogging {
 
   //
   val keyExtractor: EntityFunctions.KeyExtractor = {
-    case op: ProbeOperation => op.probeRef.uri.toString
-    case op: ProbeSystemOperation => op.uri.toString
+    case op: ProbeOperation => op.probeRef.agentId.toString
+    case op: ProbeSystemOperation => op.agentId.toString
   }
   val shardResolver: EntityFunctions.ShardResolver = {
     case message => MurmurHash3.stringHash(keyExtractor(message))
@@ -58,7 +58,7 @@ class ServiceProxy extends Actor with ActorLogging {
     case entity: Entity => ProbeSystem.props(self)
   }
   val entityReviver: EntityFunctions.EntityReviver = {
-    case key => ReviveProbeSystem(new URI(key))
+    case key => ReviveProbeSystem(AgentId(key))
   }
 
   val entityService = context.actorOf(EntityManager.props(settings.cluster, propsCreator, entityReviver), "entity-service")

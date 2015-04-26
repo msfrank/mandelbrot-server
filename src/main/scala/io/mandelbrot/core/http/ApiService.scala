@@ -66,13 +66,13 @@ trait ApiService extends HttpService {
     path("systems") {
       /* register new probe system, or fail if it already exists */
       post {
-        entity(as[RegisterProbeSystem]) { case registerProbeSystem: RegisterProbeSystem =>
+        entity(as[AgentRegistration]) { case agentRegistration: AgentRegistration =>
           complete {
-            serviceProxy.ask(registerProbeSystem).map {
+            serviceProxy.ask(RegisterProbeSystem(agentRegistration.agentId, agentRegistration)).map {
               case result: RegisterProbeSystemResult =>
                 HttpResponse(StatusCodes.OK,
-                             headers = List(Location("/v2/systems/" + registerProbeSystem.uri.toString)),
-                             entity = JsonBody(result.op.uri.toJson))
+                             headers = List(Location("/v2/systems/" + agentRegistration.agentId.toString)),
+                             entity = JsonBody(result.metadata.toJson))
               case failure: ServiceOperationFailed =>
                 throw failure.failure
             }
@@ -94,12 +94,12 @@ trait ApiService extends HttpService {
         }
       }
     } ~
-    pathPrefix("systems" / SystemUri) { case system: URI =>
+    pathPrefix("systems" / AgentIdMatcher) { case agentId: AgentId =>
       pathEndOrSingleSlash {
         /* retrieve the spec for the specified probe system */
         get {
           complete {
-            serviceProxy.ask(GetRegistration(system)).map {
+            serviceProxy.ask(GetRegistration(agentId)).map {
               case result: GetRegistrationResult =>
                 result.registration
               case failure: ServiceOperationFailed =>
@@ -109,13 +109,13 @@ trait ApiService extends HttpService {
         } ~
         /* update the spec for the specified probe system */
         put {
-          entity(as[UpdateProbeSystem]) { case updateProbeSystem: UpdateProbeSystem =>
+          entity(as[AgentRegistration]) { case agentRegistration: AgentRegistration =>
             complete {
-              serviceProxy.ask(updateProbeSystem).map {
+              serviceProxy.ask(UpdateProbeSystem(agentId, agentRegistration)).map {
                 case result: UpdateProbeSystemResult =>
                   HttpResponse(StatusCodes.Accepted,
-                               headers = List(Location("/v2/systems/" + updateProbeSystem.uri.toString)),
-                               entity = JsonBody(result.op.uri.toJson))
+                               headers = List(Location("/v2/systems/" + agentRegistration.agentId.toString)),
+                               entity = JsonBody(result.metadata.toJson))
                 case failure: ServiceOperationFailed =>
                   throw failure.failure
               }
@@ -125,7 +125,7 @@ trait ApiService extends HttpService {
         /* unregister the probe system */
         delete {
           complete {
-            serviceProxy.ask(RetireProbeSystem(system)).map {
+            serviceProxy.ask(RetireProbeSystem(agentId)).map {
               case result: RetireProbeSystemResult =>
                 HttpResponse(StatusCodes.Accepted)
               case failure: ServiceOperationFailed =>
@@ -134,12 +134,12 @@ trait ApiService extends HttpService {
           }
         }
       } ~
-      pathPrefix("probes" / ProbePath) { case probe: Vector[String] =>
+      pathPrefix("checks" / CheckIdMatcher) { case checkId: CheckId =>
         pathEndOrSingleSlash {
           get {
             /* describe the status of the Probe */
             complete {
-              serviceProxy.ask(GetProbeStatus(ProbeRef(system, probe))).map {
+              serviceProxy.ask(GetProbeStatus(ProbeRef(agentId, checkId))).map {
                 case result: GetProbeStatusResult =>
                   result.status
                 case failure: ServiceOperationFailed =>
@@ -151,7 +151,7 @@ trait ApiService extends HttpService {
             /* update the status of the Probe */
             entity(as[ProbeEvaluation]) { case evaluation: ProbeEvaluation =>
               complete {
-                serviceProxy.ask(ProcessProbeEvaluation(ProbeRef(system, probe), evaluation)).map {
+                serviceProxy.ask(ProcessProbeEvaluation(ProbeRef(agentId, checkId), evaluation)).map {
                   case result: ProcessProbeEvaluationResult =>
                     HttpResponse(StatusCodes.OK)
                   case failure: ServiceOperationFailed =>
@@ -167,7 +167,7 @@ trait ApiService extends HttpService {
             pagingParams { paging =>
                complete {
                 val limit = paging.limit.getOrElse(settings.pageLimit)
-                serviceProxy.ask(GetProbeCondition(ProbeRef(system, probe), timeseries.from, timeseries.to, limit, paging.last)).map {
+                serviceProxy.ask(GetProbeCondition(ProbeRef(agentId, checkId), timeseries.from, timeseries.to, limit, paging.last)).map {
                   case result: GetProbeConditionResult =>
                     result.page
                   case failure: ServiceOperationFailed =>
@@ -183,7 +183,7 @@ trait ApiService extends HttpService {
             pagingParams { paging =>
               complete {
                 val limit = paging.limit.getOrElse(settings.pageLimit)
-                serviceProxy.ask(GetProbeNotifications(ProbeRef(system, probe), timeseries.from, timeseries.to, limit, paging.last)).map {
+                serviceProxy.ask(GetProbeNotifications(ProbeRef(agentId, checkId), timeseries.from, timeseries.to, limit, paging.last)).map {
                   case result: GetProbeNotificationsResult =>
                     result.page
                   case failure: ServiceOperationFailed =>
@@ -199,7 +199,7 @@ trait ApiService extends HttpService {
             pagingParams { paging =>
               complete {
                 val limit = paging.limit.getOrElse(settings.pageLimit)
-                serviceProxy.ask(GetProbeMetrics(ProbeRef(system, probe), timeseries.from, timeseries.to, limit, paging.last)).map {
+                serviceProxy.ask(GetProbeMetrics(ProbeRef(agentId, checkId), timeseries.from, timeseries.to, limit, paging.last)).map {
                   case result: GetProbeMetricsResult =>
                     result.page
                   case failure: ServiceOperationFailed =>

@@ -9,17 +9,26 @@ import io.mandelbrot.core.model._
  */
 trait ResourceProtocol extends DefaultJsonProtocol with StandardProtocol {
 
-  /* convert Resource class */
-  implicit object ResourceFormat extends RootJsonFormat[Resource] {
-    def write(resource: Resource) = JsString(resource.toString)
+  /* convert AgentId class */
+  implicit object AgentIdFormat extends JsonFormat[AgentId] {
+    def write(agentId: AgentId) = JsString(agentId.toString)
     def read(value: JsValue) = value match {
-      case JsString(string) => Resource(string)
-      case _ => throw new DeserializationException("expected Resource")
+      case JsString(string) => AgentId(string)
+      case _ => throw new DeserializationException("expected AgentId")
+    }
+  }
+
+  /* convert CheckId class */
+  implicit object CheckIdFormat extends JsonFormat[CheckId] {
+    def write(checkId: CheckId) = JsString(checkId.toString)
+    def read(value: JsValue) = value match {
+      case JsString(string) => CheckId(string)
+      case _ => throw new DeserializationException("expected CheckId")
     }
   }
 
   /* convert ProbeRef class */
-  implicit object ProbeRefFormat extends RootJsonFormat[ProbeRef] {
+  implicit object ProbeRefFormat extends JsonFormat[ProbeRef] {
     def write(ref: ProbeRef) = JsString(ref.toString)
     def read(value: JsValue) = value match {
       case JsString(string) => ProbeRef(string)
@@ -28,11 +37,11 @@ trait ResourceProtocol extends DefaultJsonProtocol with StandardProtocol {
   }
 
   /* convert MetricSource class */
-  implicit object MetricSourceFormat extends RootJsonFormat[MetricSource] {
+  implicit object MetricSourceFormat extends JsonFormat[MetricSource] {
     def write(source: MetricSource) = JsString(source.toString)
     def read(value: JsValue) = value match {
       case JsString(string) => MetricSource(string)
-      case _ => throw new DeserializationException("expected ProbeRef")
+      case _ => throw new DeserializationException("expected MetricSource")
     }
   }
 }

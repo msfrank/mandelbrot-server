@@ -20,9 +20,7 @@
 package io.mandelbrot.core.system
 
 import akka.actor._
-import io.mandelbrot.core.entity.Entity
 import scala.collection.mutable
-import java.net.URI
 
 import io.mandelbrot.core._
 import io.mandelbrot.core.model._
@@ -31,9 +29,9 @@ import io.mandelbrot.core.metrics.MetricsBus
 
 /**
  * the ProbeSystem manages a collection of Probes underneath a URI.  the ProbeSystem
- * is responsible for adding and removing probes when the registration changes, as well
- * as updating probes when policy changes.  lastly, the ProbeSystem acts as an endpoint
- * for commands and queries operating on sets of probes in the system.
+ * is responsible for adding and removing checks when the registration changes, as well
+ * as updating checks when policy changes.  lastly, the ProbeSystem acts as an endpoint
+ * for commands and queries operating on sets of checks in the system.
  */
 class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,ProbeSystem.Data] with Stash {
   import ProbeSystem._
@@ -42,9 +40,9 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
   val settings = ServerConfig(context.system).settings
 
   // state
-  var probes: Map[ProbeRef,ProbeActor] = Map.empty
-  val retiredProbes = new mutable.HashMap[ActorRef,(ProbeRef,Long)]
-  val zombieProbes = new mutable.HashSet[ProbeRef]
+  var checks: Map[CheckId,CheckActor] = Map.empty
+  val retiredChecks = new mutable.HashMap[ActorRef,(CheckId,Long)]
+  val zombieChecks = new mutable.HashSet[CheckId]
   val metricsBus = new MetricsBus()
 
   override def preStart(): Unit = {
@@ -55,12 +53,12 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
   when(SystemIncubating) {
 
     case Event(op: RegisterProbeSystem, _) =>
-      services ! CreateRegistration(op.uri, op.registration)
+      services ! CreateRegistration(op.agentId, op.registration)
       goto(SystemRegistering) using SystemRegistering(op, sender())
 
     case Event(revive: ReviveProbeSystem, _) =>
-      services ! GetRegistration(revive.uri)
-      goto(SystemInitializing) using SystemInitializing(revive.uri)
+      services ! GetRegistration(revive.agentId)
+      goto(SystemInitializing) using SystemInitializing(revive.agentId)
       
     case Event(unhandled, _) =>
       throw new IllegalStateException("illegal message %s while in Incubating state".format(unhandled))
@@ -69,8 +67,8 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
   when(SystemRegistering) {
 
     case Event(result: CreateRegistrationResult, state: SystemRegistering) =>
-      state.sender ! RegisterProbeSystemResult(state.op, result.lsn)
-      goto(SystemRunning) using SystemRunning(state.op.uri, result.op.registration, 0)
+      state.sender ! RegisterProbeSystemResult(state.op, result.metadata)
+      goto(SystemRunning) using SystemRunning(state.op.agentId, result.op.registration, result.metadata.lsn)
 
     case Event(failure: RegistryServiceOperationFailed, state: SystemRegistering) =>
       state.sender ! failure
@@ -88,7 +86,7 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
   when(SystemInitializing) {
 
     case Event(result: GetRegistrationResult, state: SystemInitializing) =>
-      goto(SystemRunning) using SystemRunning(state.uri, result.registration, 0)
+      goto(SystemRunning) using SystemRunning(state.agentId, result.registration, result.lsn)
 
     case Event(failure: RegistryServiceOperationFailed, state: SystemInitializing) =>
       goto(SystemFailed) using SystemError(failure.failure)
@@ -105,9 +103,9 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
   onTransition {
     case _ -> SystemRunning => nextStateData match {
       case state: SystemRunning =>
-        log.debug("configuring probe system {}", state.uri)
+        log.debug("configuring probe system {}", state.agentId)
         unstashAll()
-        applyProbeRegistration(state.uri, state.registration, state.lsn)
+        applyProbeRegistration(state.agentId, state.registration, state.lsn)
       case _ =>
     }
   }
@@ -119,32 +117,33 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
       stay() replying DescribeProbeSystemResult(query, state.registration, state.lsn)
 
     case Event(query: MatchProbeSystem, state: SystemRunning) =>
-      if (query.matchers.isEmpty) stay() replying MatchProbeSystemResult(query, probes.keySet) else {
-        val matchingRefs = probes.keys.flatMap { case ref =>
-          query.matchers.collectFirst { case matcher if matcher.matches(ref) => ref }
+      if (query.matchers.nonEmpty) {
+        val matchingRefs = checks.keys.flatMap { case checkId =>
+          val probeRef = ProbeRef(state.agentId, checkId)
+          query.matchers.collectFirst { case matcher if matcher.matches(probeRef) => probeRef }
         }.toSet
         stay() replying MatchProbeSystemResult(query, matchingRefs)
-      }
+      } else stay() replying MatchProbeSystemResult(query, checks.keySet.map(checkId => ProbeRef(state.agentId, checkId)))
 
     case Event(op: RegisterProbeSystem, state: SystemRunning) =>
       stay() replying ProbeSystemOperationFailed(op, ApiException(Conflict))
 
-    /* update probes */
+    /* update checks */
     case Event(op: UpdateProbeSystem, state: SystemRunning) =>
       goto(SystemUpdating) using SystemUpdating(op, sender(), state)
 
-    /* retire all running probes */
+    /* retire all running checks */
     case Event(op: RetireProbeSystem, state: SystemRunning) =>
       goto(SystemRetiring) using SystemRetiring(op, sender(), state)
 
-    /* ignore probe status from top level probes */
+    /* ignore probe status from top level checks */
     case Event(status: ProbeStatus, state: SystemRunning) =>
       stay()
 
     /* forward probe operations to the specified probe */
     case Event(op: ProbeOperation, state: SystemRunning) =>
-      probes.get(op.probeRef) match {
-        case Some(probeActor: ProbeActor) =>
+      checks.get(op.probeRef.checkId) match {
+        case Some(probeActor: CheckActor) =>
           probeActor.actor.forward(op)
         case None =>
           sender() ! ProbeOperationFailed(op, ApiException(ResourceNotFound))
@@ -156,14 +155,14 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
       services ! notification
       stay()
 
-    /* clean up retired probes, reanimate zombie probes */
+    /* clean up retired checks, reanimate zombie checks */
     case Event(Terminated(actorRef), state: SystemRunning) =>
-      val (probeRef,lsn) = retiredProbes(actorRef)
-      probes = probes - probeRef
-      retiredProbes.remove(actorRef)
-      if (zombieProbes.contains(probeRef)) {
-        zombieProbes.remove(probeRef)
-        applyProbeRegistration(state.uri, state.registration, state.lsn)
+      val (probeRef,lsn) = retiredChecks(actorRef)
+      checks = checks - probeRef
+      retiredChecks.remove(actorRef)
+      if (zombieChecks.contains(probeRef)) {
+        zombieChecks.remove(probeRef)
+        applyProbeRegistration(state.agentId, state.registration, state.lsn)
       } else
         log.debug("probe {} has been terminated", probeRef)
       stay()
@@ -171,15 +170,16 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
 
   onTransition {
     case _ -> SystemUpdating => nextStateData match  {
-      case state: SystemUpdating => services ! UpdateRegistration(state.op.uri, state.op.registration, state.prev.lsn)
+      case state: SystemUpdating =>
+        services ! UpdateRegistration(state.op.agentId, state.op.registration, state.prev.lsn)
       case _ =>
     }
   }
 
   when(SystemUpdating) {
     case Event(result: UpdateRegistrationResult, state: SystemUpdating) =>
-      state.sender ! UpdateProbeSystemResult(state.op, result.lsn)
-      goto(SystemRunning) using SystemRunning(state.op.uri, state.op.registration, result.lsn)
+      state.sender ! UpdateProbeSystemResult(state.op, result.metadata)
+      goto(SystemRunning) using SystemRunning(state.op.agentId, state.op.registration, result.metadata.lsn)
     case Event(failure: RegistryServiceOperationFailed, state: SystemUpdating) =>
       state.sender ! failure
       goto(SystemRunning) using state.prev
@@ -190,7 +190,8 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
 
   onTransition {
     case _ -> SystemRetiring => nextStateData match {
-      case state: SystemRetiring => services ! DeleteRegistration(state.op.uri, state.prev.lsn)
+      case state: SystemRetiring =>
+        services ! DeleteRegistration(state.op.agentId, state.prev.lsn)
       case _ =>
     }
   }
@@ -198,7 +199,7 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
   when(SystemRetiring) {
     case Event(result: DeleteRegistrationResult, state: SystemRetiring) =>
       state.sender ! RetireProbeSystemResult(state.op, result.lsn)
-      goto(SystemRetired) using SystemRetired(state.prev.uri, state.prev.registration, result.lsn)
+      goto(SystemRetired) using SystemRetired(state.prev.agentId, state.prev.registration, result.lsn)
     case Event(failure: RegistryServiceOperationFailed, state: SystemRetiring) =>
       state.sender ! failure
       goto(SystemRunning) using state.prev
@@ -211,10 +212,10 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
     case _ -> SystemRetired => nextStateData match {
       case state: SystemRetired =>
         unstashAll()
-        probes.foreach {
-          case (probeRef,probeActor) if !retiredProbes.contains(probeActor.actor) =>
+        checks.foreach {
+          case (probeRef,probeActor) if !retiredChecks.contains(probeActor.actor) =>
             probeActor.actor ! RetireProbe(state.lsn)
-            retiredProbes.put(probeActor.actor, (probeRef,state.lsn))
+            retiredChecks.put(probeActor.actor, (probeRef,state.lsn))
           case _ => // do nothing
         }
       case _ =>
@@ -222,14 +223,14 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
   }
 
   when(SystemRetired) {
-    /* clean up retired probes, reanimate zombie probes */
+    /* clean up retired checks, reanimate zombie checks */
     case Event(Terminated(actorRef), state: SystemRetired) =>
-      val (probeRef,lsn) = retiredProbes(actorRef)
-      probes = probes - probeRef
-      retiredProbes.remove(actorRef)
-      if (zombieProbes.contains(probeRef))
-        zombieProbes.remove(probeRef)
-      if (probes.nonEmpty) stay() else stop()
+      val (probeRef,lsn) = retiredChecks(actorRef)
+      checks = checks - probeRef
+      retiredChecks.remove(actorRef)
+      if (zombieChecks.contains(probeRef))
+        zombieChecks.remove(probeRef)
+      if (checks.nonEmpty) stay() else stop()
     /* system doesn't exist anymore, so return resource not found */
     case Event(op: ProbeSystemOperation, _) =>
       stay() replying ProbeSystemOperationFailed(op, ApiException(ResourceNotFound))
@@ -251,106 +252,105 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
   }
 
   /**
-   * flatten AgentRegistration into a Set of ProbeRefs
+   * given a registration, return the set of all check resources, including
+   * the implicit containers.
    */
-  def spec2RefSet(uri: URI, path: Vector[String], spec: CheckSpec): Set[ProbeRef] = {
-    val iterChildren = spec.children.toSet
-    val childRefs = iterChildren.map { case (name: String, childSpec: CheckSpec) =>
-      spec2RefSet(uri, path :+ name, childSpec)
-    }.flatten
-    childRefs + ProbeRef(uri, path)
-  }
-  def registration2RefSet(uri: URI, registration: AgentRegistration): Set[ProbeRef] = {
-    registration.probes.flatMap { case (name,spec) =>
-      spec2RefSet(uri, Vector(name), spec)
-    }.toSet
-  }
-
-  /**
-   * find the CheckSpec referenced by path.  NOTE: It is assumed that the specified
-   * ProbeRef exists!  if it doesn't, this code will throw an exception.
-   */
-  def findProbeSpec(spec: CheckSpec, path: Vector[String]): CheckSpec = {
-    if (path.isEmpty) spec else findProbeSpec(spec.children(path.head), path.tail)
-  }
-  def findProbeSpec(registration: AgentRegistration, path: Vector[String]): CheckSpec = {
-    findProbeSpec(registration.probes(path.head), path.tail)
-  }
-
-  /**
-   * apply the spec to the probe system, adding and removing probes as necessary
-   */
-  def applyProbeRegistration(uri: URI, registration: AgentRegistration, lsn: Long): Unit = {
-    val specSet = registration2RefSet(uri, registration)
-    val probeSet = probes.keySet
-    // add new probes
-    val probesAdded = specSet -- probeSet
-    probesAdded.toVector.sorted.foreach { case ref: ProbeRef =>
-      val probeSpec = findProbeSpec(registration, ref.path)
-      val directChildren = specSet.filter { _.parentOption match {
-        case Some(parent) => parent == ref
-        case None => false
-      }}
-      val factory = ProbeBehavior.extensions(probeSpec.probeType).configure(probeSpec.properties)
-      val actor = ref.parentOption match {
-        case Some(parent) if parent.path.nonEmpty =>
-          context.actorOf(Probe.props(ref, probes(parent).actor, services, metricsBus))
-        case _ =>
-          context.actorOf(Probe.props(ref, self, services, metricsBus))
+  def makeRegistrationSet(registration: AgentRegistration): Set[CheckId] = {
+    var registrationSet = registration.checks.keySet
+    for (resource <- registrationSet) {
+      var parent = resource.parentOption
+      while (parent.isDefined) {
+        registrationSet = registrationSet + parent.get
+        parent = parent.get.parentOption
       }
-      context.watch(actor)
-      actor ! ChangeProbe(probeSpec.probeType, probeSpec.policy, factory, directChildren, lsn)
-      log.debug("probe {} joins", ref)
-      probes = probes + (ref -> ProbeActor(probeSpec, actor))
     }
-    // remove stale probes
-    val probesRemoved = probeSet -- specSet
-    probesRemoved.toVector.sorted.reverse.foreach { case ref: ProbeRef =>
-      log.debug("probe {} retires", ref)
-      val probeactor = probes(ref)
-      probeactor.actor ! RetireProbe(lsn)
-      retiredProbes.put(probeactor.actor, (ref,lsn))
-    }
-    // update existing probes and mark zombie probes
-    val probesUpdated = probeSet.intersect(specSet)
-    probesUpdated.foreach {
-      case ref: ProbeRef if retiredProbes.contains(probes(ref).actor) =>
-        zombieProbes.add(ref)
-      case ref: ProbeRef =>
-        val probeSpec = findProbeSpec(registration, ref.path)
-        val directChildren = specSet.filter { _.parentOption match {
-          case Some(parent) => parent == ref
-          case None => false
-        }}
-        val ProbeActor(prevSpec, actor) = probes(ref)
-        val factory = ProbeBehavior.extensions(probeSpec.probeType).configure(probeSpec.properties)
-        probes = probes + (ref -> ProbeActor(probeSpec, actor))
-        actor ! ChangeProbe(probeSpec.probeType, probeSpec.policy, factory, directChildren, lsn)
-    }
+    registrationSet
   }
 
   /**
-   *
+   * apply the spec to the probe system, adding and removing checks as necessary
    */
-  def findMatching(uri: URI, paths: Option[Set[String]]): Set[(ProbeRef,ProbeActor)] = paths match {
-    case None =>
-      probes.toSet
-    case Some(_paths) =>
-      val parser = new ProbeMatcherParser()
-      val matchers = _paths.map(path => parser.parseProbeMatcher(uri.toString + path))
-      probes.flatMap { case matching @ (ref,actor) =>
-        matchers.collectFirst {
-          case matcher if matcher.matches(ref) =>
-            matching
-        }
-      }.toSet
+  def applyProbeRegistration(agentId: AgentId, registration: AgentRegistration, lsn: Long): Unit = {
+
+    val registrationSet = makeRegistrationSet(registration)
+    val checkSet = checks.keySet
+
+    // create a processor factory for each check which isn't in checkSet
+    val checksAdded = new mutable.HashMap[CheckId,ProbeBehaviorExtension#DependentProcessorFactory]
+    (registrationSet -- checkSet).toVector.sorted.foreach { case resource: Resource =>
+      registration.checks.get(resource) match {
+        case Some(checkSpec) =>
+          val checkType = checkSpec.probeType
+          val properties = checkSpec.properties
+          checksAdded.put(resource, ProbeBehavior.extensions(checkType).configure(properties))
+        case None =>
+          checksAdded.put(resource, ProbeSystem.checkPlaceholder.configure(Map.empty))
+      }
+    }
+
+    // create a processor factory for each check which has been updated
+    val checksUpdated = new mutable.HashMap[CheckId,ProbeBehaviorExtension#DependentProcessorFactory]
+    checkSet.intersect(registrationSet).foreach { case resource: Resource =>
+      val checkSpec = registration.checks(resource)
+      val checkType = checkSpec.probeType
+      val properties = checkSpec.properties
+      val factory = ProbeBehavior.extensions(checkType).configure(properties)
+      checksUpdated.put(resource, factory)
+    }
+
+    // remove stale checks
+    val probesRemoved = checkSet -- registrationSet
+    probesRemoved.toVector.sorted.reverse.foreach { case resource: Resource =>
+      log.debug("probe {} retires", resource)
+      val CheckActor(_, _, actor) = checks(resource)
+      actor ! RetireProbe(lsn)
+      retiredChecks.put(actor, (resource,lsn))
+    }
+
+    // create check actors for each added check
+    checksAdded.keys.toVector.sorted.foreach { case checkId: CheckId =>
+      val probeRef = ProbeRef(agentId, checkId)
+      val actor = checkId.parentOption match {
+        case Some(parent) =>
+          context.actorOf(Probe.props(probeRef, checks(parent).actor, services, metricsBus))
+        case _ =>
+          context.actorOf(Probe.props(probeRef, self, services, metricsBus))
+      }
+      log.debug("check {} joins {}", checkId, agentId)
+      context.watch(actor)
+      val checkSpec = registration.checks(checkId)
+      val factory = checksAdded(checkId)
+      checks = checks + (checkId -> CheckActor(checkSpec, factory, actor))
+    }
+
+    // update existing checks and mark zombie checks
+    checksUpdated.toVector.foreach {
+      case (resource, factory) if retiredChecks.contains(checks(resource).actor) =>
+        zombieChecks.add(resource)
+      case (resource, factory) =>
+        val CheckActor(_, _, actor) = checks(resource)
+        val checkSpec = registration.checks(resource)
+        checks = checks + (resource -> CheckActor(checkSpec, factory, actor))
+    }
+
+    // configure all added and updated checks
+    (checksAdded.keySet ++ checksUpdated.keySet).foreach { case checkId =>
+      val CheckActor(checkSpec, factory, actor) = checks(checkId)
+      val directChildren = registrationSet.filter { _.parentOption match {
+        case Some(parent) => parent == checkId
+        case None => false
+      }}.map(childId => ProbeRef(agentId, childId))
+      actor ! ChangeProbe(checkSpec.probeType, checkSpec.policy, factory, directChildren, lsn)
+    }
   }
 }
 
 object ProbeSystem {
   def props(services: ActorRef) = Props(classOf[ProbeSystem], services)
 
-  case class ProbeActor(spec: CheckSpec, actor: ActorRef)
+  val checkPlaceholder = new ContainerProbe()
+
+  case class CheckActor(spec: CheckSpec, factory: ProbeBehaviorExtension#DependentProcessorFactory, actor: ActorRef)
 
   sealed trait State
   case object SystemIncubating extends State
@@ -364,38 +364,38 @@ object ProbeSystem {
 
   sealed trait Data
   case object SystemWaiting extends Data
-  case class SystemInitializing(uri: URI) extends Data
+  case class SystemInitializing(agentId: AgentId) extends Data
   case class SystemRegistering(op: RegisterProbeSystem, sender: ActorRef) extends Data
-  case class SystemRunning(uri: URI, registration: AgentRegistration, lsn: Long) extends Data
+  case class SystemRunning(agentId: AgentId, registration: AgentRegistration, lsn: Long) extends Data
   case class SystemUpdating(op: UpdateProbeSystem, sender: ActorRef, prev: SystemRunning) extends Data
   case class SystemRetiring(op: RetireProbeSystem, sender: ActorRef, prev: SystemRunning) extends Data
-  case class SystemRetired(uri: URI, registration: AgentRegistration, lsn: Long) extends Data
+  case class SystemRetired(agentId: AgentId, registration: AgentRegistration, lsn: Long) extends Data
   case class SystemError(ex: Throwable) extends Data
 }
 
-case class ReviveProbeSystem(uri: URI)
+case class ReviveProbeSystem(agentId: AgentId)
 case class ChangeProbe(probeType: String, policy: CheckPolicy, factory: ProcessorFactory, children: Set[ProbeRef], lsn: Long)
 case class RetireProbe(lsn: Long)
 
 /**
  *
  */
-sealed trait ProbeSystemOperation extends ServiceOperation { val uri: URI }
+sealed trait ProbeSystemOperation extends ServiceOperation { val agentId: AgentId }
 sealed trait ProbeSystemCommand extends ServiceCommand with ProbeSystemOperation
 sealed trait ProbeSystemQuery extends ServiceQuery with ProbeSystemOperation
 case class ProbeSystemOperationFailed(op: ProbeSystemOperation, failure: Throwable) extends ServiceOperationFailed
 
-case class RegisterProbeSystem(uri: URI, registration: AgentRegistration) extends ProbeSystemCommand
-case class RegisterProbeSystemResult(op: RegisterProbeSystem, lsn: Long)
+case class RegisterProbeSystem(agentId: AgentId, registration: AgentRegistration) extends ProbeSystemCommand
+case class RegisterProbeSystemResult(op: RegisterProbeSystem, metadata: AgentMetadata)
 
-case class UpdateProbeSystem(uri: URI, registration: AgentRegistration) extends ProbeSystemCommand
-case class UpdateProbeSystemResult(op: UpdateProbeSystem, lsn: Long)
+case class UpdateProbeSystem(agentId: AgentId, registration: AgentRegistration) extends ProbeSystemCommand
+case class UpdateProbeSystemResult(op: UpdateProbeSystem, metadata: AgentMetadata)
 
-case class RetireProbeSystem(uri: URI) extends ProbeSystemCommand
+case class RetireProbeSystem(agentId: AgentId) extends ProbeSystemCommand
 case class RetireProbeSystemResult(op: RetireProbeSystem, lsn: Long)
 
-case class DescribeProbeSystem(uri: URI) extends ProbeSystemQuery
+case class DescribeProbeSystem(agentId: AgentId) extends ProbeSystemQuery
 case class DescribeProbeSystemResult(op: DescribeProbeSystem, registration: AgentRegistration, lsn: Long)
 
-case class MatchProbeSystem(uri: URI, matchers: Set[ProbeMatcher]) extends ProbeSystemQuery
+case class MatchProbeSystem(agentId: AgentId, matchers: Set[ProbeMatcher]) extends ProbeSystemQuery
 case class MatchProbeSystemResult(op: MatchProbeSystem, refs: Set[ProbeRef])
