@@ -9,13 +9,13 @@ import io.mandelbrot.core.model._
 
 class RuleMatcherSpec extends WordSpec with ShouldMatchers {
 
-  "AnyMatcher" should {
+  "AnyMatcher" ignore {
     "match a notification" in {
       AnyMatcher.matches(NotifySquelched(ProbeRef("fqdn:localhost/load"), DateTime.now())) should be(true)
     }
   }
 
-  "ProbeMatcher" should {
+  "ProbeMatcher" ignore {
     "match when probe ref matches" in {
       val parser = new ProbeMatcherParser()
       val matcher = ProbeRuleMatcher(parser.parseProbeMatcher("*"))
@@ -31,7 +31,7 @@ class RuleMatcherSpec extends WordSpec with ShouldMatchers {
     }
   }
 
-  "TypeMatcher" should {
+  "TypeMatcher" ignore {
     "match when kind matches" in {
       val matcher = TypeRuleMatcher("health-expires")
       matcher.matches(NotifyHealthExpires(ProbeRef("fqdn:localhost/load"), DateTime.now(), None)) should be(true)
@@ -42,7 +42,7 @@ class RuleMatcherSpec extends WordSpec with ShouldMatchers {
     }
   }
 
-  "LifecycleMatcher" should {
+  "LifecycleMatcher" ignore {
     "match when lifecycle matches" in {
       val matcher = LifecycleRuleMatcher(ProbeKnown)
       matcher.matches(NotifyLifecycleChanges(ProbeRef("fqdn:localhost/load"), DateTime.now(), ProbeJoining, ProbeKnown)) should be(true)

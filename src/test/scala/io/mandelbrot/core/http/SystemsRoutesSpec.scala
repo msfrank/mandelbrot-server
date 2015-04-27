@@ -36,64 +36,62 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
     val policy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
     val properties = Map.empty[String,String]
     val metadata = Map.empty[String,String]
-    val children = Map.empty[String,CheckSpec]
-    val probe = CheckSpec("io.mandelbrot.core.system.ScalarProbe", policy, properties, metadata, children)
-    val probes = Map("load" -> probe)
-    val metrics = Map.empty[MetricSource,MetricSpec]
-    val registration = AgentRegistration(Resource("agent"), "mandelbrot", Map.empty, probes, metrics)
+    val probe = CheckSpec("io.mandelbrot.core.system.ScalarProbe", policy, properties, metadata)
+    val probes = Map(CheckId("load") -> probe)
+    val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
+    val registration = AgentRegistration(AgentId("test.1"), "mandelbrot", Map.empty, probes, metrics)
 
     "register a system" in {
-      val op = RegisterProbeSystem(new URI("test:1"), registration)
-      Post("/v2/systems", op) ~> routes ~> check {
+      Post("/v2/systems", registration) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        header("Location") shouldEqual Some(Location("/v2/systems/test:1"))
+        header("Location") shouldEqual Some(Location("/v2/systems/test.1"))
       }
     }
 
     "return a list of systems" in {
-      val uri1 = new URI("test:1")
-      val uri2 = new URI("test:2")
-      val uri3 = new URI("test:3")
-      val uri4 = new URI("test:4")
-      val uri5 = new URI("test:5")
-      Await.result(serviceProxy.ask(RegisterProbeSystem(uri1, registration)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterProbeSystem(uri2, registration)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterProbeSystem(uri3, registration)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterProbeSystem(uri4, registration)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterProbeSystem(uri5, registration)), 5.seconds)
+      val agent1 = AgentId("test.1")
+      val agent2 = AgentId("test.2")
+      val agent3 = AgentId("test.3")
+      val agent4 = AgentId("test.4")
+      val agent5 = AgentId("test.5")
+      Await.result(serviceProxy.ask(RegisterProbeSystem(agent1, registration)), 5.seconds)
+      Await.result(serviceProxy.ask(RegisterProbeSystem(agent2, registration)), 5.seconds)
+      Await.result(serviceProxy.ask(RegisterProbeSystem(agent3, registration)), 5.seconds)
+      Await.result(serviceProxy.ask(RegisterProbeSystem(agent4, registration)), 5.seconds)
+      Await.result(serviceProxy.ask(RegisterProbeSystem(agent5, registration)), 5.seconds)
 
       Get("/v2/systems") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val page = responseAs[AgentsPage]
-        page.systems.map(_.uri) shouldEqual Vector(uri1, uri2, uri3, uri4, uri5)
+        page.agents.map(_.agentId) shouldEqual Vector(agent1, agent2, agent3, agent4, agent5)
         page.last shouldEqual None
       }
     }
 
     "page through a list of systems" in {
-      val uri1 = new URI("test:1")
-      val uri2 = new URI("test:2")
-      val uri3 = new URI("test:3")
-      val uri4 = new URI("test:4")
-      val uri5 = new URI("test:5")
-      Await.result(serviceProxy.ask(RegisterProbeSystem(uri1, registration)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterProbeSystem(uri2, registration)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterProbeSystem(uri3, registration)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterProbeSystem(uri4, registration)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterProbeSystem(uri5, registration)), 5.seconds)
+      val agent1 = AgentId("test.1")
+      val agent2 = AgentId("test.2")
+      val agent3 = AgentId("test.3")
+      val agent4 = AgentId("test.4")
+      val agent5 = AgentId("test.5")
+      Await.result(serviceProxy.ask(RegisterProbeSystem(agent1, registration)), 5.seconds)
+      Await.result(serviceProxy.ask(RegisterProbeSystem(agent2, registration)), 5.seconds)
+      Await.result(serviceProxy.ask(RegisterProbeSystem(agent3, registration)), 5.seconds)
+      Await.result(serviceProxy.ask(RegisterProbeSystem(agent4, registration)), 5.seconds)
+      Await.result(serviceProxy.ask(RegisterProbeSystem(agent5, registration)), 5.seconds)
 
       val last = Get("/v2/systems?limit=3") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val page = responseAs[AgentsPage]
-        page.systems.map(_.uri) shouldEqual Vector(uri1, uri2, uri3)
-        page.last shouldEqual Some(uri3.toString)
+        page.agents.map(_.agentId) shouldEqual Vector(agent1, agent2, agent3)
+        page.last shouldEqual Some(agent3.toString)
         page.last.get.toString
       }
 
       Get("/v2/systems?last=%s&limit=3".format(last)) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val page = responseAs[AgentsPage]
-        page.systems.map(_.uri) shouldEqual Vector(uri4, uri5)
+        page.agents.map(_.agentId) shouldEqual Vector(agent4, agent5)
         page.last shouldEqual None
       }
     }

@@ -9,8 +9,7 @@ trait Hierarchical[T <: Resource] {
   val segments: Vector[String]
   def parentOption: Option[T]
 
-  def hasParent: Boolean = segments.nonEmpty
-  def isRoot: Boolean = segments.isEmpty
+  def hasParent: Boolean = segments.length > 1
   def isParentOf(that: T): Boolean = segments.equals(that.segments.take(segments.length))
   def isDirectParentOf(that: T): Boolean = segments.equals(that.segments.init)
   def isChildOf(that: T): Boolean = segments.take(that.segments.length).equals(that.segments)
@@ -18,16 +17,27 @@ trait Hierarchical[T <: Resource] {
   def compare(that: T): Int = toString.compareTo(that.toString)
 
   override def toString = segments.map(IDN.toASCII(_, IDN.USE_STD3_ASCII_RULES)).mkString(".")
+
   override def hashCode() = toString.hashCode
 }
 /**
  * A resource locator
  */
-class Resource(val segments: Vector[String]) extends ResourceModel
+class Resource(val segments: Vector[String]) extends ResourceModel {
+  if (segments.length == 0) throw new IllegalArgumentException("empty resource is not allowed")
+  segments.foreach {
+    case segment =>
+      if (segment.length == 0) throw new IllegalArgumentException("empty segment is not allowed")
+  }
+}
 
 object Resource {
   def stringToSegments(string: String): Vector[String] = {
-    IDN.toUnicode(string, IDN.USE_STD3_ASCII_RULES).split('.').toVector
+    if (string.length > 255) throw new IllegalArgumentException("resource length exceeds 255 characters")
+    string.split('.').map { segment =>
+      if (segment.length > 63) throw new IllegalArgumentException("resource segment exceeds 63 characters")
+      IDN.toUnicode(segment, IDN.USE_STD3_ASCII_RULES)
+    }.toVector
   }
 }
 
@@ -35,7 +45,7 @@ object Resource {
  *
  */
 class AgentId(segments: Vector[String]) extends Resource(segments) with Hierarchical[AgentId] with Ordered[AgentId] {
-  def parentOption: Option[AgentId] = if (segments.isEmpty) None else Some(new AgentId(segments.init))
+  def parentOption: Option[AgentId] = if (hasParent) Some(new AgentId(segments.init)) else None
   override def equals(other: Any): Boolean = other match {
     case otherAgent: AgentId => segments.equals(otherAgent.segments)
     case _ => false
@@ -50,7 +60,7 @@ object AgentId {
  *
  */
 class CheckId(segments: Vector[String]) extends Resource(segments) with Hierarchical[CheckId] with Ordered[CheckId] {
-  def parentOption: Option[CheckId] = if (segments.isEmpty) None else Some(new CheckId(segments.init))
+  def parentOption: Option[CheckId] = if (hasParent) Some(new CheckId(segments.init)) else None
   override def equals(other: Any): Boolean = other match {
     case otherCheck: CheckId => segments.equals(otherCheck.segments)
     case _ => false
@@ -67,8 +77,7 @@ object CheckId {
 class ProbeRef(val agentId: AgentId, val checkId: CheckId) extends Ordered[ProbeRef] with ResourceModel {
 
   def parentOption: Option[ProbeRef] = checkId.parentOption.map(parent => new ProbeRef(agentId, parent))
-  def isRoot: Boolean = checkId.isRoot
-  def hasParent: Boolean = !isRoot
+  def hasParent: Boolean = checkId.hasParent
   def isParentOf(that: ProbeRef): Boolean = agentId.equals(that.agentId) && checkId.isParentOf(that.checkId)
   def isDirectParentOf(that: ProbeRef): Boolean = agentId.equals(that.agentId) && checkId.isDirectParentOf(that.checkId)
   def isChildOf(that: ProbeRef): Boolean = agentId.equals(that.agentId) && checkId.isChildOf(that.checkId)
@@ -88,8 +97,9 @@ object ProbeRef {
   def apply(agentId: String, checkId: String): ProbeRef = new ProbeRef(AgentId(agentId), CheckId(checkId))
   def apply(string: String): ProbeRef = {
     val index = string.indexOf(':')
+    if (index == -1) throw new IllegalArgumentException()
     val (agentId,checkId) = string.splitAt(index)
-    ProbeRef(AgentId(agentId), CheckId(checkId))
+    ProbeRef(AgentId(agentId), CheckId(checkId.tail))
   }
   //def apply(uri: URI): ProbeRef = apply(uri, Vector.empty)
   def unapply(probeRef: ProbeRef): Option[(AgentId,CheckId)] = Some((probeRef.agentId, probeRef.checkId))

@@ -7,7 +7,7 @@ import io.mandelbrot.core.model._
 
 class ProbeMatcherSpec extends WordSpec with ShouldMatchers {
 
-  "ProbeMatcher" should {
+  "ProbeMatcher" ignore {
 
     "match '*'" in {
       val matcher = new ProbeMatcherParser().parseProbeMatcher("*")

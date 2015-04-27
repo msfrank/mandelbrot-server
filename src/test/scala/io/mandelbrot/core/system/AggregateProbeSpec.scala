@@ -41,15 +41,15 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
     TestKit.shutdownActorSystem(system)
   }
 
-  val child1 = ProbeRef("fqdn:local/child1")
-  val child2 = ProbeRef("fqdn:local/child2")
-  val child3 = ProbeRef("fqdn:local/child3")
+  val child1 = ProbeRef("foo.local:check.child1")
+  val child2 = ProbeRef("foo.local:check.child2")
+  val child3 = ProbeRef("foo.local:check.child3")
   val blackhole = system.actorOf(Blackhole.props())
 
   "A Probe with aggregate behavior" should {
 
     "transition to ProbeSynthetic/ProbeHealthy when all children have notified of healthy status" in {
-      val probeRef = ProbeRef("fqdn:local/")
+      val probeRef = ProbeRef("foo.local:check")
       val probeType = "io.mandelbrot.core.system.AggregateProbe"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
@@ -90,7 +90,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
     }
 
     "transition to ProbeSynthetic/ProbeDegraded when one child has notified of degraded status" in {
-      val probeRef = ProbeRef("fqdn:local/")
+      val probeRef = ProbeRef("foo.local:check")
       val probeType = "io.mandelbrot.core.system.AggregateProbe"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
@@ -130,7 +130,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
     }
 
     "transition to ProbeSynthetic/ProbeFailed when one child has notified of failed status" in {
-      val probeRef = ProbeRef("fqdn:local/")
+      val probeRef = ProbeRef("foo.local:check")
       val probeType = "io.mandelbrot.core.system.AggregateProbe"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
@@ -170,7 +170,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
     }
 
     "notify NotificationService when the alert timeout expires" in {
-      val probeRef = ProbeRef("fqdn:local/")
+      val probeRef = ProbeRef("foo.local:check")
       val probeType = "io.mandelbrot.core.system.AggregateProbe"
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
       val policy = CheckPolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)

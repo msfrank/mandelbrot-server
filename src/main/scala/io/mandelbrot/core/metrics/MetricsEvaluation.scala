@@ -236,7 +236,7 @@ class MetricsEvaluationParser extends JavaTokenParsers {
 
   def valueComparison: Parser[ValueComparison] = equals | notEquals | lessThanEqual | lessThan | greaterThanEqual | greaterThan
 
-  def checkId: Parser[CheckId] = rep1sep(regex("""[^.]+""".r), literal(".")) ^^ {
+  def checkId: Parser[CheckId] = rep1sep(regex("""[^.:]+""".r), literal(".")) ^^ {
     case segments: List[String] => new CheckId(segments.toVector)
   }
 

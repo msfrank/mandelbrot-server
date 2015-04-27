@@ -7,40 +7,40 @@ import scala.collection.JavaConversions._
 import java.net.URI
 
 import io.mandelbrot.core.{ResourceNotFound, Conflict, ApiException}
-import io.mandelbrot.core.model.{AgentsPage, AgentRegistration, AgentMetadata}
+import io.mandelbrot.core.model.{AgentId, AgentsPage, AgentRegistration, AgentMetadata}
 
 class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Actor with ActorLogging {
 
-  val registrations = new java.util.TreeMap[URI, (AgentMetadata,AgentRegistration,Long)]
+  val registrations = new java.util.TreeMap[AgentId, (AgentMetadata,AgentRegistration)]
 
   def receive = {
 
     case op: CreateRegistration =>
-      if (!registrations.containsKey(op.uri)) {
+      if (!registrations.containsKey(op.agentId)) {
         val timestamp = DateTime.now(DateTimeZone.UTC)
-        val metadata = AgentMetadata(op.uri, timestamp, timestamp)
-        registrations.put(op.uri, (metadata, op.registration, 0))
-        sender() ! CreateRegistrationResult(op, 0)
+        val metadata = AgentMetadata(op.agentId, timestamp, timestamp, 0)
+        registrations.put(op.agentId, (metadata, op.registration))
+        sender() ! CreateRegistrationResult(op, metadata)
       } else sender() ! RegistryServiceOperationFailed(op, ApiException(Conflict))
 
     case op: UpdateRegistration =>
-      registrations.get(op.uri) match {
+      registrations.get(op.agentId) match {
         case null =>
           sender() ! RegistryServiceOperationFailed(op, ApiException(ResourceNotFound))
-        case entry: (AgentMetadata,AgentRegistration,Long) =>
+        case (metadata: AgentMetadata, registration: AgentRegistration) =>
           val timestamp = DateTime.now(DateTimeZone.UTC)
-          val metadata = entry._1.copy(lastUpdate = timestamp)
-          val lsn = entry._3 + 1
-          registrations.put(op.uri, (metadata, op.registration, lsn))
-          sender() ! UpdateRegistrationResult(op, lsn)
+          val lsn = metadata.lsn + 1
+          val updated = metadata.copy(lastUpdate = timestamp, lsn = lsn)
+          registrations.put(op.agentId, (updated, registration))
+          sender() ! UpdateRegistrationResult(op, updated)
       }
 
     case op: DeleteRegistration =>
-      registrations.remove(op.uri) match {
+      registrations.remove(op.agentId) match {
         case null =>
           sender() ! RegistryServiceOperationFailed(op, ApiException(ResourceNotFound))
-        case entry: (AgentMetadata,AgentRegistration,Long) =>
-          sender() ! DeleteRegistrationResult(op, entry._3)
+        case (metadata: AgentMetadata, registration: AgentRegistration) =>
+          sender() ! DeleteRegistrationResult(op, metadata.lsn)
       }
 
     case op: ListRegistrations =>
@@ -49,25 +49,25 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
           val systems = registrations.values()
             .take(op.limit)
             .map(_._1).toVector
-          val last = if (systems.length < op.limit) None else systems.lastOption.map(_.uri.toString)
+          val last = if (systems.length < op.limit) None else systems.lastOption.map(_.agentId.toString)
           val page = AgentsPage(systems, last)
           sender() ! ListRegistrationsResult(op, page)
         case Some(prev) =>
-          val systems = registrations.tailMap(new URI(prev), false)
+          val systems = registrations.tailMap(AgentId(prev), false)
             .values()
             .take(op.limit)
             .map(_._1).toVector
-          val last = if (systems.length < op.limit) None else systems.lastOption.map(_.uri.toString)
+          val last = if (systems.length < op.limit) None else systems.lastOption.map(_.agentId.toString)
           val page = AgentsPage(systems, last)
           sender() ! ListRegistrationsResult(op, page)
       }
 
     case op: GetRegistration =>
-      registrations.get(op.uri) match {
+      registrations.get(op.agentId) match {
         case null =>
           sender() ! RegistryServiceOperationFailed(op, ApiException(ResourceNotFound))
-        case entry: (AgentMetadata,AgentRegistration,Long) =>
-          sender() ! GetRegistrationResult(op, entry._2, entry._3)
+        case (metadata: AgentMetadata, registration: AgentRegistration) =>
+          sender() ! GetRegistrationResult(op, registration, metadata.lsn)
       }
   }
 }

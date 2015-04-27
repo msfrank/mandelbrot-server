@@ -52,77 +52,83 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
     }
 
     "create a probe system" in withSessionAndDAL { (session, dal) =>
-      val uri = new URI("test:foo")
-      val registration = AgentRegistration(Resource("test"), "mandelbrot", Map.empty, Map.empty, Map.empty)
-      val op = CreateRegistration(uri, registration)
+      val agentId = AgentId("test.foo")
+      val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, Map.empty, Map.empty)
+      val op = CreateRegistration(agentId, registration)
       val timestamp = DateTime.now()
       Await.result(dal.createProbeSystem(op, timestamp), 5.seconds)
-      val getProbeSystemResult = Await.result(dal.getProbeSystem(GetRegistration(uri)), 5.seconds)
+      val getProbeSystemResult = Await.result(dal.getProbeSystem(GetRegistration(agentId)), 5.seconds)
       getProbeSystemResult.registration shouldEqual registration
       getProbeSystemResult.lsn shouldEqual 1
     }
 
     "update a probe system" in withSessionAndDAL { (session, dal) =>
-      val uri = new URI("test:foo")
-      val registration = AgentRegistration(Resource("test"), "mandelbrot", Map.empty, Map.empty, Map.empty)
-      val op = UpdateRegistration(uri, registration, lsn = 2)
+      val agentId = AgentId("test.foo")
+      val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, Map.empty, Map.empty)
+      val op = UpdateRegistration(agentId, registration, lsn = 2)
       val timestamp = DateTime.now()
       Await.result(dal.updateProbeSystem(op, timestamp), 5.seconds)
-      val getProbeSystemResult = Await.result(dal.getProbeSystem(GetRegistration(uri)), 5.seconds)
+      val getProbeSystemResult = Await.result(dal.getProbeSystem(GetRegistration(agentId)), 5.seconds)
       getProbeSystemResult.registration shouldEqual registration
       getProbeSystemResult.lsn shouldEqual 3
     }
 
     "delete a probe system" in withSessionAndDAL { (session, dal) =>
-      val uri = new URI("test:foo")
-      val registration = AgentRegistration(Resource("test"), "mandelbrot", Map.empty, Map.empty, Map.empty)
+      val agentId = AgentId("test.foo")
+      val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, Map.empty, Map.empty)
       val timestamp = DateTime.now()
-      Await.result(dal.createProbeSystem(CreateRegistration(uri, registration), timestamp), 5.seconds)
-      val getProbeSystemResult = Await.result(dal.getProbeSystem(GetRegistration(uri)), 5.seconds)
-      val op = DeleteRegistration(uri, lsn = 1)
+      Await.result(dal.createProbeSystem(CreateRegistration(agentId, registration), timestamp), 5.seconds)
+      val getProbeSystemResult = Await.result(dal.getProbeSystem(GetRegistration(agentId)), 5.seconds)
+      val op = DeleteRegistration(agentId, lsn = 1)
       val deleteEntityResult = Await.result(dal.deleteProbeSystem(op), 5.seconds)
       val ex = the[ApiException] thrownBy {
-        Await.result(dal.getProbeSystem(GetRegistration(uri)), 5.seconds)
+        Await.result(dal.getProbeSystem(GetRegistration(agentId)), 5.seconds)
       }
       ex.failure shouldEqual ResourceNotFound
     }
 
     "list probe systems" in withSessionAndDAL { (session,dal) =>
       val timestamp = DateTime.now()
-      val registration = AgentRegistration(Resource("test"), "mandelbrot", Map.empty, Map.empty, Map.empty)
-      val uri1 = new URI("test:1")
-      val uri2 = new URI("test:2")
-      val uri3 = new URI("test:3")
-      Await.result(dal.createProbeSystem(CreateRegistration(uri1, registration), timestamp), 5.seconds)
-      Await.result(dal.createProbeSystem(CreateRegistration(uri2, registration), timestamp), 5.seconds)
-      Await.result(dal.createProbeSystem(CreateRegistration(uri3, registration), timestamp), 5.seconds)
+      val agent1 = AgentId("test.1")
+      val registration1 = AgentRegistration(agent1, "mandelbrot", Map.empty, Map.empty, Map.empty)
+      val agent2 = AgentId("test.2")
+      val registration2 = AgentRegistration(agent2, "mandelbrot", Map.empty, Map.empty, Map.empty)
+      val agent3 = AgentId("test.3")
+      val registration3 = AgentRegistration(agent3, "mandelbrot", Map.empty, Map.empty, Map.empty)
+      Await.result(dal.createProbeSystem(CreateRegistration(agent1, registration1), timestamp), 5.seconds)
+      Await.result(dal.createProbeSystem(CreateRegistration(agent2, registration2), timestamp), 5.seconds)
+      Await.result(dal.createProbeSystem(CreateRegistration(agent3, registration3), timestamp), 5.seconds)
       val op = ListRegistrations(10, None)
       val listProbeSystemsResult = Await.result(dal.listProbeSystems(op), 5.seconds)
-      listProbeSystemsResult.page.systems.map(_.uri).toSet shouldEqual Set(uri1, uri2, uri3)
+      listProbeSystemsResult.page.agents.map(_.agentId).toSet shouldEqual Set(agent1, agent2, agent3)
       listProbeSystemsResult.page.last shouldEqual None
     }
 
     "page through probe systems" in withSessionAndDAL { (session,dal) =>
       val timestamp = DateTime.now()
-      val registration = AgentRegistration(Resource("test"), "mandelbrot", Map.empty, Map.empty, Map.empty)
-      val uri1 = new URI("test:1")
-      val uri2 = new URI("test:2")
-      val uri3 = new URI("test:3")
-      val uri4 = new URI("test:4")
-      val uri5 = new URI("test:5")
-      Await.result(dal.createProbeSystem(CreateRegistration(uri1, registration), timestamp), 5.seconds)
-      Await.result(dal.createProbeSystem(CreateRegistration(uri2, registration), timestamp), 5.seconds)
-      Await.result(dal.createProbeSystem(CreateRegistration(uri3, registration), timestamp), 5.seconds)
-      Await.result(dal.createProbeSystem(CreateRegistration(uri4, registration), timestamp), 5.seconds)
-      Await.result(dal.createProbeSystem(CreateRegistration(uri5, registration), timestamp), 5.seconds)
+      val agent1 = AgentId("test.1")
+      val registration1 = AgentRegistration(agent1, "mandelbrot", Map.empty, Map.empty, Map.empty)
+      val agent2 = AgentId("test.2")
+      val registration2 = AgentRegistration(agent2, "mandelbrot", Map.empty, Map.empty, Map.empty)
+      val agent3 = AgentId("test.3")
+      val registration3 = AgentRegistration(agent3, "mandelbrot", Map.empty, Map.empty, Map.empty)
+      val agent4 = AgentId("test.4")
+      val registration4 = AgentRegistration(agent4, "mandelbrot", Map.empty, Map.empty, Map.empty)
+      val agent5 = AgentId("test.5")
+      val registration5 = AgentRegistration(agent5, "mandelbrot", Map.empty, Map.empty, Map.empty)
+      Await.result(dal.createProbeSystem(CreateRegistration(agent1, registration1), timestamp), 5.seconds)
+      Await.result(dal.createProbeSystem(CreateRegistration(agent2, registration2), timestamp), 5.seconds)
+      Await.result(dal.createProbeSystem(CreateRegistration(agent3, registration3), timestamp), 5.seconds)
+      Await.result(dal.createProbeSystem(CreateRegistration(agent4, registration4), timestamp), 5.seconds)
+      Await.result(dal.createProbeSystem(CreateRegistration(agent5, registration5), timestamp), 5.seconds)
       val listProbeSystemsResult1 = Await.result(dal.listProbeSystems(ListRegistrations(limit = 2, None)), 5.seconds)
-      listProbeSystemsResult1.page.systems.map(_.uri).toSet shouldEqual Set(uri1, uri2)
-      listProbeSystemsResult1.page.last shouldEqual Some(uri2.toString)
+      listProbeSystemsResult1.page.agents.map(_.agentId).toSet shouldEqual Set(agent1, agent2)
+      listProbeSystemsResult1.page.last shouldEqual Some(agent2.toString)
       val listProbeSystemsResult2 = Await.result(dal.listProbeSystems(ListRegistrations(limit = 2, listProbeSystemsResult1.page.last)), 5.seconds)
-      listProbeSystemsResult2.page.systems.map(_.uri).toSet shouldEqual Set(uri3, uri4)
-      listProbeSystemsResult2.page.last shouldEqual Some(uri4.toString)
+      listProbeSystemsResult2.page.agents.map(_.agentId).toSet shouldEqual Set(agent3, agent4)
+      listProbeSystemsResult2.page.last shouldEqual Some(agent4.toString)
       val listProbeSystemsResult3 = Await.result(dal.listProbeSystems(ListRegistrations(limit = 2, listProbeSystemsResult2.page.last)), 5.seconds)
-      listProbeSystemsResult3.page.systems.map(_.uri).toSet shouldEqual Set(uri5)
+      listProbeSystemsResult3.page.agents.map(_.agentId).toSet shouldEqual Set(agent5)
       listProbeSystemsResult3.page.last shouldEqual None
     }
   }

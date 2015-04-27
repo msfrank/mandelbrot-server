@@ -11,7 +11,7 @@ class MetricsEvaluationSpec extends WordSpec with ShouldMatchers {
 
   "MetricsEvaluation" should {
 
-    val source = MetricSource(Vector.empty, "foo")
+    val source = MetricSource(CheckId("foo.source"), "foovalue")
 
     "evaluate ==" in {
       val evaluation = new MetricsEvaluation(EvaluateSource(source, HeadFunction(ValueEquals(BigDecimal(10)))), "")

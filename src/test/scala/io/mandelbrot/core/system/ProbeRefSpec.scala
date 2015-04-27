@@ -12,15 +12,38 @@ class ProbeRefSpec extends WordSpec with ShouldMatchers {
   "A ProbeRef" should {
 
     "be constructed from a string" in {
-      val ref = ProbeRef("fqdn:foo.local/probe/path")
-      ref.uri shouldEqual new URI("fqdn:foo.local")
-      ref.path shouldEqual Vector("probe", "path")
+      val ref = ProbeRef("foo.local:probe.path")
+      ref.agentId.segments shouldEqual Vector("foo", "local")
+      ref.checkId.segments shouldEqual Vector("probe", "path")
+    }
+
+    "serialize to a string" in {
+      val ref = ProbeRef("foo.local:probe.path")
+      ref.toString shouldEqual "foo.local:probe.path"
+    }
+
+    "compare equal if agentId and checkId are equal" in {
+      val ref1 = ProbeRef("foo.local:probe.path")
+      val ref2 = ProbeRef("foo.local:probe.path")
+      ref1 shouldEqual ref2
+    }
+
+    "compare less than if checkId is a parent" in {
+      val ref1 = ProbeRef("foo.local:probe")
+      val ref2 = ProbeRef("foo.local:probe.path")
+      ref1 < ref2 shouldBe true
+    }
+
+    "compare greater than if checkId is a child" in {
+      val ref1 = ProbeRef("foo.local:probe")
+      val ref2 = ProbeRef("foo.local:probe.path")
+      ref2 > ref1 shouldBe true
     }
 
     "obey parent-child relationships" in {
-      val parent = ProbeRef("fqdn:foo.local/parent")
-      val child = ProbeRef("fqdn:foo.local/parent/child")
-      val grandchild = ProbeRef("fqdn:foo.local/parent/child/grandchild")
+      val parent = ProbeRef("foo.local:parent")
+      val child = ProbeRef("foo.local:parent.child")
+      val grandchild = ProbeRef("foo.local:parent.child.grandchild")
       // true relationships
       parent.isParentOf(child) shouldEqual true
       parent.isDirectParentOf(child) shouldEqual true
@@ -36,14 +59,14 @@ class ProbeRefSpec extends WordSpec with ShouldMatchers {
     }
   }
 
-  "extract to a URI and a path Vector" in {
-    val ref = ProbeRef("fqdn:foo.local/probe/path")
-    ref match {
-      case ProbeRef(uri, path) =>
-        uri shouldEqual new URI("fqdn:foo.local")
-        path shouldEqual Vector("probe", "path")
-      case other =>
-        fail("ProbeRef did not extract to a URI and a path Vector")
-    }
-  }
+//  "extract to a URI and a path Vector" in {
+//    val ref = ProbeRef("fqdn:foo.local/probe/path")
+//    ref match {
+//      case ProbeRef(uri, path) =>
+//        uri shouldEqual new URI("fqdn:foo.local")
+//        path shouldEqual Vector("probe", "path")
+//      case other =>
+//        fail("ProbeRef did not extract to a URI and a path Vector")
+//    }
+//  }
 }

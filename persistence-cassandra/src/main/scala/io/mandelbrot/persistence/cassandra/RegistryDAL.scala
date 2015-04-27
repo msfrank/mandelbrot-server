@@ -25,27 +25,27 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
     s"""
        |CREATE TABLE IF NOT EXISTS $tableName (
        |  p int,
-       |  uri text,
+       |  agent_id text,
        |  registration text,
        |  lsn bigint,
        |  last_update timestamp,
        |  joined_on timestamp,
-       |  PRIMARY KEY(p, uri)
+       |  PRIMARY KEY(p, agent_id)
        |);
      """.stripMargin)
 
   private val preparedCreateProbeSystem = session.prepare(
     s"""
-       |INSERT INTO $tableName (p, uri, registration, lsn, last_update, joined_on)
+       |INSERT INTO $tableName (p, agent_id, registration, lsn, last_update, joined_on)
        |VALUES (0, ?, ?, 1, ?, ?)
      """.stripMargin)
 
   def createProbeSystem(op: CreateRegistration, timestamp: DateTime): Future[CreateRegistrationResult] = {
-    val uri = op.uri.toString
+    val agentId = op.agentId.toString
     val registration = op.registration.toJson.toString()
     val _timestamp = timestamp.toDate
-    executeAsync(new BoundStatement(preparedCreateProbeSystem).bind(uri, registration, _timestamp, _timestamp)).map {
-      resultSet => CreateRegistrationResult(op, 1)
+    executeAsync(new BoundStatement(preparedCreateProbeSystem).bind(agentId, registration, _timestamp, _timestamp)).map {
+      resultSet => CreateRegistrationResult(op, AgentMetadata(op.agentId, timestamp, timestamp, 1))
     }
   }
 
@@ -53,28 +53,28 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
     s"""
        |UPDATE $tableName
        |SET registration = ?, lsn = ?, last_update = ?
-       |WHERE p = 0 AND uri = ?
+       |WHERE p = 0 AND agent_id = ?
      """.stripMargin)
 
   def updateProbeSystem(op: UpdateRegistration, timestamp: DateTime): Future[UpdateRegistrationResult] = {
-    val uri = op.uri.toString
+    val agentId = op.agentId.toString
     val registration = op.registration.toJson.toString()
     val _timestamp = timestamp.toDate
     val lsn: java.lang.Long = op.lsn + 1
-    executeAsync(new BoundStatement(preparedUpdateProbeSystem).bind(registration, lsn, _timestamp, uri)).map {
-      resultSet => UpdateRegistrationResult(op, lsn)
+    executeAsync(new BoundStatement(preparedUpdateProbeSystem).bind(registration, lsn, _timestamp, agentId)).map {
+      resultSet => UpdateRegistrationResult(op, AgentMetadata(op.agentId, timestamp, timestamp, lsn))
     }
   }
 
   private val preparedDeleteProbeSystem = session.prepare(
     s"""
        |DELETE FROM $tableName
-       |WHERE p = 0 AND uri = ?
+       |WHERE p = 0 AND agent_id = ?
      """.stripMargin)
 
   def deleteProbeSystem(op: DeleteRegistration): Future[DeleteRegistrationResult] = {
-    val uri = op.uri.toString
-    executeAsync(new BoundStatement(preparedDeleteProbeSystem).bind(uri)).map {
+    val agentId = op.agentId.toString
+    executeAsync(new BoundStatement(preparedDeleteProbeSystem).bind(agentId)).map {
       resultSet => DeleteRegistrationResult(op, op.lsn)
     }
   }
@@ -86,8 +86,8 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
      """.stripMargin)
 
   def getProbeSystem(op: GetRegistration): Future[GetRegistrationResult] = {
-    val uri = op.uri.toString
-    executeAsync(new BoundStatement(preparedGetProbeSystem).bind(uri)).map { resultSet =>
+    val agentId = op.agentId.toString
+    executeAsync(new BoundStatement(preparedGetProbeSystem).bind(agentId)).map { resultSet =>
       val row = resultSet.one()
       if (row != null) {
         val registration = JsonParser(row.getString(0)).convertTo[AgentRegistration]
@@ -99,9 +99,9 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
 
   private val preparedListProbeSystems = session.prepare(
     s"""
-       |SELECT uri, lsn, last_update, joined_on FROM $tableName
-       |WHERE p = 0 AND uri > ?
-       |ORDER BY uri ASC
+       |SELECT agent_id, lsn, last_update, joined_on FROM $tableName
+       |WHERE p = 0 AND agent_id > ?
+       |ORDER BY agent_id ASC
        |LIMIT ?
      """.stripMargin)
 
@@ -109,15 +109,15 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
     val last = op.last.map(_.toString).getOrElse("")
     val limit: java.lang.Integer = op.limit
     executeAsync(new BoundStatement(preparedListProbeSystems).bind(last, limit)).map { resultSet =>
-      val systems = resultSet.all().map { row =>
-        val uri = new URI(row.getString(0))
+      val agents = resultSet.all().map { row =>
+        val agentId = AgentId(row.getString(0))
         val lsn = row.getLong(1)
         val lastUpdate = new DateTime(row.getDate(2))
         val joinedOn = new DateTime(row.getDate(3))
-        AgentMetadata(uri, lastUpdate, joinedOn)
+        AgentMetadata(agentId, joinedOn, lastUpdate, lsn)
       }.toVector
-      val token = if (systems.length < limit) None else systems.lastOption.map(_.uri.toString)
-      ListRegistrationsResult(op, AgentsPage(systems, token))
+      val token = if (agents.length < limit) None else agents.lastOption.map(_.agentId.toString)
+      ListRegistrationsResult(op, AgentsPage(agents, token))
     }
   }
 

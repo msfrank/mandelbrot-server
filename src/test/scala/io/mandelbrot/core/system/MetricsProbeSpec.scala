@@ -50,11 +50,11 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
   "A Probe with metrics behavior" should {
 
     "transition to ProbeKnown/ProbeHealthy when a healthy MetricsMessage is received" in {
-      val probeRef = ProbeRef("fqdn:local/")
-      val source = MetricSource(Vector.empty, "foo")
+      val probeRef = ProbeRef("foo.local:foo.check")
+      val source = MetricSource(probeRef.checkId, "value")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val probeType = "io.mandelbrot.core.system.MetricsProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo > 10"))
+      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
@@ -84,11 +84,11 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
     }
 
     "transition to ProbeKnown/ProbeFailed when a failed MetricsMessage is received" in {
-      val probeRef = ProbeRef("fqdn:local/")
-      val source = MetricSource(Vector.empty, "foo")
+      val probeRef = ProbeRef("foo.local:foo.check")
+      val source = MetricSource(probeRef.checkId, "value")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val probeType = "io.mandelbrot.core.system.MetricsProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo > 10"))
+      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
@@ -118,11 +118,11 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
     }
 
     "notify StateService when the joining timeout expires" in {
-      val probeRef = ProbeRef("fqdn:local/")
-      val source = MetricSource(Vector.empty, "foo")
+      val probeRef = ProbeRef("foo.local:foo.check")
+      val source = MetricSource(probeRef.checkId, "value")
       val policy = CheckPolicy(2.seconds, 1.minute, 1.minute, 1.minute, None)
       val probeType = "io.mandelbrot.core.system.MetricsProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo > 10"))
+      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
@@ -149,12 +149,12 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
     }
 
     "notify StateService when the probe timeout expires" in {
-      val probeRef = ProbeRef("fqdn:local/")
-      val source = MetricSource(Vector.empty, "foo")
-      val evaluation = parser.parseMetricsEvaluation("when foo > 10")
+      val probeRef = ProbeRef("foo.local:foo.check")
+      val source = MetricSource(probeRef.checkId, "value")
+      val evaluation = parser.parseMetricsEvaluation("when foo.check:value > 10")
       val policy = CheckPolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
       val probeType = "io.mandelbrot.core.system.MetricsProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo > 10"))
+      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
@@ -191,11 +191,11 @@ class MetricsProbeSpec(_system: ActorSystem) extends TestKit(_system) with Impli
     }
 
     "notify NotificationService when the alert timeout expires" in {
-      val probeRef = ProbeRef("fqdn:local/")
-      val source = MetricSource(Vector.empty, "foo")
+      val probeRef = ProbeRef("foo.local:foo.check")
+      val source = MetricSource(probeRef.checkId, "value")
       val policy = CheckPolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)
       val probeType = "io.mandelbrot.core.system.MetricsProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo > 10"))
+      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo.check:value > 10"))
       val notificationService = new TestProbe(_system)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref), notificationService = Some(notificationService.ref)))
