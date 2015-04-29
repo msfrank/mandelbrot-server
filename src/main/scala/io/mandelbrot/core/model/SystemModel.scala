@@ -7,37 +7,15 @@ sealed trait SystemModel
 /* key-value pairs describing a probe */
 case class ProbeMetadata(probeRef: ProbeRef, metadata: Map[String,String]) extends SystemModel
 
-/**
- * Matches a ProbeRef by individually comparing the uri scheme,  uri location,
- * and path components according to the specified matchers.
- */
-case class ProbeMatcher(scheme: Option[SegmentMatcher],
-                        location: Option[SegmentMatcher],
-                        path: Option[PathMatcher]) extends SystemModel {
-  def matches(probeRef: ProbeRef): Boolean = {
-    // FIXME!
-//    for (matcher <- scheme if !matcher.matches(probeRef.uri.getScheme))
-//      return false
-//    for (matcher <- location if !matcher.matches(probeRef.uri.getRawSchemeSpecificPart))
-//      return false
-//    for (matcher <- path if !matcher.matches(probeRef.path))
-//      return false
-    true
-  }
-  override def toString = if (scheme.isEmpty && location.isEmpty && path.isEmpty) "*" else {
-    val schemestring = if (scheme.isDefined) scheme.get.toString else "*"
-    val locationstring = if (location.isDefined) location.get.toString else "*"
-    if (path.isEmpty) schemestring + ":" + locationstring else {
-      schemestring + ":" + locationstring + "/" + path.get.toString
-    }
-  }
+sealed trait CheckMatcher {
+  def matches(checkId: CheckId): Boolean
 }
 
 /**
  * Special case object for unconditional matching
  */
-object MatchesAll extends ProbeMatcher(None, None, None) {
-  override def matches(probeRef: ProbeRef): Boolean = true
+object MatchesAll extends CheckMatcher {
+  def matches(checkId: CheckId): Boolean = true
   override def toString = "*"
 }
 
@@ -76,16 +54,16 @@ case class MatchGlob(tokens: Vector[String]) extends SegmentMatcher {
   override def toString = tokens.mkString
 }
 
-case class PathMatcher(segments: Vector[SegmentMatcher]) {
-  def matches(candidate: Vector[String]): Boolean = {
+case class PathMatcher(segments: Vector[SegmentMatcher]) extends CheckMatcher {
+  def matches(checkId: CheckId): Boolean = {
     for (i <- 0.until(segments.length)) {
-      if (!candidate.isDefinedAt(i))
+      if (!checkId.segments.isDefinedAt(i))
         return false
       val segment = segments(i)
-      if (!segment.matches(candidate(i)))
+      if (!segment.matches(checkId.segments(i)))
         return false
     }
     true
   }
-  override def toString = segments.mkString("/")
+  override def toString = segments.mkString(".")
 }

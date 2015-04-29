@@ -120,7 +120,7 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
       if (query.matchers.nonEmpty) {
         val matchingRefs = checks.keys.flatMap { case checkId =>
           val probeRef = ProbeRef(state.agentId, checkId)
-          query.matchers.collectFirst { case matcher if matcher.matches(probeRef) => probeRef }
+          query.matchers.collectFirst { case matcher if matcher.matches(probeRef.checkId) => probeRef }
         }.toSet
         stay() replying MatchProbeSystemResult(query, matchingRefs)
       } else stay() replying MatchProbeSystemResult(query, checks.keySet.map(checkId => ProbeRef(state.agentId, checkId)))
@@ -397,5 +397,5 @@ case class RetireProbeSystemResult(op: RetireProbeSystem, lsn: Long)
 case class DescribeProbeSystem(agentId: AgentId) extends ProbeSystemQuery
 case class DescribeProbeSystemResult(op: DescribeProbeSystem, registration: AgentRegistration, lsn: Long)
 
-case class MatchProbeSystem(agentId: AgentId, matchers: Set[ProbeMatcher]) extends ProbeSystemQuery
+case class MatchProbeSystem(agentId: AgentId, matchers: Set[CheckMatcher]) extends ProbeSystemQuery
 case class MatchProbeSystemResult(op: MatchProbeSystem, refs: Set[ProbeRef])

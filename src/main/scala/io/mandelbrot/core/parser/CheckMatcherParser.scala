@@ -17,19 +17,19 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.system
+package io.mandelbrot.core.parser
 
-import org.slf4j.LoggerFactory
 import scala.util.parsing.combinator.RegexParsers
+import org.slf4j.LoggerFactory
 
 import io.mandelbrot.core.model._
 
 /**
  *
  */
-class ProbeMatcherParser extends RegexParsers {
+class CheckMatcherParser extends RegexParsers {
 
-  val logger = LoggerFactory.getLogger(classOf[ProbeMatcherParser])
+  val logger = LoggerFactory.getLogger(classOf[CheckMatcherParser])
 
   /* shamelessly copied from Parsers.scala */
   def _log[T](p: => Parser[T])(name: String): Parser[T] = Parser { in =>
@@ -78,30 +78,19 @@ class ProbeMatcherParser extends RegexParsers {
     }
   }
 
-  def schemeMatcher: Parser[SegmentMatcher] = regex("""[a-zA-Z?*][a-zA-Z0-9+.\-*?]*""".r) ^^ parseGlob
-
-  def locationMatcher: Parser[SegmentMatcher] = regex("""[^/]+""".r) ^^ parseGlob
-
-  def pathMatcher: Parser[PathMatcher] = rep1(regex("""/[^/]*""".r)) ^^ {
-    case segments: List[String] => PathMatcher(segments.map(segment => parseGlob(segment.tail)).toVector)
+  def checkMatcher: Parser[CheckMatcher] = rep1sep(regex("""[^.]+""".r), literal(".")) ^^ {
+    case "*" :: Nil => MatchesAll
+    case segments: List[String] => PathMatcher(segments.map(segment => parseGlob(segment)).toVector)
   }
 
-  def schemeLocation: Parser[ProbeMatcher] = (schemeMatcher ~ literal(":") ~ locationMatcher) ^^ {
-    case scheme ~ ":" ~ location => new ProbeMatcher(Some(scheme), Some(location), None)
-  }
-
-  def schemeLocationPath: Parser[ProbeMatcher] = (schemeMatcher ~ literal(":") ~ locationMatcher ~ pathMatcher) ^^ {
-    case scheme ~ ":" ~ location ~ path => new ProbeMatcher(Some(scheme), Some(location), Some(path))
-  }
-
-  val probeMatcher: Parser[ProbeMatcher] = (schemeLocationPath | schemeLocation | literal("*")) ^^ {
-    case "*" => MatchesAll
-    case matcher: ProbeMatcher => matcher
-  }
-
-  def parseProbeMatcher(input: String): ProbeMatcher = parseAll(probeMatcher, input) match {
-    case Success(matcher: ProbeMatcher, _) => matcher
+  def parseCheckMatcher(input: String): CheckMatcher = parseAll(checkMatcher, input) match {
+    case Success(matcher: CheckMatcher, _) => matcher
     case Success(other, _) => throw new Exception("unexpected parse result")
     case failure : NoSuccess => throw new Exception(failure.msg)
   }
+}
+
+object CheckMatcherParser {
+  val parser = new CheckMatcherParser
+  def parseCheckMatcher(input: String) = parser.parseCheckMatcher(input)
 }

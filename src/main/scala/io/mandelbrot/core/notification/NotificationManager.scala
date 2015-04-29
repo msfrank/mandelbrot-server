@@ -70,7 +70,7 @@ class NotificationManager(settings: NotificationSettings) extends Actor with Act
     case probeNotification: ProbeNotification =>
       windows.values.foreach {
         case window if notification.timestamp.isAfter(window.from) && notification.timestamp.isBefore(window.to) =>
-          window.affected.foreach { matcher => if (matcher.matches(probeNotification.probeRef)) return true }
+          window.affected.foreach { matcher => if (matcher.matches(probeNotification.probeRef.checkId)) return true }
         case _ => // do nothing
       }
       false
@@ -94,10 +94,10 @@ object NotificationManager {
 
 
 /* */
-case class MaintenanceWindow(id: UUID, affected: Set[ProbeMatcher], from: DateTime, to: DateTime, description: Option[String])
+case class MaintenanceWindow(id: UUID, affected: Set[CheckMatcher], from: DateTime, to: DateTime, description: Option[String])
 case class MaintenanceStats(id: UUID, numSuppressed: Long)
-case class MaintenanceWindowModification(added: Option[Set[ProbeMatcher]],
-                                         removed: Option[Set[ProbeMatcher]],
+case class MaintenanceWindowModification(added: Option[Set[CheckMatcher]],
+                                         removed: Option[Set[CheckMatcher]],
                                          from: Option[DateTime],
                                          to: Option[DateTime],
                                          description: Option[String])
@@ -114,7 +114,7 @@ case class ListNotificationRulesResult(op: ListNotificationRules, rules: Vector[
 case class ModifyMaintenanceWindow(id: UUID, modifications: MaintenanceWindowModification) extends NotificationServiceCommand
 case class ModifyMaintenanceWindowResult(op: ModifyMaintenanceWindow, id: UUID)
 
-case class RegisterMaintenanceWindow(affected: Set[ProbeMatcher], from: DateTime, to: DateTime, description: Option[String]) extends NotificationServiceCommand
+case class RegisterMaintenanceWindow(affected: Set[CheckMatcher], from: DateTime, to: DateTime, description: Option[String]) extends NotificationServiceCommand
 case class RegisterMaintenanceWindowResult(op: RegisterMaintenanceWindow, id: UUID)
 
 case class ListMaintenanceWindows() extends NotificationServiceQuery

@@ -20,6 +20,7 @@
 package io.mandelbrot.core.notification
 
 import akka.actor.ActorRef
+import io.mandelbrot.core.parser.CheckMatcherParser
 import scala.util.parsing.combinator.JavaTokenParsers
 import org.slf4j.LoggerFactory
 import java.io._
@@ -41,11 +42,11 @@ case object AnyMatcher extends RuleMatcher {
 }
 
 /**
- * 'probe' matches if notification is a ProbeNotification and probeRef matches.
+ * 'check' matches if notification is a ProbeNotification and checkId matches.
  */
-case class ProbeRuleMatcher(matcher: ProbeMatcher) extends RuleMatcher {
+case class CheckRuleMatcher(matcher: CheckMatcher) extends RuleMatcher {
   def matches(notification: NotificationEvent): Boolean = notification match {
-    case n: ProbeNotification if matcher.matches(n.probeRef) =>
+    case n: ProbeNotification if matcher.matches(n.probeRef.checkId) =>
       true
     case otherwise =>
       false
@@ -237,7 +238,7 @@ object NotificationRules {
  */
 class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,ContactGroup]) extends JavaTokenParsers {
 
-  import io.mandelbrot.core.system.ProbeMatcherParser
+  import io.mandelbrot.core.parser.CheckMatcherParser$
 
   val logger = LoggerFactory.getLogger(classOf[NotificationRuleParser])
 
@@ -259,10 +260,9 @@ class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,C
     case "any" ~ "(" ~ ")" => AnyMatcher
   }
 
-  val probeMatcherParser = new ProbeMatcherParser()
-  def probeMatcher: Parser[RuleMatcher] = _log(literal("probe") ~ literal("(") ~ regex("""[^)]*""".r) ~ literal(")"))("probeMatcher") ^^ {
-    case "probe" ~ "(" ~ matchString ~ ")" =>
-      ProbeRuleMatcher(probeMatcherParser.parseProbeMatcher(matchString.trim))
+  def checkMatcher: Parser[RuleMatcher] = _log(literal("check") ~ literal("(") ~ regex("""[^)]*""".r) ~ literal(")"))("checkMatcher") ^^ {
+    case "check" ~ "(" ~ matchString ~ ")" =>
+      CheckRuleMatcher(CheckMatcherParser.parseCheckMatcher(matchString.trim))
   }
 
   def typeMatcher: Parser[RuleMatcher] = _log(literal("type") ~ literal("(") ~ regex("""[^)]*""".r) ~ literal(")"))("typeMatcher") ^^ {
@@ -316,7 +316,7 @@ class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,C
       }
   }
 
-  def ruleMatcher: Parser[RuleMatcher] = _log(anyMatcher | probeMatcher | typeMatcher | lifecycleMatcher | healthMatcher | alertMatcher)("ruleMatcher")
+  def ruleMatcher: Parser[RuleMatcher] = _log(anyMatcher | checkMatcher | typeMatcher | lifecycleMatcher | healthMatcher | alertMatcher)("ruleMatcher")
 
 
   /*

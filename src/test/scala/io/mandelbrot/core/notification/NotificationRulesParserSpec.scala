@@ -25,17 +25,17 @@ class NotificationRulesParserSpec extends WordSpec with ShouldMatchers {
     "parse a ruleset with multiple rules" in {
       val reader = new StringReader(
         """
-          |when probe(*:*/load) : notify(@group1)
-          |when probe(*:*/cpu)  : notify(user2, user3)
-          |when probe(*:*/*)    : drop()
+          |when check(load) : notify(@group1)
+          |when check(cpu)  : notify(user2, user3)
+          |when check(*)    : drop()
         """.stripMargin)
       val rules = NotificationRules.parse(reader, contacts, groups)
       rules.rules.length shouldEqual 3
-      rules.rules(0).matcher shouldEqual ProbeRuleMatcher(ProbeMatcher(Some(MatchAny),Some(MatchAny),Some(PathMatcher(Vector(MatchExact("load"))))))
+      rules.rules(0).matcher shouldEqual CheckRuleMatcher(PathMatcher(Vector(MatchExact("load"))))
       rules.rules(0).action shouldEqual NotifyContacts(Set(user4, user5))
-      rules.rules(1).matcher shouldEqual ProbeRuleMatcher(ProbeMatcher(Some(MatchAny),Some(MatchAny),Some(PathMatcher(Vector(MatchExact("cpu"))))))
+      rules.rules(1).matcher shouldEqual CheckRuleMatcher(PathMatcher(Vector(MatchExact("cpu"))))
       rules.rules(1).action shouldEqual NotifyContacts(Set(user2, user3))
-      rules.rules(2).matcher shouldEqual ProbeRuleMatcher(ProbeMatcher(Some(MatchAny),Some(MatchAny),Some(PathMatcher(Vector(MatchAny)))))
+      rules.rules(2).matcher shouldEqual CheckRuleMatcher(MatchesAll)
       rules.rules(2).action shouldEqual DropNotification
     }
 
@@ -45,10 +45,10 @@ class NotificationRulesParserSpec extends WordSpec with ShouldMatchers {
       matcher.get should be(AnyMatcher)
     }
 
-    "parse probe matcher" in {
+    "parse check matcher" in {
       val parser = new NotificationRuleParser(contacts, groups)
-      val matcher = parser.parseAll(parser.probeMatcher, "probe(*)")
-      matcher.get shouldEqual ProbeRuleMatcher(ProbeMatcher(None, None, None))
+      val matcher = parser.parseAll(parser.checkMatcher, "check(*)")
+      matcher.get shouldEqual CheckRuleMatcher(MatchesAll)
     }
 
     "parse type matcher" in {

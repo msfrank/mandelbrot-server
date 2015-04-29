@@ -23,6 +23,7 @@ import spray.json._
 
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.system._
+import io.mandelbrot.core.parser.CheckMatcherParser
 
 /**
  *
@@ -30,12 +31,11 @@ import io.mandelbrot.core.system._
 trait SystemProtocol extends DefaultJsonProtocol with ConstantsProtocol with StateProtocol {
 
   /* convert ProbeMatcher class */
-  implicit object ProbeMatcherFormat extends RootJsonFormat[ProbeMatcher] {
-    val probeMatcherParser = new ProbeMatcherParser()
-    def write(matcher: ProbeMatcher) = JsString(matcher.toString)
+  implicit object CheckMatcherFormat extends JsonFormat[CheckMatcher] {
+    def write(matcher: CheckMatcher) = JsString(matcher.toString)
     def read(value: JsValue) = value match {
-      case JsString(string) => probeMatcherParser.parseProbeMatcher(string)
-      case _ => throw new DeserializationException("expected ProbeMatcher")
+      case JsString(string) => CheckMatcherParser.parseCheckMatcher(string)
+      case _ => throw new DeserializationException("expected CheckMatcher")
     }
   }
 
