@@ -40,12 +40,12 @@ trait SystemProtocol extends DefaultJsonProtocol with ConstantsProtocol with Sta
   }
 
   /* probe operations */
-  implicit val GetProbeConditionFormat = jsonFormat5(GetProbeCondition)
-  implicit val GetProbeNotificationsFormat = jsonFormat5(GetProbeNotifications)
-  implicit val GetProbeMetricsFormat = jsonFormat5(GetProbeMetrics)
-  implicit val AcknowledgeProbeFormat = jsonFormat2(AcknowledgeProbe)
-  implicit val UnacknowledgeProbeFormat = jsonFormat2(UnacknowledgeProbe)
-  implicit val SetProbeSquelchFormat = jsonFormat2(SetProbeSquelch)
+  implicit val GetProbeConditionFormat = jsonFormat5(GetCheckCondition)
+  implicit val GetProbeNotificationsFormat = jsonFormat5(GetCheckNotifications)
+  implicit val GetProbeMetricsFormat = jsonFormat5(GetCheckMetrics)
+  implicit val AcknowledgeProbeFormat = jsonFormat2(AcknowledgeCheck)
+  implicit val UnacknowledgeProbeFormat = jsonFormat2(UnacknowledgeCheck)
+  implicit val SetProbeSquelchFormat = jsonFormat2(SetCheckSquelch)
 
   /* probe results */
   implicit val AcknowledgeProbeResultFormat = jsonFormat2(AcknowledgeProbeResult)

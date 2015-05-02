@@ -90,7 +90,7 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val updateProbeSystemResult = expectMsgClass(classOf[UpdateProbeSystemResult])
       updateProbeSystemResult.metadata.lsn shouldEqual 1
 
-      probeSystem ! GetProbeStatus(ProbeRef("test.3:probe2"))
+      probeSystem ! GetCheckStatus(ProbeRef("test.3:probe2"))
       val getProbeStatusResult = expectMsgClass(classOf[GetProbeStatusResult])
     }
   }

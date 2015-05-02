@@ -48,7 +48,7 @@ class ScalarProcessor extends BehaviorProcessor {
    * we set the correlation if it is different from the current correlation, and we start
    * the alert timer.
    */
-  def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect] = {
+  def processEvaluation(probe: ProbeInterface, command: ProcessCheckEvaluation): Try[CommandEffect] = {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val summary = command.evaluation.summary.orElse(probe.summary)
       val health = command.evaluation.health.getOrElse(probe.health)

@@ -31,7 +31,7 @@ class TestServiceProxy(registryService: Option[ActorRef],
           log.debug("dropped {}", op)
       }
 
-    case op: ProbeOperation =>
+    case op: CheckOperation =>
       registryService match {
         case Some(ref) =>
           ref forward op

@@ -34,14 +34,14 @@ import io.mandelbrot.core.util.Timer
 import scala.util.{Failure, Success}
 
 /**
- * the Probe actor encapsulates all of the monitoring business logic.  For every probe
- * declared by an agent or proxy, there is a corresponding Probe actor.
+ * the Check actor encapsulates all of the monitoring business logic.  For every probe
+ * declared by an agent or proxy, there is a corresponding Check actor.
  */
-class Probe(val probeRef: ProbeRef,
+class Check(val probeRef: ProbeRef,
             val parent: ActorRef,
             val services: ActorRef,
-            val metricsBus: MetricsBus) extends LoggingFSM[Probe.State,Probe.Data] with Stash with ProcessingOps {
-  import Probe._
+            val metricsBus: MetricsBus) extends LoggingFSM[Check.State,Check.Data] with Stash with ProcessingOps {
+  import Check._
 
   // config
   val commitTimeout = 5.seconds
@@ -54,9 +54,9 @@ class Probe(val probeRef: ProbeRef,
   var children: Set[ProbeRef] = null
   var probeGeneration: Long = 0L
   var lastCommitted: Option[DateTime] = None
-  val alertTimer = new Timer(context, self, ProbeAlertTimeout)
-  val commitTimer = new Timer(context, self, ProbeCommitTimeout)
-  val expiryTimer = new Timer(context, self, ProbeExpiryTimeout)
+  val alertTimer = new Timer(context, self, CheckAlertTimeout)
+  val commitTimer = new Timer(context, self, CheckCommitTimeout)
+  val expiryTimer = new Timer(context, self, CheckExpiryTimeout)
 
   startWith(Incubating, NoData)
 
@@ -109,7 +109,7 @@ class Probe(val probeRef: ProbeRef,
       goto(Configuring) using Configuring(state.change, state.proposed, op)
 
     /* timed out waiting for initialization from state service */
-    case Event(ProbeCommitTimeout, state: Initializing) =>
+    case Event(CheckCommitTimeout, state: Initializing) =>
       log.debug("gen {}: timeout while receiving initial state", probeGeneration)
       services ! state.inflight
       commitTimer.restart(commitTimeout)
@@ -163,7 +163,7 @@ class Probe(val probeRef: ProbeRef,
       goto(Running) using NoData
 
     /* timed out waiting for initialization from state service */
-    case Event(ProbeCommitTimeout, state: Configuring) =>
+    case Event(CheckCommitTimeout, state: Configuring) =>
       log.debug("gen {}: timeout while updating configured state", probeGeneration)
       services ! state.inflight
       commitTimer.restart(commitTimeout)
@@ -191,11 +191,11 @@ class Probe(val probeRef: ProbeRef,
   when(Running) {
 
     /* retrieve the current probe status */
-    case Event(query: GetProbeStatus, NoData) =>
+    case Event(query: GetCheckStatus, NoData) =>
       stay() replying GetProbeStatusResult(query, getProbeStatus)
 
     /* process a probe evaluation from the client */
-    case Event(command: ProcessProbeEvaluation, NoData) =>
+    case Event(command: ProcessCheckEvaluation, NoData) =>
       enqueue(QueuedCommand(command, sender()))
       stay()
 
@@ -222,17 +222,17 @@ class Probe(val probeRef: ProbeRef,
       stay()
 
     /* process alert timeout and update state */
-    case Event(ProbeAlertTimeout, NoData) =>
-      enqueue(QueuedEvent(ProbeAlertTimeout, now()))
+    case Event(CheckAlertTimeout, NoData) =>
+      enqueue(QueuedEvent(CheckAlertTimeout, now()))
       stay()
 
     /* process expiry timeout and update state */
-    case Event(ProbeExpiryTimeout, NoData) =>
-      enqueue(QueuedEvent(ProbeExpiryTimeout, now()))
+    case Event(CheckExpiryTimeout, NoData) =>
+      enqueue(QueuedEvent(CheckExpiryTimeout, now()))
       stay()
 
     /* process probe commands */
-    case Event(command: ProbeCommand, NoData) =>
+    case Event(command: CheckCommand, NoData) =>
       enqueue(QueuedCommand(command, sender()))
       stay()
 
@@ -247,7 +247,7 @@ class Probe(val probeRef: ProbeRef,
       stay()
 
     /* timeout waiting to commit */
-    case Event(ProbeCommitTimeout, NoData) =>
+    case Event(CheckCommitTimeout, NoData) =>
       recover()
       stay()
   }
@@ -258,7 +258,7 @@ class Probe(val probeRef: ProbeRef,
   when(Changing) {
 
     /* retrieve the current probe status */
-    case Event(query: GetProbeStatus, state: Changing) =>
+    case Event(query: GetCheckStatus, state: Changing) =>
       sender() ! GetProbeStatusResult(query, getProbeStatus)
       stay()
 
@@ -273,7 +273,7 @@ class Probe(val probeRef: ProbeRef,
       if (idle) goto(Incubating) using NoData else stay()
 
     /* timeout waiting to commit */
-    case Event(ProbeCommitTimeout, state: Changing) =>
+    case Event(CheckCommitTimeout, state: Changing) =>
       recover()
       if (idle) goto(Incubating) using NoData else stay()
 
@@ -297,7 +297,7 @@ class Probe(val probeRef: ProbeRef,
   when(Retiring) {
 
     /* retrieve the current probe status */
-    case Event(query: GetProbeStatus, _) =>
+    case Event(query: GetCheckStatus, _) =>
       sender() ! GetProbeStatusResult(query, getProbeStatus)
       stay()
 
@@ -317,7 +317,7 @@ class Probe(val probeRef: ProbeRef,
       stay()
 
     /* timeout waiting to commit */
-    case Event(ProbeCommitTimeout, NoData) =>
+    case Event(CheckCommitTimeout, NoData) =>
       recover()
       stay()
 
@@ -339,12 +339,12 @@ class Probe(val probeRef: ProbeRef,
   initialize()
 }
 
-object Probe {
+object Check {
   def props(probeRef: ProbeRef,
             parent: ActorRef,
             services: ActorRef,
             metricsBus: MetricsBus) = {
-    Props(classOf[Probe], probeRef, parent, services, metricsBus)
+    Props(classOf[Check], probeRef, parent, services, metricsBus)
   }
 
 
@@ -367,39 +367,39 @@ object Probe {
 
 }
 
-sealed trait ProbeEvent
-case class ChildMutates(probeRef: ProbeRef, status: ProbeStatus) extends ProbeEvent
-case object ProbeCommitTimeout extends ProbeEvent
-case object ProbeAlertTimeout extends ProbeEvent
-case object ProbeExpiryTimeout extends ProbeEvent
+sealed trait CheckEvent
+case class ChildMutates(probeRef: ProbeRef, status: ProbeStatus) extends CheckEvent
+case object CheckCommitTimeout extends CheckEvent
+case object CheckAlertTimeout extends CheckEvent
+case object CheckExpiryTimeout extends CheckEvent
 
 /* */
-trait ProbeOperation extends ServiceOperation { val probeRef: ProbeRef }
-sealed trait ProbeCommand extends ServiceCommand with ProbeOperation
-sealed trait ProbeQuery extends ServiceQuery with ProbeOperation
+sealed trait CheckOperation extends ServiceOperation { val probeRef: ProbeRef }
+sealed trait CheckCommand extends ServiceCommand with CheckOperation
+sealed trait CheckQuery extends ServiceQuery with CheckOperation
 sealed trait ProbeResult
-case class ProbeOperationFailed(op: ProbeOperation, failure: Throwable) extends ServiceOperationFailed
+case class ProbeOperationFailed(op: CheckOperation, failure: Throwable) extends ServiceOperationFailed
 
-case class GetProbeStatus(probeRef: ProbeRef) extends ProbeQuery
-case class GetProbeStatusResult(op: GetProbeStatus, status: ProbeStatus) extends ProbeResult
+case class GetCheckStatus(probeRef: ProbeRef) extends CheckQuery
+case class GetProbeStatusResult(op: GetCheckStatus, status: ProbeStatus) extends ProbeResult
 
-case class GetProbeCondition(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends ProbeQuery
-case class GetProbeConditionResult(op: GetProbeCondition, page: ProbeConditionPage) extends ProbeResult
+case class GetCheckCondition(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends CheckQuery
+case class GetProbeConditionResult(op: GetCheckCondition, page: ProbeConditionPage) extends ProbeResult
 
-case class GetProbeNotifications(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends ProbeQuery
-case class GetProbeNotificationsResult(op: GetProbeNotifications, page: ProbeNotificationsPage) extends ProbeResult
+case class GetCheckNotifications(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends CheckQuery
+case class GetProbeNotificationsResult(op: GetCheckNotifications, page: ProbeNotificationsPage) extends ProbeResult
 
-case class GetProbeMetrics(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends ProbeQuery
-case class GetProbeMetricsResult(op: GetProbeMetrics, page: ProbeMetricsPage) extends ProbeResult
+case class GetCheckMetrics(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends CheckQuery
+case class GetProbeMetricsResult(op: GetCheckMetrics, page: ProbeMetricsPage) extends ProbeResult
 
-case class ProcessProbeEvaluation(probeRef: ProbeRef, evaluation: ProbeEvaluation) extends ProbeCommand
-case class ProcessProbeEvaluationResult(op: ProcessProbeEvaluation) extends ProbeResult
+case class ProcessCheckEvaluation(probeRef: ProbeRef, evaluation: ProbeEvaluation) extends CheckCommand
+case class ProcessProbeEvaluationResult(op: ProcessCheckEvaluation) extends ProbeResult
 
-case class SetProbeSquelch(probeRef: ProbeRef, squelch: Boolean) extends ProbeCommand
-case class SetProbeSquelchResult(op: SetProbeSquelch, condition: ProbeCondition) extends ProbeResult
+case class SetCheckSquelch(probeRef: ProbeRef, squelch: Boolean) extends CheckCommand
+case class SetProbeSquelchResult(op: SetCheckSquelch, condition: ProbeCondition) extends ProbeResult
 
-case class AcknowledgeProbe(probeRef: ProbeRef, correlationId: UUID) extends ProbeCommand
-case class AcknowledgeProbeResult(op: AcknowledgeProbe, condition: ProbeCondition) extends ProbeResult
+case class AcknowledgeCheck(probeRef: ProbeRef, correlationId: UUID) extends CheckCommand
+case class AcknowledgeProbeResult(op: AcknowledgeCheck, condition: ProbeCondition) extends ProbeResult
 
-case class UnacknowledgeProbe(probeRef: ProbeRef, acknowledgementId: UUID) extends ProbeCommand
-case class UnacknowledgeProbeResult(op: UnacknowledgeProbe, condition: ProbeCondition) extends ProbeResult
+case class UnacknowledgeCheck(probeRef: ProbeRef, acknowledgementId: UUID) extends CheckCommand
+case class UnacknowledgeProbeResult(op: UnacknowledgeCheck, condition: ProbeCondition) extends ProbeResult

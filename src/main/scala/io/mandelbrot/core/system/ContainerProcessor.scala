@@ -42,7 +42,7 @@ class ContainerProcessor(settings: ContainerProbeSettings) extends BehaviorProce
     ConfigureEffect(initial, Vector.empty, children, Set.empty)
   }
 
-  def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect] = Failure(ApiException(BadRequest))
+  def processEvaluation(probe: ProbeInterface, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(ApiException(BadRequest))
 
   def processChild(probe: ProbeInterface, childRef: ProbeRef, childStatus: ProbeStatus): Option[EventEffect] = None
 

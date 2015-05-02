@@ -15,7 +15,7 @@ class TestProcessor(val properties: Map[String,String]) extends BehaviorProcesso
     ConfigureEffect(status, Vector.empty, children, Set.empty)
   }
 
-  def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
+  def processEvaluation(probe: ProbeInterface, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
 
   def processChild(probe: ProbeInterface, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
 
@@ -44,7 +44,7 @@ class TestProcessorChange(val properties: Map[String,String]) extends BehaviorPr
     ConfigureEffect(status, Vector.empty, children, Set.empty)
   }
 
-  def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
+  def processEvaluation(probe: ProbeInterface, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
 
   def processChild(probe: ProbeInterface, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
 

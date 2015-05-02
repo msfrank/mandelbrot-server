@@ -32,9 +32,9 @@ import io.mandelbrot.core.model._
 import io.mandelbrot.core.{AkkaConfig, Blackhole}
 import io.mandelbrot.core.ConfigConversions._
 
-class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
+class AggregateCheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
 
-  def this() = this(ActorSystem("AggregateProbeSpec", AkkaConfig))
+  def this() = this(ActorSystem("AggregateCheckSpec", AkkaConfig))
 
   // shutdown the actor system
   override def afterAll() {
@@ -46,7 +46,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
   val child3 = ProbeRef("foo.local:check.child3")
   val blackhole = system.actorOf(Blackhole.props())
 
-  "A Probe with aggregate behavior" should {
+  "A Check with aggregate behavior" should {
 
     "transition to ProbeSynthetic/ProbeHealthy when all children have notified of healthy status" in {
       val probeRef = ProbeRef("foo.local:check")
@@ -58,7 +58,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val probe = system.actorOf(Probe.props(probeRef, blackhole, services, metricsBus))
+      val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
       probe ! ChangeProbe(probeType, policy, factory, children, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
@@ -99,7 +99,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val probe = system.actorOf(Probe.props(probeRef, blackhole, services, metricsBus))
+      val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
       probe ! ChangeProbe(probeType, policy, factory, children, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
@@ -139,7 +139,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val probe = system.actorOf(Probe.props(probeRef, blackhole, services, metricsBus))
+      val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
       probe ! ChangeProbe(probeType, policy, factory, children, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
@@ -180,7 +180,7 @@ class AggregateProbeSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref), notificationService = Some(notificationService.ref)))
       val metricsBus = new MetricsBus()
 
-      val probe = system.actorOf(Probe.props(probeRef, blackhole, services, metricsBus))
+      val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
       probe ! ChangeProbe(probeType, policy, factory, children, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])

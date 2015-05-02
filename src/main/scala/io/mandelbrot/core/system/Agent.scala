@@ -78,7 +78,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       stash()
       stay()
 
-    case Event(op: ProbeOperation, _) =>
+    case Event(op: CheckOperation, _) =>
       stash()
       stay()
   }
@@ -95,7 +95,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       stash()
       stay()
 
-    case Event(op: ProbeOperation, _) =>
+    case Event(op: CheckOperation, _) =>
       stash()
       stay()
   }
@@ -141,7 +141,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       stay()
 
     /* forward probe operations to the specified probe */
-    case Event(op: ProbeOperation, state: SystemRunning) =>
+    case Event(op: CheckOperation, state: SystemRunning) =>
       checks.get(op.probeRef.checkId) match {
         case Some(probeActor: CheckActor) =>
           probeActor.actor.forward(op)
@@ -150,7 +150,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       }
       stay()
 
-    /* handle notifications which have been passed up from Probe */
+    /* handle notifications which have been passed up from Check */
     case Event(notification: NotificationEvent, state: SystemRunning) =>
       services ! notification
       stay()
@@ -234,7 +234,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
     /* system doesn't exist anymore, so return resource not found */
     case Event(op: AgentOperation, _) =>
       stay() replying ProbeSystemOperationFailed(op, ApiException(ResourceNotFound))
-    case Event(op: ProbeOperation, _) =>
+    case Event(op: CheckOperation, _) =>
       stay() replying ProbeOperationFailed(op, ApiException(ResourceNotFound))
   }
 
@@ -245,7 +245,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
   when(SystemFailed) {
     case Event(op: AgentOperation, state: SystemError) =>
       stop() replying ProbeSystemOperationFailed(op, state.ex)
-    case Event(op: ProbeOperation, state: SystemError) =>
+    case Event(op: CheckOperation, state: SystemError) =>
       stop() replying ProbeOperationFailed(op, state.ex)
     /* ignore any other messages */
     case _: Event => stay()
@@ -312,9 +312,9 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       val probeRef = ProbeRef(agentId, checkId)
       val actor = checkId.parentOption match {
         case Some(parent) =>
-          context.actorOf(Probe.props(probeRef, checks(parent).actor, services, metricsBus))
+          context.actorOf(Check.props(probeRef, checks(parent).actor, services, metricsBus))
         case _ =>
-          context.actorOf(Probe.props(probeRef, self, services, metricsBus))
+          context.actorOf(Check.props(probeRef, self, services, metricsBus))
       }
       log.debug("check {} joins {}", checkId, agentId)
       context.watch(actor)

@@ -13,7 +13,7 @@ import io.mandelbrot.core.metrics._
 import io.mandelbrot.core.{AkkaConfig, Blackhole}
 import io.mandelbrot.core.ConfigConversions._
 
-class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
+class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
 
   def this() = this(ActorSystem("CheckSpec", AkkaConfig))
 
@@ -24,7 +24,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
   val blackhole = system.actorOf(Blackhole.props())
 
-  "A Probe" should {
+  "A Check" should {
 
     "have an initial state" in {
       val probeRef = ProbeRef("foo.local:check")
@@ -33,7 +33,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
       val services = system.actorOf(TestServiceProxy.props())
       val metricsBus = new MetricsBus()
-      val probe = TestActorRef(new Probe(probeRef, blackhole, services, metricsBus))
+      val probe = TestActorRef(new Check(probeRef, blackhole, services, metricsBus))
       probe ! ChangeProbe(probeType, policy, factory, Set.empty, 0)
       val underlying = probe.underlyingActor
       underlying.lifecycle shouldEqual ProbeInitializing
@@ -55,7 +55,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val probe = system.actorOf(Probe.props(probeRef, blackhole, services, metricsBus))
+      val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
       probe ! ChangeProbe(probeType, policy, factory, Set.empty, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
@@ -65,7 +65,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val updateProbeStatus1 = stateService.expectMsgClass(classOf[UpdateProbeStatus])
       stateService.reply(UpdateProbeStatusResult(updateProbeStatus1))
 
-      probe ! GetProbeStatus(probeRef)
+      probe ! GetCheckStatus(probeRef)
       val getProbeStatusResult = expectMsgClass(classOf[GetProbeStatusResult])
       getProbeStatusResult.status.lifecycle shouldEqual ProbeKnown
       getProbeStatusResult.status.health shouldEqual ProbeHealthy
@@ -85,7 +85,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
       val factory1 = ProbeBehavior.extensions(probeType).configure(Map("key" -> "value1"))
 
-      val probe = TestActorRef(new Probe(probeRef, blackhole, services, metricsBus))
+      val probe = TestActorRef(new Check(probeRef, blackhole, services, metricsBus))
       probe ! ChangeProbe(probeType, policy, factory1, Set.empty, 0)
 
       val initializeProbeStatus1 = stateService.expectMsgClass(classOf[InitializeProbeStatus])
@@ -125,7 +125,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val probeType1 = "io.mandelbrot.core.system.TestBehavior"
       val factory1 = ProbeBehavior.extensions(probeType1).configure(Map.empty)
 
-      val probe = TestActorRef(new Probe(probeRef, blackhole, services, metricsBus))
+      val probe = TestActorRef(new Check(probeRef, blackhole, services, metricsBus))
       probe ! ChangeProbe(probeType1, policy, factory1, children, 0)
 
       val initializeProbeStatus1 = stateService.expectMsgClass(classOf[InitializeProbeStatus])
@@ -160,7 +160,7 @@ class ProbeSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val probe = system.actorOf(Probe.props(probeRef, blackhole, services, metricsBus))
+      val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
       watch(probe)
       probe ! ChangeProbe(probeType, policy, factory, Set.empty, 1)
 

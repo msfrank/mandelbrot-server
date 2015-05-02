@@ -50,7 +50,7 @@ class AggregateProcessor(settings: AggregateProbeSettings) extends BehaviorProce
   }
 
   /* ignore probe evaluations from client */
-  def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect] = Failure(ApiException(BadRequest))
+  def processEvaluation(probe: ProbeInterface, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(ApiException(BadRequest))
 
   /* process the status of a child probe */
   def processChild(probe: ProbeInterface, childRef: ProbeRef, childStatus: ProbeStatus): Option[EventEffect] = {
@@ -91,7 +91,7 @@ class AggregateProcessor(settings: AggregateProbeSettings) extends BehaviorProce
     Some(EventEffect(status, notifications))
   }
 
-  /* ignore spurious ProbeExpiryTimeout messages */
+  /* ignore spurious CheckExpiryTimeout$ messages */
   def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect] = None
 
   /*

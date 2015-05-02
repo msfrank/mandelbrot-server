@@ -35,7 +35,7 @@ trait BehaviorProcessor {
 
   def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigureEffect
 
-  def processEvaluation(probe: ProbeInterface, command: ProcessProbeEvaluation): Try[CommandEffect]
+  def processEvaluation(probe: ProbeInterface, command: ProcessCheckEvaluation): Try[CommandEffect]
   def processChild(probe: ProbeInterface, child: ProbeRef, status: ProbeStatus): Option[EventEffect]
   def processAlertTimeout(probe: ProbeInterface): Option[EventEffect]
   def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect]
@@ -45,12 +45,12 @@ trait BehaviorProcessor {
    */
   def processEvent(probe: ProbeInterface, message: Any): Option[EventEffect] = message match {
     case ChildMutates(child, status) => processChild(probe, child, status)
-    case ProbeAlertTimeout => processAlertTimeout(probe)
-    case ProbeExpiryTimeout => processExpiryTimeout(probe)
+    case CheckAlertTimeout => processAlertTimeout(probe)
+    case CheckExpiryTimeout => processExpiryTimeout(probe)
     case _ => throw new IllegalArgumentException()
   }
 
-  def processAcknowledge(probe: ProbeInterface, command: AcknowledgeProbe): Try[CommandEffect] = {
+  def processAcknowledge(probe: ProbeInterface, command: AcknowledgeCheck): Try[CommandEffect] = {
     probe.correlationId match {
       case None =>
         Failure(ApiException(ResourceNotFound))
@@ -69,7 +69,7 @@ trait BehaviorProcessor {
     }
   }
 
-  def processUnacknowledge(probe: ProbeInterface, command: UnacknowledgeProbe): Try[CommandEffect] = {
+  def processUnacknowledge(probe: ProbeInterface, command: UnacknowledgeCheck): Try[CommandEffect] = {
     probe.acknowledgementId match {
       case None =>
         Failure(ApiException(ResourceNotFound))
@@ -86,7 +86,7 @@ trait BehaviorProcessor {
     }
   }
 
-  def processSetSquelch(probe: ProbeInterface, command: SetProbeSquelch): Try[CommandEffect] = {
+  def processSetSquelch(probe: ProbeInterface, command: SetCheckSquelch): Try[CommandEffect] = {
     if (probe.squelch == command.squelch) Failure(ApiException(BadRequest)) else {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val squelch = command.squelch
@@ -98,11 +98,11 @@ trait BehaviorProcessor {
     }
   }
 
-  def processCommand(probe: ProbeInterface, command: ProbeCommand): Try[CommandEffect] = command match {
-    case cmd: ProcessProbeEvaluation => processEvaluation(probe, cmd)
-    case cmd: AcknowledgeProbe => processAcknowledge(probe, cmd)
-    case cmd: UnacknowledgeProbe => processUnacknowledge(probe, cmd)
-    case cmd: SetProbeSquelch => processSetSquelch(probe, cmd)
+  def processCommand(probe: ProbeInterface, command: CheckCommand): Try[CommandEffect] = command match {
+    case cmd: ProcessCheckEvaluation => processEvaluation(probe, cmd)
+    case cmd: AcknowledgeCheck => processAcknowledge(probe, cmd)
+    case cmd: UnacknowledgeCheck => processUnacknowledge(probe, cmd)
+    case cmd: SetCheckSquelch => processSetSquelch(probe, cmd)
     case _ => throw new IllegalArgumentException()
   }
 
