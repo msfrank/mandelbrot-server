@@ -10,7 +10,7 @@ import io.mandelbrot.core.model._
 trait ConstantsProtocol extends DefaultJsonProtocol with StandardProtocol {
 
   /* convert CheckHealth class */
-  implicit object ProbeHealthFormat extends RootJsonFormat[CheckHealth] {
+  implicit object CheckHealthFormat extends RootJsonFormat[CheckHealth] {
     def write(health: CheckHealth) = health match {
       case CheckHealthy => JsString("healthy")
       case CheckDegraded => JsString("degraded")
@@ -28,7 +28,7 @@ trait ConstantsProtocol extends DefaultJsonProtocol with StandardProtocol {
   }
 
   /* convert CheckLifecycle class */
-  implicit object ProbeLifecycleFormat extends RootJsonFormat[CheckLifecycle] {
+  implicit object CheckLifecycleFormat extends RootJsonFormat[CheckLifecycle] {
     def write(lifecycle: CheckLifecycle) = lifecycle match {
       case CheckInitializing => JsString("initializing")
       case CheckJoining => JsString("joining")

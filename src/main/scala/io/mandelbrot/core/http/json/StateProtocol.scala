@@ -29,26 +29,26 @@ import io.mandelbrot.core.model._
 trait StateProtocol extends DefaultJsonProtocol with ConstantsProtocol with NotificationProtocol {
 
   /* convert CheckEvaluation class */
-  implicit val ProbeEvaluationFormat = jsonFormat4(CheckEvaluation)
+  implicit val CheckEvaluationFormat = jsonFormat4(CheckEvaluation)
 
   /* convert CheckStatus class */
-  implicit val ProbeStatusFormat = jsonFormat10(CheckStatus)
+  implicit val CheckStatusFormat = jsonFormat10(CheckStatus)
 
   /* convert CheckCondition class */
-  implicit val ProbeConditionFormat = jsonFormat7(CheckCondition)
+  implicit val CheckConditionFormat = jsonFormat7(CheckCondition)
 
   /* convert CheckNotifications class */
-  implicit val ProbeNotificationsFormat = jsonFormat2(CheckNotifications)
+  implicit val CheckNotificationsFormat = jsonFormat2(CheckNotifications)
 
   /* convert CheckMetrics class */
-  implicit val ProbeMetricsFormat = jsonFormat2(CheckMetrics)
+  implicit val CheckMetricsFormat = jsonFormat2(CheckMetrics)
 
   /* convert CheckCondition class */
-  implicit val ProbeConditionPageFormat = jsonFormat3(CheckConditionPage)
+  implicit val CheckConditionPageFormat = jsonFormat3(CheckConditionPage)
 
   /* convert CheckNotifications class */
-  implicit val ProbeNotificationsPageFormat = jsonFormat3(CheckNotificationsPage)
+  implicit val CheckNotificationsPageFormat = jsonFormat3(CheckNotificationsPage)
 
   /* convert CheckMetrics class */
-  implicit val ProbeMetricsPageFormat = jsonFormat3(CheckMetricsPage)
+  implicit val CheckMetricsPageFormat = jsonFormat3(CheckMetricsPage)
 }

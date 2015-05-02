@@ -28,7 +28,7 @@ trait ResourceProtocol extends DefaultJsonProtocol with StandardProtocol {
   }
 
   /* convert CheckRef class */
-  implicit object ProbeRefFormat extends JsonFormat[CheckRef] {
+  implicit object CheckRefFormat extends JsonFormat[CheckRef] {
     def write(ref: CheckRef) = JsString(ref.toString)
     def read(value: JsValue) = value match {
       case JsString(string) => CheckRef(string)
