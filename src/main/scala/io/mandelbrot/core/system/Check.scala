@@ -34,10 +34,10 @@ import io.mandelbrot.core.util.Timer
 import scala.util.{Failure, Success}
 
 /**
- * the Check actor encapsulates all of the monitoring business logic.  For every probe
+ * the Check actor encapsulates all of the monitoring business logic.  For every check
  * declared by an agent or proxy, there is a corresponding Check actor.
  */
-class Check(val probeRef: ProbeRef,
+class Check(val checkRef: CheckRef,
             val parent: ActorRef,
             val services: ActorRef,
             val metricsBus: MetricsBus) extends LoggingFSM[Check.State,Check.Data] with Stash with ProcessingOps {
@@ -47,12 +47,12 @@ class Check(val probeRef: ProbeRef,
   val commitTimeout = 5.seconds
 
   // state
-  var probeType: String = null
+  var checkType: String = null
   var processor: BehaviorProcessor = null
   var factory: ProcessorFactory = null
   var policy: CheckPolicy = null
-  var children: Set[ProbeRef] = null
-  var probeGeneration: Long = 0L
+  var children: Set[CheckRef] = null
+  var checkGeneration: Long = 0L
   var lastCommitted: Option[DateTime] = None
   val alertTimer = new Timer(context, self, CheckAlertTimeout)
   val commitTimer = new Timer(context, self, CheckCommitTimeout)
@@ -65,11 +65,11 @@ class Check(val probeRef: ProbeRef,
    */
   when(Incubating) {
 
-    /* initialize the probe using parameters from the proposed processor */
+    /* initialize the check using parameters from the proposed processor */
     case Event(change: ChangeCheck, NoData) =>
       val proposed = change.factory.implement()
       val params = proposed.initialize()
-      val op = InitializeProbeStatus(probeRef, now())
+      val op = InitializeCheckStatus(checkRef, now())
       goto(Initializing) using Initializing(change, proposed, op)
 
     /* stash any other messages for processing later */
@@ -93,7 +93,7 @@ class Check(val probeRef: ProbeRef,
   when(Initializing) {
 
     /* ignore result if it doesn't match the in-flight request */
-    case Event(result: InitializeProbeStatusResult, state: Initializing) if result.op != state.inflight =>
+    case Event(result: InitializeCheckStatusResult, state: Initializing) if result.op != state.inflight =>
       stay()
 
     /* ignore failure if it doesn't match the in-flight request */
@@ -101,23 +101,23 @@ class Check(val probeRef: ProbeRef,
       stay()
 
     /* configure processor using initial state */
-    case Event(result: InitializeProbeStatusResult, state: Initializing) =>
+    case Event(result: InitializeCheckStatusResult, state: Initializing) =>
       commitTimer.stop()
-      val effect = state.proposed.configure(result.status.getOrElse(getProbeStatus), state.change.children)
+      val effect = state.proposed.configure(result.status.getOrElse(getCheckStatus), state.change.children)
       lastCommitted = result.status.map(_.timestamp)
-      val op = UpdateProbeStatus(probeRef, effect.status, effect.notifications, lastCommitted)
+      val op = UpdateCheckStatus(checkRef, effect.status, effect.notifications, lastCommitted)
       goto(Configuring) using Configuring(state.change, state.proposed, op)
 
     /* timed out waiting for initialization from state service */
     case Event(CheckCommitTimeout, state: Initializing) =>
-      log.debug("gen {}: timeout while receiving initial state", probeGeneration)
+      log.debug("gen {}: timeout while receiving initial state", checkGeneration)
       services ! state.inflight
       commitTimer.restart(commitTimeout)
       stay()
 
     /* received an unhandled exception, so bail out */
     case Event(StateServiceOperationFailed(op, failure), state: Initializing) =>
-      log.debug("gen {}: failure receiving initial state: {}", probeGeneration, failure)
+      log.debug("gen {}: failure receiving initial state: {}", checkGeneration, failure)
       commitTimer.stop()
       throw failure
 
@@ -142,7 +142,7 @@ class Check(val probeRef: ProbeRef,
   when(Configuring) {
 
     /* ignore result if it doesn't match the in-flight request */
-    case Event(result: UpdateProbeStatusResult, state: Configuring) if result.op != state.inflight =>
+    case Event(result: UpdateCheckStatusResult, state: Configuring) if result.op != state.inflight =>
       stay()
 
     /* ignore failure if it doesn't match the in-flight request */
@@ -150,28 +150,28 @@ class Check(val probeRef: ProbeRef,
       stay()
 
     /* apply status processor using initial state */
-    case Event(result: UpdateProbeStatusResult, state: Configuring) =>
+    case Event(result: UpdateCheckStatusResult, state: Configuring) =>
       commitTimer.stop()
       val status = state.inflight.status
       processor = state.proposed
       policy = state.change.policy
       children = state.change.children
       applyStatus(status)
-      parent ! ChildMutates(probeRef, status)
+      parent ! ChildMutates(checkRef, status)
       notify(state.inflight.notifications)
       lastCommitted = Some(status.timestamp)
       goto(Running) using NoData
 
     /* timed out waiting for initialization from state service */
     case Event(CheckCommitTimeout, state: Configuring) =>
-      log.debug("gen {}: timeout while updating configured state", probeGeneration)
+      log.debug("gen {}: timeout while updating configured state", checkGeneration)
       services ! state.inflight
       commitTimer.restart(commitTimeout)
       stay()
 
     /* received an unhandled exception, so bail out */
     case Event(StateServiceOperationFailed(op, failure), state: Configuring) =>
-      log.debug("gen {}: failure updating configured state: {}", probeGeneration, failure)
+      log.debug("gen {}: failure updating configured state: {}", checkGeneration, failure)
       commitTimer.stop()
       throw failure
 
@@ -186,20 +186,20 @@ class Check(val probeRef: ProbeRef,
   }
 
   /*
-   * probe is ready to process messages.
+   * check is ready to process messages.
    */
   when(Running) {
 
-    /* retrieve the current probe status */
+    /* retrieve the current check status */
     case Event(query: GetCheckStatus, NoData) =>
-      stay() replying GetCheckStatusResult(query, getProbeStatus)
+      stay() replying GetCheckStatusResult(query, getCheckStatus)
 
-    /* process a probe evaluation from the client */
+    /* process a check evaluation from the client */
     case Event(command: ProcessCheckEvaluation, NoData) =>
       enqueue(QueuedCommand(command, sender()))
       stay()
 
-    /* if the probe behavior has changed, then transition to a new state */
+    /* if the check behavior has changed, then transition to a new state */
     case Event(change: ChangeCheck, NoData) =>
       // if queue is empty, put the message back in the mailbox to reprocess in Incubating state
       if (idle) {
@@ -211,14 +211,14 @@ class Check(val probeRef: ProbeRef,
         goto(Changing) using Changing(change)
       }
 
-    /* if the probe behavior has retired, then update our state */
+    /* if the check behavior has retired, then update our state */
     case Event(retire: RetireCheck, NoData) =>
       enqueue(QueuedRetire(retire, now()))
       goto(Retiring)
 
     /* process child status and update state */
     case Event(event: ChildMutates, NoData) =>
-      if (children.contains(event.probeRef)) { enqueue(QueuedEvent(event, now())) }
+      if (children.contains(event.checkRef)) { enqueue(QueuedEvent(event, now())) }
       stay()
 
     /* process alert timeout and update state */
@@ -231,13 +231,13 @@ class Check(val probeRef: ProbeRef,
       enqueue(QueuedEvent(CheckExpiryTimeout, now()))
       stay()
 
-    /* process probe commands */
+    /* process check commands */
     case Event(command: CheckCommand, NoData) =>
       enqueue(QueuedCommand(command, sender()))
       stay()
 
-    /* probe state has been committed, now we can apply the mutation */
-    case Event(result: UpdateProbeStatusResult, NoData) =>
+    /* check state has been committed, now we can apply the mutation */
+    case Event(result: UpdateCheckStatusResult, NoData) =>
       commit()
       stay()
 
@@ -257,13 +257,13 @@ class Check(val probeRef: ProbeRef,
    */
   when(Changing) {
 
-    /* retrieve the current probe status */
+    /* retrieve the current check status */
     case Event(query: GetCheckStatus, state: Changing) =>
-      sender() ! GetCheckStatusResult(query, getProbeStatus)
+      sender() ! GetCheckStatusResult(query, getCheckStatus)
       stay()
 
-    /* probe state has been committed, now we can apply the mutation */
-    case Event(result: UpdateProbeStatusResult, state: Changing) =>
+    /* check state has been committed, now we can apply the mutation */
+    case Event(result: UpdateCheckStatusResult, state: Changing) =>
       commit()
       if (idle) goto(Incubating) using NoData else stay()
 
@@ -291,23 +291,23 @@ class Check(val probeRef: ProbeRef,
       }
   }
   /*
-   * probe is transitioning from running to retired.  once the probe state is deleted
-   * from the state service, the probe is stopped.
+   * check is transitioning from running to retired.  once the check state is deleted
+   * from the state service, the check is stopped.
    */
   when(Retiring) {
 
-    /* retrieve the current probe status */
+    /* retrieve the current check status */
     case Event(query: GetCheckStatus, _) =>
-      sender() ! GetCheckStatusResult(query, getProbeStatus)
+      sender() ! GetCheckStatusResult(query, getCheckStatus)
       stay()
 
-    /* probe state has been committed, now we can apply the mutation */
-    case Event(result: UpdateProbeStatusResult, NoData) =>
+    /* check state has been committed, now we can apply the mutation */
+    case Event(result: UpdateCheckStatusResult, NoData) =>
       commit()
       stay()
 
-    /* probe delete has completed, stop the actor */
-    case Event(result: DeleteProbeStatusResult, NoData) =>
+    /* check delete has completed, stop the actor */
+    case Event(result: DeleteCheckStatusResult, NoData) =>
       commit()
       stop()
 
@@ -340,11 +340,11 @@ class Check(val probeRef: ProbeRef,
 }
 
 object Check {
-  def props(probeRef: ProbeRef,
+  def props(checkRef: CheckRef,
             parent: ActorRef,
             services: ActorRef,
             metricsBus: MetricsBus) = {
-    Props(classOf[Check], probeRef, parent, services, metricsBus)
+    Props(classOf[Check], checkRef, parent, services, metricsBus)
   }
 
 
@@ -358,8 +358,8 @@ object Check {
   case object Retired extends State
 
   sealed trait Data
-  case class Initializing(change: ChangeCheck, proposed: BehaviorProcessor, inflight: InitializeProbeStatus) extends Data
-  case class Configuring(change: ChangeCheck, proposed: BehaviorProcessor, inflight: UpdateProbeStatus) extends Data
+  case class Initializing(change: ChangeCheck, proposed: BehaviorProcessor, inflight: InitializeCheckStatus) extends Data
+  case class Configuring(change: ChangeCheck, proposed: BehaviorProcessor, inflight: UpdateCheckStatus) extends Data
   case class Changing(pending: ChangeCheck) extends Data
   case class Retiring(lsn: Long) extends Data
   case class Retired(lsn: Long) extends Data
@@ -368,38 +368,38 @@ object Check {
 }
 
 sealed trait CheckEvent
-case class ChildMutates(probeRef: ProbeRef, status: ProbeStatus) extends CheckEvent
+case class ChildMutates(checkRef: CheckRef, status: CheckStatus) extends CheckEvent
 case object CheckCommitTimeout extends CheckEvent
 case object CheckAlertTimeout extends CheckEvent
 case object CheckExpiryTimeout extends CheckEvent
 
 /* */
-sealed trait CheckOperation extends ServiceOperation { val probeRef: ProbeRef }
+sealed trait CheckOperation extends ServiceOperation { val checkRef: CheckRef }
 sealed trait CheckCommand extends ServiceCommand with CheckOperation
 sealed trait CheckQuery extends ServiceQuery with CheckOperation
 sealed trait CheckResult
 case class CheckOperationFailed(op: CheckOperation, failure: Throwable) extends ServiceOperationFailed
 
-case class GetCheckStatus(probeRef: ProbeRef) extends CheckQuery
-case class GetCheckStatusResult(op: GetCheckStatus, status: ProbeStatus) extends CheckResult
+case class GetCheckStatus(checkRef: CheckRef) extends CheckQuery
+case class GetCheckStatusResult(op: GetCheckStatus, status: CheckStatus) extends CheckResult
 
-case class GetCheckCondition(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends CheckQuery
-case class GetCheckConditionResult(op: GetCheckCondition, page: ProbeConditionPage) extends CheckResult
+case class GetCheckCondition(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends CheckQuery
+case class GetCheckConditionResult(op: GetCheckCondition, page: CheckConditionPage) extends CheckResult
 
-case class GetCheckNotifications(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends CheckQuery
-case class GetCheckNotificationsResult(op: GetCheckNotifications, page: ProbeNotificationsPage) extends CheckResult
+case class GetCheckNotifications(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends CheckQuery
+case class GetCheckNotificationsResult(op: GetCheckNotifications, page: CheckNotificationsPage) extends CheckResult
 
-case class GetCheckMetrics(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends CheckQuery
-case class GetCheckMetricsResult(op: GetCheckMetrics, page: ProbeMetricsPage) extends CheckResult
+case class GetCheckMetrics(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends CheckQuery
+case class GetCheckMetricsResult(op: GetCheckMetrics, page: CheckMetricsPage) extends CheckResult
 
-case class ProcessCheckEvaluation(probeRef: ProbeRef, evaluation: ProbeEvaluation) extends CheckCommand
+case class ProcessCheckEvaluation(checkRef: CheckRef, evaluation: CheckEvaluation) extends CheckCommand
 case class ProcessCheckEvaluationResult(op: ProcessCheckEvaluation) extends CheckResult
 
-case class SetCheckSquelch(probeRef: ProbeRef, squelch: Boolean) extends CheckCommand
-case class SetCheckSquelchResult(op: SetCheckSquelch, condition: ProbeCondition) extends CheckResult
+case class SetCheckSquelch(checkRef: CheckRef, squelch: Boolean) extends CheckCommand
+case class SetCheckSquelchResult(op: SetCheckSquelch, condition: CheckCondition) extends CheckResult
 
-case class AcknowledgeCheck(probeRef: ProbeRef, correlationId: UUID) extends CheckCommand
-case class AcknowledgeCheckResult(op: AcknowledgeCheck, condition: ProbeCondition) extends CheckResult
+case class AcknowledgeCheck(checkRef: CheckRef, correlationId: UUID) extends CheckCommand
+case class AcknowledgeCheckResult(op: AcknowledgeCheck, condition: CheckCondition) extends CheckResult
 
-case class UnacknowledgeCheck(probeRef: ProbeRef, acknowledgementId: UUID) extends CheckCommand
-case class UnacknowledgeCheckResult(op: UnacknowledgeCheck, condition: ProbeCondition) extends CheckResult
+case class UnacknowledgeCheck(checkRef: CheckRef, acknowledgementId: UUID) extends CheckCommand
+case class UnacknowledgeCheckResult(op: UnacknowledgeCheck, condition: CheckCondition) extends CheckResult

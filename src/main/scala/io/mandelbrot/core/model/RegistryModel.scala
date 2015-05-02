@@ -15,13 +15,13 @@ case class AgentRegistration(agentId: AgentId,
 
 /* tunable parameters which apply to all check types */
 case class CheckPolicy(joiningTimeout: FiniteDuration,
-                       probeTimeout: FiniteDuration,
+                       checkTimeout: FiniteDuration,
                        alertTimeout: FiniteDuration,
                        leavingTimeout: FiniteDuration,
                        notifications: Option[Set[String]]) extends RegistryModel
 
-/* probe specification */
-case class CheckSpec(probeType: String,
+/* check specification */
+case class CheckSpec(checkType: String,
                      policy: CheckPolicy,
                      properties: Map[String,String],
                      metadata: Map[String,String]) extends RegistryModel

@@ -29,7 +29,7 @@ import io.mandelbrot.core.metrics._
 case class MetricsCheckSettings(evaluation: MetricsEvaluation)
 
 /**
- * Implements metrics probe behavior.
+ * Implements metrics check behavior.
  */
 class MetricsProcessor(settings: MetricsCheckSettings) extends BehaviorProcessor {
 
@@ -38,107 +38,107 @@ class MetricsProcessor(settings: MetricsCheckSettings) extends BehaviorProcessor
 
   def initialize(): InitializeEffect = InitializeEffect(None)
 
-  def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigureEffect = {
+  def configure(status: CheckStatus, children: Set[CheckRef]): ConfigureEffect = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
-    val initial = if (status.lifecycle == ProbeInitializing) {
-      status.copy(lifecycle = ProbeJoining, health = ProbeUnknown, summary = Some(evaluation.toString),
+    val initial = if (status.lifecycle == CheckInitializing) {
+      status.copy(lifecycle = CheckJoining, health = CheckUnknown, summary = Some(evaluation.toString),
         lastUpdate = Some(timestamp), lastChange = Some(timestamp))
     } else status
     ConfigureEffect(initial, Vector.empty, Set.empty, evaluation.sources)
   }
 
   /*
-   * if we receive a metrics message while joining or known, then update probe state
+   * if we receive a metrics message while joining or known, then update check state
    * and send notifications.  if the previous lifecycle was joining, then we move to
    * known.  if we transition from non-healthy to healthy, then we clear the correlation
    * and acknowledgement (if set).  if we transition from healthy to non-healthy, then
    * we set the correlation if it is different from the current correlation, and we start
    * the alert timer.
    */
-  def processEvaluation(probe: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = {
+  def processEvaluation(check: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val lastUpdate = Some(timestamp)
     val metrics = command.evaluation.metrics.getOrElse(Map.empty)
 
-    var lifecycle = probe.lifecycle
-    var health = probe.health
-    var lastChange = probe.lastChange
-    var correlationId = probe.correlationId
-    var acknowledgementId = probe.acknowledgementId
+    var lifecycle = check.lifecycle
+    var health = check.health
+    var lastChange = check.lastChange
+    var correlationId = check.correlationId
+    var acknowledgementId = check.acknowledgementId
 
     // push new metrics into the store
     metrics.foreach { case (metricName, metricValue) =>
-      val source = MetricSource(probe.probeRef.checkId, metricName)
+      val source = MetricSource(check.checkRef.checkId, metricName)
       metricsStore.append(source, metricValue)
     }
 
     // evaluate the store
     health = evaluation.evaluate(metricsStore) match {
-      case Some(result) => if (result) ProbeFailed else ProbeHealthy
-      case None => ProbeUnknown
+      case Some(result) => if (result) CheckFailed else CheckHealthy
+      case None => CheckUnknown
     }
-    correlationId = if (health == ProbeHealthy) None else {
-      if (probe.correlationId.isDefined) probe.correlationId else Some(UUID.randomUUID())
+    correlationId = if (health == CheckHealthy) None else {
+      if (check.correlationId.isDefined) check.correlationId else Some(UUID.randomUUID())
     }
     // update lifecycle
-    if (probe.lifecycle == ProbeJoining) {
-      lifecycle = ProbeKnown
+    if (check.lifecycle == CheckJoining) {
+      lifecycle = CheckKnown
     }
 
     // update last change
-    if (health != probe.health) {
+    if (health != check.health) {
       lastChange = Some(timestamp)
     }
 
     // we are healthy
-    if (health == ProbeHealthy) {
+    if (health == CheckHealthy) {
       correlationId = None
       acknowledgementId = None
     }
 
-    val status = ProbeStatus(timestamp, lifecycle, None, health, metrics, lastUpdate, lastChange, correlationId, acknowledgementId, probe.squelch)
-    var notifications = Vector.empty[ProbeNotification]
+    val status = CheckStatus(timestamp, lifecycle, None, health, metrics, lastUpdate, lastChange, correlationId, acknowledgementId, check.squelch)
+    var notifications = Vector.empty[CheckNotification]
 
     // append lifecycle notification
-    if (probe.lifecycle != lifecycle)
-      notifications = notifications :+ NotifyLifecycleChanges(probe.probeRef, command.evaluation.timestamp, probe.lifecycle, lifecycle)
+    if (check.lifecycle != lifecycle)
+      notifications = notifications :+ NotifyLifecycleChanges(check.checkRef, command.evaluation.timestamp, check.lifecycle, lifecycle)
     // append health notification
-    if (health != probe.health) {
-      notifications = notifications :+ NotifyHealthChanges(probe.probeRef, command.evaluation.timestamp, correlationId, probe.health, health)
+    if (health != check.health) {
+      notifications = notifications :+ NotifyHealthChanges(check.checkRef, command.evaluation.timestamp, correlationId, check.health, health)
     } else {
-      notifications = notifications :+ NotifyHealthUpdates(probe.probeRef, command.evaluation.timestamp, correlationId, health)
+      notifications = notifications :+ NotifyHealthUpdates(check.checkRef, command.evaluation.timestamp, correlationId, health)
     }
     // append recovery notification
-    if (probe.health == ProbeHealthy && probe.acknowledgementId.isDefined) {
-      notifications = notifications :+ NotifyRecovers(probe.probeRef, timestamp, probe.correlationId.get, probe.acknowledgementId.get)
+    if (check.health == CheckHealthy && check.acknowledgementId.isDefined) {
+      notifications = notifications :+ NotifyRecovers(check.checkRef, timestamp, check.correlationId.get, check.acknowledgementId.get)
     }
 
     Success(CommandEffect(ProcessCheckEvaluationResult(command), status, notifications))
   }
 
   /* ignore child messages */
-  def processChild(probe: AccessorOps, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
+  def processChild(check: AccessorOps, child: CheckRef, status: CheckStatus): Option[EventEffect] = None
 
   /*
-   * if we haven't received a status message within the current expiry window, then update probe
-   * state and send notifications.  probe health becomes unknown, and correlation is set if it is
+   * if we haven't received a status message within the current expiry window, then update check
+   * state and send notifications.  check health becomes unknown, and correlation is set if it is
    * different from the current correlation.  we restart the expiry timer, and we start the alert
    * timer if it is not already running.
    */
-  def processExpiryTimeout(probe: AccessorOps) = {
+  def processExpiryTimeout(check: AccessorOps) = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
-    val correlationId = if (probe.correlationId.isDefined) probe.correlationId else Some(UUID.randomUUID())
+    val correlationId = if (check.correlationId.isDefined) check.correlationId else Some(UUID.randomUUID())
     // update health
-    val health = ProbeUnknown
-    val lastChange = if (probe.health == health) probe.lastChange else {
+    val health = CheckUnknown
+    val lastChange = if (check.health == health) check.lastChange else {
       Some(timestamp)
     }
-    val status = probe.getProbeStatus(timestamp).copy(health = health, lastChange = lastChange, correlation = correlationId)
+    val status = check.getCheckStatus(timestamp).copy(health = health, lastChange = lastChange, correlation = correlationId)
     // append health notification
-    val notifications = if (health != probe.health) {
-      Vector(NotifyHealthChanges(probe.probeRef, timestamp, probe.correlationId, probe.health, health))
+    val notifications = if (health != check.health) {
+      Vector(NotifyHealthChanges(check.checkRef, timestamp, check.correlationId, check.health, health))
     } else {
-      Vector(NotifyHealthExpires(probe.probeRef, timestamp, probe.correlationId))
+      Vector(NotifyHealthExpires(check.checkRef, timestamp, check.correlationId))
     }
     Some(EventEffect(status, notifications))
   }
@@ -146,12 +146,12 @@ class MetricsProcessor(settings: MetricsCheckSettings) extends BehaviorProcessor
   /*
    * if the alert timer expires, then send a health-alerts notification and restart the alert timer.
    */
-  def processAlertTimeout(probe: AccessorOps): Option[EventEffect] = {
+  def processAlertTimeout(check: AccessorOps): Option[EventEffect] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
-    val status = probe.getProbeStatus(timestamp)
+    val status = check.getCheckStatus(timestamp)
     // send alert notification
-    val notifications = probe.correlationId.map { correlation =>
-      NotifyHealthAlerts(probe.probeRef, timestamp, probe.health, correlation, probe.acknowledgementId)
+    val notifications = check.correlationId.map { correlation =>
+      NotifyHealthAlerts(check.checkRef, timestamp, check.health, correlation, check.acknowledgementId)
     }.toVector
     Some(EventEffect(status, notifications))
   }

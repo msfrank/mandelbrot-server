@@ -64,12 +64,12 @@ trait ApiService extends HttpService {
    */
   val systemsRoutes = {
     path("systems") {
-      /* register new probe system, or fail if it already exists */
+      /* register new check system, or fail if it already exists */
       post {
         entity(as[AgentRegistration]) { case agentRegistration: AgentRegistration =>
           complete {
             serviceProxy.ask(RegisterAgent(agentRegistration.agentId, agentRegistration)).map {
-              case result: RegisterProbeSystemResult =>
+              case result: RegisterCheckSystemResult =>
                 HttpResponse(StatusCodes.OK,
                              headers = List(Location("/v2/systems/" + agentRegistration.agentId.toString)),
                              entity = JsonBody(result.metadata.toJson))
@@ -79,7 +79,7 @@ trait ApiService extends HttpService {
           }
         }
       } ~
-      /* enumerate all registered probe systems */
+      /* enumerate all registered check systems */
       get {
         pagingParams { paging =>
           complete {
@@ -96,7 +96,7 @@ trait ApiService extends HttpService {
     } ~
     pathPrefix("systems" / AgentIdMatcher) { case agentId: AgentId =>
       pathEndOrSingleSlash {
-        /* retrieve the spec for the specified probe system */
+        /* retrieve the spec for the specified check system */
         get {
           complete {
             serviceProxy.ask(GetRegistration(agentId)).map {
@@ -107,12 +107,12 @@ trait ApiService extends HttpService {
             }
           }
         } ~
-        /* update the spec for the specified probe system */
+        /* update the spec for the specified check system */
         put {
           entity(as[AgentRegistration]) { case agentRegistration: AgentRegistration =>
             complete {
               serviceProxy.ask(UpdateAgent(agentId, agentRegistration)).map {
-                case result: UpdateProbeSystemResult =>
+                case result: UpdateCheckSystemResult =>
                   HttpResponse(StatusCodes.OK,
                                headers = List(Location("/v2/systems/" + agentRegistration.agentId.toString)),
                                entity = JsonBody(result.metadata.toJson))
@@ -122,11 +122,11 @@ trait ApiService extends HttpService {
             }
           }
         } ~
-        /* unregister the probe system */
+        /* unregister the check system */
         delete {
           complete {
             serviceProxy.ask(RetireAgent(agentId)).map {
-              case result: RetireProbeSystemResult =>
+              case result: RetireCheckSystemResult =>
                 HttpResponse(StatusCodes.Accepted)
               case failure: ServiceOperationFailed =>
                 throw failure.failure
@@ -139,7 +139,7 @@ trait ApiService extends HttpService {
           get {
             /* describe the status of the Check */
             complete {
-              serviceProxy.ask(GetCheckStatus(ProbeRef(agentId, checkId))).map {
+              serviceProxy.ask(GetCheckStatus(CheckRef(agentId, checkId))).map {
                 case result: GetCheckStatusResult =>
                   result.status
                 case failure: ServiceOperationFailed =>
@@ -149,9 +149,9 @@ trait ApiService extends HttpService {
           } ~
           post {
             /* update the status of the Check */
-            entity(as[ProbeEvaluation]) { case evaluation: ProbeEvaluation =>
+            entity(as[CheckEvaluation]) { case evaluation: CheckEvaluation =>
               complete {
-                serviceProxy.ask(ProcessCheckEvaluation(ProbeRef(agentId, checkId), evaluation)).map {
+                serviceProxy.ask(ProcessCheckEvaluation(CheckRef(agentId, checkId), evaluation)).map {
                   case result: ProcessCheckEvaluationResult =>
                     HttpResponse(StatusCodes.OK)
                   case failure: ServiceOperationFailed =>
@@ -167,7 +167,7 @@ trait ApiService extends HttpService {
             pagingParams { paging =>
                complete {
                 val limit = paging.limit.getOrElse(settings.pageLimit)
-                serviceProxy.ask(GetCheckCondition(ProbeRef(agentId, checkId), timeseries.from, timeseries.to, limit, paging.last)).map {
+                serviceProxy.ask(GetCheckCondition(CheckRef(agentId, checkId), timeseries.from, timeseries.to, limit, paging.last)).map {
                   case result: GetCheckConditionResult =>
                     result.page
                   case failure: ServiceOperationFailed =>
@@ -183,7 +183,7 @@ trait ApiService extends HttpService {
             pagingParams { paging =>
               complete {
                 val limit = paging.limit.getOrElse(settings.pageLimit)
-                serviceProxy.ask(GetCheckNotifications(ProbeRef(agentId, checkId), timeseries.from, timeseries.to, limit, paging.last)).map {
+                serviceProxy.ask(GetCheckNotifications(CheckRef(agentId, checkId), timeseries.from, timeseries.to, limit, paging.last)).map {
                   case result: GetCheckNotificationsResult =>
                     result.page
                   case failure: ServiceOperationFailed =>
@@ -199,7 +199,7 @@ trait ApiService extends HttpService {
             pagingParams { paging =>
               complete {
                 val limit = paging.limit.getOrElse(settings.pageLimit)
-                serviceProxy.ask(GetCheckMetrics(ProbeRef(agentId, checkId), timeseries.from, timeseries.to, limit, paging.last)).map {
+                serviceProxy.ask(GetCheckMetrics(CheckRef(agentId, checkId), timeseries.from, timeseries.to, limit, paging.last)).map {
                   case result: GetCheckMetricsResult =>
                     result.page
                   case failure: ServiceOperationFailed =>
@@ -210,7 +210,7 @@ trait ApiService extends HttpService {
           }
         } ~
         path("acknowledge") {
-          /* acknowledge an unhealthy probe */
+          /* acknowledge an unhealthy check */
           post {
             entity(as[AcknowledgeCheck]) { case command: AcknowledgeCheck =>
               complete {
@@ -225,7 +225,7 @@ trait ApiService extends HttpService {
           }
         } ~
         path("unacknowledge") {
-          /* acknowledge an unhealthy probe */
+          /* acknowledge an unhealthy check */
           post {
             entity(as[UnacknowledgeCheck]) { case command: UnacknowledgeCheck =>
               complete {
@@ -240,7 +240,7 @@ trait ApiService extends HttpService {
           }
         } ~
         path("squelch") {
-          /* enable/disable probe notifications */
+          /* enable/disable check notifications */
           post {
             entity(as[SetCheckSquelch]) { case command: SetCheckSquelch =>
               complete {

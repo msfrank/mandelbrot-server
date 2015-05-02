@@ -42,11 +42,11 @@ case object AnyMatcher extends RuleMatcher {
 }
 
 /**
- * 'check' matches if notification is a ProbeNotification and checkId matches.
+ * 'check' matches if notification is a CheckNotification and checkId matches.
  */
 case class CheckRuleMatcher(matcher: CheckMatcher) extends RuleMatcher {
   def matches(notification: NotificationEvent): Boolean = notification match {
-    case n: ProbeNotification if matcher.matches(n.probeRef.checkId) =>
+    case n: CheckNotification if matcher.matches(n.checkRef.checkId) =>
       true
     case otherwise =>
       false
@@ -63,7 +63,7 @@ case class TypeRuleMatcher(kind: String) extends RuleMatcher {
 /**
  * 'lifecycle' matches if notification is of type NotifyLifecycleChanges and newLifecycle matches.
  */
-case class LifecycleRuleMatcher(lifecycle: ProbeLifecycle) extends RuleMatcher {
+case class LifecycleRuleMatcher(lifecycle: CheckLifecycle) extends RuleMatcher {
   def matches(notification: NotificationEvent): Boolean = notification match {
     case n: NotifyLifecycleChanges if n.newLifecycle == lifecycle =>
       true
@@ -75,7 +75,7 @@ case class LifecycleRuleMatcher(lifecycle: ProbeLifecycle) extends RuleMatcher {
 /**
  * 'health' matches if notification is of type NotifyHealthChanges and newHealth matches.
  */
-case class HealthRuleMatcher(health: ProbeHealth) extends RuleMatcher {
+case class HealthRuleMatcher(health: CheckHealth) extends RuleMatcher {
   def matches(notification: NotificationEvent): Boolean = notification match {
     case n: NotifyHealthChanges if n.newHealth == health =>
       true
@@ -87,7 +87,7 @@ case class HealthRuleMatcher(health: ProbeHealth) extends RuleMatcher {
 /**
  * 'alert' matches if notification is of type NotifyHealthAlerts and health matches.
  */
-case class AlertRuleMatcher(health: ProbeHealth) extends RuleMatcher {
+case class AlertRuleMatcher(health: CheckHealth) extends RuleMatcher {
   def matches(notification: NotificationEvent): Boolean = notification match {
     case n: NotifyHealthAlerts if n.health == health =>
       true
@@ -274,11 +274,11 @@ class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,C
     case "lifecycle" ~ "(" ~ matchString ~ ")" =>
       matchString.trim match {
         case "joining" =>
-          LifecycleRuleMatcher(ProbeJoining)
+          LifecycleRuleMatcher(CheckJoining)
         case "known" =>
-          LifecycleRuleMatcher(ProbeKnown)
+          LifecycleRuleMatcher(CheckKnown)
         case "retired" =>
-          LifecycleRuleMatcher(ProbeRetired)
+          LifecycleRuleMatcher(CheckRetired)
         case unknown =>
           throw new Exception("unknown lifecycle '%s'".format(unknown))
       }
@@ -288,13 +288,13 @@ class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,C
     case "health" ~ "(" ~ matchString ~ ")" =>
       matchString.trim match {
         case "healthy" =>
-          HealthRuleMatcher(ProbeHealthy)
+          HealthRuleMatcher(CheckHealthy)
         case "degraded" =>
-          HealthRuleMatcher(ProbeDegraded)
+          HealthRuleMatcher(CheckDegraded)
         case "failed" =>
-          HealthRuleMatcher(ProbeFailed)
+          HealthRuleMatcher(CheckFailed)
         case "unknown" =>
-          HealthRuleMatcher(ProbeUnknown)
+          HealthRuleMatcher(CheckUnknown)
         case unknown =>
           throw new Exception("unknown health '%s'".format(unknown))
       }
@@ -304,13 +304,13 @@ class NotificationRuleParser(contacts: Map[String,Contact], groups: Map[String,C
     case "alert" ~ "(" ~ matchString ~ ")" =>
       matchString.trim match {
         case "healthy" =>
-          AlertRuleMatcher(ProbeHealthy)
+          AlertRuleMatcher(CheckHealthy)
         case "degraded" =>
-          AlertRuleMatcher(ProbeDegraded)
+          AlertRuleMatcher(CheckDegraded)
         case "failed" =>
-          AlertRuleMatcher(ProbeFailed)
+          AlertRuleMatcher(CheckFailed)
         case "unknown" =>
-          AlertRuleMatcher(ProbeUnknown)
+          AlertRuleMatcher(CheckUnknown)
         case unknown =>
           throw new Exception("unknown health '%s'".format(unknown))
       }

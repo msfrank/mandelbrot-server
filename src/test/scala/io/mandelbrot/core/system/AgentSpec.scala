@@ -30,16 +30,16 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val policy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
       val properties = Map.empty[String,String]
       val metadata = Map.empty[String,String]
-      val probe = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, properties, metadata)
-      val probes = Map(CheckId("load") -> probe)
+      val check = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, properties, metadata)
+      val checks = Map(CheckId("load") -> check)
       val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
-      val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, probes, metrics)
+      val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, checks, metrics)
 
-      val probeSystem = system.actorOf(Agent.props(services))
+      val checkSystem = system.actorOf(Agent.props(services))
 
-      probeSystem ! RegisterAgent(agentId, registration)
-      val registerProbeSystemResult = expectMsgClass(classOf[RegisterProbeSystemResult])
-      registerProbeSystemResult.metadata.lsn shouldEqual 0
+      checkSystem ! RegisterAgent(agentId, registration)
+      val registerCheckSystemResult = expectMsgClass(classOf[RegisterCheckSystemResult])
+      registerCheckSystemResult.metadata.lsn shouldEqual 0
     }
 
     "revive when it exists in the registry" in {
@@ -48,22 +48,22 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val policy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
       val properties = Map.empty[String,String]
       val metadata = Map.empty[String,String]
-      val probe = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, properties, metadata)
-      val probes = Map(CheckId("load") -> probe)
+      val check = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, properties, metadata)
+      val checks = Map(CheckId("load") -> check)
       val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
-      val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, probes, metrics)
+      val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, checks, metrics)
 
       services ! CreateRegistration(agentId, registration)
       expectMsgClass(classOf[CreateRegistrationResult])
 
-      val probeSystem = system.actorOf(Agent.props(services))
+      val checkSystem = system.actorOf(Agent.props(services))
 
-      probeSystem ! ReviveAgent(agentId)
+      checkSystem ! ReviveAgent(agentId)
 
-      probeSystem ! DescribeAgent(agentId)
-      val describeProbeSystemResult = expectMsgClass(classOf[DescribeProbeSystemResult])
-      describeProbeSystemResult.registration shouldEqual registration
-      describeProbeSystemResult.lsn shouldEqual 0
+      checkSystem ! DescribeAgent(agentId)
+      val describeCheckSystemResult = expectMsgClass(classOf[DescribeCheckSystemResult])
+      describeCheckSystemResult.registration shouldEqual registration
+      describeCheckSystemResult.lsn shouldEqual 0
     }
 
     "update checks when the registration changes" in {
@@ -72,26 +72,26 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val policy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
       val properties = Map.empty[String,String]
       val metadata = Map.empty[String,String]
-      val probe1 = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, properties, metadata)
-      val probes1 = Map(CheckId("probe1") -> probe1)
+      val check1 = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, properties, metadata)
+      val checks1 = Map(CheckId("check1") -> check1)
       val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
-      val registration1 = AgentRegistration(agentId, "mandelbrot", Map.empty, probes1, metrics)
+      val registration1 = AgentRegistration(agentId, "mandelbrot", Map.empty, checks1, metrics)
 
-      val probeSystem = system.actorOf(Agent.props(services))
+      val checkSystem = system.actorOf(Agent.props(services))
 
-      probeSystem ! RegisterAgent(agentId, registration1)
-      val registerProbeSystemResult = expectMsgClass(classOf[RegisterProbeSystemResult])
+      checkSystem ! RegisterAgent(agentId, registration1)
+      val registerCheckSystemResult = expectMsgClass(classOf[RegisterCheckSystemResult])
 
-      val probe2 = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, properties, metadata)
-      val probes2 = Map(CheckId("probe2") -> probe2)
-      val registration2 = AgentRegistration(agentId, "mandelbrot", Map.empty, probes2, metrics)
+      val check2 = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, properties, metadata)
+      val checks2 = Map(CheckId("check2") -> check2)
+      val registration2 = AgentRegistration(agentId, "mandelbrot", Map.empty, checks2, metrics)
 
-      probeSystem ! UpdateAgent(agentId, registration2)
-      val updateProbeSystemResult = expectMsgClass(classOf[UpdateProbeSystemResult])
-      updateProbeSystemResult.metadata.lsn shouldEqual 1
+      checkSystem ! UpdateAgent(agentId, registration2)
+      val updateCheckSystemResult = expectMsgClass(classOf[UpdateCheckSystemResult])
+      updateCheckSystemResult.metadata.lsn shouldEqual 1
 
-      probeSystem ! GetCheckStatus(ProbeRef("test.3:probe2"))
-      val getProbeStatusResult = expectMsgClass(classOf[GetCheckStatusResult])
+      checkSystem ! GetCheckStatus(CheckRef("test.3:check2"))
+      val getCheckStatusResult = expectMsgClass(classOf[GetCheckStatusResult])
     }
   }
 }

@@ -74,35 +74,35 @@ object CheckId {
 /**
  *
  */
-class ProbeRef(val agentId: AgentId, val checkId: CheckId) extends Ordered[ProbeRef] with ResourceModel {
+class CheckRef(val agentId: AgentId, val checkId: CheckId) extends Ordered[CheckRef] with ResourceModel {
 
-  def parentOption: Option[ProbeRef] = checkId.parentOption.map(parent => new ProbeRef(agentId, parent))
+  def parentOption: Option[CheckRef] = checkId.parentOption.map(parent => new CheckRef(agentId, parent))
   def hasParent: Boolean = checkId.hasParent
-  def isParentOf(that: ProbeRef): Boolean = agentId.equals(that.agentId) && checkId.isParentOf(that.checkId)
-  def isDirectParentOf(that: ProbeRef): Boolean = agentId.equals(that.agentId) && checkId.isDirectParentOf(that.checkId)
-  def isChildOf(that: ProbeRef): Boolean = agentId.equals(that.agentId) && checkId.isChildOf(that.checkId)
-  def isDirectChildOf(that: ProbeRef): Boolean = agentId.equals(that.agentId) && checkId.isDirectChildOf(that.checkId)
-  def compare(that: ProbeRef): Int = toString.compareTo(that.toString)
+  def isParentOf(that: CheckRef): Boolean = agentId.equals(that.agentId) && checkId.isParentOf(that.checkId)
+  def isDirectParentOf(that: CheckRef): Boolean = agentId.equals(that.agentId) && checkId.isDirectParentOf(that.checkId)
+  def isChildOf(that: CheckRef): Boolean = agentId.equals(that.agentId) && checkId.isChildOf(that.checkId)
+  def isDirectChildOf(that: CheckRef): Boolean = agentId.equals(that.agentId) && checkId.isDirectChildOf(that.checkId)
+  def compare(that: CheckRef): Int = toString.compareTo(that.toString)
 
   override def hashCode() = toString.hashCode
   override def toString = agentId.toString + ":" + checkId.toString
   override def equals(other: Any): Boolean = other match {
-    case otherRef: ProbeRef => agentId.equals(otherRef.agentId) && checkId.equals(otherRef.checkId)
+    case otherRef: CheckRef => agentId.equals(otherRef.agentId) && checkId.equals(otherRef.checkId)
     case _ => false
   }
 }
 
-object ProbeRef {
-  def apply(agentId: AgentId, checkId: CheckId): ProbeRef = new ProbeRef(agentId, checkId)
-  def apply(agentId: String, checkId: String): ProbeRef = new ProbeRef(AgentId(agentId), CheckId(checkId))
-  def apply(string: String): ProbeRef = {
+object CheckRef {
+  def apply(agentId: AgentId, checkId: CheckId): CheckRef = new CheckRef(agentId, checkId)
+  def apply(agentId: String, checkId: String): CheckRef = new CheckRef(AgentId(agentId), CheckId(checkId))
+  def apply(string: String): CheckRef = {
     val index = string.indexOf(':')
     if (index == -1) throw new IllegalArgumentException()
     val (agentId,checkId) = string.splitAt(index)
-    ProbeRef(AgentId(agentId), CheckId(checkId.tail))
+    CheckRef(AgentId(agentId), CheckId(checkId.tail))
   }
-  //def apply(uri: URI): ProbeRef = apply(uri, Vector.empty)
-  def unapply(probeRef: ProbeRef): Option[(AgentId,CheckId)] = Some((probeRef.agentId, probeRef.checkId))
+  //def apply(uri: URI): CheckRef = apply(uri, Vector.empty)
+  def unapply(checkRef: CheckRef): Option[(AgentId,CheckId)] = Some((checkRef.agentId, checkRef.checkId))
 }
 
 /**

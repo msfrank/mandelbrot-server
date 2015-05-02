@@ -30,7 +30,7 @@ import io.mandelbrot.core.parser.CheckMatcherParser
  */
 trait SystemProtocol extends DefaultJsonProtocol with ConstantsProtocol with StateProtocol {
 
-  /* convert ProbeMatcher class */
+  /* convert CheckMatcher class */
   implicit object CheckMatcherFormat extends JsonFormat[CheckMatcher] {
     def write(matcher: CheckMatcher) = JsString(matcher.toString)
     def read(value: JsValue) = value match {
@@ -39,16 +39,16 @@ trait SystemProtocol extends DefaultJsonProtocol with ConstantsProtocol with Sta
     }
   }
 
-  /* probe operations */
-  implicit val GetProbeConditionFormat = jsonFormat5(GetCheckCondition)
-  implicit val GetProbeNotificationsFormat = jsonFormat5(GetCheckNotifications)
-  implicit val GetProbeMetricsFormat = jsonFormat5(GetCheckMetrics)
-  implicit val AcknowledgeProbeFormat = jsonFormat2(AcknowledgeCheck)
-  implicit val UnacknowledgeProbeFormat = jsonFormat2(UnacknowledgeCheck)
-  implicit val SetProbeSquelchFormat = jsonFormat2(SetCheckSquelch)
+  /* check operations */
+  implicit val GetCheckConditionFormat = jsonFormat5(GetCheckCondition)
+  implicit val GetCheckNotificationsFormat = jsonFormat5(GetCheckNotifications)
+  implicit val GetCheckMetricsFormat = jsonFormat5(GetCheckMetrics)
+  implicit val AcknowledgeCheckFormat = jsonFormat2(AcknowledgeCheck)
+  implicit val UnacknowledgeCheckFormat = jsonFormat2(UnacknowledgeCheck)
+  implicit val SetCheckSquelchFormat = jsonFormat2(SetCheckSquelch)
 
-  /* probe results */
-  implicit val AcknowledgeProbeResultFormat = jsonFormat2(AcknowledgeCheckResult)
-  implicit val UnacknowledgeProbeResultFormat = jsonFormat2(UnacknowledgeCheckResult)
-  implicit val SetProbeSquelchResultFormat = jsonFormat2(SetCheckSquelchResult)
+  /* check results */
+  implicit val AcknowledgeCheckResultFormat = jsonFormat2(AcknowledgeCheckResult)
+  implicit val UnacknowledgeCheckResultFormat = jsonFormat2(UnacknowledgeCheckResult)
+  implicit val SetCheckSquelchResultFormat = jsonFormat2(SetCheckSquelchResult)
 }

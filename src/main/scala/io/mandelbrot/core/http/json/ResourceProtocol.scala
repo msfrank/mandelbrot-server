@@ -27,12 +27,12 @@ trait ResourceProtocol extends DefaultJsonProtocol with StandardProtocol {
     }
   }
 
-  /* convert ProbeRef class */
-  implicit object ProbeRefFormat extends JsonFormat[ProbeRef] {
-    def write(ref: ProbeRef) = JsString(ref.toString)
+  /* convert CheckRef class */
+  implicit object ProbeRefFormat extends JsonFormat[CheckRef] {
+    def write(ref: CheckRef) = JsString(ref.toString)
     def read(value: JsValue) = value match {
-      case JsString(string) => ProbeRef(string)
-      case _ => throw new DeserializationException("expected ProbeRef")
+      case JsString(string) => CheckRef(string)
+      case _ => throw new DeserializationException("expected CheckRef")
     }
   }
 

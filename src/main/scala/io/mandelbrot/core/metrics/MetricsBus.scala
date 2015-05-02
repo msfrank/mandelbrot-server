@@ -13,7 +13,7 @@ class MetricsBus extends EventBus with LookupClassification {
   type Classifier = Vector[String]
   type Subscriber = ActorRef
 
-  override protected def classify(event: Event): Classifier = event.probeRef.checkId.segments
+  override protected def classify(event: Event): Classifier = event.checkRef.checkId.segments
   override protected def publish(event: Event, subscriber: Subscriber): Unit = subscriber ! event
   override protected def compareSubscribers(a: Subscriber, b: Subscriber): Int = a.compareTo(b)
 
@@ -22,4 +22,4 @@ class MetricsBus extends EventBus with LookupClassification {
   override protected def mapSize(): Int = 32
 }
 
-case class MetricsSet(probeRef: ProbeRef, metrics: Map[String,BigDecimal])
+case class MetricsSet(checkRef: CheckRef, metrics: Map[String,BigDecimal])

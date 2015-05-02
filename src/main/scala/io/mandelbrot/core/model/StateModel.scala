@@ -5,17 +5,17 @@ import java.util.UUID
 
 sealed trait StateModel
 
-/* probe status submitted by the agent */
-case class ProbeEvaluation(timestamp: DateTime,
+/* check status submitted by the agent */
+case class CheckEvaluation(timestamp: DateTime,
                            summary: Option[String],
-                           health: Option[ProbeHealth],
+                           health: Option[CheckHealth],
                            metrics: Option[Map[String,BigDecimal]]) extends StateModel
 
-/* the complete status of a probe */
-case class ProbeStatus(timestamp: DateTime,
-                       lifecycle: ProbeLifecycle,
+/* the complete status of a check */
+case class CheckStatus(timestamp: DateTime,
+                       lifecycle: CheckLifecycle,
                        summary: Option[String],
-                       health: ProbeHealth,
+                       health: CheckHealth,
                        metrics: Map[String,BigDecimal],
                        lastUpdate: Option[DateTime],
                        lastChange: Option[DateTime],
@@ -23,20 +23,20 @@ case class ProbeStatus(timestamp: DateTime,
                        acknowledged: Option[UUID],
                        squelched: Boolean) extends StateModel
 
-case class ProbeCondition(timestamp: DateTime,
-                          lifecycle: ProbeLifecycle,
+case class CheckCondition(timestamp: DateTime,
+                          lifecycle: CheckLifecycle,
                           summary: Option[String],
-                          health: ProbeHealth,
+                          health: CheckHealth,
                           correlation: Option[UUID],
                           acknowledged: Option[UUID],
                           squelched: Boolean) extends StateModel
 
-case class ProbeConditionPage(history: Vector[ProbeCondition], last: Option[DateTime], exhausted: Boolean) extends StateModel
+case class CheckConditionPage(history: Vector[CheckCondition], last: Option[DateTime], exhausted: Boolean) extends StateModel
 
-case class ProbeNotifications(timestamp: DateTime, notifications: Vector[ProbeNotification]) extends StateModel
+case class CheckNotifications(timestamp: DateTime, notifications: Vector[CheckNotification]) extends StateModel
 
-case class ProbeNotificationsPage(history: Vector[ProbeNotifications], last: Option[DateTime], exhausted: Boolean) extends StateModel
+case class CheckNotificationsPage(history: Vector[CheckNotifications], last: Option[DateTime], exhausted: Boolean) extends StateModel
 
-case class ProbeMetrics(timestamp: DateTime, metrics: Map[String,BigDecimal]) extends StateModel
+case class CheckMetrics(timestamp: DateTime, metrics: Map[String,BigDecimal]) extends StateModel
 
-case class ProbeMetricsPage(history: Vector[ProbeMetrics], last: Option[DateTime], exhausted: Boolean) extends StateModel
+case class CheckMetricsPage(history: Vector[CheckMetrics], last: Option[DateTime], exhausted: Boolean) extends StateModel

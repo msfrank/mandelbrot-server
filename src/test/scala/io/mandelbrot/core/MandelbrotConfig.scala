@@ -43,7 +43,7 @@ object MandelbrotConfig extends ComposableConfig {
       |  }
       |  registry {
       |    min-joining-timeout = 1 minute
-      |    min-probe-timeout = 1 minute
+      |    min-check-timeout = 1 minute
       |    min-alert-timeout = 1 minute
       |    min-leaving-timeout = 1 minute
       |    plugin = "io.mandelbrot.core.registry.TestRegistryPersisterExtension"

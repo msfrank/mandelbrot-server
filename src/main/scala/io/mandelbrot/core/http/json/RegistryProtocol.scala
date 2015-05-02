@@ -68,8 +68,8 @@ trait RegistryProtocol extends DefaultJsonProtocol with ConstantsProtocol with R
   implicit val AgentsPageFormat = jsonFormat2(AgentsPage)
 
   /* registry operations */
-  implicit val RegisterProbeSystemFormat = jsonFormat2(RegisterAgent)
+  implicit val RegisterCheckSystemFormat = jsonFormat2(RegisterAgent)
 
-  /* probe system operations */
-  implicit val UpdateProbeSystemFormat = jsonFormat2(UpdateAgent)
+  /* check system operations */
+  implicit val UpdateCheckSystemFormat = jsonFormat2(UpdateAgent)
 }

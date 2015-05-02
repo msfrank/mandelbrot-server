@@ -10,68 +10,68 @@ import io.mandelbrot.core.model._
 
 class TestStatePersister(settings: TestStatePersisterSettings) extends Actor with ActorLogging {
 
-  val state = new util.HashMap[ProbeRef,util.TreeMap[DateTime,UpdateProbeStatus]]()
+  val state = new util.HashMap[CheckRef,util.TreeMap[DateTime,UpdateCheckStatus]]()
 
   def receive = {
 
-    case op: InitializeProbeStatus =>
-      state.get(op.probeRef) match {
+    case op: InitializeCheckStatus =>
+      state.get(op.checkRef) match {
         case null =>
-          sender() ! InitializeProbeStatusResult(op, None)
+          sender() ! InitializeCheckStatusResult(op, None)
         case history if history.lastEntry() == null =>
-          sender() ! InitializeProbeStatusResult(op, None)
+          sender() ! InitializeCheckStatusResult(op, None)
         case history =>
           val lastEntry = history.lastEntry()
           val status = Some(lastEntry.getValue.status)
-          sender() ! InitializeProbeStatusResult(op, status)
+          sender() ! InitializeCheckStatusResult(op, status)
       }
 
-    case op: UpdateProbeStatus =>
-      state.get(op.probeRef) match {
+    case op: UpdateCheckStatus =>
+      state.get(op.checkRef) match {
         case null =>
-          val history = new util.TreeMap[DateTime,UpdateProbeStatus]()
+          val history = new util.TreeMap[DateTime,UpdateCheckStatus]()
           history.put(op.status.timestamp, op)
-          sender() ! UpdateProbeStatusResult(op)
+          sender() ! UpdateCheckStatusResult(op)
         case history =>
           history.put(op.status.timestamp, op)
-          sender() ! UpdateProbeStatusResult(op)
+          sender() ! UpdateCheckStatusResult(op)
       }
 
-    case op: DeleteProbeStatus =>
-      state.remove(op.probeRef)
-      sender() ! DeleteProbeStatusResult(op)
+    case op: DeleteCheckStatus =>
+      state.remove(op.checkRef)
+      sender() ! DeleteCheckStatusResult(op)
 
-    case op: TrimProbeHistory =>
-      state.get(op.probeRef) match {
+    case op: TrimCheckHistory =>
+      state.get(op.checkRef) match {
         case null =>
-          sender() ! TrimProbeHistoryResult(op)
+          sender() ! TrimCheckHistoryResult(op)
         case history =>
           history.headMap(op.until).map(_._1).foreach(history.remove)
-          sender() ! TrimProbeHistoryResult(op)
+          sender() ! TrimCheckHistoryResult(op)
       }
 
     case op: GetConditionHistory =>
-      state.get(op.probeRef) match {
+      state.get(op.checkRef) match {
         case null =>
-          sender() ! GetConditionHistoryResult(op, ProbeConditionPage(Vector.empty, None, exhausted = true))
+          sender() ! GetConditionHistoryResult(op, CheckConditionPage(Vector.empty, None, exhausted = true))
         case history =>
           val from = op.last.getOrElse(op.from.getOrElse(new DateTime(0, DateTimeZone.UTC)))
           val to = op.to.getOrElse(new DateTime(Long.MaxValue, DateTimeZone.UTC))
           val conditions = history.subMap(from, false, to, true)
             .map(_._2.status)
             .map { status =>
-              ProbeCondition(status.timestamp, status.lifecycle, status.summary, status.health,
+              CheckCondition(status.timestamp, status.lifecycle, status.summary, status.health,
                 status.correlation, status.acknowledged, status.squelched)
             }.toVector
           val page = if (conditions.length > op.limit) {
             val subset = conditions.take(op.limit)
             val last = subset.lastOption.map(_.timestamp)
             val exhausted = false
-            ProbeConditionPage(subset, last, exhausted)
+            CheckConditionPage(subset, last, exhausted)
           } else {
             val last = conditions.lastOption.map(_.timestamp)
             val exhausted = false
-            ProbeConditionPage(conditions, last, exhausted)
+            CheckConditionPage(conditions, last, exhausted)
           }
           sender() ! GetConditionHistoryResult(op, page)
       }

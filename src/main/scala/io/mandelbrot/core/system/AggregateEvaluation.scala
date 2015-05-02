@@ -27,23 +27,23 @@ import io.mandelbrot.core.model._
  *
  */
 sealed trait AggregateEvaluation {
-  def evaluate(children: Map[ProbeRef,Option[ProbeStatus]]): ProbeHealth
+  def evaluate(children: Map[CheckRef,Option[CheckStatus]]): CheckHealth
 }
 
 /**
- * evaluate the status of each child probe, and return the worst one (where the order
+ * evaluate the status of each child check, and return the worst one (where the order
  * of severity is defined as Unknown, Failed, Degraded, Healthy).
  */
 case object EvaluateWorst extends AggregateEvaluation {
-  def evaluate(children: Map[ProbeRef,Option[ProbeStatus]]): ProbeHealth = {
-    children.values.foldLeft[ProbeHealth](ProbeHealthy) {
-      case (ProbeUnknown, _) => ProbeUnknown
-      case (curr, None) => ProbeUnknown
+  def evaluate(children: Map[CheckRef,Option[CheckStatus]]): CheckHealth = {
+    children.values.foldLeft[CheckHealth](CheckHealthy) {
+      case (CheckUnknown, _) => CheckUnknown
+      case (curr, None) => CheckUnknown
       case (curr, Some(next)) =>
         next.health match {
-          case ProbeFailed if curr != ProbeUnknown => next.health
-          case ProbeDegraded if curr != ProbeUnknown && curr != ProbeFailed => next.health
-          case ProbeHealthy if curr != ProbeUnknown && curr != ProbeFailed && curr != ProbeDegraded => next.health
+          case CheckFailed if curr != CheckUnknown => next.health
+          case CheckDegraded if curr != CheckUnknown && curr != CheckFailed => next.health
+          case CheckHealthy if curr != CheckUnknown && curr != CheckFailed && curr != CheckDegraded => next.health
           case _ => curr
         }
     }

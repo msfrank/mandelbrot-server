@@ -28,27 +28,27 @@ import io.mandelbrot.core.model._
  */
 trait StateProtocol extends DefaultJsonProtocol with ConstantsProtocol with NotificationProtocol {
 
-  /* convert ProbeEvaluation class */
-  implicit val ProbeEvaluationFormat = jsonFormat4(ProbeEvaluation)
+  /* convert CheckEvaluation class */
+  implicit val ProbeEvaluationFormat = jsonFormat4(CheckEvaluation)
 
-  /* convert ProbeStatus class */
-  implicit val ProbeStatusFormat = jsonFormat10(ProbeStatus)
+  /* convert CheckStatus class */
+  implicit val ProbeStatusFormat = jsonFormat10(CheckStatus)
 
-  /* convert ProbeCondition class */
-  implicit val ProbeConditionFormat = jsonFormat7(ProbeCondition)
+  /* convert CheckCondition class */
+  implicit val ProbeConditionFormat = jsonFormat7(CheckCondition)
 
-  /* convert ProbeNotifications class */
-  implicit val ProbeNotificationsFormat = jsonFormat2(ProbeNotifications)
+  /* convert CheckNotifications class */
+  implicit val ProbeNotificationsFormat = jsonFormat2(CheckNotifications)
 
-  /* convert ProbeMetrics class */
-  implicit val ProbeMetricsFormat = jsonFormat2(ProbeMetrics)
+  /* convert CheckMetrics class */
+  implicit val ProbeMetricsFormat = jsonFormat2(CheckMetrics)
 
-  /* convert ProbeCondition class */
-  implicit val ProbeConditionPageFormat = jsonFormat3(ProbeConditionPage)
+  /* convert CheckCondition class */
+  implicit val ProbeConditionPageFormat = jsonFormat3(CheckConditionPage)
 
-  /* convert ProbeNotifications class */
-  implicit val ProbeNotificationsPageFormat = jsonFormat3(ProbeNotificationsPage)
+  /* convert CheckNotifications class */
+  implicit val ProbeNotificationsPageFormat = jsonFormat3(CheckNotificationsPage)
 
-  /* convert ProbeMetrics class */
-  implicit val ProbeMetricsPageFormat = jsonFormat3(ProbeMetricsPage)
+  /* convert CheckMetrics class */
+  implicit val ProbeMetricsPageFormat = jsonFormat3(CheckMetricsPage)
 }

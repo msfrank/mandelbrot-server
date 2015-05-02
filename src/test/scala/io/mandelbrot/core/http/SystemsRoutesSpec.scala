@@ -58,7 +58,7 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
   val registration4 = AgentRegistration(agent4, "mandelbrot", Map.empty, checks, metrics)
   val registration5 = AgentRegistration(agent5, "mandelbrot", Map.empty, checks, metrics)
 
-  val evaluation = ProbeEvaluation(DateTime.now(DateTimeZone.UTC), Some("evaluates healthy"), Some(ProbeHealthy), None)
+  val evaluation = CheckEvaluation(DateTime.now(DateTimeZone.UTC), Some("evaluates healthy"), Some(CheckHealthy), None)
 
   "route /v2/systems" should {
 
@@ -178,9 +178,9 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
       }
       Get("/v2/systems/" + agent1.toString + "/checks/" + checkId.toString) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        val checkStatus = responseAs[ProbeStatus]
-        checkStatus.lifecycle shouldEqual ProbeJoining
-        checkStatus.health shouldEqual ProbeUnknown
+        val checkStatus = responseAs[CheckStatus]
+        checkStatus.lifecycle shouldEqual CheckJoining
+        checkStatus.health shouldEqual CheckUnknown
       }
 
     }
@@ -202,7 +202,7 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
       }
       Get("/v2/systems/" + registration1.agentId.toString + "/checks/" + checkId.toString) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        val checkStatus = responseAs[ProbeStatus]
+        val checkStatus = responseAs[CheckStatus]
         checkStatus.health shouldEqual evaluation.health.get
         checkStatus.summary shouldEqual evaluation.summary
       }
@@ -227,7 +227,7 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
       }
       Get("/v2/systems/" + registration1.agentId.toString + "/checks/" + checkId.toString + "/condition") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        val page = responseAs[ProbeConditionPage]
+        val page = responseAs[CheckConditionPage]
         page.history.length shouldEqual 1
         val condition = page.history.head
         condition.health shouldEqual evaluation.health.get
@@ -274,7 +274,7 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
       }
       Get("/v2/systems/" + registration1.agentId.toString + "/checks/" + checkId.toString + "/notifications") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        val page = responseAs[ProbeNotificationsPage]
+        val page = responseAs[CheckNotificationsPage]
         page.history.length shouldEqual 1
       }
     }
@@ -318,7 +318,7 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
       }
       Get("/v2/systems/" + registration1.agentId.toString + "/checks/" + checkId.toString + "/metrics") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        val page = responseAs[ProbeMetricsPage]
+        val page = responseAs[CheckMetricsPage]
         page.history.length shouldEqual 1
       }
     }

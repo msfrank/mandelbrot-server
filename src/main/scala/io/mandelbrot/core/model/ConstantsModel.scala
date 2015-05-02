@@ -2,20 +2,20 @@ package io.mandelbrot.core.model
 
 sealed trait ConstantsModel
 
-/* probe lifecycle */
-sealed trait ProbeLifecycle extends ConstantsModel
-case object ProbeInitializing extends ProbeLifecycle { override def toString = "initializing" }
-case object ProbeJoining extends ProbeLifecycle { override def toString = "joining" }
-case object ProbeKnown extends ProbeLifecycle   { override def toString = "known" }
-case object ProbeSynthetic extends ProbeLifecycle { override def toString = "synthetic" }
-case object ProbeRetired extends ProbeLifecycle { override def toString = "retired" }
+/* check lifecycle */
+sealed trait CheckLifecycle extends ConstantsModel
+case object CheckInitializing extends CheckLifecycle { override def toString = "initializing" }
+case object CheckJoining extends CheckLifecycle { override def toString = "joining" }
+case object CheckKnown extends CheckLifecycle   { override def toString = "known" }
+case object CheckSynthetic extends CheckLifecycle { override def toString = "synthetic" }
+case object CheckRetired extends CheckLifecycle { override def toString = "retired" }
 
-/* probe health */
-sealed trait ProbeHealth extends ConstantsModel
-case object ProbeHealthy extends ProbeHealth  { override def toString = "healthy" }
-case object ProbeDegraded extends ProbeHealth { override def toString = "degraded" }
-case object ProbeFailed extends ProbeHealth   { override def toString = "failed" }
-case object ProbeUnknown extends ProbeHealth  { override def toString = "unknown" }
+/* check health */
+sealed trait CheckHealth extends ConstantsModel
+case object CheckHealthy extends CheckHealth  { override def toString = "healthy" }
+case object CheckDegraded extends CheckHealth { override def toString = "degraded" }
+case object CheckFailed extends CheckHealth   { override def toString = "failed" }
+case object CheckUnknown extends CheckHealth  { override def toString = "unknown" }
 
 
 /* metric source type */

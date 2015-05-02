@@ -19,24 +19,24 @@ class CommittedIndexDAL(settings: CassandraStatePersisterSettings,
   session.execute(
     s"""
        |CREATE TABLE IF NOT EXISTS $tableName (
-       |  probe_ref text,
+       |  check_ref text,
        |  initial timestamp,
        |  current timestamp,
        |  last timestamp,
-       |  PRIMARY KEY (probe_ref)
+       |  PRIMARY KEY (check_ref)
        |)
      """.stripMargin)
 
   private val preparedGetCommittedIndex = session.prepare(
     s"""
-       |SELECT probe_ref, initial, current, last
+       |SELECT check_ref, initial, current, last
        |FROM $tableName
-       |WHERE probe_ref = ?
+       |WHERE check_ref = ?
      """.stripMargin)
 
-  def getCommittedIndex(probeRef: ProbeRef): Future[CommittedIndex] = {
+  def getCommittedIndex(checkRef: CheckRef): Future[CommittedIndex] = {
     val statement = new BoundStatement(preparedGetCommittedIndex)
-    statement.bind(probeRef.toString)
+    statement.bind(checkRef.toString)
     executeAsync(statement).map { resultSet =>
       val row = resultSet.one()
       if (row != null) row2committedIndex(row) else throw ApiException(ResourceNotFound)
@@ -45,42 +45,42 @@ class CommittedIndexDAL(settings: CassandraStatePersisterSettings,
 
   private val preparedInitializeCommittedIndex = session.prepare(
     s"""
-       |INSERT INTO $tableName (probe_ref, initial, current, last)
+       |INSERT INTO $tableName (check_ref, initial, current, last)
        |VALUES (?, ?, ?, ?)
      """.stripMargin)
 
-  def initializeCommittedIndex(probeRef: ProbeRef, initial: DateTime): Future[Unit] = {
-    val _probeRef = probeRef.toString
+  def initializeCommittedIndex(checkRef: CheckRef, initial: DateTime): Future[Unit] = {
+    val _checkRef = checkRef.toString
     val _initial = initial.toDate
     val current = initial.toDate
     val statement = new BoundStatement(preparedInitializeCommittedIndex)
-    statement.bind(_probeRef, _initial, current, null)
+    statement.bind(_checkRef, _initial, current, null)
     executeAsync(statement).map { _ => Unit }
   }
 
   private val preparedUpdateCommittedIndex = session.prepare(
     s"""
-       |INSERT INTO $tableName (probe_ref, current, last)
+       |INSERT INTO $tableName (check_ref, current, last)
        |VALUES (?, ?, ?)
      """.stripMargin)
 
-  def updateCommittedIndex(probeRef: ProbeRef, current: DateTime, last: DateTime): Future[Unit] = {
-    val _probeRef = probeRef.toString
+  def updateCommittedIndex(checkRef: CheckRef, current: DateTime, last: DateTime): Future[Unit] = {
+    val _checkRef = checkRef.toString
     val _current = current.toDate
     val _last = last.toDate
     val statement = new BoundStatement(preparedUpdateCommittedIndex)
-    statement.bind(_probeRef, _current, _last)
+    statement.bind(_checkRef, _current, _last)
     executeAsync(statement).map { _ => Unit }
   }
 
   private val preparedDeleteCommittedIndex = session.prepare(
     s"""
-       |DELETE FROM $tableName WHERE probe_ref = ?
+       |DELETE FROM $tableName WHERE check_ref = ?
      """.stripMargin)
 
-  def deleteCommittedIndex(probeRef: ProbeRef): Future[Unit] = {
+  def deleteCommittedIndex(checkRef: CheckRef): Future[Unit] = {
     val statement = new BoundStatement(preparedDeleteCommittedIndex)
-    statement.bind(probeRef.toString)
+    statement.bind(checkRef.toString)
     executeAsync(statement).map { _ => Unit }
   }
 
@@ -89,12 +89,12 @@ class CommittedIndexDAL(settings: CassandraStatePersisterSettings,
   }
 
   def row2committedIndex(row: Row): CommittedIndex = {
-    val probeRef = ProbeRef(row.getString(0))
+    val checkRef = CheckRef(row.getString(0))
     val initial = new DateTime(row.getDate(1))
     val current = new DateTime(row.getDate(2))
     val last = Option(row.getDate(3)).map(new DateTime(_))
-    CommittedIndex(probeRef, initial, current, last)
+    CommittedIndex(checkRef, initial, current, last)
   }
 }
 
-case class CommittedIndex(probeRef: ProbeRef, initial: DateTime, current: DateTime, last: Option[DateTime])
+case class CommittedIndex(checkRef: CheckRef, initial: DateTime, current: DateTime, last: Option[DateTime])

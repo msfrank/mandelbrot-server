@@ -19,48 +19,48 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
   // state
   val session = Cassandra(context.system).getSession
   val committedIndexDAL = new CommittedIndexDAL(settings, session, context.dispatcher)
-  val probeStatusDAL = new ProbeStatusDAL(settings, session, context.dispatcher)
+  val checkStatusDAL = new CheckStatusDAL(settings, session, context.dispatcher)
 
   def receive = {
 
-    case op: InitializeProbeStatus =>
-      committedIndexDAL.getCommittedIndex(op.probeRef).flatMap {
+    case op: InitializeCheckStatus =>
+      committedIndexDAL.getCommittedIndex(op.checkRef).flatMap {
         case committedIndex =>
           val epoch = EpochUtils.timestamp2epoch(committedIndex.current)
-          probeStatusDAL.getProbeStatus(op.probeRef, epoch, committedIndex.current).map {
-            case status => InitializeProbeStatusResult(op, Some(status))
+          checkStatusDAL.getCheckStatus(op.checkRef, epoch, committedIndex.current).map {
+            case status => InitializeCheckStatusResult(op, Some(status))
           }
       }.recover {
         case ex: ApiException if ex.failure == ResourceNotFound =>
-          InitializeProbeStatusResult(op, None)
+          InitializeCheckStatusResult(op, None)
         case ex: Throwable =>
-          log.error(ex, "failed to initialize probe status")
+          log.error(ex, "failed to initialize check status")
           StateServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
-    case op: UpdateProbeStatus =>
+    case op: UpdateCheckStatus =>
       val commit = op.lastTimestamp match {
         case Some(last) =>
-          committedIndexDAL.updateCommittedIndex(op.probeRef, op.status.timestamp, last)
+          committedIndexDAL.updateCommittedIndex(op.checkRef, op.status.timestamp, last)
         case None =>
-          committedIndexDAL.initializeCommittedIndex(op.probeRef, op.status.timestamp)
+          committedIndexDAL.initializeCommittedIndex(op.checkRef, op.status.timestamp)
       }
       val epoch = EpochUtils.timestamp2epoch(op.status.timestamp)
-      commit.flatMap[UpdateProbeStatusResult] { _ =>
-        probeStatusDAL.updateProbeStatus(op.probeRef, epoch, op.status, op.notifications).map {
-          _ => UpdateProbeStatusResult(op)
+      commit.flatMap[UpdateCheckStatusResult] { _ =>
+        checkStatusDAL.updateCheckStatus(op.checkRef, epoch, op.status, op.notifications).map {
+          _ => UpdateCheckStatusResult(op)
         }
       }.recover {
         case ex: Throwable =>
-          log.error(ex, "failed to update probe status")
+          log.error(ex, "failed to update check status")
           StateServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
-    /* retrieve condition history for the specified ProbeRef */
+    /* retrieve condition history for the specified CheckRef */
     case op: GetConditionHistory =>
-      getEpoch(op.probeRef, op.from, op.to, op.last).flatMap {
+      getEpoch(op.checkRef, op.from, op.to, op.last).flatMap {
         case (epoch, committed) =>
-          probeStatusDAL.getProbeConditionHistory(op.probeRef, epoch, op.from, op.to, op.limit).map {
+          checkStatusDAL.getCheckConditionHistory(op.checkRef, epoch, op.from, op.to, op.limit).map {
             case history => (epoch, committed, history)
           }
       }.map {
@@ -68,13 +68,13 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
           history.lastOption.map(_.timestamp) match {
             case Some(timestamp) =>
               if (history.length < op.limit && epoch == EpochUtils.timestamp2epoch(committed.current))
-                GetConditionHistoryResult(op, ProbeConditionPage(history, Some(timestamp), exhausted = true))
+                GetConditionHistoryResult(op, CheckConditionPage(history, Some(timestamp), exhausted = true))
               else
-                GetConditionHistoryResult(op, ProbeConditionPage(history, Some(timestamp), exhausted = false))
+                GetConditionHistoryResult(op, CheckConditionPage(history, Some(timestamp), exhausted = false))
             case None =>
               val last = Some(EpochUtils.epoch2timestamp(epoch))
               val exhausted = if (epoch == EpochUtils.timestamp2epoch(committed.current)) true else false
-              GetConditionHistoryResult(op, ProbeConditionPage(history, last, exhausted))
+              GetConditionHistoryResult(op, CheckConditionPage(history, last, exhausted))
           }
       }.recover {
         case ex: Throwable =>
@@ -82,11 +82,11 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
           StateServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
-    /* retrieve notification history for the specified ProbeRef */
+    /* retrieve notification history for the specified CheckRef */
     case op: GetNotificationHistory =>
-      getEpoch(op.probeRef, op.from, op.to, op.last).flatMap {
+      getEpoch(op.checkRef, op.from, op.to, op.last).flatMap {
         case (epoch, committed) =>
-          probeStatusDAL.getProbeNotificationsHistory(op.probeRef, epoch, op.from, op.to, op.limit).map {
+          checkStatusDAL.getCheckNotificationsHistory(op.checkRef, epoch, op.from, op.to, op.limit).map {
             case history => (epoch, committed, history)
           }
       }.map {
@@ -94,13 +94,13 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
           history.lastOption.map(_.timestamp) match {
             case Some(timestamp) =>
               if (history.length < op.limit && epoch == EpochUtils.timestamp2epoch(committed.current))
-                GetNotificationHistoryResult(op, ProbeNotificationsPage(history, Some(timestamp), exhausted = true))
+                GetNotificationHistoryResult(op, CheckNotificationsPage(history, Some(timestamp), exhausted = true))
               else
-                GetNotificationHistoryResult(op, ProbeNotificationsPage(history, Some(timestamp), exhausted = false))
+                GetNotificationHistoryResult(op, CheckNotificationsPage(history, Some(timestamp), exhausted = false))
             case None =>
               val last = Some(EpochUtils.epoch2timestamp(epoch))
               val exhausted = if (epoch == EpochUtils.timestamp2epoch(committed.current)) true else false
-              GetNotificationHistoryResult(op, ProbeNotificationsPage(history, last, exhausted))
+              GetNotificationHistoryResult(op, CheckNotificationsPage(history, last, exhausted))
           }
       }.recover {
         case ex: Throwable =>
@@ -108,11 +108,11 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
           StateServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
-    /* retrieve metrics history for the specified ProbeRef */
+    /* retrieve metrics history for the specified CheckRef */
     case op: GetMetricHistory =>
-      getEpoch(op.probeRef, op.from, op.to, op.last).flatMap {
+      getEpoch(op.checkRef, op.from, op.to, op.last).flatMap {
         case (epoch, committed) =>
-          probeStatusDAL.getProbeMetricsHistory(op.probeRef, epoch, op.from, op.to, op.limit).map {
+          checkStatusDAL.getCheckMetricsHistory(op.checkRef, epoch, op.from, op.to, op.limit).map {
             case history => (epoch, committed, history)
           }
       }.map {
@@ -120,13 +120,13 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
           history.lastOption.map(_.timestamp) match {
             case Some(timestamp) =>
               if (history.length < op.limit && epoch == EpochUtils.timestamp2epoch(committed.current))
-                GetMetricHistoryResult(op, ProbeMetricsPage(history, Some(timestamp), exhausted = true))
+                GetMetricHistoryResult(op, CheckMetricsPage(history, Some(timestamp), exhausted = true))
               else
-                GetMetricHistoryResult(op, ProbeMetricsPage(history, Some(timestamp), exhausted = false))
+                GetMetricHistoryResult(op, CheckMetricsPage(history, Some(timestamp), exhausted = false))
             case None =>
               val last = Some(EpochUtils.epoch2timestamp(epoch))
               val exhausted = if (epoch == EpochUtils.timestamp2epoch(committed.current)) true else false
-              GetMetricHistoryResult(op, ProbeMetricsPage(history, last, exhausted))
+              GetMetricHistoryResult(op, CheckMetricsPage(history, last, exhausted))
           }
       }.recover {
         case ex: Throwable =>
@@ -138,16 +138,16 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
   /**
    * determine which epoch to read from, given the specified constraints.
    */
-  def getEpoch(probeRef: ProbeRef,
+  def getEpoch(checkRef: CheckRef,
                from: Option[DateTime],
                to: Option[DateTime],
                last: Option[DateTime]): Future[(Long,CommittedIndex)] = {
-    committedIndexDAL.getCommittedIndex(probeRef).flatMap[(Long,CommittedIndex)] { committed =>
+    committedIndexDAL.getCommittedIndex(checkRef).flatMap[(Long,CommittedIndex)] { committed =>
       last match {
         // if last was specified, then return the epoch derived from the last timestamp
         case Some(timestamp) =>
           val epoch = EpochUtils.timestamp2epoch(timestamp)
-          probeStatusDAL.checkIfEpochExhausted(probeRef, epoch, timestamp).map {
+          checkStatusDAL.checkIfEpochExhausted(checkRef, epoch, timestamp).map {
             case true => (epoch, committed)
             case false => (EpochUtils.nextEpoch(epoch), committed)
           }

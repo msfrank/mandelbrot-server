@@ -49,44 +49,44 @@ class CommittedIndexDALSpec(_system: ActorSystem) extends TestKit(_system) with 
     }
 
     "initialize committed index" in withSessionAndDAL { (session, dal) =>
-      val probeRef = ProbeRef("test:1")
+      val checkRef = CheckRef("test:1")
       val timestamp = DateTime.now()
-      Await.result(dal.initializeCommittedIndex(probeRef, timestamp), 5.seconds)
-      val getCommittedIndexResult = Await.result(dal.getCommittedIndex(probeRef), 5.seconds)
-      getCommittedIndexResult.probeRef shouldEqual probeRef
+      Await.result(dal.initializeCommittedIndex(checkRef, timestamp), 5.seconds)
+      val getCommittedIndexResult = Await.result(dal.getCommittedIndex(checkRef), 5.seconds)
+      getCommittedIndexResult.checkRef shouldEqual checkRef
       getCommittedIndexResult.initial shouldEqual timestamp
       getCommittedIndexResult.current shouldEqual timestamp
       getCommittedIndexResult.last shouldEqual None
     }
 
     "update committed index" in withSessionAndDAL { (session, dal) =>
-      val probeRef = ProbeRef("test:2")
+      val checkRef = CheckRef("test:2")
       val initial = DateTime.now()
-      Await.result(dal.initializeCommittedIndex(probeRef, initial), 5.seconds)
+      Await.result(dal.initializeCommittedIndex(checkRef, initial), 5.seconds)
       val timestamp = DateTime.now()
-      Await.result(dal.updateCommittedIndex(probeRef, timestamp, initial), 5.seconds)
-      val getCommittedIndexResult = Await.result(dal.getCommittedIndex(probeRef), 5.seconds)
-      getCommittedIndexResult.probeRef shouldEqual probeRef
+      Await.result(dal.updateCommittedIndex(checkRef, timestamp, initial), 5.seconds)
+      val getCommittedIndexResult = Await.result(dal.getCommittedIndex(checkRef), 5.seconds)
+      getCommittedIndexResult.checkRef shouldEqual checkRef
       getCommittedIndexResult.initial shouldEqual initial
       getCommittedIndexResult.current shouldEqual timestamp
       getCommittedIndexResult.last shouldEqual Some(initial)
     }
 
-    "get committed index when probe doesn't exist" in withSessionAndDAL { (session, dal) =>
-      val probeRef = ProbeRef("test:3")
+    "get committed index when check doesn't exist" in withSessionAndDAL { (session, dal) =>
+      val checkRef = CheckRef("test:3")
       val ex = the[ApiException] thrownBy {
-        Await.result(dal.getCommittedIndex(probeRef), 5.seconds)
+        Await.result(dal.getCommittedIndex(checkRef), 5.seconds)
       }
       ex.failure shouldEqual ResourceNotFound
     }
 
     "delete committed index" in withSessionAndDAL { (session, dal) =>
-      val probeRef = ProbeRef("test:5")
+      val checkRef = CheckRef("test:5")
       val timestamp = DateTime.now()
-      Await.result(dal.initializeCommittedIndex(probeRef, timestamp), 5.seconds)
-      val deleteProbeStateResult = Await.result(dal.deleteCommittedIndex(probeRef), 5.seconds)
+      Await.result(dal.initializeCommittedIndex(checkRef, timestamp), 5.seconds)
+      val deleteCheckStateResult = Await.result(dal.deleteCommittedIndex(checkRef), 5.seconds)
       val ex = the[ApiException] thrownBy {
-        Await.result(dal.getCommittedIndex(probeRef), 5.seconds)
+        Await.result(dal.getCommittedIndex(checkRef), 5.seconds)
       }
       ex.failure shouldEqual ResourceNotFound
    }

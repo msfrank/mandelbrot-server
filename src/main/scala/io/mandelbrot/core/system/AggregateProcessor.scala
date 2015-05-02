@@ -36,73 +36,73 @@ case class AggregateCheckSettings(evaluation: AggregateEvaluation)
 class AggregateProcessor(settings: AggregateCheckSettings) extends BehaviorProcessor {
 
   val evaluation = settings.evaluation
-  var childrenStatus: Map[ProbeRef,Option[ProbeStatus]] = Map.empty
+  var childrenStatus: Map[CheckRef,Option[CheckStatus]] = Map.empty
 
   def initialize(): InitializeEffect = InitializeEffect(None)
 
-  def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigureEffect = {
+  def configure(status: CheckStatus, children: Set[CheckRef]): ConfigureEffect = {
     childrenStatus = children.map(child => child -> None).toMap
-    val initial = if (status.lifecycle == ProbeInitializing) {
+    val initial = if (status.lifecycle == CheckInitializing) {
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      status.copy(lifecycle = ProbeSynthetic, health = ProbeUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
+      status.copy(lifecycle = CheckSynthetic, health = CheckUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
     } else status
     ConfigureEffect(initial, Vector.empty, childrenStatus.keySet, Set.empty)
   }
 
-  /* ignore probe evaluations from client */
-  def processEvaluation(probe: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(ApiException(BadRequest))
+  /* ignore check evaluations from client */
+  def processEvaluation(check: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(ApiException(BadRequest))
 
-  /* process the status of a child probe */
-  def processChild(probe: AccessorOps, childRef: ProbeRef, childStatus: ProbeStatus): Option[EventEffect] = {
+  /* process the status of a child check */
+  def processChild(check: AccessorOps, childRef: CheckRef, childStatus: CheckStatus): Option[EventEffect] = {
     childrenStatus = childrenStatus + (childRef -> Some(childStatus))
 
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val health = evaluation.evaluate(childrenStatus)
-    val correlationId = if (health == ProbeHealthy) None else {
-      if (probe.correlationId.isDefined) probe.correlationId else Some(UUID.randomUUID())
+    val correlationId = if (health == CheckHealthy) None else {
+      if (check.correlationId.isDefined) check.correlationId else Some(UUID.randomUUID())
     }
     val lastUpdate = Some(timestamp)
-    val lastChange = if (health == probe.health) probe.lastChange else {
+    val lastChange = if (health == check.health) check.lastChange else {
       Some(timestamp)
     }
 
     var acknowledgementId: Option[UUID] = None
 
     // we are healthy
-    if (health == ProbeHealthy) {
+    if (health == CheckHealthy) {
       acknowledgementId = None
     }
     // we are non-healthy
     else {
-      acknowledgementId = probe.acknowledgementId
+      acknowledgementId = check.acknowledgementId
     }
 
-    val status = ProbeStatus(timestamp, probe.lifecycle, None, health, Map.empty, lastUpdate, lastChange, correlationId, acknowledgementId, probe.squelch)
-    var notifications = Vector.empty[ProbeNotification]
+    val status = CheckStatus(timestamp, check.lifecycle, None, health, Map.empty, lastUpdate, lastChange, correlationId, acknowledgementId, check.squelch)
+    var notifications = Vector.empty[CheckNotification]
 
     // append health notification
-    if (probe.health != health) {
-      notifications = notifications :+ NotifyHealthChanges(probe.probeRef, timestamp, correlationId, probe.health, health)
+    if (check.health != health) {
+      notifications = notifications :+ NotifyHealthChanges(check.checkRef, timestamp, correlationId, check.health, health)
     }
     // append recovery notification
-    if (health == ProbeHealthy && probe.acknowledgementId.isDefined) {
-      notifications = notifications :+ NotifyRecovers(probe.probeRef, timestamp, probe.correlationId.get, probe.acknowledgementId.get)
+    if (health == CheckHealthy && check.acknowledgementId.isDefined) {
+      notifications = notifications :+ NotifyRecovers(check.checkRef, timestamp, check.correlationId.get, check.acknowledgementId.get)
     }
     Some(EventEffect(status, notifications))
   }
 
   /* ignore spurious CheckExpiryTimeout$ messages */
-  def processExpiryTimeout(probe: AccessorOps): Option[EventEffect] = None
+  def processExpiryTimeout(check: AccessorOps): Option[EventEffect] = None
 
   /*
    * if the alert timer expires, then send a health-alerts notification and restart the alert timer.
    */
-  def processAlertTimeout(probe: AccessorOps): Option[EventEffect] = {
+  def processAlertTimeout(check: AccessorOps): Option[EventEffect] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
-    val status = probe.getProbeStatus(timestamp)
+    val status = check.getCheckStatus(timestamp)
     // send alert notification
-    val notifications = probe.correlationId.map { correlation =>
-      NotifyHealthAlerts(probe.probeRef, timestamp, probe.health, correlation, probe.acknowledgementId)
+    val notifications = check.correlationId.map { correlation =>
+      NotifyHealthAlerts(check.checkRef, timestamp, check.health, correlation, check.acknowledgementId)
     }.toVector
     Some(EventEffect(status, notifications))
   }

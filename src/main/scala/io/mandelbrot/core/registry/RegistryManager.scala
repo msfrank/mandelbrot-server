@@ -27,10 +27,10 @@ import io.mandelbrot.core._
 import io.mandelbrot.core.model._
 
 /**
- * the registry manager holds a map of all probe systems in memory, and is the parent actor
- * of all probe systems (which in turn are the parents of each probe in a system).  The registry
+ * the registry manager holds a map of all check systems in memory, and is the parent actor
+ * of all check systems (which in turn are the parents of each check in a system).  The registry
  * manager is responsible for accepting registration, update, and unregistration requests and
- * applying them to the appropriate probe system.
+ * applying them to the appropriate check system.
  */
 class RegistryManager(settings: RegistrySettings) extends Actor with ActorLogging {
 

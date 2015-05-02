@@ -4,8 +4,8 @@ import java.util.regex.Pattern
 
 sealed trait SystemModel
 
-/* key-value pairs describing a probe */
-case class ProbeMetadata(probeRef: ProbeRef, metadata: Map[String,String]) extends SystemModel
+/* key-value pairs describing a check */
+case class CheckMetadata(checkRef: CheckRef, metadata: Map[String,String]) extends SystemModel
 
 sealed trait CheckMatcher {
   def matches(checkId: CheckId): Boolean

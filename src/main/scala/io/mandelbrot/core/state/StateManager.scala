@@ -36,13 +36,13 @@ class StateManager(settings: StateSettings) extends Actor with ActorLogging {
 
   def receive = {
 
-    case op: InitializeProbeStatus =>
+    case op: InitializeCheckStatus =>
       persister forward op
       
-    case op: UpdateProbeStatus =>
+    case op: UpdateCheckStatus =>
       persister forward op
       
-    case op: DeleteProbeStatus =>
+    case op: DeleteCheckStatus =>
       persister forward op
 
     /* retrieve condition history */
@@ -72,23 +72,23 @@ sealed trait StateServiceQuery extends ServiceQuery with StateServiceOperation
 sealed trait StateServiceResult
 case class StateServiceOperationFailed(op: StateServiceOperation, failure: Throwable) extends ServiceOperationFailed
 
-case class InitializeProbeStatus(probeRef: ProbeRef, timestamp: DateTime) extends StateServiceCommand
-case class InitializeProbeStatusResult(op: InitializeProbeStatus, status: Option[ProbeStatus]) extends StateServiceResult
+case class InitializeCheckStatus(checkRef: CheckRef, timestamp: DateTime) extends StateServiceCommand
+case class InitializeCheckStatusResult(op: InitializeCheckStatus, status: Option[CheckStatus]) extends StateServiceResult
 
-case class UpdateProbeStatus(probeRef: ProbeRef, status: ProbeStatus, notifications: Vector[ProbeNotification], lastTimestamp: Option[DateTime]) extends StateServiceCommand
-case class UpdateProbeStatusResult(op: UpdateProbeStatus) extends StateServiceResult
+case class UpdateCheckStatus(checkRef: CheckRef, status: CheckStatus, notifications: Vector[CheckNotification], lastTimestamp: Option[DateTime]) extends StateServiceCommand
+case class UpdateCheckStatusResult(op: UpdateCheckStatus) extends StateServiceResult
 
-case class DeleteProbeStatus(probeRef: ProbeRef, lastStatus: Option[ProbeStatus]) extends StateServiceCommand
-case class DeleteProbeStatusResult(op: DeleteProbeStatus) extends StateServiceResult
+case class DeleteCheckStatus(checkRef: CheckRef, lastStatus: Option[CheckStatus]) extends StateServiceCommand
+case class DeleteCheckStatusResult(op: DeleteCheckStatus) extends StateServiceResult
 
-case class TrimProbeHistory(probeRef: ProbeRef, until: DateTime) extends StateServiceCommand
-case class TrimProbeHistoryResult(op: TrimProbeHistory) extends StateServiceResult
+case class TrimCheckHistory(checkRef: CheckRef, until: DateTime) extends StateServiceCommand
+case class TrimCheckHistoryResult(op: TrimCheckHistory) extends StateServiceResult
 
-case class GetConditionHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[DateTime]) extends StateServiceQuery
-case class GetConditionHistoryResult(op: GetConditionHistory, page: ProbeConditionPage) extends StateServiceResult
+case class GetConditionHistory(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[DateTime]) extends StateServiceQuery
+case class GetConditionHistoryResult(op: GetConditionHistory, page: CheckConditionPage) extends StateServiceResult
 
-case class GetNotificationHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[DateTime]) extends StateServiceQuery
-case class GetNotificationHistoryResult(op: GetNotificationHistory, page: ProbeNotificationsPage) extends StateServiceResult
+case class GetNotificationHistory(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[DateTime]) extends StateServiceQuery
+case class GetNotificationHistoryResult(op: GetNotificationHistory, page: CheckNotificationsPage) extends StateServiceResult
 
-case class GetMetricHistory(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[DateTime]) extends StateServiceQuery
-case class GetMetricHistoryResult(op: GetMetricHistory, page: ProbeMetricsPage) extends StateServiceResult
+case class GetMetricHistory(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[DateTime]) extends StateServiceQuery
+case class GetMetricHistoryResult(op: GetMetricHistory, page: CheckMetricsPage) extends StateServiceResult

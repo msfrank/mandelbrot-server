@@ -34,60 +34,60 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
        |);
      """.stripMargin)
 
-  private val preparedCreateProbeSystem = session.prepare(
+  private val preparedCreateAgent = session.prepare(
     s"""
        |INSERT INTO $tableName (p, agent_id, registration, lsn, last_update, joined_on)
        |VALUES (0, ?, ?, 1, ?, ?)
      """.stripMargin)
 
-  def createProbeSystem(op: CreateRegistration, timestamp: DateTime): Future[CreateRegistrationResult] = {
+  def createAgent(op: CreateRegistration, timestamp: DateTime): Future[CreateRegistrationResult] = {
     val agentId = op.agentId.toString
     val registration = op.registration.toJson.toString()
     val _timestamp = timestamp.toDate
-    executeAsync(new BoundStatement(preparedCreateProbeSystem).bind(agentId, registration, _timestamp, _timestamp)).map {
+    executeAsync(new BoundStatement(preparedCreateAgent).bind(agentId, registration, _timestamp, _timestamp)).map {
       resultSet => CreateRegistrationResult(op, AgentMetadata(op.agentId, timestamp, timestamp, 1))
     }
   }
 
-  private val preparedUpdateProbeSystem = session.prepare(
+  private val preparedUpdateAgent = session.prepare(
     s"""
        |UPDATE $tableName
        |SET registration = ?, lsn = ?, last_update = ?
        |WHERE p = 0 AND agent_id = ?
      """.stripMargin)
 
-  def updateProbeSystem(op: UpdateRegistration, timestamp: DateTime): Future[UpdateRegistrationResult] = {
+  def updateAgent(op: UpdateRegistration, timestamp: DateTime): Future[UpdateRegistrationResult] = {
     val agentId = op.agentId.toString
     val registration = op.registration.toJson.toString()
     val _timestamp = timestamp.toDate
     val lsn: java.lang.Long = op.lsn + 1
-    executeAsync(new BoundStatement(preparedUpdateProbeSystem).bind(registration, lsn, _timestamp, agentId)).map {
+    executeAsync(new BoundStatement(preparedUpdateAgent).bind(registration, lsn, _timestamp, agentId)).map {
       resultSet => UpdateRegistrationResult(op, AgentMetadata(op.agentId, timestamp, timestamp, lsn))
     }
   }
 
-  private val preparedDeleteProbeSystem = session.prepare(
+  private val preparedDeleteAgent = session.prepare(
     s"""
        |DELETE FROM $tableName
        |WHERE p = 0 AND agent_id = ?
      """.stripMargin)
 
-  def deleteProbeSystem(op: DeleteRegistration): Future[DeleteRegistrationResult] = {
+  def deleteAgent(op: DeleteRegistration): Future[DeleteRegistrationResult] = {
     val agentId = op.agentId.toString
-    executeAsync(new BoundStatement(preparedDeleteProbeSystem).bind(agentId)).map {
+    executeAsync(new BoundStatement(preparedDeleteAgent).bind(agentId)).map {
       resultSet => DeleteRegistrationResult(op, op.lsn)
     }
   }
 
-  private val preparedGetProbeSystem = session.prepare(
+  private val preparedGetAgent = session.prepare(
     s"""
        |SELECT registration, lsn FROM $tableName
        |WHERE p = 0 AND uri = ?
      """.stripMargin)
 
-  def getProbeSystem(op: GetRegistration): Future[GetRegistrationResult] = {
+  def getAgent(op: GetRegistration): Future[GetRegistrationResult] = {
     val agentId = op.agentId.toString
-    executeAsync(new BoundStatement(preparedGetProbeSystem).bind(agentId)).map { resultSet =>
+    executeAsync(new BoundStatement(preparedGetAgent).bind(agentId)).map { resultSet =>
       val row = resultSet.one()
       if (row != null) {
         val registration = JsonParser(row.getString(0)).convertTo[AgentRegistration]
@@ -97,7 +97,7 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
     }
   }
 
-  private val preparedListProbeSystems = session.prepare(
+  private val preparedListAgents = session.prepare(
     s"""
        |SELECT agent_id, lsn, last_update, joined_on FROM $tableName
        |WHERE p = 0 AND agent_id > ?
@@ -105,10 +105,10 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
        |LIMIT ?
      """.stripMargin)
 
-  def listProbeSystems(op: ListRegistrations): Future[ListRegistrationsResult] = {
+  def listAgents(op: ListRegistrations): Future[ListRegistrationsResult] = {
     val last = op.last.map(_.toString).getOrElse("")
     val limit: java.lang.Integer = op.limit
-    executeAsync(new BoundStatement(preparedListProbeSystems).bind(last, limit)).map { resultSet =>
+    executeAsync(new BoundStatement(preparedListAgents).bind(last, limit)).map { resultSet =>
       val agents = resultSet.all().map { row =>
         val agentId = AgentId(row.getString(0))
         val lsn = row.getLong(1)

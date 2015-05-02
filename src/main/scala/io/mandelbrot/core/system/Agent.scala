@@ -28,7 +28,7 @@ import io.mandelbrot.core.registry._
 import io.mandelbrot.core.metrics.MetricsBus
 
 /**
- * the Agent manages a collection of Probes underneath a URI.  the Agent
+ * the Agent manages a collection of Checks underneath a URI.  the Agent
  * is responsible for adding and removing checks when the registration changes, as well
  * as updating checks when policy changes.  lastly, the Agent acts as an endpoint
  * for commands and queries operating on sets of checks in the system.
@@ -67,7 +67,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
   when(SystemRegistering) {
 
     case Event(result: CreateRegistrationResult, state: SystemRegistering) =>
-      state.sender ! RegisterProbeSystemResult(state.op, result.metadata)
+      state.sender ! RegisterCheckSystemResult(state.op, result.metadata)
       goto(SystemRunning) using SystemRunning(state.op.agentId, result.op.registration, result.metadata.lsn)
 
     case Event(failure: RegistryServiceOperationFailed, state: SystemRegistering) =>
@@ -103,9 +103,9 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
   onTransition {
     case _ -> SystemRunning => nextStateData match {
       case state: SystemRunning =>
-        log.debug("configuring probe system {}", state.agentId)
+        log.debug("configuring check system {}", state.agentId)
         unstashAll()
-        applyProbeRegistration(state.agentId, state.registration, state.lsn)
+        applyCheckRegistration(state.agentId, state.registration, state.lsn)
       case _ =>
     }
   }
@@ -114,16 +114,16 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
 
     /* get the Agent spec */
     case Event(query: DescribeAgent, state: SystemRunning) =>
-      stay() replying DescribeProbeSystemResult(query, state.registration, state.lsn)
+      stay() replying DescribeCheckSystemResult(query, state.registration, state.lsn)
 
     case Event(query: MatchAgent, state: SystemRunning) =>
       if (query.matchers.nonEmpty) {
         val matchingRefs = checks.keys.flatMap { case checkId =>
-          val probeRef = ProbeRef(state.agentId, checkId)
-          query.matchers.collectFirst { case matcher if matcher.matches(probeRef.checkId) => probeRef }
+          val checkRef = CheckRef(state.agentId, checkId)
+          query.matchers.collectFirst { case matcher if matcher.matches(checkRef.checkId) => checkRef }
         }.toSet
-        stay() replying MatchProbeSystemResult(query, matchingRefs)
-      } else stay() replying MatchProbeSystemResult(query, checks.keySet.map(checkId => ProbeRef(state.agentId, checkId)))
+        stay() replying MatchCheckSystemResult(query, matchingRefs)
+      } else stay() replying MatchCheckSystemResult(query, checks.keySet.map(checkId => CheckRef(state.agentId, checkId)))
 
     case Event(op: RegisterAgent, state: SystemRunning) =>
       stay() replying AgentOperationFailed(op, ApiException(Conflict))
@@ -136,15 +136,15 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
     case Event(op: RetireAgent, state: SystemRunning) =>
       goto(SystemRetiring) using SystemRetiring(op, sender(), state)
 
-    /* ignore probe status from top level checks */
-    case Event(status: ProbeStatus, state: SystemRunning) =>
+    /* ignore check status from top level checks */
+    case Event(status: CheckStatus, state: SystemRunning) =>
       stay()
 
-    /* forward probe operations to the specified probe */
+    /* forward check operations to the specified check */
     case Event(op: CheckOperation, state: SystemRunning) =>
-      checks.get(op.probeRef.checkId) match {
-        case Some(probeActor: CheckActor) =>
-          probeActor.actor.forward(op)
+      checks.get(op.checkRef.checkId) match {
+        case Some(checkActor: CheckActor) =>
+          checkActor.actor.forward(op)
         case None =>
           sender() ! CheckOperationFailed(op, ApiException(ResourceNotFound))
       }
@@ -157,14 +157,14 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
 
     /* clean up retired checks, reanimate zombie checks */
     case Event(Terminated(actorRef), state: SystemRunning) =>
-      val (probeRef,lsn) = retiredChecks(actorRef)
-      checks = checks - probeRef
+      val (checkRef,lsn) = retiredChecks(actorRef)
+      checks = checks - checkRef
       retiredChecks.remove(actorRef)
-      if (zombieChecks.contains(probeRef)) {
-        zombieChecks.remove(probeRef)
-        applyProbeRegistration(state.agentId, state.registration, state.lsn)
+      if (zombieChecks.contains(checkRef)) {
+        zombieChecks.remove(checkRef)
+        applyCheckRegistration(state.agentId, state.registration, state.lsn)
       } else
-        log.debug("probe {} has been terminated", probeRef)
+        log.debug("check {} has been terminated", checkRef)
       stay()
   }
 
@@ -178,7 +178,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
 
   when(SystemUpdating) {
     case Event(result: UpdateRegistrationResult, state: SystemUpdating) =>
-      state.sender ! UpdateProbeSystemResult(state.op, result.metadata)
+      state.sender ! UpdateCheckSystemResult(state.op, result.metadata)
       goto(SystemRunning) using SystemRunning(state.op.agentId, state.op.registration, result.metadata.lsn)
     case Event(failure: RegistryServiceOperationFailed, state: SystemUpdating) =>
       state.sender ! failure
@@ -198,7 +198,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
 
   when(SystemRetiring) {
     case Event(result: DeleteRegistrationResult, state: SystemRetiring) =>
-      state.sender ! RetireProbeSystemResult(state.op, result.lsn)
+      state.sender ! RetireCheckSystemResult(state.op, result.lsn)
       goto(SystemRetired) using SystemRetired(state.prev.agentId, state.prev.registration, result.lsn)
     case Event(failure: RegistryServiceOperationFailed, state: SystemRetiring) =>
       state.sender ! failure
@@ -213,9 +213,9 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       case state: SystemRetired =>
         unstashAll()
         checks.foreach {
-          case (probeRef,probeActor) if !retiredChecks.contains(probeActor.actor) =>
-            probeActor.actor ! RetireCheck(state.lsn)
-            retiredChecks.put(probeActor.actor, (probeRef,state.lsn))
+          case (checkRef,checkActor) if !retiredChecks.contains(checkActor.actor) =>
+            checkActor.actor ! RetireCheck(state.lsn)
+            retiredChecks.put(checkActor.actor, (checkRef,state.lsn))
           case _ => // do nothing
         }
       case _ =>
@@ -225,11 +225,11 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
   when(SystemRetired) {
     /* clean up retired checks, reanimate zombie checks */
     case Event(Terminated(actorRef), state: SystemRetired) =>
-      val (probeRef,lsn) = retiredChecks(actorRef)
-      checks = checks - probeRef
+      val (checkRef,lsn) = retiredChecks(actorRef)
+      checks = checks - checkRef
       retiredChecks.remove(actorRef)
-      if (zombieChecks.contains(probeRef))
-        zombieChecks.remove(probeRef)
+      if (zombieChecks.contains(checkRef))
+        zombieChecks.remove(checkRef)
       if (checks.nonEmpty) stay() else stop()
     /* system doesn't exist anymore, so return resource not found */
     case Event(op: AgentOperation, _) =>
@@ -268,9 +268,9 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
   }
 
   /**
-   * apply the spec to the probe system, adding and removing checks as necessary
+   * apply the spec to the check system, adding and removing checks as necessary
    */
-  def applyProbeRegistration(agentId: AgentId, registration: AgentRegistration, lsn: Long): Unit = {
+  def applyCheckRegistration(agentId: AgentId, registration: AgentRegistration, lsn: Long): Unit = {
 
     val registrationSet = makeRegistrationSet(registration)
     val checkSet = checks.keySet
@@ -280,7 +280,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
     (registrationSet -- checkSet).toVector.sorted.foreach { case resource: Resource =>
       registration.checks.get(resource) match {
         case Some(checkSpec) =>
-          val checkType = checkSpec.probeType
+          val checkType = checkSpec.checkType
           val properties = checkSpec.properties
           checksAdded.put(resource, CheckBehavior.extensions(checkType).configure(properties))
         case None =>
@@ -292,16 +292,16 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
     val checksUpdated = new mutable.HashMap[CheckId,CheckBehaviorExtension#DependentProcessorFactory]
     checkSet.intersect(registrationSet).foreach { case resource: Resource =>
       val checkSpec = registration.checks(resource)
-      val checkType = checkSpec.probeType
+      val checkType = checkSpec.checkType
       val properties = checkSpec.properties
       val factory = CheckBehavior.extensions(checkType).configure(properties)
       checksUpdated.put(resource, factory)
     }
 
     // remove stale checks
-    val probesRemoved = checkSet -- registrationSet
-    probesRemoved.toVector.sorted.reverse.foreach { case resource: Resource =>
-      log.debug("probe {} retires", resource)
+    val checksRemoved = checkSet -- registrationSet
+    checksRemoved.toVector.sorted.reverse.foreach { case resource: Resource =>
+      log.debug("check {} retires", resource)
       val CheckActor(_, _, actor) = checks(resource)
       actor ! RetireCheck(lsn)
       retiredChecks.put(actor, (resource,lsn))
@@ -309,12 +309,12 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
 
     // create check actors for each added check
     checksAdded.keys.toVector.sorted.foreach { case checkId: CheckId =>
-      val probeRef = ProbeRef(agentId, checkId)
+      val checkRef = CheckRef(agentId, checkId)
       val actor = checkId.parentOption match {
         case Some(parent) =>
-          context.actorOf(Check.props(probeRef, checks(parent).actor, services, metricsBus))
+          context.actorOf(Check.props(checkRef, checks(parent).actor, services, metricsBus))
         case _ =>
-          context.actorOf(Check.props(probeRef, self, services, metricsBus))
+          context.actorOf(Check.props(checkRef, self, services, metricsBus))
       }
       log.debug("check {} joins {}", checkId, agentId)
       context.watch(actor)
@@ -339,8 +339,8 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       val directChildren = registrationSet.filter { _.parentOption match {
         case Some(parent) => parent == checkId
         case None => false
-      }}.map(childId => ProbeRef(agentId, childId))
-      actor ! ChangeCheck(checkSpec.probeType, checkSpec.policy, factory, directChildren, lsn)
+      }}.map(childId => CheckRef(agentId, childId))
+      actor ! ChangeCheck(checkSpec.checkType, checkSpec.policy, factory, directChildren, lsn)
     }
   }
 }
@@ -374,7 +374,7 @@ object Agent {
 }
 
 case class ReviveAgent(agentId: AgentId)
-case class ChangeCheck(probeType: String, policy: CheckPolicy, factory: ProcessorFactory, children: Set[ProbeRef], lsn: Long)
+case class ChangeCheck(checkType: String, policy: CheckPolicy, factory: ProcessorFactory, children: Set[CheckRef], lsn: Long)
 case class RetireCheck(lsn: Long)
 
 /**
@@ -386,16 +386,16 @@ sealed trait AgentQuery extends ServiceQuery with AgentOperation
 case class AgentOperationFailed(op: AgentOperation, failure: Throwable) extends ServiceOperationFailed
 
 case class RegisterAgent(agentId: AgentId, registration: AgentRegistration) extends AgentCommand
-case class RegisterProbeSystemResult(op: RegisterAgent, metadata: AgentMetadata)
+case class RegisterCheckSystemResult(op: RegisterAgent, metadata: AgentMetadata)
 
 case class UpdateAgent(agentId: AgentId, registration: AgentRegistration) extends AgentCommand
-case class UpdateProbeSystemResult(op: UpdateAgent, metadata: AgentMetadata)
+case class UpdateCheckSystemResult(op: UpdateAgent, metadata: AgentMetadata)
 
 case class RetireAgent(agentId: AgentId) extends AgentCommand
-case class RetireProbeSystemResult(op: RetireAgent, lsn: Long)
+case class RetireCheckSystemResult(op: RetireAgent, lsn: Long)
 
 case class DescribeAgent(agentId: AgentId) extends AgentQuery
-case class DescribeProbeSystemResult(op: DescribeAgent, registration: AgentRegistration, lsn: Long)
+case class DescribeCheckSystemResult(op: DescribeAgent, registration: AgentRegistration, lsn: Long)
 
 case class MatchAgent(agentId: AgentId, matchers: Set[CheckMatcher]) extends AgentQuery
-case class MatchProbeSystemResult(op: MatchAgent, refs: Set[ProbeRef])
+case class MatchCheckSystemResult(op: MatchAgent, refs: Set[CheckRef])

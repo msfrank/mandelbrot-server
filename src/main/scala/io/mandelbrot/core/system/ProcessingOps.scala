@@ -2,7 +2,7 @@ package io.mandelbrot.core.system
 
 import akka.actor.{Actor, ActorRef}
 import akka.event.LoggingAdapter
-import io.mandelbrot.core.state.UpdateProbeStatus
+import io.mandelbrot.core.state.UpdateCheckStatus
 import org.joda.time.DateTime
 import scala.util.{Failure, Success}
 
@@ -17,13 +17,13 @@ trait ProcessingOps extends Actor with MutationOps {
 
   val services: ActorRef
 
-  var probeType: String
+  var checkType: String
   var policy: CheckPolicy
   var processor: BehaviorProcessor
-  var children: Set[ProbeRef]
+  var children: Set[CheckRef]
   var lastCommitted: Option[DateTime]
 
-  private var inflight: Option[(Mutation,UpdateProbeStatus)] = None
+  private var inflight: Option[(Mutation,UpdateCheckStatus)] = None
   private var queued: Vector[QueuedMessage] = Vector.empty
 
   /**
@@ -35,7 +35,7 @@ trait ProcessingOps extends Actor with MutationOps {
    * if the message queue is empty then immediately start processing the message,
    * otherwise append the message to the queue.
    */
-  def enqueue(message: QueuedMessage): Option[UpdateProbeStatus] = {
+  def enqueue(message: QueuedMessage): Option[UpdateCheckStatus] = {
     queued = queued :+ message
     log.debug("enqueued:\n\n    {}\n", message)
     if (inflight.isEmpty) process() else None
@@ -46,7 +46,7 @@ trait ProcessingOps extends Actor with MutationOps {
    * then return the mutation, otherwise loop until a mutation is generated or the queue
    * is exhausted.
    */
-  def process(): Option[UpdateProbeStatus] = {
+  def process(): Option[UpdateCheckStatus] = {
     // consume queued messages until we find one to process
     while (queued.nonEmpty) {
       // mutation will contain Some(result) from message processing, or None
@@ -68,7 +68,7 @@ trait ProcessingOps extends Actor with MutationOps {
             EventMutation(effect.status, effect.notifications)
           }
 
-        // the probe is retiring
+        // the check is retiring
         case QueuedRetire(retire, timestamp) =>
           processor.retire(this, retire.lsn).map { effect =>
             Deletion(effect.status, effect.notifications, retire.lsn)
@@ -79,7 +79,7 @@ trait ProcessingOps extends Actor with MutationOps {
         case None =>
           queued = queued.tail
         case Some(mutation: Mutation) =>
-          val op = UpdateProbeStatus(probeRef, mutation.status, mutation.notifications, lastCommitted)
+          val op = UpdateCheckStatus(checkRef, mutation.status, mutation.notifications, lastCommitted)
           services ! op
           inflight = Some(mutation -> op)
           log.debug("processed:\n\n    {}\n", mutation)
@@ -91,25 +91,25 @@ trait ProcessingOps extends Actor with MutationOps {
   }
 
   /**
-   * The in-flight message has been persisted, so allow the probe to process it.
+   * The in-flight message has been persisted, so allow the check to process it.
    */
-  def commit(): Option[UpdateProbeStatus] = {
-    // apply the mutation to the probe
+  def commit(): Option[UpdateCheckStatus] = {
+    // apply the mutation to the check
     inflight.map(_._1) match {
       case None => Vector.empty
       case Some(event: EventMutation) =>
         applyStatus(event.status)
-        parent ! ChildMutates(probeRef, event.status)
+        parent ! ChildMutates(checkRef, event.status)
         notify(event.notifications)
       case Some(command: CommandMutation) =>
         applyStatus(command.status)
-        parent ! ChildMutates(probeRef, command.status)
+        parent ! ChildMutates(checkRef, command.status)
         command.caller ! command.result
         notify(command.notifications)
 
       case Some(deletion: Deletion) =>
         applyStatus(deletion.status)
-        parent ! ChildMutates(probeRef, deletion.status)
+        parent ! ChildMutates(checkRef, deletion.status)
         notify(deletion.notifications)
     }
     // done processing inflight
@@ -123,17 +123,17 @@ trait ProcessingOps extends Actor with MutationOps {
    * don't actually retry, we just drop the in-flight message and start processing the
    * next one.
    */
-  def recover(): Option[UpdateProbeStatus] = process()
+  def recover(): Option[UpdateCheckStatus] = process()
 
   /**
    * send notifications if they match the current policy
    */
-  def notify(notifications: Vector[ProbeNotification]): Unit = {
+  def notify(notifications: Vector[CheckNotification]): Unit = {
     notifications.filter {
       // always allow alerts
       case alert: Alert => true
       // if there is no explicit policy, or the kind matches the current policy, then allow
-      case notification: ProbeNotification =>
+      case notification: CheckNotification =>
         policy.notifications match {
           case None => true
           case Some(kind) if kind.contains(notification.kind) => true
@@ -146,17 +146,17 @@ trait ProcessingOps extends Actor with MutationOps {
 }
 
 sealed trait Mutation {
-  val status: ProbeStatus
-  val notifications: Vector[ProbeNotification]
+  val status: CheckStatus
+  val notifications: Vector[CheckNotification]
 }
 case class CommandMutation(caller: ActorRef,
                            result: CheckResult,
-                           status: ProbeStatus,
-                           notifications: Vector[ProbeNotification]) extends Mutation
-case class EventMutation(status: ProbeStatus,
-                         notifications: Vector[ProbeNotification]) extends Mutation
-case class Deletion(status: ProbeStatus,
-                    notifications: Vector[ProbeNotification],
+                           status: CheckStatus,
+                           notifications: Vector[CheckNotification]) extends Mutation
+case class EventMutation(status: CheckStatus,
+                         notifications: Vector[CheckNotification]) extends Mutation
+case class Deletion(status: CheckStatus,
+                    notifications: Vector[CheckNotification],
                     lsn: Long) extends Mutation
 
 sealed trait QueuedMessage

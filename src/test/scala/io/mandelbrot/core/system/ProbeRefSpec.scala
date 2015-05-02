@@ -5,43 +5,43 @@ import org.scalatest.ShouldMatchers
 
 import io.mandelbrot.core.model._
 
-class ProbeRefSpec extends WordSpec with ShouldMatchers {
+class CheckRefSpec extends WordSpec with ShouldMatchers {
 
-  "A ProbeRef" should {
+  "A CheckRef" should {
 
     "be constructed from a string" in {
-      val ref = ProbeRef("foo.local:probe.path")
+      val ref = CheckRef("foo.local:check.path")
       ref.agentId.segments shouldEqual Vector("foo", "local")
-      ref.checkId.segments shouldEqual Vector("probe", "path")
+      ref.checkId.segments shouldEqual Vector("check", "path")
     }
 
     "serialize to a string" in {
-      val ref = ProbeRef("foo.local:probe.path")
-      ref.toString shouldEqual "foo.local:probe.path"
+      val ref = CheckRef("foo.local:check.path")
+      ref.toString shouldEqual "foo.local:check.path"
     }
 
     "compare equal if agentId and checkId are equal" in {
-      val ref1 = ProbeRef("foo.local:probe.path")
-      val ref2 = ProbeRef("foo.local:probe.path")
+      val ref1 = CheckRef("foo.local:check.path")
+      val ref2 = CheckRef("foo.local:check.path")
       ref1 shouldEqual ref2
     }
 
     "compare less than if checkId is a parent" in {
-      val ref1 = ProbeRef("foo.local:probe")
-      val ref2 = ProbeRef("foo.local:probe.path")
+      val ref1 = CheckRef("foo.local:check")
+      val ref2 = CheckRef("foo.local:check.path")
       ref1 < ref2 shouldBe true
     }
 
     "compare greater than if checkId is a child" in {
-      val ref1 = ProbeRef("foo.local:probe")
-      val ref2 = ProbeRef("foo.local:probe.path")
+      val ref1 = CheckRef("foo.local:check")
+      val ref2 = CheckRef("foo.local:check.path")
       ref2 > ref1 shouldBe true
     }
 
     "obey parent-child relationships" in {
-      val parent = ProbeRef("foo.local:parent")
-      val child = ProbeRef("foo.local:parent.child")
-      val grandchild = ProbeRef("foo.local:parent.child.grandchild")
+      val parent = CheckRef("foo.local:parent")
+      val child = CheckRef("foo.local:parent.child")
+      val grandchild = CheckRef("foo.local:parent.child.grandchild")
       // true relationships
       parent.isParentOf(child) shouldEqual true
       parent.isDirectParentOf(child) shouldEqual true
@@ -58,13 +58,13 @@ class ProbeRefSpec extends WordSpec with ShouldMatchers {
   }
 
 //  "extract to a URI and a path Vector" in {
-//    val ref = ProbeRef("fqdn:foo.local/probe/path")
+//    val ref = CheckRef("fqdn:foo.local/check/path")
 //    ref match {
-//      case ProbeRef(uri, path) =>
+//      case CheckRef(uri, path) =>
 //        uri shouldEqual new URI("fqdn:foo.local")
-//        path shouldEqual Vector("probe", "path")
+//        path shouldEqual Vector("check", "path")
 //      case other =>
-//        fail("ProbeRef did not extract to a URI and a path Vector")
+//        fail("CheckRef did not extract to a URI and a path Vector")
 //    }
 //  }
 }

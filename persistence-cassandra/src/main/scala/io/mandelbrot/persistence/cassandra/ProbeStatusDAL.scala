@@ -13,17 +13,17 @@ import io.mandelbrot.core.http.json.JsonProtocol._
 /**
  *
  */
-class ProbeStatusDAL(settings: CassandraStatePersisterSettings,
+class CheckStatusDAL(settings: CassandraStatePersisterSettings,
                      val session: Session,
                      implicit val ec: ExecutionContext) extends AbstractDriver {
 
 
-  val tableName: String = "probe_status"
+  val tableName: String = "check_status"
 
   session.execute(
     s"""
        |CREATE TABLE IF NOT EXISTS $tableName (
-       |  probe_ref text,
+       |  check_ref text,
        |  epoch bigint,
        |  timestamp timestamp,
        |  last_update timestamp,
@@ -31,29 +31,29 @@ class ProbeStatusDAL(settings: CassandraStatePersisterSettings,
        |  condition text,
        |  notifications text,
        |  metrics text,
-       |  PRIMARY KEY ((probe_ref, epoch), timestamp)
+       |  PRIMARY KEY ((check_ref, epoch), timestamp)
        |)
      """.stripMargin)
 
-  private val preparedUpdateProbeStatus = session.prepare(
+  private val preparedUpdateCheckStatus = session.prepare(
     s"""
-       |INSERT INTO $tableName (probe_ref, epoch, timestamp, last_update, last_change, condition, notifications, metrics)
+       |INSERT INTO $tableName (check_ref, epoch, timestamp, last_update, last_change, condition, notifications, metrics)
        |VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      """.stripMargin)
 
-  def updateProbeStatus(probeRef: ProbeRef, epoch: Long, probeStatus: ProbeStatus, notifications: Vector[ProbeNotification]): Future[Unit] = {
-    val _probeRef = probeRef.toString
+  def updateCheckStatus(checkRef: CheckRef, epoch: Long, checkStatus: CheckStatus, notifications: Vector[CheckNotification]): Future[Unit] = {
+    val _checkRef = checkRef.toString
     val _epoch: java.lang.Long = epoch
-    val timestamp = probeStatus.timestamp.toDate
-    val lastUpdate = probeStatus.lastUpdate.map(_.toDate).orNull
-    val lastChange = probeStatus.lastChange.map(_.toDate).orNull
-    val condition = ProbeCondition(probeStatus.timestamp, probeStatus.lifecycle, probeStatus.summary,
-      probeStatus.health, probeStatus.correlation, probeStatus.acknowledged, probeStatus.squelched)
-    val _condition = probeCondition2string(condition)
-    val _notifications = if (notifications.nonEmpty) probeNotifications2string(ProbeNotifications(probeStatus.timestamp, notifications)) else null
-    val _metrics = if (probeStatus.metrics.nonEmpty) probeMetrics2string(ProbeMetrics(probeStatus.timestamp, probeStatus.metrics)) else null
-    val statement = new BoundStatement(preparedUpdateProbeStatus)
-    statement.bind(_probeRef, _epoch, timestamp, lastUpdate, lastChange, _condition, _notifications, _metrics)
+    val timestamp = checkStatus.timestamp.toDate
+    val lastUpdate = checkStatus.lastUpdate.map(_.toDate).orNull
+    val lastChange = checkStatus.lastChange.map(_.toDate).orNull
+    val condition = CheckCondition(checkStatus.timestamp, checkStatus.lifecycle, checkStatus.summary,
+      checkStatus.health, checkStatus.correlation, checkStatus.acknowledged, checkStatus.squelched)
+    val _condition = checkCondition2string(condition)
+    val _notifications = if (notifications.nonEmpty) checkNotifications2string(CheckNotifications(checkStatus.timestamp, notifications)) else null
+    val _metrics = if (checkStatus.metrics.nonEmpty) checkMetrics2string(CheckMetrics(checkStatus.timestamp, checkStatus.metrics)) else null
+    val statement = new BoundStatement(preparedUpdateCheckStatus)
+    statement.bind(_checkRef, _epoch, timestamp, lastUpdate, lastChange, _condition, _notifications, _metrics)
     executeAsync(statement).map { _ => Unit }
   }
 
@@ -61,34 +61,34 @@ class ProbeStatusDAL(settings: CassandraStatePersisterSettings,
     s"""
        |SELECT timestamp
        |FROM $tableName
-       |WHERE probe_ref = ? AND epoch = ? AND timestamp > ?
+       |WHERE check_ref = ? AND epoch = ? AND timestamp > ?
        |LIMIT 1
      """.stripMargin)
 
-  def checkIfEpochExhausted(probeRef: ProbeRef, epoch: Long, timestamp: DateTime): Future[Boolean] = {
-    val _probeRef = probeRef.toString
+  def checkIfEpochExhausted(checkRef: CheckRef, epoch: Long, timestamp: DateTime): Future[Boolean] = {
+    val _checkRef = checkRef.toString
     val _epoch: java.lang.Long = epoch
     val _timestamp = timestamp.toDate
     val statement = new BoundStatement(preparedCheckIfEpochExhausted)
-    statement.bind(_probeRef, _epoch, _timestamp)
+    statement.bind(_checkRef, _epoch, _timestamp)
     executeAsync(statement).map {
       case resultSet => resultSet.isFullyFetched && resultSet.isExhausted
     }
   }
 
-  private val preparedGetProbeStatus = session.prepare(
+  private val preparedGetCheckStatus = session.prepare(
     s"""
        |SELECT timestamp, last_update, last_change, condition, metrics
        |FROM $tableName
-       |WHERE probe_ref = ? AND epoch = ? AND timestamp = ?
+       |WHERE check_ref = ? AND epoch = ? AND timestamp = ?
      """.stripMargin)
 
-  def getProbeStatus(probeRef: ProbeRef, epoch: Long, timestamp: DateTime): Future[ProbeStatus] = {
-    val _probeRef = probeRef.toString
+  def getCheckStatus(checkRef: CheckRef, epoch: Long, timestamp: DateTime): Future[CheckStatus] = {
+    val _checkRef = checkRef.toString
     val _epoch: java.lang.Long = epoch
     val _timestamp = timestamp.toDate
-    val statement = new BoundStatement(preparedGetProbeStatus)
-    statement.bind(_probeRef, _epoch, _timestamp)
+    val statement = new BoundStatement(preparedGetCheckStatus)
+    statement.bind(_checkRef, _epoch, _timestamp)
     executeAsync(statement).map {
       case resultSet =>
         val row = resultSet.one()
@@ -96,187 +96,187 @@ class ProbeStatusDAL(settings: CassandraStatePersisterSettings,
           val timestamp = new DateTime(row.getDate(0), DateTimeZone.UTC)
           val lastUpdate = Option(row.getDate(1)).map(new DateTime(_, DateTimeZone.UTC))
           val lastChange = Option(row.getDate(2)).map(new DateTime(_, DateTimeZone.UTC))
-          val condition = string2probeCondition(row.getString(3))
+          val condition = string2checkCondition(row.getString(3))
           val metrics = Option(row.getString(4))
-            .map(string2probeMetrics)
+            .map(string2checkMetrics)
             .map(_.metrics)
             .getOrElse(Map.empty[String,BigDecimal])
-          ProbeStatus(timestamp, condition.lifecycle, condition.summary, condition.health, metrics,
+          CheckStatus(timestamp, condition.lifecycle, condition.summary, condition.health, metrics,
             lastUpdate, lastChange, condition.correlation, condition.acknowledged, condition.squelched)
         }
     }
   }
 
-  private val preparedGetProbeCondition = session.prepare(
+  private val preparedGetCheckCondition = session.prepare(
     s"""
        |SELECT condition
        |FROM $tableName
-       |WHERE probe_ref = ? AND epoch = ? AND timestamp = ?
+       |WHERE check_ref = ? AND epoch = ? AND timestamp = ?
      """.stripMargin)
 
-  def getProbeCondition(probeRef: ProbeRef, epoch: Long, timestamp: DateTime): Future[ProbeCondition] = {
-    val _probeRef = probeRef.toString
+  def getCheckCondition(checkRef: CheckRef, epoch: Long, timestamp: DateTime): Future[CheckCondition] = {
+    val _checkRef = checkRef.toString
     val _epoch: java.lang.Long = epoch
     val _timestamp = timestamp.toDate
-    val statement = new BoundStatement(preparedGetProbeCondition)
-    statement.bind(_probeRef, _epoch, _timestamp)
+    val statement = new BoundStatement(preparedGetCheckCondition)
+    statement.bind(_checkRef, _epoch, _timestamp)
     executeAsync(statement).map {
       case resultSet =>
         val row = resultSet.one()
-        if (row == null) throw ApiException(ResourceNotFound) else string2probeCondition(row.getString(0))
+        if (row == null) throw ApiException(ResourceNotFound) else string2checkCondition(row.getString(0))
     }
   }
 
-  private val preparedGetProbeConditionHistory = session.prepare(
+  private val preparedGetCheckConditionHistory = session.prepare(
     s"""
        |SELECT condition
        |FROM $tableName
-       |WHERE probe_ref = ? AND epoch = ? AND timestamp >= ? AND timestamp < ?
+       |WHERE check_ref = ? AND epoch = ? AND timestamp >= ? AND timestamp < ?
        |LIMIT ?
      """.stripMargin)
 
-  def getProbeConditionHistory(probeRef: ProbeRef,
+  def getCheckConditionHistory(checkRef: CheckRef,
                                epoch: Long,
                                from: Option[DateTime],
                                to: Option[DateTime],
-                               limit: Int): Future[Vector[ProbeCondition]] = {
-    val _probeRef = probeRef.toString
+                               limit: Int): Future[Vector[CheckCondition]] = {
+    val _checkRef = checkRef.toString
     val _epoch: java.lang.Long = epoch
     val start = from.map(_.toDate).getOrElse(EpochUtils.SMALLEST_DATE)
     val end = to.map(_.toDate).getOrElse(EpochUtils.LARGEST_DATE)
     val _limit: java.lang.Integer = limit
-    val statement = new BoundStatement(preparedGetProbeConditionHistory)
-    statement.bind(_probeRef, _epoch, start, end, _limit)
+    val statement = new BoundStatement(preparedGetCheckConditionHistory)
+    statement.bind(_checkRef, _epoch, start, end, _limit)
     statement.setFetchSize(limit)
     executeAsync(statement).map { resultSet =>
-      resultSet.all().map(row => string2probeCondition(row.getString(0))).toVector
+      resultSet.all().map(row => string2checkCondition(row.getString(0))).toVector
     }
   }
 
-  private val preparedGetProbeNotifications = session.prepare(
+  private val preparedGetCheckNotifications = session.prepare(
     s"""
        |SELECT notifications
        |FROM $tableName
-       |WHERE probe_ref = ? AND epoch = ? AND timestamp = ?
+       |WHERE check_ref = ? AND epoch = ? AND timestamp = ?
      """.stripMargin)
 
-  def getProbeNotifications(probeRef: ProbeRef, epoch: Long, timestamp: DateTime): Future[ProbeNotifications] = {
-    val _probeRef = probeRef.toString
+  def getCheckNotifications(checkRef: CheckRef, epoch: Long, timestamp: DateTime): Future[CheckNotifications] = {
+    val _checkRef = checkRef.toString
     val _epoch: java.lang.Long = epoch
     val _timestamp = timestamp.toDate
-    val statement = new BoundStatement(preparedGetProbeNotifications)
-    statement.bind(_probeRef, _epoch, _timestamp)
+    val statement = new BoundStatement(preparedGetCheckNotifications)
+    statement.bind(_checkRef, _epoch, _timestamp)
     executeAsync(statement).map {
       case resultSet =>
         val row = resultSet.one()
         if (row == null) throw ApiException(ResourceNotFound) else {
           Option(row.getString(0))
-            .map(string2probeNotifications)
-            .getOrElse(ProbeNotifications(timestamp, Vector.empty))
+            .map(string2checkNotifications)
+            .getOrElse(CheckNotifications(timestamp, Vector.empty))
         }
     }
   }
 
-  private val preparedGetProbeNotificationsHistory = session.prepare(
+  private val preparedGetCheckNotificationsHistory = session.prepare(
     s"""
        |SELECT notifications
        |FROM $tableName
-       |WHERE probe_ref = ? AND epoch = ? AND timestamp >= ? AND timestamp < ?
+       |WHERE check_ref = ? AND epoch = ? AND timestamp >= ? AND timestamp < ?
        |LIMIT ?
      """.stripMargin)
 
-  def getProbeNotificationsHistory(probeRef: ProbeRef, epoch: Long, from: Option[DateTime], to: Option[DateTime], limit: Int): Future[Vector[ProbeNotifications]] = {
-    val _probeRef = probeRef.toString
+  def getCheckNotificationsHistory(checkRef: CheckRef, epoch: Long, from: Option[DateTime], to: Option[DateTime], limit: Int): Future[Vector[CheckNotifications]] = {
+    val _checkRef = checkRef.toString
     val _epoch: java.lang.Long = epoch
     val start = from.map(_.toDate).getOrElse(EpochUtils.SMALLEST_DATE)
     val end = to.map(_.toDate).getOrElse(EpochUtils.LARGEST_DATE)
     val _limit: java.lang.Integer = limit
-    val statement = new BoundStatement(preparedGetProbeNotificationsHistory)
-    statement.bind(_probeRef, _epoch, start, end, _limit)
+    val statement = new BoundStatement(preparedGetCheckNotificationsHistory)
+    statement.bind(_checkRef, _epoch, start, end, _limit)
     statement.setFetchSize(limit)
     executeAsync(statement).map { resultSet =>
       resultSet.all()
         .flatMap(row => Option(row.getString(0)))
-        .map(string2probeNotifications)
+        .map(string2checkNotifications)
         .toVector
     }
   }
 
-  private val preparedGetProbeMetrics = session.prepare(
+  private val preparedGetCheckMetrics = session.prepare(
     s"""
        |SELECT metrics
        |FROM $tableName
-       |WHERE probe_ref = ? AND epoch = ? AND timestamp = ?
+       |WHERE check_ref = ? AND epoch = ? AND timestamp = ?
      """.stripMargin)
 
-  def getProbeMetrics(probeRef: ProbeRef, epoch: Long, timestamp: DateTime): Future[ProbeMetrics] = {
-    val _probeRef = probeRef.toString
+  def getCheckMetrics(checkRef: CheckRef, epoch: Long, timestamp: DateTime): Future[CheckMetrics] = {
+    val _checkRef = checkRef.toString
     val _epoch: java.lang.Long = epoch
     val _timestamp = timestamp.toDate
-    val statement = new BoundStatement(preparedGetProbeMetrics)
-    statement.bind(_probeRef, _epoch, _timestamp)
+    val statement = new BoundStatement(preparedGetCheckMetrics)
+    statement.bind(_checkRef, _epoch, _timestamp)
     executeAsync(statement).map {
       case resultSet =>
         val row = resultSet.one()
         if (row == null) throw ApiException(ResourceNotFound) else {
           Option(row.getString(0))
-            .map(string2probeMetrics)
-            .getOrElse(ProbeMetrics(timestamp, Map.empty))
+            .map(string2checkMetrics)
+            .getOrElse(CheckMetrics(timestamp, Map.empty))
         }
     }
   }
 
-  private val preparedGetProbeMetricsHistory = session.prepare(
+  private val preparedGetCheckMetricsHistory = session.prepare(
     s"""
        |SELECT metrics
        |FROM $tableName
-       |WHERE probe_ref = ? AND epoch = ? AND timestamp >= ? AND timestamp < ?
+       |WHERE check_ref = ? AND epoch = ? AND timestamp >= ? AND timestamp < ?
        |LIMIT ?
      """.stripMargin)
 
-  def getProbeMetricsHistory(probeRef: ProbeRef, epoch: Long, from: Option[DateTime], to: Option[DateTime], limit: Int): Future[Vector[ProbeMetrics]] = {
-    val _probeRef = probeRef.toString
+  def getCheckMetricsHistory(checkRef: CheckRef, epoch: Long, from: Option[DateTime], to: Option[DateTime], limit: Int): Future[Vector[CheckMetrics]] = {
+    val _checkRef = checkRef.toString
     val _epoch: java.lang.Long = epoch
     val start = from.map(_.toDate).getOrElse(EpochUtils.SMALLEST_DATE)
     val end = to.map(_.toDate).getOrElse(EpochUtils.LARGEST_DATE)
     val _limit: java.lang.Integer = limit
-    val statement = new BoundStatement(preparedGetProbeMetricsHistory)
-    statement.bind(_probeRef, _epoch, start, end, _limit)
+    val statement = new BoundStatement(preparedGetCheckMetricsHistory)
+    statement.bind(_checkRef, _epoch, start, end, _limit)
     statement.setFetchSize(limit)
     executeAsync(statement).map { resultSet =>
       resultSet.all()
         .flatMap(row => Option(row.getString(0)))
-        .map(string2probeMetrics)
+        .map(string2checkMetrics)
         .toVector
     }
   }
 
-  private val preparedDeleteProbeStatus = session.prepare(
+  private val preparedDeleteCheckStatus = session.prepare(
     s"""
-       |DELETE FROM $tableName WHERE probe_ref = ? AND epoch = ?
+       |DELETE FROM $tableName WHERE check_ref = ? AND epoch = ?
      """.stripMargin)
 
-  def deleteProbeStatus(probeRef: ProbeRef, epoch: Long): Future[Unit] = {
-    val _probeRef = probeRef.toString
+  def deleteCheckStatus(checkRef: CheckRef, epoch: Long): Future[Unit] = {
+    val _checkRef = checkRef.toString
     val _epoch: java.lang.Long = epoch
-    val statement = new BoundStatement(preparedDeleteProbeStatus)
-    statement.bind(_probeRef, _epoch)
+    val statement = new BoundStatement(preparedDeleteCheckStatus)
+    statement.bind(_checkRef, _epoch)
     executeAsync(statement).map { _ => Unit }
   }
 
-  def flushProbeStatus(): Future[Unit] = {
+  def flushCheckStatus(): Future[Unit] = {
     executeAsync(s"TRUNCATE $tableName").map { _ => Unit }
   }
 
-  def string2probeCondition(string: String): ProbeCondition = string.parseJson.convertTo[ProbeCondition]
+  def string2checkCondition(string: String): CheckCondition = string.parseJson.convertTo[CheckCondition]
 
-  def probeCondition2string(condition: ProbeCondition): String = condition.toJson.prettyPrint
+  def checkCondition2string(condition: CheckCondition): String = condition.toJson.prettyPrint
 
-  def string2probeNotifications(string: String): ProbeNotifications = string.parseJson.convertTo[ProbeNotifications]
+  def string2checkNotifications(string: String): CheckNotifications = string.parseJson.convertTo[CheckNotifications]
 
-  def probeNotifications2string(notifications: ProbeNotifications): String = notifications.toJson.prettyPrint
+  def checkNotifications2string(notifications: CheckNotifications): String = notifications.toJson.prettyPrint
 
-  def string2probeMetrics(string: String): ProbeMetrics = string.parseJson.convertTo[ProbeMetrics]
+  def string2checkMetrics(string: String): CheckMetrics = string.parseJson.convertTo[CheckMetrics]
 
-  def probeMetrics2string(metrics: ProbeMetrics): String = metrics.toJson.prettyPrint
+  def checkMetrics2string(metrics: CheckMetrics): String = metrics.toJson.prettyPrint
 }

@@ -11,17 +11,17 @@ class TestProcessor(val properties: Map[String,String]) extends BehaviorProcesso
 
   def initialize(): InitializeEffect = InitializeEffect(None)
 
-  def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigureEffect = {
+  def configure(status: CheckStatus, children: Set[CheckRef]): ConfigureEffect = {
     ConfigureEffect(status, Vector.empty, children, Set.empty)
   }
 
-  def processEvaluation(probe: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
+  def processEvaluation(check: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
 
-  def processChild(probe: AccessorOps, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
+  def processChild(check: AccessorOps, child: CheckRef, status: CheckStatus): Option[EventEffect] = None
 
-  def processExpiryTimeout(probe: AccessorOps): Option[EventEffect] = None
+  def processExpiryTimeout(check: AccessorOps): Option[EventEffect] = None
 
-  def processAlertTimeout(probe: AccessorOps): Option[EventEffect] = None
+  def processAlertTimeout(check: AccessorOps): Option[EventEffect] = None
 }
 
 class TestBehavior extends CheckBehaviorExtension {
@@ -38,19 +38,19 @@ class TestProcessorChange(val properties: Map[String,String]) extends BehaviorPr
 
   def initialize(): InitializeEffect = InitializeEffect(None)
 
-  def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigureEffect = {
+  def configure(status: CheckStatus, children: Set[CheckRef]): ConfigureEffect = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
-    val status = ProbeStatus(timestamp, ProbeKnown, None, ProbeHealthy, Map.empty, Some(timestamp), Some(timestamp), None, None, false)
+    val status = CheckStatus(timestamp, CheckKnown, None, CheckHealthy, Map.empty, Some(timestamp), Some(timestamp), None, None, false)
     ConfigureEffect(status, Vector.empty, children, Set.empty)
   }
 
-  def processEvaluation(probe: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
+  def processEvaluation(check: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
 
-  def processChild(probe: AccessorOps, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
+  def processChild(check: AccessorOps, child: CheckRef, status: CheckStatus): Option[EventEffect] = None
 
-  def processExpiryTimeout(probe: AccessorOps): Option[EventEffect] = None
+  def processExpiryTimeout(check: AccessorOps): Option[EventEffect] = None
 
-  def processAlertTimeout(probe: AccessorOps): Option[EventEffect] = None
+  def processAlertTimeout(check: AccessorOps): Option[EventEffect] = None
 }
 
 class TestChangeBehavior extends CheckBehaviorExtension {

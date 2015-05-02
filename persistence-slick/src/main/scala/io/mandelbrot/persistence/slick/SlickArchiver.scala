@@ -49,7 +49,7 @@ trait StatusEntriesComponent { this: ArchiverProfile =>
   import StatusEntries._
 
   class StatusEntries(tag: Tag) extends Table[(String,Long,String,String,Option[String],Option[Long],Option[Long],Option[UUID],Option[UUID],Boolean)](tag, "status_entries") {
-    def probeRef = column[String]("probeRef")
+    def checkRef = column[String]("checkRef")
     def timestamp = column[Long]("timestamp")
     def lifecycle = column[String]("lifecycle")
     def health = column[String]("health")
@@ -59,13 +59,13 @@ trait StatusEntriesComponent { this: ArchiverProfile =>
     def correlation = column[Option[UUID]]("correlation")
     def acknowledged = column[Option[UUID]]("acknowledged")
     def squelched = column[Boolean]("squelched")
-    def * = (probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlation, acknowledged, squelched)
+    def * = (checkRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlation, acknowledged, squelched)
   }
 
   val statusEntries = TableQuery[StatusEntries]
 
-  def insert(status: ProbeStatus)(implicit session: Session): Unit = {
-    val probeRef = status.probeRef.toString
+  def insert(status: CheckStatus)(implicit session: Session): Unit = {
+    val checkRef = status.checkRef.toString
     val timestamp = status.timestamp.getMillis
     val lifecycle = status.lifecycle.toString
     val health = status.health.toString
@@ -75,12 +75,12 @@ trait StatusEntriesComponent { this: ArchiverProfile =>
     val correlation = status.correlation
     val acknowledged = status.acknowledged
     val squelched = status.squelched
-    statusEntries += ((probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlation, acknowledged, squelched))
+    statusEntries += ((checkRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlation, acknowledged, squelched))
   }
 
-  def query(query: GetStatusHistory)(implicit session: Session): Vector[ProbeStatus] = {
-    val probeRef = query.probeRef.toString
-    var q = statusEntries.filter(_.probeRef === probeRef)
+  def query(query: GetStatusHistory)(implicit session: Session): Vector[CheckStatus] = {
+    val checkRef = query.checkRef.toString
+    var q = statusEntries.filter(_.checkRef === checkRef)
     for (millis <- query.from.map(_.getMillis))
       q = q.filter(_.timestamp > millis)
     for (millis <- query.to.map(_.getMillis))
@@ -88,28 +88,28 @@ trait StatusEntriesComponent { this: ArchiverProfile =>
     if (query.limit.isDefined)
       q = q.take(query.limit.get)
     //log.debug("{} expands to SQL query '{}'", query, q.selectStatement)
-    q.list.toVector.map(statusEntry2ProbeStatus)
+    q.list.toVector.map(statusEntry2CheckStatus)
   }
 
 
   object StatusEntries {
     type StatusEntry = (String,Long,String,String,Option[String],Option[Long],Option[Long],Option[UUID],Option[UUID],Boolean)
 
-    def statusEntry2ProbeStatus(entry: StatusEntry): ProbeStatus = {
-      val probeRef = ProbeRef(entry._1)
+    def statusEntry2CheckStatus(entry: StatusEntry): CheckStatus = {
+      val checkRef = CheckRef(entry._1)
       val timestamp = new DateTime(entry._2)
       val lifecycle = entry._3 match {
-        case "initializing" => ProbeInitializing
-        case "joining" => ProbeJoining
-        case "known" => ProbeKnown
-        case "synthetic" => ProbeSynthetic
-        case "retired" => ProbeRetired
+        case "initializing" => CheckInitializing
+        case "joining" => CheckJoining
+        case "known" => CheckKnown
+        case "synthetic" => CheckSynthetic
+        case "retired" => CheckRetired
       }
       val health = entry._4 match {
-        case "healthy" => ProbeHealthy
-        case "degraded" => ProbeDegraded
-        case "failed" => ProbeFailed
-        case "unknown" => ProbeUnknown
+        case "healthy" => CheckHealthy
+        case "degraded" => CheckDegraded
+        case "failed" => CheckFailed
+        case "unknown" => CheckUnknown
       }
       val summary = entry._5
       val lastUpdate = entry._6.map(new DateTime(_))
@@ -117,7 +117,7 @@ trait StatusEntriesComponent { this: ArchiverProfile =>
       val correlation = entry._8
       val acknowledged = entry._9
       val squelched = entry._10
-      ProbeStatus(probeRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlation, acknowledged, squelched)
+      CheckStatus(checkRef, timestamp, lifecycle, health, summary, lastUpdate, lastChange, correlation, acknowledged, squelched)
     }
   }
 }
@@ -130,28 +130,28 @@ trait NotificationEntriesComponent { this: ArchiverProfile =>
   import NotificationEntries._
 
   class NotificationEntries(tag: Tag) extends Table[(String,Long,String,String,Option[UUID])](tag, "notification_entries") {
-    def probeRef = column[String]("probeRef")
+    def checkRef = column[String]("checkRef")
     def timestamp = column[Long]("timestamp")
     def kind = column[String]("kind")
     def description = column[String]("description")
     def correlation = column[Option[UUID]]("correlation")
-    def * = (probeRef, timestamp, kind, description, correlation)
+    def * = (checkRef, timestamp, kind, description, correlation)
   }
 
   val notificationEntries = TableQuery[NotificationEntries]
 
-  def insert(notification: ProbeNotification)(implicit session: Session): Unit = {
-    val probeRef = notification.probeRef.toString
+  def insert(notification: CheckNotification)(implicit session: Session): Unit = {
+    val checkRef = notification.checkRef.toString
     val timestamp = notification.timestamp.getMillis
     val kind = notification.kind
     val description = notification.description
     val correlation = notification.correlation
-    notificationEntries += ((probeRef, timestamp, kind, description, correlation))
+    notificationEntries += ((checkRef, timestamp, kind, description, correlation))
   }
 
-  def query(query: GetNotificationHistory)(implicit session: Session): Vector[ProbeNotification] = {
-    val probeRef = query.probeRef.toString
-    var q = notificationEntries.filter(_.probeRef === probeRef)
+  def query(query: GetNotificationHistory)(implicit session: Session): Vector[CheckNotification] = {
+    val checkRef = query.checkRef.toString
+    var q = notificationEntries.filter(_.checkRef === checkRef)
     for (millis <- query.from.map(_.getMillis))
       q = q.filter(_.timestamp > millis)
     for (millis <- query.to.map(_.getMillis))
@@ -159,19 +159,19 @@ trait NotificationEntriesComponent { this: ArchiverProfile =>
     for (limit <- query.limit)
       q = q.take(limit)
     //log.debug("{} expands to SQL query '{}'", query, q.selectStatement)
-    q.list.toVector.map(notificationEntry2ProbeNotification)
+    q.list.toVector.map(notificationEntry2CheckNotification)
   }
 
   object NotificationEntries {
     type NotificationEntry = (String,Long,String,String,Option[UUID])
 
-    def notificationEntry2ProbeNotification(entry: NotificationEntry): ProbeNotification = {
-      val probeRef = ProbeRef(entry._1)
+    def notificationEntry2CheckNotification(entry: NotificationEntry): CheckNotification = {
+      val checkRef = CheckRef(entry._1)
       val timestamp = new DateTime(entry._2)
       val kind = entry._3
       val description = entry._4
       val correlation = entry._5
-      ProbeNotification(probeRef, timestamp, kind, description, correlation)
+      CheckNotification(checkRef, timestamp, kind, description, correlation)
     }
   }
 }
@@ -219,22 +219,22 @@ trait SlickArchiver extends Actor with ActorLogging {
 
   def receive = {
 
-    /* append probe status to history */
-    case status: ProbeStatus =>
+    /* append check status to history */
+    case status: CheckStatus =>
       db.withSession { implicit session => dal.insert(status) }
 
     /* append notification to history */
-    case notification: ProbeNotification =>
+    case notification: CheckNotification =>
       db.withSession { implicit session => dal.insert(notification) }
 
-    /* retrieve status history for the ProbeRef and all its children */
+    /* retrieve status history for the CheckRef and all its children */
     case query: GetStatusHistory =>
       db.withSession { implicit session =>
         val results = dal.query(query)
         sender() ! GetStatusHistoryResult(query, results)
       }
 
-    /* retrieve notification history for the ProbeRef and all its children */
+    /* retrieve notification history for the CheckRef and all its children */
     case query: GetNotificationHistory =>
       db.withSession { implicit session =>
         val results = dal.query(query)

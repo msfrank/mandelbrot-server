@@ -51,12 +51,12 @@ trait RegistryEntriesComponent { this: RegistrarProfile =>
   import HttpProtocol._
 
   class RegistryEntries(tag: Tag) extends Table[(String,String,Long,Long,Long)](tag, "registry_entries") {
-    def probeSystem = column[String]("probeSystem", O.PrimaryKey)
+    def checkSystem = column[String]("checkSystem", O.PrimaryKey)
     def registration = column[String]("registration")
     def lsn = column[Long]("lsn")
     def joinedOn = column[Long]("joinedOn")
     def lastUpdate = column[Long]("lastUpdate")
-    def * = (probeSystem, registration, lsn, joinedOn, lastUpdate)
+    def * = (checkSystem, registration, lsn, joinedOn, lastUpdate)
   }
 
   val registryEntries = TableQuery[RegistryEntries]
@@ -65,38 +65,38 @@ trait RegistryEntriesComponent { this: RegistrarProfile =>
     token match {
       case Some(_uri) =>
         val uri = _uri.toString
-        registryEntries.filter(_.probeSystem > uri).take(limit).list()
+        registryEntries.filter(_.checkSystem > uri).take(limit).list()
       case None =>
         registryEntries.take(limit).list()
     }
   }
 
   def get(systemUri: URI)(implicit session: Session): Option[RegistryEntry] = {
-    registryEntries.filter(_.probeSystem === systemUri.toString).firstOption
+    registryEntries.filter(_.checkSystem === systemUri.toString).firstOption
   }
 
-  def insert(systemUri: URI, registration: ProbeRegistration, timestamp: DateTime)(implicit session: Session): Try[Long] = {
-    val probeSystem: String = systemUri.toString
-    registryEntries.filter(_.probeSystem === probeSystem).firstOption match {
+  def insert(systemUri: URI, registration: CheckRegistration, timestamp: DateTime)(implicit session: Session): Try[Long] = {
+    val checkSystem: String = systemUri.toString
+    registryEntries.filter(_.checkSystem === checkSystem).firstOption match {
       case None =>
         val registrationString: String = registration.toJson.prettyPrint
         val lsn = 1L
         val joinedOn: Long = timestamp.getMillis
-        registryEntries += ((probeSystem, registrationString, lsn, joinedOn, joinedOn))
+        registryEntries += ((checkSystem, registrationString, lsn, joinedOn, joinedOn))
         Success(lsn)
       case _ =>
         Failure(ApiException(Conflict))
     }
   }
 
-  def update(systemUri: URI, registration: ProbeRegistration, timestamp: DateTime)(implicit session: Session): Try[Long] = {
-    val probeSystem: String = systemUri.toString
-    registryEntries.filter(_.probeSystem === probeSystem).map(e => e.lsn).firstOption match {
+  def update(systemUri: URI, registration: CheckRegistration, timestamp: DateTime)(implicit session: Session): Try[Long] = {
+    val checkSystem: String = systemUri.toString
+    registryEntries.filter(_.checkSystem === checkSystem).map(e => e.lsn).firstOption match {
       case Some(lsn: Long) =>
         val registrationString: String = registration.toJson.prettyPrint
         val updatedLsn = lsn + 1
         val lastUpdate: Long = timestamp.getMillis
-        registryEntries.filter(_.probeSystem === probeSystem)
+        registryEntries.filter(_.checkSystem === checkSystem)
           .map(e => (e.registration,e.lsn,e.lastUpdate))
           .update((registrationString, updatedLsn, lastUpdate))
         Success(updatedLsn)
@@ -106,10 +106,10 @@ trait RegistryEntriesComponent { this: RegistrarProfile =>
   }
 
   def delete(systemUri: URI, timestamp: DateTime)(implicit session: Session): Try[Long] = {
-    val probeSystem = systemUri.toString
-    registryEntries.filter(_.probeSystem === probeSystem).firstOption match {
+    val checkSystem = systemUri.toString
+    registryEntries.filter(_.checkSystem === checkSystem).firstOption match {
       case Some((_, _, lsn: Long, _, _)) =>
-        registryEntries.filter(_.probeSystem === probeSystem).delete
+        registryEntries.filter(_.checkSystem === checkSystem).delete
         Success(lsn)
       case None =>
         Failure(ApiException(ResourceNotFound))
@@ -184,7 +184,7 @@ trait SlickRegistrar extends Actor with ActorLogging {
       db.withSession { implicit session =>
         dal.get(query.uri) match {
           case Some((_, registration, lsn, _, _)) =>
-            sender() ! GetRegistrationResult(query, JsonParser(registration).convertTo[ProbeRegistration], lsn)
+            sender() ! GetRegistrationResult(query, JsonParser(registration).convertTo[CheckRegistration], lsn)
           case None =>
             sender() ! RegistryServiceOperationFailed(query, ApiException(ResourceNotFound))
         }
@@ -193,12 +193,12 @@ trait SlickRegistrar extends Actor with ActorLogging {
     case query: ListRegistrations =>
       db.withSession { implicit session =>
         val entries = dal.list(query.limit, query.token).toVector
-        val systems = entries.map { case (probeSystem,_,lsn,joinedOn,lastUpdate) =>
-          new URI(probeSystem) -> ProbeSystemMetadata(new DateTime(joinedOn), new DateTime(lastUpdate))
+        val systems = entries.map { case (checkSystem,_,lsn,joinedOn,lastUpdate) =>
+          new URI(checkSystem) -> CheckSystemMetadata(new DateTime(joinedOn), new DateTime(lastUpdate))
         }.toMap
         entries.lastOption match {
-          case Some((probeSystem, _, _, _, _)) =>
-            sender() ! ListRegistrationsResult(query, systems, Some(new URI(probeSystem)))
+          case Some((checkSystem, _, _, _, _)) =>
+            sender() ! ListRegistrationsResult(query, systems, Some(new URI(checkSystem)))
           case None =>
             sender() ! ListRegistrationsResult(query, Map.empty, None)
         }

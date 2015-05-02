@@ -9,41 +9,41 @@ import io.mandelbrot.core.model._
  */
 trait ConstantsProtocol extends DefaultJsonProtocol with StandardProtocol {
 
-  /* convert ProbeHealth class */
-  implicit object ProbeHealthFormat extends RootJsonFormat[ProbeHealth] {
-    def write(health: ProbeHealth) = health match {
-      case ProbeHealthy => JsString("healthy")
-      case ProbeDegraded => JsString("degraded")
-      case ProbeFailed => JsString("failed")
-      case ProbeUnknown => JsString("unknown")
-      case unknown => throw new SerializationException("unknown ProbeHealth state " + unknown.getClass)
+  /* convert CheckHealth class */
+  implicit object ProbeHealthFormat extends RootJsonFormat[CheckHealth] {
+    def write(health: CheckHealth) = health match {
+      case CheckHealthy => JsString("healthy")
+      case CheckDegraded => JsString("degraded")
+      case CheckFailed => JsString("failed")
+      case CheckUnknown => JsString("unknown")
+      case unknown => throw new SerializationException("unknown CheckHealth state " + unknown.getClass)
     }
     def read(value: JsValue) = value match {
-      case JsString("healthy") => ProbeHealthy
-      case JsString("degraded") => ProbeDegraded
-      case JsString("failed") => ProbeFailed
-      case JsString("unknown") => ProbeUnknown
-      case unknown => throw new DeserializationException("unknown ProbeHealth state " + unknown)
+      case JsString("healthy") => CheckHealthy
+      case JsString("degraded") => CheckDegraded
+      case JsString("failed") => CheckFailed
+      case JsString("unknown") => CheckUnknown
+      case unknown => throw new DeserializationException("unknown CheckHealth state " + unknown)
     }
   }
 
-  /* convert ProbeLifecycle class */
-  implicit object ProbeLifecycleFormat extends RootJsonFormat[ProbeLifecycle] {
-    def write(lifecycle: ProbeLifecycle) = lifecycle match {
-      case ProbeInitializing => JsString("initializing")
-      case ProbeJoining => JsString("joining")
-      case ProbeKnown => JsString("known")
-      case ProbeSynthetic => JsString("synthetic")
-      case ProbeRetired => JsString("retired")
-      case unknown => throw new SerializationException("unknown ProbeLifecycle state " + unknown.getClass)
+  /* convert CheckLifecycle class */
+  implicit object ProbeLifecycleFormat extends RootJsonFormat[CheckLifecycle] {
+    def write(lifecycle: CheckLifecycle) = lifecycle match {
+      case CheckInitializing => JsString("initializing")
+      case CheckJoining => JsString("joining")
+      case CheckKnown => JsString("known")
+      case CheckSynthetic => JsString("synthetic")
+      case CheckRetired => JsString("retired")
+      case unknown => throw new SerializationException("unknown CheckLifecycle state " + unknown.getClass)
     }
     def read(value: JsValue) = value match {
-      case JsString("initializing") => ProbeInitializing
-      case JsString("joining") => ProbeJoining
-      case JsString("known") => ProbeKnown
-      case JsString("synthetic") => ProbeSynthetic
-      case JsString("retired") => ProbeRetired
-      case unknown => throw new DeserializationException("unknown ProbeLifecycle state " + unknown)
+      case JsString("initializing") => CheckInitializing
+      case JsString("joining") => CheckJoining
+      case JsString("known") => CheckKnown
+      case JsString("synthetic") => CheckSynthetic
+      case JsString("retired") => CheckRetired
+      case unknown => throw new DeserializationException("unknown CheckLifecycle state " + unknown)
     }
   }
 

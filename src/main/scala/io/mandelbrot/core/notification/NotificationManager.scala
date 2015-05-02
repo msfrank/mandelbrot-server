@@ -30,7 +30,7 @@ import io.mandelbrot.core.model._
 /**
  * the notification manager holds notification routing configuration as well as
  * the state for scheduled maintenance windows.  this actor receives notifications
- * from Probes and routes them to the appropriate Notifier instances, depending on
+ * from Checks and routes them to the appropriate Notifier instances, depending on
  * current maintenance windows and notification rules.
  */
 class NotificationManager(settings: NotificationSettings) extends Actor with ActorLogging {
@@ -51,7 +51,7 @@ class NotificationManager(settings: NotificationSettings) extends Actor with Act
     case query: ListNotificationRules =>
       sender() ! ListNotificationRulesResult(query, settings.rules.rules)
 
-    case notification: ProbeNotification =>
+    case notification: CheckNotification =>
       if (!isSuppressed(notification)) {
         settings.rules.evaluate(notification, notifiers)
       }
@@ -67,10 +67,10 @@ class NotificationManager(settings: NotificationSettings) extends Actor with Act
    *
    */
   def isSuppressed(notification: NotificationEvent): Boolean = notification match {
-    case probeNotification: ProbeNotification =>
+    case checkNotification: CheckNotification =>
       windows.values.foreach {
         case window if notification.timestamp.isAfter(window.from) && notification.timestamp.isBefore(window.to) =>
-          window.affected.foreach { matcher => if (matcher.matches(probeNotification.probeRef.checkId)) return true }
+          window.affected.foreach { matcher => if (matcher.matches(checkNotification.checkRef.checkId)) return true }
         case _ => // do nothing
       }
       false

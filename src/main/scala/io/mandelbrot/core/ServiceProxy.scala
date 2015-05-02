@@ -47,7 +47,7 @@ class ServiceProxy extends Actor with ActorLogging {
 
   //
   val keyExtractor: EntityFunctions.KeyExtractor = {
-    case op: CheckOperation => op.probeRef.agentId.toString
+    case op: CheckOperation => op.checkRef.agentId.toString
     case op: AgentOperation => op.agentId.toString
   }
   val shardResolver: EntityFunctions.ShardResolver = {

@@ -31,13 +31,13 @@ import io.mandelbrot.core.util.Timer
  */
 trait AccessorOps {
 
-  val probeRef: ProbeRef
+  val checkRef: CheckRef
   val parent: ActorRef
 
-  def children: Set[ProbeRef]
+  def children: Set[CheckRef]
   def policy: CheckPolicy
-  def lifecycle: ProbeLifecycle
-  def health: ProbeHealth
+  def lifecycle: CheckLifecycle
+  def health: CheckHealth
   def summary: Option[String]
   def lastChange: Option[DateTime]
   def lastUpdate: Option[DateTime]
@@ -45,7 +45,7 @@ trait AccessorOps {
   def acknowledgementId: Option[UUID]
   def squelch: Boolean
 
-  def getProbeStatus(timestamp: DateTime) = ProbeStatus(timestamp, lifecycle, summary, health, Map.empty, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
-  def getProbeStatus: ProbeStatus = getProbeStatus(DateTime.now(DateTimeZone.UTC))
+  def getCheckStatus(timestamp: DateTime) = CheckStatus(timestamp, lifecycle, summary, health, Map.empty, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+  def getCheckStatus: CheckStatus = getCheckStatus(DateTime.now(DateTimeZone.UTC))
 }
 

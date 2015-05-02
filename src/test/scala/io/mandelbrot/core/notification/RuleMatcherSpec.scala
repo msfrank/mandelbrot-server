@@ -12,20 +12,20 @@ class RuleMatcherSpec extends WordSpec with ShouldMatchers {
 
   "AnyMatcher" should {
     "match a notification" in {
-      AnyMatcher.matches(NotifySquelched(ProbeRef("foo.local:load"), DateTime.now())) shouldEqual true
+      AnyMatcher.matches(NotifySquelched(CheckRef("foo.local:load"), DateTime.now())) shouldEqual true
     }
   }
 
   "CheckMatcher" should {
     "match when checkId matches" in {
       val matcher = CheckRuleMatcher(CheckMatcherParser.parseCheckMatcher("*"))
-      matcher.matches(NotifyHealthExpires(ProbeRef("foo.local:load"), DateTime.now(), None)) shouldEqual true
+      matcher.matches(NotifyHealthExpires(CheckRef("foo.local:load"), DateTime.now(), None)) shouldEqual true
     }
-    "not match when probe ref doesn't match" in {
+    "not match when check ref doesn't match" in {
       val matcher = CheckRuleMatcher(CheckMatcherParser.parseCheckMatcher("load"))
-      matcher.matches(NotifyHealthExpires(ProbeRef("foo.local:cpu"), DateTime.now(), None)) shouldEqual false
+      matcher.matches(NotifyHealthExpires(CheckRef("foo.local:cpu"), DateTime.now(), None)) shouldEqual false
     }
-    "not match when notification is not a ProbeNotification" in {
+    "not match when notification is not a CheckNotification" in {
 
     }
   }
@@ -33,26 +33,26 @@ class RuleMatcherSpec extends WordSpec with ShouldMatchers {
   "TypeMatcher" should {
     "match when kind matches" in {
       val matcher = TypeRuleMatcher("health-expires")
-      matcher.matches(NotifyHealthExpires(ProbeRef("foo.local:load"), DateTime.now(), None)) shouldEqual true
+      matcher.matches(NotifyHealthExpires(CheckRef("foo.local:load"), DateTime.now(), None)) shouldEqual true
     }
     "not match when kind doesn't match" in {
       val matcher = TypeRuleMatcher("health-changes")
-      matcher.matches(NotifyHealthExpires(ProbeRef("foo.local:cpu"), DateTime.now(), None)) shouldEqual false
+      matcher.matches(NotifyHealthExpires(CheckRef("foo.local:cpu"), DateTime.now(), None)) shouldEqual false
     }
   }
 
   "LifecycleMatcher" should {
     "match when lifecycle matches" in {
-      val matcher = LifecycleRuleMatcher(ProbeKnown)
-      matcher.matches(NotifyLifecycleChanges(ProbeRef("foo.local:load"), DateTime.now(), ProbeJoining, ProbeKnown)) shouldEqual true
+      val matcher = LifecycleRuleMatcher(CheckKnown)
+      matcher.matches(NotifyLifecycleChanges(CheckRef("foo.local:load"), DateTime.now(), CheckJoining, CheckKnown)) shouldEqual true
     }
     "not match when lifecycle doesn't match" in {
-      val matcher = LifecycleRuleMatcher(ProbeKnown)
-      matcher.matches(NotifyLifecycleChanges(ProbeRef("foo.local:load"), DateTime.now(), ProbeKnown, ProbeJoining)) shouldEqual false
+      val matcher = LifecycleRuleMatcher(CheckKnown)
+      matcher.matches(NotifyLifecycleChanges(CheckRef("foo.local:load"), DateTime.now(), CheckKnown, CheckJoining)) shouldEqual false
     }
     "not match when notification type is not NotifyLifecycleChanges" in {
-      val matcher = LifecycleRuleMatcher(ProbeKnown)
-      matcher.matches(NotifyHealthExpires(ProbeRef("foo.local:cpu"), DateTime.now(), None)) shouldEqual false
+      val matcher = LifecycleRuleMatcher(CheckKnown)
+      matcher.matches(NotifyHealthExpires(CheckRef("foo.local:cpu"), DateTime.now(), None)) shouldEqual false
     }
   }
 

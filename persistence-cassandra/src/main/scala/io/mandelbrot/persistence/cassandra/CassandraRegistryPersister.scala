@@ -20,28 +20,28 @@ class CassandraRegistryPersister(settings: CassandraRegistryPersisterSettings) e
 
     case op: CreateRegistration =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      registry.createProbeSystem(op, timestamp).recover {
+      registry.createAgent(op, timestamp).recover {
         case ex: Throwable => sender() ! RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     case op: UpdateRegistration =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      registry.updateProbeSystem(op, timestamp).recover {
+      registry.updateAgent(op, timestamp).recover {
         case ex: Throwable => sender () ! RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     case op: DeleteRegistration =>
-      registry.deleteProbeSystem(op).recover {
+      registry.deleteAgent(op).recover {
         case ex: Throwable => sender() ! RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     case op: GetRegistration =>
-      registry.getProbeSystem(op).recover {
+      registry.getAgent(op).recover {
         case ex: Throwable => sender() ! RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     case op: ListRegistrations =>
-      registry.listProbeSystems(op).recover {
+      registry.listAgents(op).recover {
         case ex: Throwable => RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
   }

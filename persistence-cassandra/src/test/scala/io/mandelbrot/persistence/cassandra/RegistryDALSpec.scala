@@ -51,43 +51,43 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       testCode(session, _dal)
     }
 
-    "create a probe system" in withSessionAndDAL { (session, dal) =>
+    "create a check system" in withSessionAndDAL { (session, dal) =>
       val agentId = AgentId("test.foo")
       val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, Map.empty, Map.empty)
       val op = CreateRegistration(agentId, registration)
       val timestamp = DateTime.now()
-      Await.result(dal.createProbeSystem(op, timestamp), 5.seconds)
-      val getProbeSystemResult = Await.result(dal.getProbeSystem(GetRegistration(agentId)), 5.seconds)
-      getProbeSystemResult.registration shouldEqual registration
-      getProbeSystemResult.lsn shouldEqual 1
+      Await.result(dal.createAgent(op, timestamp), 5.seconds)
+      val getAgentResult = Await.result(dal.getAgent(GetRegistration(agentId)), 5.seconds)
+      getAgentResult.registration shouldEqual registration
+      getAgentResult.lsn shouldEqual 1
     }
 
-    "update a probe system" in withSessionAndDAL { (session, dal) =>
+    "update a check system" in withSessionAndDAL { (session, dal) =>
       val agentId = AgentId("test.foo")
       val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, Map.empty, Map.empty)
       val op = UpdateRegistration(agentId, registration, lsn = 2)
       val timestamp = DateTime.now()
-      Await.result(dal.updateProbeSystem(op, timestamp), 5.seconds)
-      val getProbeSystemResult = Await.result(dal.getProbeSystem(GetRegistration(agentId)), 5.seconds)
-      getProbeSystemResult.registration shouldEqual registration
-      getProbeSystemResult.lsn shouldEqual 3
+      Await.result(dal.updateAgent(op, timestamp), 5.seconds)
+      val getAgentResult = Await.result(dal.getAgent(GetRegistration(agentId)), 5.seconds)
+      getAgentResult.registration shouldEqual registration
+      getAgentResult.lsn shouldEqual 3
     }
 
-    "delete a probe system" in withSessionAndDAL { (session, dal) =>
+    "delete a check system" in withSessionAndDAL { (session, dal) =>
       val agentId = AgentId("test.foo")
       val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, Map.empty, Map.empty)
       val timestamp = DateTime.now()
-      Await.result(dal.createProbeSystem(CreateRegistration(agentId, registration), timestamp), 5.seconds)
-      val getProbeSystemResult = Await.result(dal.getProbeSystem(GetRegistration(agentId)), 5.seconds)
+      Await.result(dal.createAgent(CreateRegistration(agentId, registration), timestamp), 5.seconds)
+      val getAgentResult = Await.result(dal.getAgent(GetRegistration(agentId)), 5.seconds)
       val op = DeleteRegistration(agentId, lsn = 1)
-      val deleteEntityResult = Await.result(dal.deleteProbeSystem(op), 5.seconds)
+      val deleteEntityResult = Await.result(dal.deleteAgent(op), 5.seconds)
       val ex = the[ApiException] thrownBy {
-        Await.result(dal.getProbeSystem(GetRegistration(agentId)), 5.seconds)
+        Await.result(dal.getAgent(GetRegistration(agentId)), 5.seconds)
       }
       ex.failure shouldEqual ResourceNotFound
     }
 
-    "list probe systems" in withSessionAndDAL { (session,dal) =>
+    "list check systems" in withSessionAndDAL { (session,dal) =>
       val timestamp = DateTime.now()
       val agent1 = AgentId("test.1")
       val registration1 = AgentRegistration(agent1, "mandelbrot", Map.empty, Map.empty, Map.empty)
@@ -95,16 +95,16 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val registration2 = AgentRegistration(agent2, "mandelbrot", Map.empty, Map.empty, Map.empty)
       val agent3 = AgentId("test.3")
       val registration3 = AgentRegistration(agent3, "mandelbrot", Map.empty, Map.empty, Map.empty)
-      Await.result(dal.createProbeSystem(CreateRegistration(agent1, registration1), timestamp), 5.seconds)
-      Await.result(dal.createProbeSystem(CreateRegistration(agent2, registration2), timestamp), 5.seconds)
-      Await.result(dal.createProbeSystem(CreateRegistration(agent3, registration3), timestamp), 5.seconds)
+      Await.result(dal.createAgent(CreateRegistration(agent1, registration1), timestamp), 5.seconds)
+      Await.result(dal.createAgent(CreateRegistration(agent2, registration2), timestamp), 5.seconds)
+      Await.result(dal.createAgent(CreateRegistration(agent3, registration3), timestamp), 5.seconds)
       val op = ListRegistrations(10, None)
-      val listProbeSystemsResult = Await.result(dal.listProbeSystems(op), 5.seconds)
-      listProbeSystemsResult.page.agents.map(_.agentId).toSet shouldEqual Set(agent1, agent2, agent3)
-      listProbeSystemsResult.page.last shouldEqual None
+      val listAgentsResult = Await.result(dal.listAgents(op), 5.seconds)
+      listAgentsResult.page.agents.map(_.agentId).toSet shouldEqual Set(agent1, agent2, agent3)
+      listAgentsResult.page.last shouldEqual None
     }
 
-    "page through probe systems" in withSessionAndDAL { (session,dal) =>
+    "page through check systems" in withSessionAndDAL { (session,dal) =>
       val timestamp = DateTime.now()
       val agent1 = AgentId("test.1")
       val registration1 = AgentRegistration(agent1, "mandelbrot", Map.empty, Map.empty, Map.empty)
@@ -116,20 +116,20 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val registration4 = AgentRegistration(agent4, "mandelbrot", Map.empty, Map.empty, Map.empty)
       val agent5 = AgentId("test.5")
       val registration5 = AgentRegistration(agent5, "mandelbrot", Map.empty, Map.empty, Map.empty)
-      Await.result(dal.createProbeSystem(CreateRegistration(agent1, registration1), timestamp), 5.seconds)
-      Await.result(dal.createProbeSystem(CreateRegistration(agent2, registration2), timestamp), 5.seconds)
-      Await.result(dal.createProbeSystem(CreateRegistration(agent3, registration3), timestamp), 5.seconds)
-      Await.result(dal.createProbeSystem(CreateRegistration(agent4, registration4), timestamp), 5.seconds)
-      Await.result(dal.createProbeSystem(CreateRegistration(agent5, registration5), timestamp), 5.seconds)
-      val listProbeSystemsResult1 = Await.result(dal.listProbeSystems(ListRegistrations(limit = 2, None)), 5.seconds)
-      listProbeSystemsResult1.page.agents.map(_.agentId).toSet shouldEqual Set(agent1, agent2)
-      listProbeSystemsResult1.page.last shouldEqual Some(agent2.toString)
-      val listProbeSystemsResult2 = Await.result(dal.listProbeSystems(ListRegistrations(limit = 2, listProbeSystemsResult1.page.last)), 5.seconds)
-      listProbeSystemsResult2.page.agents.map(_.agentId).toSet shouldEqual Set(agent3, agent4)
-      listProbeSystemsResult2.page.last shouldEqual Some(agent4.toString)
-      val listProbeSystemsResult3 = Await.result(dal.listProbeSystems(ListRegistrations(limit = 2, listProbeSystemsResult2.page.last)), 5.seconds)
-      listProbeSystemsResult3.page.agents.map(_.agentId).toSet shouldEqual Set(agent5)
-      listProbeSystemsResult3.page.last shouldEqual None
+      Await.result(dal.createAgent(CreateRegistration(agent1, registration1), timestamp), 5.seconds)
+      Await.result(dal.createAgent(CreateRegistration(agent2, registration2), timestamp), 5.seconds)
+      Await.result(dal.createAgent(CreateRegistration(agent3, registration3), timestamp), 5.seconds)
+      Await.result(dal.createAgent(CreateRegistration(agent4, registration4), timestamp), 5.seconds)
+      Await.result(dal.createAgent(CreateRegistration(agent5, registration5), timestamp), 5.seconds)
+      val listAgentsResult1 = Await.result(dal.listAgents(ListRegistrations(limit = 2, None)), 5.seconds)
+      listAgentsResult1.page.agents.map(_.agentId).toSet shouldEqual Set(agent1, agent2)
+      listAgentsResult1.page.last shouldEqual Some(agent2.toString)
+      val listAgentsResult2 = Await.result(dal.listAgents(ListRegistrations(limit = 2, listAgentsResult1.page.last)), 5.seconds)
+      listAgentsResult2.page.agents.map(_.agentId).toSet shouldEqual Set(agent3, agent4)
+      listAgentsResult2.page.last shouldEqual Some(agent4.toString)
+      val listAgentsResult3 = Await.result(dal.listAgents(ListRegistrations(limit = 2, listAgentsResult2.page.last)), 5.seconds)
+      listAgentsResult3.page.agents.map(_.agentId).toSet shouldEqual Set(agent5)
+      listAgentsResult3.page.last shouldEqual None
     }
   }
 }

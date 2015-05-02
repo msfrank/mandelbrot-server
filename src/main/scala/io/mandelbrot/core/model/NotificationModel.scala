@@ -18,12 +18,12 @@ sealed trait NotificationEvent extends ServiceEvent with NotificationModel {
 }
 
 /**
- * A notification about a probe
+ * A notification about a check
  */
-class ProbeNotification(val probeRef: ProbeRef, val timestamp: DateTime, val kind: String, val description: String, val correlation: Option[UUID]) extends NotificationEvent {
+class CheckNotification(val checkRef: CheckRef, val timestamp: DateTime, val kind: String, val description: String, val correlation: Option[UUID]) extends NotificationEvent {
   override def equals(other: Any): Boolean = other match {
-    case notification: ProbeNotification =>
-      if (!probeRef.equals(notification.probeRef)) return false
+    case notification: CheckNotification =>
+      if (!checkRef.equals(notification.checkRef)) return false
       if (!timestamp.equals(notification.timestamp)) return false
       if (!kind.equals(notification.kind)) return false
       if (!description.equals(notification.description)) return false
@@ -31,122 +31,122 @@ class ProbeNotification(val probeRef: ProbeRef, val timestamp: DateTime, val kin
       true
     case _ => false
   }
-  override def toString = "%s: %s %s".format(kind, probeRef, description)
+  override def toString = "%s: %s %s".format(kind, checkRef, description)
 }
 
-object ProbeNotification {
-  def apply(probeRef: ProbeRef, timestamp: DateTime, kind: String, description: String, correlation: Option[UUID]) = {
-    new ProbeNotification(probeRef, timestamp, kind, description, correlation)
+object CheckNotification {
+  def apply(checkRef: CheckRef, timestamp: DateTime, kind: String, description: String, correlation: Option[UUID]) = {
+    new CheckNotification(checkRef, timestamp, kind, description, correlation)
   }
-  def unapply(notification: ProbeNotification): Option[(ProbeRef, DateTime, String, String, Option[UUID])] = {
-    Some((notification.probeRef, notification.timestamp, notification.kind, notification.description, notification.correlation))
+  def unapply(notification: CheckNotification): Option[(CheckRef, DateTime, String, String, Option[UUID])] = {
+    Some((notification.checkRef, notification.timestamp, notification.kind, notification.description, notification.correlation))
   }
 }
 
 /**
- * An alert about a probe
+ * An alert about a check
  */
 sealed trait Alert extends NotificationEvent {
-  val probeRef: ProbeRef
+  val checkRef: CheckRef
   val correlationId: UUID
 }
 
 /**
  *
  */
-case class NotifyHealthAlerts(override val probeRef: ProbeRef,
+case class NotifyHealthAlerts(override val checkRef: CheckRef,
                              override val timestamp: DateTime,
-                             health: ProbeHealth,
+                             health: CheckHealth,
                              correlationId: UUID,
                              acknowledgementId: Option[UUID])
-extends ProbeNotification(probeRef, timestamp, "health-alerts", "probe is " + health.toString, Some(correlationId)) with Alert
+extends CheckNotification(checkRef, timestamp, "health-alerts", "check is " + health.toString, Some(correlationId)) with Alert
 
 /**
  *
  */
-case class NotifyAcknowledged(override val probeRef: ProbeRef,
+case class NotifyAcknowledged(override val checkRef: CheckRef,
                               override val timestamp: DateTime,
                               correlationId: UUID,
                               acknowledgementId: UUID)
-extends ProbeNotification(probeRef, timestamp, "probe-acknowledged", "probe health is acknowledged", Some(correlationId)) with Alert
+extends CheckNotification(checkRef, timestamp, "check-acknowledged", "check health is acknowledged", Some(correlationId)) with Alert
 
 /**
  *
  */
-case class NotifyUnacknowledged(override val probeRef: ProbeRef,
+case class NotifyUnacknowledged(override val checkRef: CheckRef,
                                 override val timestamp: DateTime,
                                 correlationId: UUID,
                                 acknowledgementId: UUID)
-extends ProbeNotification(probeRef, timestamp, "probe-unacknowledged", "probe health is unacknowledged", Some(correlationId)) with Alert
+extends CheckNotification(checkRef, timestamp, "check-unacknowledged", "check health is unacknowledged", Some(correlationId)) with Alert
 
 /**
  *
  */
-case class NotifyRecovers(override val probeRef: ProbeRef,
+case class NotifyRecovers(override val checkRef: CheckRef,
                           override val timestamp: DateTime,
                           correlationId: UUID,
                           acknowledgementId: UUID)
-extends ProbeNotification(probeRef, timestamp, "probe-recovers", "probe health recovers", Some(correlationId)) with Alert
+extends CheckNotification(checkRef, timestamp, "check-recovers", "check health recovers", Some(correlationId)) with Alert
 
 /**
  *
  */
-case class NotifyLifecycleChanges(override val probeRef: ProbeRef,
+case class NotifyLifecycleChanges(override val checkRef: CheckRef,
                                   override val timestamp: DateTime,
-                                  oldLifecycle: ProbeLifecycle,
-                                  newLifecycle: ProbeLifecycle)
-extends ProbeNotification(probeRef, timestamp, "lifecycle-changes", "probe lifecycle transitions from %s to %s".format(oldLifecycle.toString, newLifecycle.toString), None)
+                                  oldLifecycle: CheckLifecycle,
+                                  newLifecycle: CheckLifecycle)
+extends CheckNotification(checkRef, timestamp, "lifecycle-changes", "check lifecycle transitions from %s to %s".format(oldLifecycle.toString, newLifecycle.toString), None)
 
 /**
  *
  */
-case class NotifyHealthChanges(override val probeRef: ProbeRef,
+case class NotifyHealthChanges(override val checkRef: CheckRef,
                                override val timestamp: DateTime,
                                override val correlation: Option[UUID],
-                               oldHealth: ProbeHealth,
-                               newHealth: ProbeHealth)
-extends ProbeNotification(probeRef, timestamp, "health-changes", "probe transitions from %s to %s".format(oldHealth.toString, newHealth.toString), correlation)
+                               oldHealth: CheckHealth,
+                               newHealth: CheckHealth)
+extends CheckNotification(checkRef, timestamp, "health-changes", "check transitions from %s to %s".format(oldHealth.toString, newHealth.toString), correlation)
 
 /**
  *
  */
-case class NotifyHealthUpdates(override val probeRef: ProbeRef,
+case class NotifyHealthUpdates(override val checkRef: CheckRef,
                                override val timestamp: DateTime,
                                override val correlation: Option[UUID],
-                               health: ProbeHealth)
-extends ProbeNotification(probeRef, timestamp, "health-updates", "probe is " + health.toString, correlation)
+                               health: CheckHealth)
+extends CheckNotification(checkRef, timestamp, "health-updates", "check is " + health.toString, correlation)
 
 /**
  *
  */
-case class NotifyHealthExpires(override val probeRef: ProbeRef,
+case class NotifyHealthExpires(override val checkRef: CheckRef,
                                override val timestamp: DateTime,
                                override val correlation: Option[UUID])
-extends ProbeNotification(probeRef, timestamp, "health-expires", "probe health expires", correlation)
+extends CheckNotification(checkRef, timestamp, "health-expires", "check health expires", correlation)
 
 /**
  *
  */
-case class NotifyHealthFlaps(override val probeRef: ProbeRef,
+case class NotifyHealthFlaps(override val checkRef: CheckRef,
                              override val timestamp: DateTime,
                              override val correlation: Option[UUID],
                              flapStarts: DateTime)
-extends ProbeNotification(probeRef, timestamp, "health-flaps", "probe health is flapping", correlation)
+extends CheckNotification(checkRef, timestamp, "health-flaps", "check health is flapping", correlation)
 
 
 /**
  *
  */
-case class NotifySquelched(override val probeRef: ProbeRef,
+case class NotifySquelched(override val checkRef: CheckRef,
                            override val timestamp: DateTime)
-extends ProbeNotification(probeRef, timestamp, "probe-squelched", "probe notifications disabled", None)
+extends CheckNotification(checkRef, timestamp, "check-squelched", "check notifications disabled", None)
 
 /**
  *
  */
-case class NotifyUnsquelched(override val probeRef: ProbeRef,
+case class NotifyUnsquelched(override val checkRef: CheckRef,
                              override val timestamp: DateTime)
-extends ProbeNotification(probeRef, timestamp, "probe-unsquelched", "probe notifications enabled", None)
+extends CheckNotification(checkRef, timestamp, "check-unsquelched", "check notifications enabled", None)
 
 /**
  *

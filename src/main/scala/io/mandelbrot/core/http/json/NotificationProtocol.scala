@@ -31,15 +31,15 @@ import io.mandelbrot.core.notification._
  */
 trait NotificationProtocol extends DefaultJsonProtocol with ConstantsProtocol with ResourceProtocol {
 
-  /* convert ProbeNotification class */
-  implicit object ProbeNotificationFormat extends RootJsonFormat[ProbeNotification] {
-    def write(notification: ProbeNotification) = {
+  /* convert CheckNotification class */
+  implicit object CheckNotificationFormat extends RootJsonFormat[CheckNotification] {
+    def write(notification: CheckNotification) = {
       val correlation = notification.correlation match {
         case Some(_correlation) =>  Map("correlation" -> _correlation.toJson)
         case None => Map.empty[String,JsValue]
       }
       JsObject(Map(
-        "probeRef" -> notification.probeRef.toJson,
+        "checkRef" -> notification.checkRef.toJson,
         "timestamp" -> notification.timestamp.toJson,
         "kind" -> JsString(notification.kind),
         "description" -> JsString(notification.description)
@@ -47,32 +47,32 @@ trait NotificationProtocol extends DefaultJsonProtocol with ConstantsProtocol wi
     }
     def read(value: JsValue) = value match {
       case JsObject(fields) =>
-        val probeRef = fields.get("probeRef") match {
-          case Some(JsString(string)) => ProbeRef(string)
-          case None => throw new DeserializationException("ProbeNotification missing field 'probeRef'")
-          case unknown => throw new DeserializationException("failed to parse ProbeNotification field 'probeRef'")
+        val checkRef = fields.get("checkRef") match {
+          case Some(JsString(string)) => CheckRef(string)
+          case None => throw new DeserializationException("CheckNotification missing field 'checkRef'")
+          case unknown => throw new DeserializationException("failed to parse CheckNotification field 'checkRef'")
         }
         val timestamp = fields.get("timestamp") match {
           case Some(_timestamp) => DateTimeFormat.read(_timestamp)
-          case None => throw new DeserializationException("ProbeNotification missing field 'timestamp'")
+          case None => throw new DeserializationException("CheckNotification missing field 'timestamp'")
         }
         val kind = fields.get("kind") match {
           case Some(JsString(string)) => string
-          case None => throw new DeserializationException("ProbeNotification missing field 'kind'")
-          case unknown => throw new DeserializationException("failed to parse ProbeNotification field 'kind'")
+          case None => throw new DeserializationException("CheckNotification missing field 'kind'")
+          case unknown => throw new DeserializationException("failed to parse CheckNotification field 'kind'")
         }
         val description = fields.get("description") match {
           case Some(JsString(string)) => string
-          case None => throw new DeserializationException("ProbeNotification missing field 'description'")
-          case unknown => throw new DeserializationException("failed to parse ProbeNotification field 'description'")
+          case None => throw new DeserializationException("CheckNotification missing field 'description'")
+          case unknown => throw new DeserializationException("failed to parse CheckNotification field 'description'")
         }
         val correlation = fields.get("correlation") match {
           case Some(JsString(string)) => Some(UUID.fromString(string))
           case None => None
-          case unknown => throw new DeserializationException("failed to parse ProbeNotification field 'correlation'")
+          case unknown => throw new DeserializationException("failed to parse CheckNotification field 'correlation'")
         }
-        ProbeNotification(probeRef, timestamp, kind, description, correlation)
-      case unknown => throw new DeserializationException("unknown ProbeNotification " + unknown)
+        CheckNotification(checkRef, timestamp, kind, description, correlation)
+      case unknown => throw new DeserializationException("unknown CheckNotification " + unknown)
     }
   }
 }

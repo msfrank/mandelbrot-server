@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit
 import io.mandelbrot.core.ServerConfigException
 
 case class PolicyDefaults(joiningTimeout: Option[FiniteDuration],
-                          probeTimeout: Option[FiniteDuration],
+                          checkTimeout: Option[FiniteDuration],
                           alertTimeout: Option[FiniteDuration],
                           leavingTimeout: Option[FiniteDuration])
 
@@ -41,8 +41,8 @@ object RegistrySettings {
       val joiningTimeoutMin = if (!config.hasPath("min-joining-timeout")) None else {
         Some(FiniteDuration(config.getDuration("min-joining-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
       }
-      val probeTimeoutMin = if (!config.hasPath("min-probe-timeout")) None else {
-        Some(FiniteDuration(config.getDuration("min-probe-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
+      val checkTimeoutMin = if (!config.hasPath("min-check-timeout")) None else {
+        Some(FiniteDuration(config.getDuration("min-check-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
       }
       val alertTimeoutMin = if (!config.hasPath("min-alert-timeout")) None else {
         Some(FiniteDuration(config.getDuration("min-alert-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
@@ -50,14 +50,14 @@ object RegistrySettings {
       val leavingTimeoutMin = if (!config.hasPath("min-leaving-timeout")) None else {
         Some(FiniteDuration(config.getDuration("min-leaving-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
       }
-      PolicyDefaults(joiningTimeoutMin, probeTimeoutMin, alertTimeoutMin, leavingTimeoutMin)
+      PolicyDefaults(joiningTimeoutMin, checkTimeoutMin, alertTimeoutMin, leavingTimeoutMin)
     }
     val policyMax = {
       val joiningTimeoutMax = if (!config.hasPath("max-joining-timeout")) None else {
         Some(FiniteDuration(config.getDuration("max-joining-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
       }
-      val probeTimeoutMax = if (!config.hasPath("max-probe-timeout")) None else {
-        Some(FiniteDuration(config.getDuration("max-probe-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
+      val checkTimeoutMax = if (!config.hasPath("max-check-timeout")) None else {
+        Some(FiniteDuration(config.getDuration("max-check-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
       }
       val alertTimeoutMax = if (!config.hasPath("max-alert-timeout")) None else {
         Some(FiniteDuration(config.getDuration("max-alert-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
@@ -65,7 +65,7 @@ object RegistrySettings {
       val leavingTimeoutMax = if (!config.hasPath("max-leaving-timeout")) None else {
         Some(FiniteDuration(config.getDuration("max-leaving-timeout", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
       }
-      PolicyDefaults(joiningTimeoutMax, probeTimeoutMax, alertTimeoutMax, leavingTimeoutMax)
+      PolicyDefaults(joiningTimeoutMax, checkTimeoutMax, alertTimeoutMax, leavingTimeoutMax)
     }
     val plugin = config.getString("plugin")
     val pluginSettings = if (config.hasPath("plugin-settings")) config.getConfig("plugin-settings") else ConfigFactory.empty()

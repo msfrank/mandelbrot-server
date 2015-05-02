@@ -15,9 +15,9 @@ import io.mandelbrot.core.AkkaConfig
 import io.mandelbrot.core.ConfigConversions._
 import io.mandelbrot.core.model._
 
-class ProbeStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
+class CheckStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
 
-  def this() = this(ActorSystem("ProbeStatusDALSpec", AkkaConfig ++ CassandraConfig))
+  def this() = this(ActorSystem("CheckStatusDALSpec", AkkaConfig ++ CassandraConfig))
 
   override def afterAll(): Unit = {
     Cassandra(system).dropKeyspace()
@@ -25,11 +25,11 @@ class ProbeStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
   val settings = CassandraStatePersisterSettings()
 
-  "A ProbeStatusDAL" should {
+  "A CheckStatusDAL" should {
 
     "create the state table during initialization" in {
       val session = Cassandra(system).getSession
-      val dal = new ProbeStatusDAL(settings, session, system.dispatcher)
+      val dal = new CheckStatusDAL(settings, session, system.dispatcher)
       val keyspaceName = Cassandra(system).keyspaceName
       val keyspaceMeta = session.getCluster.getMetadata.getKeyspace(keyspaceName)
       val table = keyspaceMeta.getTable(dal.tableName)
@@ -38,87 +38,87 @@ class ProbeStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with Imp
     }
   }
 
-  "A ProbeStatusDAL" should {
+  "A CheckStatusDAL" should {
 
-    var _dal: ProbeStatusDAL = null
+    var _dal: CheckStatusDAL = null
 
-    def withSessionAndDAL(testCode: (Session,ProbeStatusDAL) => Any) = {
+    def withSessionAndDAL(testCode: (Session,CheckStatusDAL) => Any) = {
       val session = Cassandra(system).getSession
       if (_dal == null)
-        _dal = new ProbeStatusDAL(settings, session, system.dispatcher)
-      Await.result(_dal.flushProbeStatus(), 5.seconds)
+        _dal = new CheckStatusDAL(settings, session, system.dispatcher)
+      Await.result(_dal.flushCheckStatus(), 5.seconds)
       testCode(session, _dal)
     }
 
-    "update probe status" in withSessionAndDAL { (session, dal) =>
-      val probeRef = ProbeRef("test:1")
+    "update check status" in withSessionAndDAL { (session, dal) =>
+      val checkRef = CheckRef("test:1")
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val epoch = EpochUtils.timestamp2epoch(timestamp)
       val correlation = UUID.randomUUID()
       val acknowledged = UUID.randomUUID()
-      val status = ProbeStatus(timestamp, ProbeKnown, Some("known"), ProbeHealthy, Map("metric"->BigDecimal(0.1)),
+      val status = CheckStatus(timestamp, CheckKnown, Some("known"), CheckHealthy, Map("metric"->BigDecimal(0.1)),
         Some(timestamp), Some(timestamp), Some(correlation), Some(acknowledged), squelched = false)
-      val notifications = Vector.empty[ProbeNotification]
-      Await.result(dal.updateProbeStatus(probeRef, epoch, status, notifications), 5.seconds)
-      val getProbeStatusResult = Await.result(dal.getProbeStatus(probeRef, epoch, timestamp), 5.seconds)
-      getProbeStatusResult.timestamp shouldEqual timestamp
-      getProbeStatusResult.lifecycle shouldEqual ProbeKnown
-      getProbeStatusResult.summary shouldEqual Some("known")
-      getProbeStatusResult.health shouldEqual ProbeHealthy
-      getProbeStatusResult.metrics shouldEqual Map("metric" -> BigDecimal(0.1))
-      getProbeStatusResult.lastUpdate shouldEqual Some(timestamp)
-      getProbeStatusResult.lastChange shouldEqual Some(timestamp)
-      getProbeStatusResult.correlation shouldEqual Some(correlation)
-      getProbeStatusResult.acknowledged shouldEqual Some(acknowledged)
-      getProbeStatusResult.squelched shouldEqual false
+      val notifications = Vector.empty[CheckNotification]
+      Await.result(dal.updateCheckStatus(checkRef, epoch, status, notifications), 5.seconds)
+      val getCheckStatusResult = Await.result(dal.getCheckStatus(checkRef, epoch, timestamp), 5.seconds)
+      getCheckStatusResult.timestamp shouldEqual timestamp
+      getCheckStatusResult.lifecycle shouldEqual CheckKnown
+      getCheckStatusResult.summary shouldEqual Some("known")
+      getCheckStatusResult.health shouldEqual CheckHealthy
+      getCheckStatusResult.metrics shouldEqual Map("metric" -> BigDecimal(0.1))
+      getCheckStatusResult.lastUpdate shouldEqual Some(timestamp)
+      getCheckStatusResult.lastChange shouldEqual Some(timestamp)
+      getCheckStatusResult.correlation shouldEqual Some(correlation)
+      getCheckStatusResult.acknowledged shouldEqual Some(acknowledged)
+      getCheckStatusResult.squelched shouldEqual false
     }
 
-    "get probe condition" in withSessionAndDAL { (session, dal) =>
-      val probeRef = ProbeRef("test:2")
+    "get check condition" in withSessionAndDAL { (session, dal) =>
+      val checkRef = CheckRef("test:2")
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val epoch = EpochUtils.timestamp2epoch(timestamp)
       val correlation = UUID.randomUUID()
       val acknowledged = UUID.randomUUID()
-      val status = ProbeStatus(timestamp, ProbeKnown, Some("known"), ProbeHealthy, Map("metric"->BigDecimal(0.1)),
+      val status = CheckStatus(timestamp, CheckKnown, Some("known"), CheckHealthy, Map("metric"->BigDecimal(0.1)),
         Some(timestamp), Some(timestamp), Some(correlation), Some(acknowledged), squelched = false)
-      val notifications = Vector.empty[ProbeNotification]
-      Await.result(dal.updateProbeStatus(probeRef, epoch, status, notifications), 5.seconds)
-      val getProbeConditionResult = Await.result(dal.getProbeCondition(probeRef, epoch, timestamp), 5.seconds)
-      getProbeConditionResult.timestamp shouldEqual timestamp
-      getProbeConditionResult.lifecycle shouldEqual ProbeKnown
-      getProbeConditionResult.summary shouldEqual Some("known")
-      getProbeConditionResult.health shouldEqual ProbeHealthy
-      getProbeConditionResult.correlation shouldEqual Some(correlation)
-      getProbeConditionResult.acknowledged shouldEqual Some(acknowledged)
-      getProbeConditionResult.squelched shouldEqual false
+      val notifications = Vector.empty[CheckNotification]
+      Await.result(dal.updateCheckStatus(checkRef, epoch, status, notifications), 5.seconds)
+      val getCheckConditionResult = Await.result(dal.getCheckCondition(checkRef, epoch, timestamp), 5.seconds)
+      getCheckConditionResult.timestamp shouldEqual timestamp
+      getCheckConditionResult.lifecycle shouldEqual CheckKnown
+      getCheckConditionResult.summary shouldEqual Some("known")
+      getCheckConditionResult.health shouldEqual CheckHealthy
+      getCheckConditionResult.correlation shouldEqual Some(correlation)
+      getCheckConditionResult.acknowledged shouldEqual Some(acknowledged)
+      getCheckConditionResult.squelched shouldEqual false
     }
 
-    "get probe notifications" in withSessionAndDAL { (session, dal) =>
-      val probeRef = ProbeRef("test:3")
+    "get check notifications" in withSessionAndDAL { (session, dal) =>
+      val checkRef = CheckRef("test:3")
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val epoch = EpochUtils.timestamp2epoch(timestamp)
       val correlation = UUID.randomUUID()
       val acknowledged = UUID.randomUUID()
-      val status = ProbeStatus(timestamp, ProbeKnown, Some("known"), ProbeFailed, Map("metric"->BigDecimal(0.1)),
+      val status = CheckStatus(timestamp, CheckKnown, Some("known"), CheckFailed, Map("metric"->BigDecimal(0.1)),
         Some(timestamp), Some(timestamp), Some(correlation), Some(acknowledged), squelched = false)
-      val notifications = Vector(NotifyHealthAlerts(probeRef, timestamp, ProbeFailed, correlation, Some(acknowledged)))
-      Await.result(dal.updateProbeStatus(probeRef, epoch, status, notifications), 5.seconds)
-      val getProbeNotificationsResult = Await.result(dal.getProbeNotifications(probeRef, epoch, timestamp), 5.seconds)
-      getProbeNotificationsResult shouldEqual ProbeNotifications(timestamp, notifications)
+      val notifications = Vector(NotifyHealthAlerts(checkRef, timestamp, CheckFailed, correlation, Some(acknowledged)))
+      Await.result(dal.updateCheckStatus(checkRef, epoch, status, notifications), 5.seconds)
+      val getCheckNotificationsResult = Await.result(dal.getCheckNotifications(checkRef, epoch, timestamp), 5.seconds)
+      getCheckNotificationsResult shouldEqual CheckNotifications(timestamp, notifications)
     }
 
-    "get probe metrics" in withSessionAndDAL { (session, dal) =>
-      val probeRef = ProbeRef("test:4")
+    "get check metrics" in withSessionAndDAL { (session, dal) =>
+      val checkRef = CheckRef("test:4")
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val epoch = EpochUtils.timestamp2epoch(timestamp)
       val correlation = UUID.randomUUID()
       val acknowledged = UUID.randomUUID()
-      val status = ProbeStatus(timestamp, ProbeKnown, Some("known"), ProbeHealthy, Map("metric"->BigDecimal(0.1)),
+      val status = CheckStatus(timestamp, CheckKnown, Some("known"), CheckHealthy, Map("metric"->BigDecimal(0.1)),
         Some(timestamp), Some(timestamp), Some(correlation), Some(acknowledged), squelched = false)
-      val notifications = Vector.empty[ProbeNotification]
-      Await.result(dal.updateProbeStatus(probeRef, epoch, status, notifications), 5.seconds)
-      val getProbeMetricsResult = Await.result(dal.getProbeMetrics(probeRef, epoch, timestamp), 5.seconds)
-      getProbeMetricsResult shouldEqual ProbeMetrics(timestamp, status.metrics)
+      val notifications = Vector.empty[CheckNotification]
+      Await.result(dal.updateCheckStatus(checkRef, epoch, status, notifications), 5.seconds)
+      val getCheckMetricsResult = Await.result(dal.getCheckMetrics(checkRef, epoch, timestamp), 5.seconds)
+      getCheckMetricsResult shouldEqual CheckMetrics(timestamp, status.metrics)
     }
   }
 }

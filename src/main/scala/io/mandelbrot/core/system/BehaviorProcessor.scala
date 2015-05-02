@@ -33,102 +33,102 @@ trait BehaviorProcessor {
 
   def initialize(): InitializeEffect
 
-  def configure(status: ProbeStatus, children: Set[ProbeRef]): ConfigureEffect
+  def configure(status: CheckStatus, children: Set[CheckRef]): ConfigureEffect
 
-  def processEvaluation(probe: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect]
-  def processChild(probe: AccessorOps, child: ProbeRef, status: ProbeStatus): Option[EventEffect]
-  def processAlertTimeout(probe: AccessorOps): Option[EventEffect]
-  def processExpiryTimeout(probe: AccessorOps): Option[EventEffect]
+  def processEvaluation(check: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect]
+  def processChild(check: AccessorOps, child: CheckRef, status: CheckStatus): Option[EventEffect]
+  def processAlertTimeout(check: AccessorOps): Option[EventEffect]
+  def processExpiryTimeout(check: AccessorOps): Option[EventEffect]
 
   /**
    *
    */
-  def processEvent(probe: AccessorOps, message: Any): Option[EventEffect] = message match {
-    case ChildMutates(child, status) => processChild(probe, child, status)
-    case CheckAlertTimeout => processAlertTimeout(probe)
-    case CheckExpiryTimeout => processExpiryTimeout(probe)
+  def processEvent(check: AccessorOps, message: Any): Option[EventEffect] = message match {
+    case ChildMutates(child, status) => processChild(check, child, status)
+    case CheckAlertTimeout => processAlertTimeout(check)
+    case CheckExpiryTimeout => processExpiryTimeout(check)
     case _ => throw new IllegalArgumentException()
   }
 
-  def processAcknowledge(probe: AccessorOps, command: AcknowledgeCheck): Try[CommandEffect] = {
-    probe.correlationId match {
+  def processAcknowledge(check: AccessorOps, command: AcknowledgeCheck): Try[CommandEffect] = {
+    check.correlationId match {
       case None =>
         Failure(ApiException(ResourceNotFound))
-      case Some(correlation) if probe.acknowledgementId.isDefined =>
+      case Some(correlation) if check.acknowledgementId.isDefined =>
         Failure(ApiException(Conflict))
       case Some(correlation) if correlation != command.correlationId =>
         Failure(ApiException(BadRequest))
       case Some(correlation) =>
         val acknowledgement = UUID.randomUUID()
         val timestamp = DateTime.now(DateTimeZone.UTC)
-        val status = probe.getProbeStatus(timestamp).copy(acknowledged = Some(acknowledgement))
-        val condition = ProbeCondition(timestamp, status.lifecycle, status.summary, status.health,
+        val status = check.getCheckStatus(timestamp).copy(acknowledged = Some(acknowledgement))
+        val condition = CheckCondition(timestamp, status.lifecycle, status.summary, status.health,
           status.correlation, status.acknowledged, status.squelched)
-        val notifications = Vector(NotifyAcknowledged(probe.probeRef, timestamp, correlation, acknowledgement))
+        val notifications = Vector(NotifyAcknowledged(check.checkRef, timestamp, correlation, acknowledgement))
         Success(CommandEffect(AcknowledgeCheckResult(command, condition), status, notifications))
     }
   }
 
-  def processUnacknowledge(probe: AccessorOps, command: UnacknowledgeCheck): Try[CommandEffect] = {
-    probe.acknowledgementId match {
+  def processUnacknowledge(check: AccessorOps, command: UnacknowledgeCheck): Try[CommandEffect] = {
+    check.acknowledgementId match {
       case None =>
         Failure(ApiException(ResourceNotFound))
       case Some(acknowledgement) if acknowledgement != command.acknowledgementId =>
         Failure(ApiException(BadRequest))
       case Some(acknowledgement) =>
         val timestamp = DateTime.now(DateTimeZone.UTC)
-        val correlation = probe.correlationId.get
-        val status = probe.getProbeStatus(timestamp).copy(acknowledged = None)
-        val condition = ProbeCondition(timestamp, status.lifecycle, status.summary, status.health,
+        val correlation = check.correlationId.get
+        val status = check.getCheckStatus(timestamp).copy(acknowledged = None)
+        val condition = CheckCondition(timestamp, status.lifecycle, status.summary, status.health,
           status.correlation, status.acknowledged, status.squelched)
-        val notifications = Vector(NotifyUnacknowledged(probe.probeRef, timestamp, correlation, acknowledgement))
+        val notifications = Vector(NotifyUnacknowledged(check.checkRef, timestamp, correlation, acknowledgement))
         Success(CommandEffect(UnacknowledgeCheckResult(command, condition), status, notifications))
     }
   }
 
-  def processSetSquelch(probe: AccessorOps, command: SetCheckSquelch): Try[CommandEffect] = {
-    if (probe.squelch == command.squelch) Failure(ApiException(BadRequest)) else {
+  def processSetSquelch(check: AccessorOps, command: SetCheckSquelch): Try[CommandEffect] = {
+    if (check.squelch == command.squelch) Failure(ApiException(BadRequest)) else {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val squelch = command.squelch
-      val status = probe.getProbeStatus(timestamp).copy(squelched = squelch)
-      val condition = ProbeCondition(timestamp, status.lifecycle, status.summary, status.health,
+      val status = check.getCheckStatus(timestamp).copy(squelched = squelch)
+      val condition = CheckCondition(timestamp, status.lifecycle, status.summary, status.health,
         status.correlation, status.acknowledged, status.squelched)
-      val notifications = if (command.squelch) Vector(NotifySquelched(probe.probeRef, timestamp)) else Vector(NotifyUnsquelched(probe.probeRef, timestamp))
+      val notifications = if (command.squelch) Vector(NotifySquelched(check.checkRef, timestamp)) else Vector(NotifyUnsquelched(check.checkRef, timestamp))
       Success(CommandEffect(SetCheckSquelchResult(command, condition), status, notifications))
     }
   }
 
-  def processCommand(probe: AccessorOps, command: CheckCommand): Try[CommandEffect] = command match {
-    case cmd: ProcessCheckEvaluation => processEvaluation(probe, cmd)
-    case cmd: AcknowledgeCheck => processAcknowledge(probe, cmd)
-    case cmd: UnacknowledgeCheck => processUnacknowledge(probe, cmd)
-    case cmd: SetCheckSquelch => processSetSquelch(probe, cmd)
+  def processCommand(check: AccessorOps, command: CheckCommand): Try[CommandEffect] = command match {
+    case cmd: ProcessCheckEvaluation => processEvaluation(check, cmd)
+    case cmd: AcknowledgeCheck => processAcknowledge(check, cmd)
+    case cmd: UnacknowledgeCheck => processUnacknowledge(check, cmd)
+    case cmd: SetCheckSquelch => processSetSquelch(check, cmd)
     case _ => throw new IllegalArgumentException()
   }
 
   /*
-   * probe lifecycle is leaving and the leaving timeout has expired.  probe lifecycle is set to
+   * check lifecycle is leaving and the leaving timeout has expired.  check lifecycle is set to
    * retired, state is updated, and lifecycle-changes notification is sent.  finally, all timers
    * are stopped, then the actor itself is stopped.
    */
-  def retire(probe: AccessorOps, lsn: Long): Option[EventEffect] = {
+  def retire(check: AccessorOps, lsn: Long): Option[EventEffect] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
-    val status = probe.getProbeStatus(timestamp).copy(lifecycle = ProbeRetired, lastChange = Some(timestamp), lastUpdate = Some(timestamp))
-    val notifications = Vector(NotifyLifecycleChanges(probe.probeRef, timestamp, probe.lifecycle, ProbeRetired))
+    val status = check.getCheckStatus(timestamp).copy(lifecycle = CheckRetired, lastChange = Some(timestamp), lastUpdate = Some(timestamp))
+    val notifications = Vector(NotifyLifecycleChanges(check.checkRef, timestamp, check.lifecycle, CheckRetired))
     Some(EventEffect(status, notifications))
   }
 }
 
 sealed trait CheckEffect
 case class InitializeEffect(from: Option[DateTime]) extends CheckEffect
-case class ConfigureEffect(status: ProbeStatus,
-                           notifications: Vector[ProbeNotification],
-                           children: Set[ProbeRef],
+case class ConfigureEffect(status: CheckStatus,
+                           notifications: Vector[CheckNotification],
+                           children: Set[CheckRef],
                            metrics: Set[MetricSource]) extends CheckEffect
 case class CommandEffect(result: CheckResult,
-                         status: ProbeStatus,
-                         notifications: Vector[ProbeNotification]) extends CheckEffect
+                         status: CheckStatus,
+                         notifications: Vector[CheckNotification]) extends CheckEffect
 
-case class EventEffect(status: ProbeStatus,
-                       notifications: Vector[ProbeNotification]) extends CheckEffect
+case class EventEffect(status: CheckStatus,
+                       notifications: Vector[CheckNotification]) extends CheckEffect
 
