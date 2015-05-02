@@ -50,14 +50,14 @@ class ScalarCheckSpec(_system: ActorSystem) extends TestKit(_system) with Implic
     "transition to ProbeKnown/ProbeHealthy when a healthy StatusMessage is received" in {
       val probeRef = ProbeRef("foo.local:check")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val probeType = "io.mandelbrot.core.system.ScalarProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
+      val probeType = "io.mandelbrot.core.system.ScalarCheck"
+      val factory = CheckBehavior.extensions(probeType).configure(Map.empty)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
-      probe ! ChangeProbe(probeType, policy, factory, Set.empty, 0)
+      probe ! ChangeCheck(probeType, policy, factory, Set.empty, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
@@ -79,20 +79,20 @@ class ScalarCheckSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       updateProbeStatus2.status.squelched shouldEqual false
       stateService.reply(UpdateProbeStatusResult(updateProbeStatus2))
 
-      expectMsgClass(classOf[ProcessProbeEvaluationResult])
+      expectMsgClass(classOf[ProcessCheckEvaluationResult])
     }
 
     "transition to ProbeKnown/ProbeDegraded when a degraded StatusMessage is received" in {
       val probeRef = ProbeRef("foo.local:check")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val probeType = "io.mandelbrot.core.system.ScalarProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
+      val probeType = "io.mandelbrot.core.system.ScalarCheck"
+      val factory = CheckBehavior.extensions(probeType).configure(Map.empty)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
-      probe ! ChangeProbe(probeType, policy, factory, Set.empty, 0)
+      probe ! ChangeCheck(probeType, policy, factory, Set.empty, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
@@ -114,20 +114,20 @@ class ScalarCheckSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       updateProbeStatus2.status.squelched shouldEqual false
       stateService.reply(UpdateProbeStatusResult(updateProbeStatus2))
 
-      expectMsgClass(classOf[ProcessProbeEvaluationResult])
+      expectMsgClass(classOf[ProcessCheckEvaluationResult])
     }
 
     "transition to ProbeKnown/ProbeFailed when a failed StatusMessage is received" in {
       val probeRef = ProbeRef("foo.local:check")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val probeType = "io.mandelbrot.core.system.ScalarProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
+      val probeType = "io.mandelbrot.core.system.ScalarCheck"
+      val factory = CheckBehavior.extensions(probeType).configure(Map.empty)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
-      probe ! ChangeProbe(probeType, policy, factory, Set.empty, 0)
+      probe ! ChangeCheck(probeType, policy, factory, Set.empty, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
@@ -149,20 +149,20 @@ class ScalarCheckSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       updateProbeStatus2.status.squelched shouldEqual false
       stateService.reply(UpdateProbeStatusResult(updateProbeStatus2))
 
-      expectMsgClass(classOf[ProcessProbeEvaluationResult])
+      expectMsgClass(classOf[ProcessCheckEvaluationResult])
     }
 
     "transition to ProbeKnown/ProbeUnknown when a unknown StatusMessage is received" in {
       val probeRef = ProbeRef("foo.local:check")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val probeType = "io.mandelbrot.core.system.ScalarProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
+      val probeType = "io.mandelbrot.core.system.ScalarCheck"
+      val factory = CheckBehavior.extensions(probeType).configure(Map.empty)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
-      probe ! ChangeProbe(probeType, policy, factory, Set.empty, 0)
+      probe ! ChangeCheck(probeType, policy, factory, Set.empty, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
@@ -184,20 +184,20 @@ class ScalarCheckSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       updateProbeStatus2.status.squelched shouldEqual false
       stateService.reply(UpdateProbeStatusResult(updateProbeStatus2))
 
-      expectMsgClass(classOf[ProcessProbeEvaluationResult])
+      expectMsgClass(classOf[ProcessCheckEvaluationResult])
     }
 
     "notify StateService when the joining timeout expires" in {
       val probeRef = ProbeRef("foo.local:check")
       val policy = CheckPolicy(2.seconds, 1.minute, 1.minute, 1.minute, None)
-      val probeType = "io.mandelbrot.core.system.ScalarProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
+      val probeType = "io.mandelbrot.core.system.ScalarCheck"
+      val factory = CheckBehavior.extensions(probeType).configure(Map.empty)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
-      probe ! ChangeProbe(probeType, policy, factory, Set.empty, 0)
+      probe ! ChangeCheck(probeType, policy, factory, Set.empty, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
@@ -222,14 +222,14 @@ class ScalarCheckSpec(_system: ActorSystem) extends TestKit(_system) with Implic
     "notify StateService when the probe timeout expires" in {
       val probeRef = ProbeRef("foo.local:check")
       val policy = CheckPolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
-      val probeType = "io.mandelbrot.core.system.ScalarProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
+      val probeType = "io.mandelbrot.core.system.ScalarCheck"
+      val factory = CheckBehavior.extensions(probeType).configure(Map.empty)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
-      probe ! ChangeProbe(probeType, policy, factory, Set.empty, 0)
+      probe ! ChangeCheck(probeType, policy, factory, Set.empty, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
@@ -259,15 +259,15 @@ class ScalarCheckSpec(_system: ActorSystem) extends TestKit(_system) with Implic
     "notify NotificationService when the alert timeout expires" in {
       val probeRef = ProbeRef("foo.local:check")
       val policy = CheckPolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)
-      val probeType = "io.mandelbrot.core.system.ScalarProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
+      val probeType = "io.mandelbrot.core.system.ScalarCheck"
+      val factory = CheckBehavior.extensions(probeType).configure(Map.empty)
       val notificationService = new TestProbe(_system)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref), notificationService = Some(notificationService.ref)))
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
-      probe ! ChangeProbe(probeType, policy, factory, Set.empty, 0)
+      probe ! ChangeCheck(probeType, policy, factory, Set.empty, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)

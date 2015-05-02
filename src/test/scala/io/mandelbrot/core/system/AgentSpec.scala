@@ -30,7 +30,7 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val policy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
       val properties = Map.empty[String,String]
       val metadata = Map.empty[String,String]
-      val probe = CheckSpec("io.mandelbrot.core.system.ScalarProbe", policy, properties, metadata)
+      val probe = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, properties, metadata)
       val probes = Map(CheckId("load") -> probe)
       val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
       val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, probes, metrics)
@@ -48,7 +48,7 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val policy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
       val properties = Map.empty[String,String]
       val metadata = Map.empty[String,String]
-      val probe = CheckSpec("io.mandelbrot.core.system.ScalarProbe", policy, properties, metadata)
+      val probe = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, properties, metadata)
       val probes = Map(CheckId("load") -> probe)
       val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
       val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, probes, metrics)
@@ -72,7 +72,7 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val policy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
       val properties = Map.empty[String,String]
       val metadata = Map.empty[String,String]
-      val probe1 = CheckSpec("io.mandelbrot.core.system.ScalarProbe", policy, properties, metadata)
+      val probe1 = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, properties, metadata)
       val probes1 = Map(CheckId("probe1") -> probe1)
       val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
       val registration1 = AgentRegistration(agentId, "mandelbrot", Map.empty, probes1, metrics)
@@ -82,7 +82,7 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       probeSystem ! RegisterAgent(agentId, registration1)
       val registerProbeSystemResult = expectMsgClass(classOf[RegisterProbeSystemResult])
 
-      val probe2 = CheckSpec("io.mandelbrot.core.system.ScalarProbe", policy, properties, metadata)
+      val probe2 = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, properties, metadata)
       val probes2 = Map(CheckId("probe2") -> probe2)
       val registration2 = AgentRegistration(agentId, "mandelbrot", Map.empty, probes2, metrics)
 
@@ -91,7 +91,7 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       updateProbeSystemResult.metadata.lsn shouldEqual 1
 
       probeSystem ! GetCheckStatus(ProbeRef("test.3:probe2"))
-      val getProbeStatusResult = expectMsgClass(classOf[GetProbeStatusResult])
+      val getProbeStatusResult = expectMsgClass(classOf[GetCheckStatusResult])
     }
   }
 }

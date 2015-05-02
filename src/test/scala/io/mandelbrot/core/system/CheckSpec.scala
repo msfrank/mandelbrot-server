@@ -30,11 +30,11 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val probeRef = ProbeRef("foo.local:check")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val probeType = "io.mandelbrot.core.system.TestBehavior"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
+      val factory = CheckBehavior.extensions(probeType).configure(Map.empty)
       val services = system.actorOf(TestServiceProxy.props())
       val metricsBus = new MetricsBus()
       val probe = TestActorRef(new Check(probeRef, blackhole, services, metricsBus))
-      probe ! ChangeProbe(probeType, policy, factory, Set.empty, 0)
+      probe ! ChangeCheck(probeType, policy, factory, Set.empty, 0)
       val underlying = probe.underlyingActor
       underlying.lifecycle shouldEqual ProbeInitializing
       underlying.health shouldEqual ProbeUnknown
@@ -50,13 +50,13 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val probeRef = ProbeRef("foo.local:check")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val probeType = "io.mandelbrot.core.system.TestBehavior"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
+      val factory = CheckBehavior.extensions(probeType).configure(Map.empty)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
-      probe ! ChangeProbe(probeType, policy, factory, Set.empty, 0)
+      probe ! ChangeCheck(probeType, policy, factory, Set.empty, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false)
@@ -66,7 +66,7 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       stateService.reply(UpdateProbeStatusResult(updateProbeStatus1))
 
       probe ! GetCheckStatus(probeRef)
-      val getProbeStatusResult = expectMsgClass(classOf[GetProbeStatusResult])
+      val getProbeStatusResult = expectMsgClass(classOf[GetCheckStatusResult])
       getProbeStatusResult.status.lifecycle shouldEqual ProbeKnown
       getProbeStatusResult.status.health shouldEqual ProbeHealthy
       getProbeStatusResult.status.summary shouldEqual None
@@ -83,10 +83,10 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val factory1 = ProbeBehavior.extensions(probeType).configure(Map("key" -> "value1"))
+      val factory1 = CheckBehavior.extensions(probeType).configure(Map("key" -> "value1"))
 
       val probe = TestActorRef(new Check(probeRef, blackhole, services, metricsBus))
-      probe ! ChangeProbe(probeType, policy, factory1, Set.empty, 0)
+      probe ! ChangeCheck(probeType, policy, factory1, Set.empty, 0)
 
       val initializeProbeStatus1 = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status1 = ProbeStatus(DateTime.now(), ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false)
@@ -98,8 +98,8 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       probe.underlyingActor.processor shouldBe a [TestProcessor]
       probe.underlyingActor.processor should have ('properties (Map("key" -> "value1")))
 
-      val factory2 = ProbeBehavior.extensions(probeType).configure(Map("key" -> "value2"))
-      probe ! ChangeProbe(probeType, policy, factory2, Set.empty, 1)
+      val factory2 = CheckBehavior.extensions(probeType).configure(Map("key" -> "value2"))
+      probe ! ChangeCheck(probeType, policy, factory2, Set.empty, 1)
 
       val initializeProbeStatus2 = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status2 = ProbeStatus(DateTime.now(), ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false)
@@ -123,10 +123,10 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val metricsBus = new MetricsBus()
       val policy = CheckPolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
       val probeType1 = "io.mandelbrot.core.system.TestBehavior"
-      val factory1 = ProbeBehavior.extensions(probeType1).configure(Map.empty)
+      val factory1 = CheckBehavior.extensions(probeType1).configure(Map.empty)
 
       val probe = TestActorRef(new Check(probeRef, blackhole, services, metricsBus))
-      probe ! ChangeProbe(probeType1, policy, factory1, children, 0)
+      probe ! ChangeCheck(probeType1, policy, factory1, children, 0)
 
       val initializeProbeStatus1 = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status1 = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
@@ -136,8 +136,8 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       stateService.reply(UpdateProbeStatusResult(updateProbeStatus1))
 
       val probeType2 = "io.mandelbrot.core.system.TestChangeBehavior"
-      val factory2 = ProbeBehavior.extensions(probeType2).configure(Map.empty)
-      probe ! ChangeProbe(probeType2, policy, factory2, children, 1)
+      val factory2 = CheckBehavior.extensions(probeType2).configure(Map.empty)
+      probe ! ChangeCheck(probeType2, policy, factory2, children, 1)
 
       val initializeProbeStatus2 = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status2 = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
@@ -155,20 +155,20 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val probeRef = ProbeRef("foo.local:check")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val probeType = "io.mandelbrot.core.system.TestBehavior"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
+      val factory = CheckBehavior.extensions(probeType).configure(Map.empty)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
       watch(probe)
-      probe ! ChangeProbe(probeType, policy, factory, Set.empty, 1)
+      probe ! ChangeCheck(probeType, policy, factory, Set.empty, 1)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeKnown, None, ProbeHealthy, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeProbeStatusResult(initializeProbeStatus, Some(status)))
 
-      probe ! RetireProbe(0)
+      probe ! RetireCheck(0)
       val deleteProbeStatus = stateService.expectMsgClass(classOf[DeleteProbeStatus])
       stateService.reply(DeleteProbeStatusResult(deleteProbeStatus))
 

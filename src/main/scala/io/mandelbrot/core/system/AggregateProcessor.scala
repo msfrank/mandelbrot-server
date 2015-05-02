@@ -28,12 +28,12 @@ import scala.util.{Try, Failure}
 import io.mandelbrot.core.{BadRequest, ApiException}
 import io.mandelbrot.core.model._
 
-case class AggregateProbeSettings(evaluation: AggregateEvaluation)
+case class AggregateCheckSettings(evaluation: AggregateEvaluation)
 
 /**
  *
  */
-class AggregateProcessor(settings: AggregateProbeSettings) extends BehaviorProcessor {
+class AggregateProcessor(settings: AggregateCheckSettings) extends BehaviorProcessor {
 
   val evaluation = settings.evaluation
   var childrenStatus: Map[ProbeRef,Option[ProbeStatus]] = Map.empty
@@ -50,10 +50,10 @@ class AggregateProcessor(settings: AggregateProbeSettings) extends BehaviorProce
   }
 
   /* ignore probe evaluations from client */
-  def processEvaluation(probe: ProbeInterface, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(ApiException(BadRequest))
+  def processEvaluation(probe: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(ApiException(BadRequest))
 
   /* process the status of a child probe */
-  def processChild(probe: ProbeInterface, childRef: ProbeRef, childStatus: ProbeStatus): Option[EventEffect] = {
+  def processChild(probe: AccessorOps, childRef: ProbeRef, childStatus: ProbeStatus): Option[EventEffect] = {
     childrenStatus = childrenStatus + (childRef -> Some(childStatus))
 
     val timestamp = DateTime.now(DateTimeZone.UTC)
@@ -92,12 +92,12 @@ class AggregateProcessor(settings: AggregateProbeSettings) extends BehaviorProce
   }
 
   /* ignore spurious CheckExpiryTimeout$ messages */
-  def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect] = None
+  def processExpiryTimeout(probe: AccessorOps): Option[EventEffect] = None
 
   /*
    * if the alert timer expires, then send a health-alerts notification and restart the alert timer.
    */
-  def processAlertTimeout(probe: ProbeInterface): Option[EventEffect] = {
+  def processAlertTimeout(probe: AccessorOps): Option[EventEffect] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val status = probe.getProbeStatus(timestamp)
     // send alert notification
@@ -108,12 +108,12 @@ class AggregateProcessor(settings: AggregateProbeSettings) extends BehaviorProce
   }
 }
 
-class AggregateProbe extends ProbeBehaviorExtension {
-  type Settings = AggregateProbeSettings
-  class AggregateProcessorFactory(val settings: AggregateProbeSettings) extends DependentProcessorFactory {
+class AggregateCheck extends CheckBehaviorExtension {
+  type Settings = AggregateCheckSettings
+  class AggregateProcessorFactory(val settings: AggregateCheckSettings) extends DependentProcessorFactory {
     def implement() = new AggregateProcessor(settings)
   }
   def configure(properties: Map[String,String]) = {
-    new AggregateProcessorFactory(AggregateProbeSettings(EvaluateWorst))
+    new AggregateProcessorFactory(AggregateCheckSettings(EvaluateWorst))
   }
 }

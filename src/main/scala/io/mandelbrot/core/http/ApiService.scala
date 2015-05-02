@@ -140,7 +140,7 @@ trait ApiService extends HttpService {
             /* describe the status of the Check */
             complete {
               serviceProxy.ask(GetCheckStatus(ProbeRef(agentId, checkId))).map {
-                case result: GetProbeStatusResult =>
+                case result: GetCheckStatusResult =>
                   result.status
                 case failure: ServiceOperationFailed =>
                   throw failure.failure
@@ -152,7 +152,7 @@ trait ApiService extends HttpService {
             entity(as[ProbeEvaluation]) { case evaluation: ProbeEvaluation =>
               complete {
                 serviceProxy.ask(ProcessCheckEvaluation(ProbeRef(agentId, checkId), evaluation)).map {
-                  case result: ProcessProbeEvaluationResult =>
+                  case result: ProcessCheckEvaluationResult =>
                     HttpResponse(StatusCodes.OK)
                   case failure: ServiceOperationFailed =>
                     throw failure.failure
@@ -168,7 +168,7 @@ trait ApiService extends HttpService {
                complete {
                 val limit = paging.limit.getOrElse(settings.pageLimit)
                 serviceProxy.ask(GetCheckCondition(ProbeRef(agentId, checkId), timeseries.from, timeseries.to, limit, paging.last)).map {
-                  case result: GetProbeConditionResult =>
+                  case result: GetCheckConditionResult =>
                     result.page
                   case failure: ServiceOperationFailed =>
                     throw failure.failure
@@ -184,7 +184,7 @@ trait ApiService extends HttpService {
               complete {
                 val limit = paging.limit.getOrElse(settings.pageLimit)
                 serviceProxy.ask(GetCheckNotifications(ProbeRef(agentId, checkId), timeseries.from, timeseries.to, limit, paging.last)).map {
-                  case result: GetProbeNotificationsResult =>
+                  case result: GetCheckNotificationsResult =>
                     result.page
                   case failure: ServiceOperationFailed =>
                     throw failure.failure
@@ -200,7 +200,7 @@ trait ApiService extends HttpService {
               complete {
                 val limit = paging.limit.getOrElse(settings.pageLimit)
                 serviceProxy.ask(GetCheckMetrics(ProbeRef(agentId, checkId), timeseries.from, timeseries.to, limit, paging.last)).map {
-                  case result: GetProbeMetricsResult =>
+                  case result: GetCheckMetricsResult =>
                     result.page
                   case failure: ServiceOperationFailed =>
                     throw failure.failure
@@ -215,7 +215,7 @@ trait ApiService extends HttpService {
             entity(as[AcknowledgeCheck]) { case command: AcknowledgeCheck =>
               complete {
                 serviceProxy.ask(command).map {
-                  case result: AcknowledgeProbeResult =>
+                  case result: AcknowledgeCheckResult =>
                     result.condition
                   case failure: ServiceOperationFailed =>
                     throw failure.failure
@@ -230,7 +230,7 @@ trait ApiService extends HttpService {
             entity(as[UnacknowledgeCheck]) { case command: UnacknowledgeCheck =>
               complete {
                 serviceProxy.ask(command).map {
-                  case result: UnacknowledgeProbeResult =>
+                  case result: UnacknowledgeCheckResult =>
                     result.condition
                   case failure: ServiceOperationFailed =>
                     throw failure.failure
@@ -245,7 +245,7 @@ trait ApiService extends HttpService {
             entity(as[SetCheckSquelch]) { case command: SetCheckSquelch =>
               complete {
                 serviceProxy.ask(command).map {
-                  case result: SetProbeSquelchResult =>
+                  case result: SetCheckSquelchResult =>
                     result.condition
                   case failure: ServiceOperationFailed =>
                     throw failure.failure

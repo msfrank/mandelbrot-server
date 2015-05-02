@@ -48,7 +48,7 @@ trait SystemProtocol extends DefaultJsonProtocol with ConstantsProtocol with Sta
   implicit val SetProbeSquelchFormat = jsonFormat2(SetCheckSquelch)
 
   /* probe results */
-  implicit val AcknowledgeProbeResultFormat = jsonFormat2(AcknowledgeProbeResult)
-  implicit val UnacknowledgeProbeResultFormat = jsonFormat2(UnacknowledgeProbeResult)
-  implicit val SetProbeSquelchResultFormat = jsonFormat2(SetProbeSquelchResult)
+  implicit val AcknowledgeProbeResultFormat = jsonFormat2(AcknowledgeCheckResult)
+  implicit val UnacknowledgeProbeResultFormat = jsonFormat2(UnacknowledgeCheckResult)
+  implicit val SetProbeSquelchResultFormat = jsonFormat2(SetCheckSquelchResult)
 }

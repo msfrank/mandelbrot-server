@@ -53,14 +53,14 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val probeRef = ProbeRef("foo.local:foo.check")
       val source = MetricSource(probeRef.checkId, "value")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val probeType = "io.mandelbrot.core.system.MetricsProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo.check:value > 10"))
+      val probeType = "io.mandelbrot.core.system.MetricsCheck"
+      val factory = CheckBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Check.props(probeRef, blackhole,  services, metricsBus))
-      probe ! ChangeProbe(probeType, policy, factory, Set.empty, 0)
+      probe ! ChangeCheck(probeType, policy, factory, Set.empty, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
@@ -80,21 +80,21 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       updateProbeStatus2.status.squelched shouldEqual false
       stateService.reply(UpdateProbeStatusResult(updateProbeStatus2))
 
-      expectMsgClass(classOf[ProcessProbeEvaluationResult])
+      expectMsgClass(classOf[ProcessCheckEvaluationResult])
     }
 
     "transition to ProbeKnown/ProbeFailed when a failed MetricsMessage is received" in {
       val probeRef = ProbeRef("foo.local:foo.check")
       val source = MetricSource(probeRef.checkId, "value")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val probeType = "io.mandelbrot.core.system.MetricsProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo.check:value > 10"))
+      val probeType = "io.mandelbrot.core.system.MetricsCheck"
+      val factory = CheckBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
-      probe ! ChangeProbe(probeType, policy, factory, Set.empty, 0)
+      probe ! ChangeCheck(probeType, policy, factory, Set.empty, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
@@ -114,21 +114,21 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       updateProbeStatus2.status.squelched shouldEqual false
       stateService.reply(UpdateProbeStatusResult(updateProbeStatus2))
 
-      expectMsgClass(classOf[ProcessProbeEvaluationResult])
+      expectMsgClass(classOf[ProcessCheckEvaluationResult])
     }
 
     "notify StateService when the joining timeout expires" in {
       val probeRef = ProbeRef("foo.local:foo.check")
       val source = MetricSource(probeRef.checkId, "value")
       val policy = CheckPolicy(2.seconds, 1.minute, 1.minute, 1.minute, None)
-      val probeType = "io.mandelbrot.core.system.MetricsProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo.check:value > 10"))
+      val probeType = "io.mandelbrot.core.system.MetricsCheck"
+      val factory = CheckBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
-      probe ! ChangeProbe(probeType, policy, factory, Set.empty, 0)
+      probe ! ChangeCheck(probeType, policy, factory, Set.empty, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
@@ -153,14 +153,14 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val source = MetricSource(probeRef.checkId, "value")
       val evaluation = parser.parseMetricsEvaluation("when foo.check:value > 10")
       val policy = CheckPolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
-      val probeType = "io.mandelbrot.core.system.MetricsProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo.check:value > 10"))
+      val probeType = "io.mandelbrot.core.system.MetricsCheck"
+      val factory = CheckBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
-      probe ! ChangeProbe(probeType, policy, factory, Set.empty, 0)
+      probe ! ChangeCheck(probeType, policy, factory, Set.empty, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
@@ -177,7 +177,7 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       stateService.reply(UpdateProbeStatusResult(updateProbeStatus2))
       updateProbeStatus2.status.lifecycle shouldEqual ProbeKnown
       updateProbeStatus2.status.health shouldEqual ProbeHealthy
-      expectMsgClass(classOf[ProcessProbeEvaluationResult])
+      expectMsgClass(classOf[ProcessCheckEvaluationResult])
 
       // expiry timer should fire within 5 seconds
       val updateProbeStatus3 = stateService.expectMsgClass(5.seconds, classOf[UpdateProbeStatus])
@@ -194,15 +194,15 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val probeRef = ProbeRef("foo.local:foo.check")
       val source = MetricSource(probeRef.checkId, "value")
       val policy = CheckPolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)
-      val probeType = "io.mandelbrot.core.system.MetricsProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo.check:value > 10"))
+      val probeType = "io.mandelbrot.core.system.MetricsCheck"
+      val factory = CheckBehavior.extensions(probeType).configure(Map("evaluation" -> "when foo.check:value > 10"))
       val notificationService = new TestProbe(_system)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref), notificationService = Some(notificationService.ref)))
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
-      probe ! ChangeProbe(probeType, policy, factory, Set.empty, 0)
+      probe ! ChangeCheck(probeType, policy, factory, Set.empty, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
@@ -219,7 +219,7 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       stateService.reply(UpdateProbeStatusResult(updateProbeStatus2))
       notificationService.expectMsgClass(classOf[NotifyLifecycleChanges])
       notificationService.expectMsgClass(classOf[NotifyHealthChanges])
-      expectMsgClass(classOf[ProcessProbeEvaluationResult])
+      expectMsgClass(classOf[ProcessCheckEvaluationResult])
 
       // expiry timer should fire within 5 seconds
       val updateProbeStatus3 = stateService.expectMsgClass(5.seconds, classOf[UpdateProbeStatus])

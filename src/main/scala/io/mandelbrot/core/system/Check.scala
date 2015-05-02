@@ -66,7 +66,7 @@ class Check(val probeRef: ProbeRef,
   when(Incubating) {
 
     /* initialize the probe using parameters from the proposed processor */
-    case Event(change: ChangeProbe, NoData) =>
+    case Event(change: ChangeCheck, NoData) =>
       val proposed = change.factory.implement()
       val params = proposed.initialize()
       val op = InitializeProbeStatus(probeRef, now())
@@ -192,7 +192,7 @@ class Check(val probeRef: ProbeRef,
 
     /* retrieve the current probe status */
     case Event(query: GetCheckStatus, NoData) =>
-      stay() replying GetProbeStatusResult(query, getProbeStatus)
+      stay() replying GetCheckStatusResult(query, getProbeStatus)
 
     /* process a probe evaluation from the client */
     case Event(command: ProcessCheckEvaluation, NoData) =>
@@ -200,7 +200,7 @@ class Check(val probeRef: ProbeRef,
       stay()
 
     /* if the probe behavior has changed, then transition to a new state */
-    case Event(change: ChangeProbe, NoData) =>
+    case Event(change: ChangeCheck, NoData) =>
       // if queue is empty, put the message back in the mailbox to reprocess in Incubating state
       if (idle) {
         self ! change
@@ -212,7 +212,7 @@ class Check(val probeRef: ProbeRef,
       }
 
     /* if the probe behavior has retired, then update our state */
-    case Event(retire: RetireProbe, NoData) =>
+    case Event(retire: RetireCheck, NoData) =>
       enqueue(QueuedRetire(retire, now()))
       goto(Retiring)
 
@@ -259,7 +259,7 @@ class Check(val probeRef: ProbeRef,
 
     /* retrieve the current probe status */
     case Event(query: GetCheckStatus, state: Changing) =>
-      sender() ! GetProbeStatusResult(query, getProbeStatus)
+      sender() ! GetCheckStatusResult(query, getProbeStatus)
       stay()
 
     /* probe state has been committed, now we can apply the mutation */
@@ -298,7 +298,7 @@ class Check(val probeRef: ProbeRef,
 
     /* retrieve the current probe status */
     case Event(query: GetCheckStatus, _) =>
-      sender() ! GetProbeStatusResult(query, getProbeStatus)
+      sender() ! GetCheckStatusResult(query, getProbeStatus)
       stay()
 
     /* probe state has been committed, now we can apply the mutation */
@@ -358,9 +358,9 @@ object Check {
   case object Retired extends State
 
   sealed trait Data
-  case class Initializing(change: ChangeProbe, proposed: BehaviorProcessor, inflight: InitializeProbeStatus) extends Data
-  case class Configuring(change: ChangeProbe, proposed: BehaviorProcessor, inflight: UpdateProbeStatus) extends Data
-  case class Changing(pending: ChangeProbe) extends Data
+  case class Initializing(change: ChangeCheck, proposed: BehaviorProcessor, inflight: InitializeProbeStatus) extends Data
+  case class Configuring(change: ChangeCheck, proposed: BehaviorProcessor, inflight: UpdateProbeStatus) extends Data
+  case class Changing(pending: ChangeCheck) extends Data
   case class Retiring(lsn: Long) extends Data
   case class Retired(lsn: Long) extends Data
   case object NoData extends Data
@@ -377,29 +377,29 @@ case object CheckExpiryTimeout extends CheckEvent
 sealed trait CheckOperation extends ServiceOperation { val probeRef: ProbeRef }
 sealed trait CheckCommand extends ServiceCommand with CheckOperation
 sealed trait CheckQuery extends ServiceQuery with CheckOperation
-sealed trait ProbeResult
-case class ProbeOperationFailed(op: CheckOperation, failure: Throwable) extends ServiceOperationFailed
+sealed trait CheckResult
+case class CheckOperationFailed(op: CheckOperation, failure: Throwable) extends ServiceOperationFailed
 
 case class GetCheckStatus(probeRef: ProbeRef) extends CheckQuery
-case class GetProbeStatusResult(op: GetCheckStatus, status: ProbeStatus) extends ProbeResult
+case class GetCheckStatusResult(op: GetCheckStatus, status: ProbeStatus) extends CheckResult
 
 case class GetCheckCondition(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends CheckQuery
-case class GetProbeConditionResult(op: GetCheckCondition, page: ProbeConditionPage) extends ProbeResult
+case class GetCheckConditionResult(op: GetCheckCondition, page: ProbeConditionPage) extends CheckResult
 
 case class GetCheckNotifications(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends CheckQuery
-case class GetProbeNotificationsResult(op: GetCheckNotifications, page: ProbeNotificationsPage) extends ProbeResult
+case class GetCheckNotificationsResult(op: GetCheckNotifications, page: ProbeNotificationsPage) extends CheckResult
 
 case class GetCheckMetrics(probeRef: ProbeRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends CheckQuery
-case class GetProbeMetricsResult(op: GetCheckMetrics, page: ProbeMetricsPage) extends ProbeResult
+case class GetCheckMetricsResult(op: GetCheckMetrics, page: ProbeMetricsPage) extends CheckResult
 
 case class ProcessCheckEvaluation(probeRef: ProbeRef, evaluation: ProbeEvaluation) extends CheckCommand
-case class ProcessProbeEvaluationResult(op: ProcessCheckEvaluation) extends ProbeResult
+case class ProcessCheckEvaluationResult(op: ProcessCheckEvaluation) extends CheckResult
 
 case class SetCheckSquelch(probeRef: ProbeRef, squelch: Boolean) extends CheckCommand
-case class SetProbeSquelchResult(op: SetCheckSquelch, condition: ProbeCondition) extends ProbeResult
+case class SetCheckSquelchResult(op: SetCheckSquelch, condition: ProbeCondition) extends CheckResult
 
 case class AcknowledgeCheck(probeRef: ProbeRef, correlationId: UUID) extends CheckCommand
-case class AcknowledgeProbeResult(op: AcknowledgeCheck, condition: ProbeCondition) extends ProbeResult
+case class AcknowledgeCheckResult(op: AcknowledgeCheck, condition: ProbeCondition) extends CheckResult
 
 case class UnacknowledgeCheck(probeRef: ProbeRef, acknowledgementId: UUID) extends CheckCommand
-case class UnacknowledgeProbeResult(op: UnacknowledgeCheck, condition: ProbeCondition) extends ProbeResult
+case class UnacknowledgeCheckResult(op: UnacknowledgeCheck, condition: ProbeCondition) extends CheckResult

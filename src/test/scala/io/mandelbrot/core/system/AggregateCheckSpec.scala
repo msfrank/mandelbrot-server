@@ -50,8 +50,8 @@ class AggregateCheckSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
     "transition to ProbeSynthetic/ProbeHealthy when all children have notified of healthy status" in {
       val probeRef = ProbeRef("foo.local:check")
-      val probeType = "io.mandelbrot.core.system.AggregateProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
+      val probeType = "io.mandelbrot.core.system.AggregateCheck"
+      val factory = CheckBehavior.extensions(probeType).configure(Map.empty)
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val children = Set(child1, child2, child3)
       val stateService = new TestProbe(_system)
@@ -59,7 +59,7 @@ class AggregateCheckSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
-      probe ! ChangeProbe(probeType, policy, factory, children, 0)
+      probe ! ChangeCheck(probeType, policy, factory, children, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
@@ -91,8 +91,8 @@ class AggregateCheckSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
     "transition to ProbeSynthetic/ProbeDegraded when one child has notified of degraded status" in {
       val probeRef = ProbeRef("foo.local:check")
-      val probeType = "io.mandelbrot.core.system.AggregateProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
+      val probeType = "io.mandelbrot.core.system.AggregateCheck"
+      val factory = CheckBehavior.extensions(probeType).configure(Map.empty)
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val children = Set(child1, child2, child3)
       val stateService = new TestProbe(_system)
@@ -100,7 +100,7 @@ class AggregateCheckSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
-      probe ! ChangeProbe(probeType, policy, factory, children, 0)
+      probe ! ChangeCheck(probeType, policy, factory, children, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
@@ -131,8 +131,8 @@ class AggregateCheckSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
     "transition to ProbeSynthetic/ProbeFailed when one child has notified of failed status" in {
       val probeRef = ProbeRef("foo.local:check")
-      val probeType = "io.mandelbrot.core.system.AggregateProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
+      val probeType = "io.mandelbrot.core.system.AggregateCheck"
+      val factory = CheckBehavior.extensions(probeType).configure(Map.empty)
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val children = Set(child1, child2, child3)
       val stateService = new TestProbe(_system)
@@ -140,7 +140,7 @@ class AggregateCheckSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
-      probe ! ChangeProbe(probeType, policy, factory, children, 0)
+      probe ! ChangeCheck(probeType, policy, factory, children, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)
@@ -171,8 +171,8 @@ class AggregateCheckSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
     "notify NotificationService when the alert timeout expires" in {
       val probeRef = ProbeRef("foo.local:check")
-      val probeType = "io.mandelbrot.core.system.AggregateProbe"
-      val factory = ProbeBehavior.extensions(probeType).configure(Map.empty)
+      val probeType = "io.mandelbrot.core.system.AggregateCheck"
+      val factory = CheckBehavior.extensions(probeType).configure(Map.empty)
       val policy = CheckPolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)
       val children = Set(child1, child2, child3)
       val notificationService = new TestProbe(_system)
@@ -181,7 +181,7 @@ class AggregateCheckSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val metricsBus = new MetricsBus()
 
       val probe = system.actorOf(Check.props(probeRef, blackhole, services, metricsBus))
-      probe ! ChangeProbe(probeType, policy, factory, children, 0)
+      probe ! ChangeCheck(probeType, policy, factory, children, 0)
 
       val initializeProbeStatus = stateService.expectMsgClass(classOf[InitializeProbeStatus])
       val status = ProbeStatus(DateTime.now(), ProbeInitializing, None, ProbeUnknown, Map.empty, None, None, None, None, false)

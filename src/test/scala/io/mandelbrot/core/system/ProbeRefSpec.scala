@@ -1,7 +1,5 @@
 package io.mandelbrot.core.system
 
-import java.net.URI
-
 import org.scalatest.WordSpec
 import org.scalatest.ShouldMatchers
 

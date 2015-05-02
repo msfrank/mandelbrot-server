@@ -29,7 +29,7 @@ import io.mandelbrot.core.util.Timer
 /**
  *
  */
-trait ProbeInterface {
+trait AccessorOps {
 
   val probeRef: ProbeRef
   val parent: ActorRef

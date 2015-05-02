@@ -58,7 +58,7 @@ trait ProcessingOps extends Actor with MutationOps {
             case Success(effect) =>
               Some(CommandMutation(caller, effect.result, effect.status, effect.notifications))
             case Failure(ex) =>
-              caller ! ProbeOperationFailed(command, ex)
+              caller ! CheckOperationFailed(command, ex)
               None
           }
 
@@ -150,7 +150,7 @@ sealed trait Mutation {
   val notifications: Vector[ProbeNotification]
 }
 case class CommandMutation(caller: ActorRef,
-                           result: ProbeResult,
+                           result: CheckResult,
                            status: ProbeStatus,
                            notifications: Vector[ProbeNotification]) extends Mutation
 case class EventMutation(status: ProbeStatus,
@@ -162,4 +162,4 @@ case class Deletion(status: ProbeStatus,
 sealed trait QueuedMessage
 case class QueuedEvent(event: CheckEvent, timestamp: DateTime) extends QueuedMessage
 case class QueuedCommand(command: CheckCommand, caller: ActorRef) extends QueuedMessage
-case class QueuedRetire(retire: RetireProbe, timestamp: DateTime) extends QueuedMessage
+case class QueuedRetire(retire: RetireCheck, timestamp: DateTime) extends QueuedMessage

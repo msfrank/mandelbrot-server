@@ -8,7 +8,7 @@ trait ProcessorFactory {
   def implement(): BehaviorProcessor
 }
 
-abstract class ProbeBehaviorExtension {
+abstract class CheckBehaviorExtension {
   type Settings
   trait DependentProcessorFactory extends ProcessorFactory {
     val settings: Settings
@@ -17,11 +17,11 @@ abstract class ProbeBehaviorExtension {
   def configure(properties: Map[String,String]): DependentProcessorFactory
 }
 
-object ProbeBehavior {
-  val logger = LoggerFactory.getLogger(ProbeBehavior.getClass)
-  val extensions = ServiceLoader.load(classOf[ProbeBehaviorExtension]).map { p =>
+object CheckBehavior {
+  val logger = LoggerFactory.getLogger(CheckBehavior.getClass)
+  val extensions = ServiceLoader.load(classOf[CheckBehaviorExtension]).map { p =>
     val clazz = p.getClass
-    logger.info("loaded ProbeBehaviorExtension %s".format(clazz.getCanonicalName))
+    logger.info("loaded CheckBehaviorExtension %s".format(clazz.getCanonicalName))
     (clazz.getCanonicalName, p)
   }.toMap
 }

@@ -126,7 +126,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       } else stay() replying MatchProbeSystemResult(query, checks.keySet.map(checkId => ProbeRef(state.agentId, checkId)))
 
     case Event(op: RegisterAgent, state: SystemRunning) =>
-      stay() replying ProbeSystemOperationFailed(op, ApiException(Conflict))
+      stay() replying AgentOperationFailed(op, ApiException(Conflict))
 
     /* update checks */
     case Event(op: UpdateAgent, state: SystemRunning) =>
@@ -146,7 +146,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
         case Some(probeActor: CheckActor) =>
           probeActor.actor.forward(op)
         case None =>
-          sender() ! ProbeOperationFailed(op, ApiException(ResourceNotFound))
+          sender() ! CheckOperationFailed(op, ApiException(ResourceNotFound))
       }
       stay()
 
@@ -214,7 +214,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
         unstashAll()
         checks.foreach {
           case (probeRef,probeActor) if !retiredChecks.contains(probeActor.actor) =>
-            probeActor.actor ! RetireProbe(state.lsn)
+            probeActor.actor ! RetireCheck(state.lsn)
             retiredChecks.put(probeActor.actor, (probeRef,state.lsn))
           case _ => // do nothing
         }
@@ -233,9 +233,9 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       if (checks.nonEmpty) stay() else stop()
     /* system doesn't exist anymore, so return resource not found */
     case Event(op: AgentOperation, _) =>
-      stay() replying ProbeSystemOperationFailed(op, ApiException(ResourceNotFound))
+      stay() replying AgentOperationFailed(op, ApiException(ResourceNotFound))
     case Event(op: CheckOperation, _) =>
-      stay() replying ProbeOperationFailed(op, ApiException(ResourceNotFound))
+      stay() replying CheckOperationFailed(op, ApiException(ResourceNotFound))
   }
 
   onTransition {
@@ -244,9 +244,9 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
 
   when(SystemFailed) {
     case Event(op: AgentOperation, state: SystemError) =>
-      stop() replying ProbeSystemOperationFailed(op, state.ex)
+      stop() replying AgentOperationFailed(op, state.ex)
     case Event(op: CheckOperation, state: SystemError) =>
-      stop() replying ProbeOperationFailed(op, state.ex)
+      stop() replying CheckOperationFailed(op, state.ex)
     /* ignore any other messages */
     case _: Event => stay()
   }
@@ -276,25 +276,25 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
     val checkSet = checks.keySet
 
     // create a processor factory for each check which isn't in checkSet
-    val checksAdded = new mutable.HashMap[CheckId,ProbeBehaviorExtension#DependentProcessorFactory]
+    val checksAdded = new mutable.HashMap[CheckId,CheckBehaviorExtension#DependentProcessorFactory]
     (registrationSet -- checkSet).toVector.sorted.foreach { case resource: Resource =>
       registration.checks.get(resource) match {
         case Some(checkSpec) =>
           val checkType = checkSpec.probeType
           val properties = checkSpec.properties
-          checksAdded.put(resource, ProbeBehavior.extensions(checkType).configure(properties))
+          checksAdded.put(resource, CheckBehavior.extensions(checkType).configure(properties))
         case None =>
           checksAdded.put(resource, Agent.checkPlaceholder.configure(Map.empty))
       }
     }
 
     // create a processor factory for each check which has been updated
-    val checksUpdated = new mutable.HashMap[CheckId,ProbeBehaviorExtension#DependentProcessorFactory]
+    val checksUpdated = new mutable.HashMap[CheckId,CheckBehaviorExtension#DependentProcessorFactory]
     checkSet.intersect(registrationSet).foreach { case resource: Resource =>
       val checkSpec = registration.checks(resource)
       val checkType = checkSpec.probeType
       val properties = checkSpec.properties
-      val factory = ProbeBehavior.extensions(checkType).configure(properties)
+      val factory = CheckBehavior.extensions(checkType).configure(properties)
       checksUpdated.put(resource, factory)
     }
 
@@ -303,7 +303,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
     probesRemoved.toVector.sorted.reverse.foreach { case resource: Resource =>
       log.debug("probe {} retires", resource)
       val CheckActor(_, _, actor) = checks(resource)
-      actor ! RetireProbe(lsn)
+      actor ! RetireCheck(lsn)
       retiredChecks.put(actor, (resource,lsn))
     }
 
@@ -340,7 +340,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
         case Some(parent) => parent == checkId
         case None => false
       }}.map(childId => ProbeRef(agentId, childId))
-      actor ! ChangeProbe(checkSpec.probeType, checkSpec.policy, factory, directChildren, lsn)
+      actor ! ChangeCheck(checkSpec.probeType, checkSpec.policy, factory, directChildren, lsn)
     }
   }
 }
@@ -348,9 +348,9 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
 object Agent {
   def props(services: ActorRef) = Props(classOf[Agent], services)
 
-  val checkPlaceholder = new ContainerProbe()
+  val checkPlaceholder = new ContainerCheck()
 
-  case class CheckActor(spec: CheckSpec, factory: ProbeBehaviorExtension#DependentProcessorFactory, actor: ActorRef)
+  case class CheckActor(spec: CheckSpec, factory: CheckBehaviorExtension#DependentProcessorFactory, actor: ActorRef)
 
   sealed trait State
   case object SystemIncubating extends State
@@ -374,8 +374,8 @@ object Agent {
 }
 
 case class ReviveAgent(agentId: AgentId)
-case class ChangeProbe(probeType: String, policy: CheckPolicy, factory: ProcessorFactory, children: Set[ProbeRef], lsn: Long)
-case class RetireProbe(lsn: Long)
+case class ChangeCheck(probeType: String, policy: CheckPolicy, factory: ProcessorFactory, children: Set[ProbeRef], lsn: Long)
+case class RetireCheck(lsn: Long)
 
 /**
  *
@@ -383,7 +383,7 @@ case class RetireProbe(lsn: Long)
 sealed trait AgentOperation extends ServiceOperation { val agentId: AgentId }
 sealed trait AgentCommand extends ServiceCommand with AgentOperation
 sealed trait AgentQuery extends ServiceQuery with AgentOperation
-case class ProbeSystemOperationFailed(op: AgentOperation, failure: Throwable) extends ServiceOperationFailed
+case class AgentOperationFailed(op: AgentOperation, failure: Throwable) extends ServiceOperationFailed
 
 case class RegisterAgent(agentId: AgentId, registration: AgentRegistration) extends AgentCommand
 case class RegisterProbeSystemResult(op: RegisterAgent, metadata: AgentMetadata)

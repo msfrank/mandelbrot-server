@@ -48,7 +48,7 @@ class ScalarProcessor extends BehaviorProcessor {
    * we set the correlation if it is different from the current correlation, and we start
    * the alert timer.
    */
-  def processEvaluation(probe: ProbeInterface, command: ProcessCheckEvaluation): Try[CommandEffect] = {
+  def processEvaluation(probe: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val summary = command.evaluation.summary.orElse(probe.summary)
       val health = command.evaluation.health.getOrElse(probe.health)
@@ -94,11 +94,11 @@ class ScalarProcessor extends BehaviorProcessor {
         notifications = notifications :+ NotifyRecovers(probe.probeRef, timestamp, probe.correlationId.get, probe.acknowledgementId.get)
       }
 
-      Success(CommandEffect(ProcessProbeEvaluationResult(command), status, notifications))
+      Success(CommandEffect(ProcessCheckEvaluationResult(command), status, notifications))
   }
 
   /* ignore child messages */
-  def processChild(probe: ProbeInterface, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
+  def processChild(probe: AccessorOps, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
 
   /*
    * if we haven't received a status message within the current expiry window, then update probe
@@ -106,7 +106,7 @@ class ScalarProcessor extends BehaviorProcessor {
    * different from the current correlation.  we restart the expiry timer, and we start the alert
    * timer if it is not already running.
    */
-  def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect] = {
+  def processExpiryTimeout(probe: AccessorOps): Option[EventEffect] = {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val health = ProbeUnknown
       val correlationId = if (probe.correlationId.isDefined) probe.correlationId else Some(UUID.randomUUID())
@@ -129,7 +129,7 @@ class ScalarProcessor extends BehaviorProcessor {
   /*
    * if the alert timer expires, then send a health-alerts notification and restart the alert timer.
    */
-  def processAlertTimeout(probe: ProbeInterface): Option[EventEffect] = {
+  def processAlertTimeout(probe: AccessorOps): Option[EventEffect] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val status = probe.getProbeStatus(timestamp)
     // send alert notification
@@ -141,12 +141,12 @@ class ScalarProcessor extends BehaviorProcessor {
 
 }
 
-case class ScalarProbeSettings()
+case class ScalarCheckSettings()
 
-class ScalarProbe extends ProbeBehaviorExtension {
-  type Settings = ScalarProbeSettings
-  class ScalarProcessorFactory(val settings: ScalarProbeSettings) extends DependentProcessorFactory {
+class ScalarCheck extends CheckBehaviorExtension {
+  type Settings = ScalarCheckSettings
+  class ScalarProcessorFactory(val settings: ScalarCheckSettings) extends DependentProcessorFactory {
     def implement() = new ScalarProcessor
   }
-  def configure(properties: Map[String,String]) = new ScalarProcessorFactory(ScalarProbeSettings())
+  def configure(properties: Map[String,String]) = new ScalarProcessorFactory(ScalarCheckSettings())
 }

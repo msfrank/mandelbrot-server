@@ -26,12 +26,12 @@ import java.util.UUID
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.metrics._
 
-case class MetricsProbeSettings(evaluation: MetricsEvaluation)
+case class MetricsCheckSettings(evaluation: MetricsEvaluation)
 
 /**
  * Implements metrics probe behavior.
  */
-class MetricsProcessor(settings: MetricsProbeSettings) extends BehaviorProcessor {
+class MetricsProcessor(settings: MetricsCheckSettings) extends BehaviorProcessor {
 
   val evaluation = settings.evaluation
   val metricsStore = new MetricsStore(settings.evaluation)
@@ -55,7 +55,7 @@ class MetricsProcessor(settings: MetricsProbeSettings) extends BehaviorProcessor
    * we set the correlation if it is different from the current correlation, and we start
    * the alert timer.
    */
-  def processEvaluation(probe: ProbeInterface, command: ProcessCheckEvaluation): Try[CommandEffect] = {
+  def processEvaluation(probe: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val lastUpdate = Some(timestamp)
     val metrics = command.evaluation.metrics.getOrElse(Map.empty)
@@ -113,11 +113,11 @@ class MetricsProcessor(settings: MetricsProbeSettings) extends BehaviorProcessor
       notifications = notifications :+ NotifyRecovers(probe.probeRef, timestamp, probe.correlationId.get, probe.acknowledgementId.get)
     }
 
-    Success(CommandEffect(ProcessProbeEvaluationResult(command), status, notifications))
+    Success(CommandEffect(ProcessCheckEvaluationResult(command), status, notifications))
   }
 
   /* ignore child messages */
-  def processChild(probe: ProbeInterface, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
+  def processChild(probe: AccessorOps, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
 
   /*
    * if we haven't received a status message within the current expiry window, then update probe
@@ -125,7 +125,7 @@ class MetricsProcessor(settings: MetricsProbeSettings) extends BehaviorProcessor
    * different from the current correlation.  we restart the expiry timer, and we start the alert
    * timer if it is not already running.
    */
-  def processExpiryTimeout(probe: ProbeInterface) = {
+  def processExpiryTimeout(probe: AccessorOps) = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val correlationId = if (probe.correlationId.isDefined) probe.correlationId else Some(UUID.randomUUID())
     // update health
@@ -146,7 +146,7 @@ class MetricsProcessor(settings: MetricsProbeSettings) extends BehaviorProcessor
   /*
    * if the alert timer expires, then send a health-alerts notification and restart the alert timer.
    */
-  def processAlertTimeout(probe: ProbeInterface): Option[EventEffect] = {
+  def processAlertTimeout(probe: AccessorOps): Option[EventEffect] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val status = probe.getProbeStatus(timestamp)
     // send alert notification
@@ -157,15 +157,15 @@ class MetricsProcessor(settings: MetricsProbeSettings) extends BehaviorProcessor
   }
 }
 
-class MetricsProbe extends ProbeBehaviorExtension {
-  type Settings = MetricsProbeSettings
-  class MetricsProcessorFactory(val settings: MetricsProbeSettings) extends DependentProcessorFactory {
+class MetricsCheck extends CheckBehaviorExtension {
+  type Settings = MetricsCheckSettings
+  class MetricsProcessorFactory(val settings: MetricsCheckSettings) extends DependentProcessorFactory {
     def implement() = new MetricsProcessor(settings)
   }
   def configure(properties: Map[String,String]) = {
     if (!properties.contains("evaluation"))
       throw new IllegalArgumentException("missing evaluation")
     val evaluation = MetricsEvaluationParser.parseMetricsEvaluation(properties("evaluation"))
-    new MetricsProcessorFactory(MetricsProbeSettings(evaluation))
+    new MetricsProcessorFactory(MetricsCheckSettings(evaluation))
   }
 }

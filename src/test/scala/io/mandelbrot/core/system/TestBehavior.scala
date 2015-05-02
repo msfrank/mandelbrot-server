@@ -15,16 +15,16 @@ class TestProcessor(val properties: Map[String,String]) extends BehaviorProcesso
     ConfigureEffect(status, Vector.empty, children, Set.empty)
   }
 
-  def processEvaluation(probe: ProbeInterface, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
+  def processEvaluation(probe: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
 
-  def processChild(probe: ProbeInterface, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
+  def processChild(probe: AccessorOps, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
 
-  def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect] = None
+  def processExpiryTimeout(probe: AccessorOps): Option[EventEffect] = None
 
-  def processAlertTimeout(probe: ProbeInterface): Option[EventEffect] = None
+  def processAlertTimeout(probe: AccessorOps): Option[EventEffect] = None
 }
 
-class TestBehavior extends ProbeBehaviorExtension {
+class TestBehavior extends CheckBehaviorExtension {
   type Settings = TestProcessorSettings
   class TestProcessorFactory(val settings: TestProcessorSettings) extends DependentProcessorFactory {
     def implement() = new TestProcessor(settings.properties)
@@ -44,16 +44,16 @@ class TestProcessorChange(val properties: Map[String,String]) extends BehaviorPr
     ConfigureEffect(status, Vector.empty, children, Set.empty)
   }
 
-  def processEvaluation(probe: ProbeInterface, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
+  def processEvaluation(probe: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
 
-  def processChild(probe: ProbeInterface, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
+  def processChild(probe: AccessorOps, child: ProbeRef, status: ProbeStatus): Option[EventEffect] = None
 
-  def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect] = None
+  def processExpiryTimeout(probe: AccessorOps): Option[EventEffect] = None
 
-  def processAlertTimeout(probe: ProbeInterface): Option[EventEffect] = None
+  def processAlertTimeout(probe: AccessorOps): Option[EventEffect] = None
 }
 
-class TestChangeBehavior extends ProbeBehaviorExtension {
+class TestChangeBehavior extends CheckBehaviorExtension {
   type Settings = TestProcessorSettings
   class TestProcessorFactory(val settings: TestProcessorSettings) extends DependentProcessorFactory {
     def implement() = new TestProcessorChange(settings.properties)

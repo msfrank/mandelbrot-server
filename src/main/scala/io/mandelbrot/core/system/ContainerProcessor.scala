@@ -25,12 +25,12 @@ import scala.util.{Try, Failure}
 import io.mandelbrot.core.{BadRequest, ApiException}
 import io.mandelbrot.core.model._
 
-case class ContainerProbeSettings()
+case class ContainerCheckSettings()
 
 /**
  *
  */
-class ContainerProcessor(settings: ContainerProbeSettings) extends BehaviorProcessor {
+class ContainerProcessor(settings: ContainerCheckSettings) extends BehaviorProcessor {
 
   def initialize(): InitializeEffect = InitializeEffect(None)
 
@@ -42,21 +42,21 @@ class ContainerProcessor(settings: ContainerProbeSettings) extends BehaviorProce
     ConfigureEffect(initial, Vector.empty, children, Set.empty)
   }
 
-  def processEvaluation(probe: ProbeInterface, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(ApiException(BadRequest))
+  def processEvaluation(probe: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(ApiException(BadRequest))
 
-  def processChild(probe: ProbeInterface, childRef: ProbeRef, childStatus: ProbeStatus): Option[EventEffect] = None
+  def processChild(probe: AccessorOps, childRef: ProbeRef, childStatus: ProbeStatus): Option[EventEffect] = None
 
-  def processExpiryTimeout(probe: ProbeInterface): Option[EventEffect] = None
+  def processExpiryTimeout(probe: AccessorOps): Option[EventEffect] = None
 
-  def processAlertTimeout(probe: ProbeInterface): Option[EventEffect] = None
+  def processAlertTimeout(probe: AccessorOps): Option[EventEffect] = None
 }
 
-class ContainerProbe extends ProbeBehaviorExtension {
-  type Settings = ContainerProbeSettings
-  class ContainerProcessorFactory(val settings: ContainerProbeSettings) extends DependentProcessorFactory {
+class ContainerCheck extends CheckBehaviorExtension {
+  type Settings = ContainerCheckSettings
+  class ContainerProcessorFactory(val settings: ContainerCheckSettings) extends DependentProcessorFactory {
     def implement() = new ContainerProcessor(settings)
   }
   def configure(properties: Map[String,String]) = {
-    new ContainerProcessorFactory(ContainerProbeSettings())
+    new ContainerProcessorFactory(ContainerCheckSettings())
   }
 }

@@ -43,7 +43,7 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
   val properties = Map.empty[String,String]
   val metadata = Map.empty[String,String]
   val checkId = CheckId("load")
-  val checkSpec = CheckSpec("io.mandelbrot.core.system.ScalarProbe", policy, properties, metadata)
+  val checkSpec = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, properties, metadata)
   val checks = Map(checkId -> checkSpec)
   val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
 

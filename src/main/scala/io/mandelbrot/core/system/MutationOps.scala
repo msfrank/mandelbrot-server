@@ -10,10 +10,10 @@ import io.mandelbrot.core.util.Timer
 /**
  * MutationOps trait encapsulates the mutable state of a probe.  the actual modification
  * of probe state only occurs in the applyStatus method.  MutationOps also implements the
- * ProbeInterface trait, which is a read-only view of probe state that a BehaviorProcessor
+ * AccessorOps trait, which is a read-only view of probe state that a BehaviorProcessor
  * can access.
  */
-trait MutationOps extends ProbeInterface {
+trait MutationOps extends AccessorOps {
 
   implicit def log: LoggingAdapter
 
