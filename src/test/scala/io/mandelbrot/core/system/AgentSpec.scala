@@ -1,21 +1,19 @@
 package io.mandelbrot.core.system
 
-import java.net.URI
-
 import akka.actor.ActorSystem
 import akka.testkit.{TestProbe, ImplicitSender, TestKit}
-import io.mandelbrot.core.entity.Entity
 import io.mandelbrot.core.registry.{CreateRegistrationResult, CreateRegistration}
 import org.scalatest.{BeforeAndAfterAll, ShouldMatchers, WordSpecLike}
 import scala.concurrent.duration._
 
+import io.mandelbrot.core.entity.Entity
 import io.mandelbrot.core.{MandelbrotConfig, ServiceProxy, AkkaConfig}
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.ConfigConversions._
 
-class ProbeSystemSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
+class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
 
-  def this() = this(ActorSystem("ProbeSystemSpec", AkkaConfig ++ MandelbrotConfig))
+  def this() = this(ActorSystem("AgentSpec", AkkaConfig ++ MandelbrotConfig))
 
   // shutdown the actor system
   override def afterAll() {
@@ -24,7 +22,7 @@ class ProbeSystemSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
   val services = system.actorOf(ServiceProxy.props(), "service-proxy")
 
-  "A ProbeSystem" should {
+  "A Agent" should {
 
     "register when it doesn't exist in the registry" in {
 
@@ -37,9 +35,9 @@ class ProbeSystemSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
       val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, probes, metrics)
 
-      val probeSystem = system.actorOf(ProbeSystem.props(services))
+      val probeSystem = system.actorOf(Agent.props(services))
 
-      probeSystem ! RegisterProbeSystem(agentId, registration)
+      probeSystem ! RegisterAgent(agentId, registration)
       val registerProbeSystemResult = expectMsgClass(classOf[RegisterProbeSystemResult])
       registerProbeSystemResult.metadata.lsn shouldEqual 0
     }
@@ -58,11 +56,11 @@ class ProbeSystemSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       services ! CreateRegistration(agentId, registration)
       expectMsgClass(classOf[CreateRegistrationResult])
 
-      val probeSystem = system.actorOf(ProbeSystem.props(services))
+      val probeSystem = system.actorOf(Agent.props(services))
 
-      probeSystem ! ReviveProbeSystem(agentId)
+      probeSystem ! ReviveAgent(agentId)
 
-      probeSystem ! DescribeProbeSystem(agentId)
+      probeSystem ! DescribeAgent(agentId)
       val describeProbeSystemResult = expectMsgClass(classOf[DescribeProbeSystemResult])
       describeProbeSystemResult.registration shouldEqual registration
       describeProbeSystemResult.lsn shouldEqual 0
@@ -79,16 +77,16 @@ class ProbeSystemSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
       val registration1 = AgentRegistration(agentId, "mandelbrot", Map.empty, probes1, metrics)
 
-      val probeSystem = system.actorOf(ProbeSystem.props(services))
+      val probeSystem = system.actorOf(Agent.props(services))
 
-      probeSystem ! RegisterProbeSystem(agentId, registration1)
+      probeSystem ! RegisterAgent(agentId, registration1)
       val registerProbeSystemResult = expectMsgClass(classOf[RegisterProbeSystemResult])
 
       val probe2 = CheckSpec("io.mandelbrot.core.system.ScalarProbe", policy, properties, metadata)
       val probes2 = Map(CheckId("probe2") -> probe2)
       val registration2 = AgentRegistration(agentId, "mandelbrot", Map.empty, probes2, metrics)
 
-      probeSystem ! UpdateProbeSystem(agentId, registration2)
+      probeSystem ! UpdateAgent(agentId, registration2)
       val updateProbeSystemResult = expectMsgClass(classOf[UpdateProbeSystemResult])
       updateProbeSystemResult.metadata.lsn shouldEqual 1
 

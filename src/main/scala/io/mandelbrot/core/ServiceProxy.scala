@@ -48,17 +48,17 @@ class ServiceProxy extends Actor with ActorLogging {
   //
   val keyExtractor: EntityFunctions.KeyExtractor = {
     case op: ProbeOperation => op.probeRef.agentId.toString
-    case op: ProbeSystemOperation => op.agentId.toString
+    case op: AgentOperation => op.agentId.toString
   }
   val shardResolver: EntityFunctions.ShardResolver = {
     case message => MurmurHash3.stringHash(keyExtractor(message))
   }
   val propsCreator: EntityFunctions.PropsCreator = {
-    case op: RegisterProbeSystem => ProbeSystem.props(self)
-    case entity: Entity => ProbeSystem.props(self)
+    case op: RegisterAgent => Agent.props(self)
+    case entity: Entity => Agent.props(self)
   }
   val entityReviver: EntityFunctions.EntityReviver = {
-    case key => ReviveProbeSystem(AgentId(key))
+    case key => ReviveAgent(AgentId(key))
   }
 
   val entityService = context.actorOf(EntityManager.props(settings.cluster, propsCreator, entityReviver), "entity-service")

@@ -28,13 +28,13 @@ import io.mandelbrot.core.registry._
 import io.mandelbrot.core.metrics.MetricsBus
 
 /**
- * the ProbeSystem manages a collection of Probes underneath a URI.  the ProbeSystem
+ * the Agent manages a collection of Probes underneath a URI.  the Agent
  * is responsible for adding and removing checks when the registration changes, as well
- * as updating checks when policy changes.  lastly, the ProbeSystem acts as an endpoint
+ * as updating checks when policy changes.  lastly, the Agent acts as an endpoint
  * for commands and queries operating on sets of checks in the system.
  */
-class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,ProbeSystem.Data] with Stash {
-  import ProbeSystem._
+class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with Stash {
+  import Agent._
 
   // config
   val settings = ServerConfig(context.system).settings
@@ -52,11 +52,11 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
 
   when(SystemIncubating) {
 
-    case Event(op: RegisterProbeSystem, _) =>
+    case Event(op: RegisterAgent, _) =>
       services ! CreateRegistration(op.agentId, op.registration)
       goto(SystemRegistering) using SystemRegistering(op, sender())
 
-    case Event(revive: ReviveProbeSystem, _) =>
+    case Event(revive: ReviveAgent, _) =>
       services ! GetRegistration(revive.agentId)
       goto(SystemInitializing) using SystemInitializing(revive.agentId)
       
@@ -74,7 +74,7 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
       state.sender ! failure
       goto(SystemFailed) using SystemError(failure.failure)
 
-    case Event(op: ProbeSystemOperation, _) =>
+    case Event(op: AgentOperation, _) =>
       stash()
       stay()
 
@@ -91,7 +91,7 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
     case Event(failure: RegistryServiceOperationFailed, state: SystemInitializing) =>
       goto(SystemFailed) using SystemError(failure.failure)
 
-    case Event(op: ProbeSystemOperation, _) =>
+    case Event(op: AgentOperation, _) =>
       stash()
       stay()
 
@@ -112,11 +112,11 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
 
   when (SystemRunning) {
 
-    /* get the ProbeSystem spec */
-    case Event(query: DescribeProbeSystem, state: SystemRunning) =>
+    /* get the Agent spec */
+    case Event(query: DescribeAgent, state: SystemRunning) =>
       stay() replying DescribeProbeSystemResult(query, state.registration, state.lsn)
 
-    case Event(query: MatchProbeSystem, state: SystemRunning) =>
+    case Event(query: MatchAgent, state: SystemRunning) =>
       if (query.matchers.nonEmpty) {
         val matchingRefs = checks.keys.flatMap { case checkId =>
           val probeRef = ProbeRef(state.agentId, checkId)
@@ -125,15 +125,15 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
         stay() replying MatchProbeSystemResult(query, matchingRefs)
       } else stay() replying MatchProbeSystemResult(query, checks.keySet.map(checkId => ProbeRef(state.agentId, checkId)))
 
-    case Event(op: RegisterProbeSystem, state: SystemRunning) =>
+    case Event(op: RegisterAgent, state: SystemRunning) =>
       stay() replying ProbeSystemOperationFailed(op, ApiException(Conflict))
 
     /* update checks */
-    case Event(op: UpdateProbeSystem, state: SystemRunning) =>
+    case Event(op: UpdateAgent, state: SystemRunning) =>
       goto(SystemUpdating) using SystemUpdating(op, sender(), state)
 
     /* retire all running checks */
-    case Event(op: RetireProbeSystem, state: SystemRunning) =>
+    case Event(op: RetireAgent, state: SystemRunning) =>
       goto(SystemRetiring) using SystemRetiring(op, sender(), state)
 
     /* ignore probe status from top level checks */
@@ -232,7 +232,7 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
         zombieChecks.remove(probeRef)
       if (checks.nonEmpty) stay() else stop()
     /* system doesn't exist anymore, so return resource not found */
-    case Event(op: ProbeSystemOperation, _) =>
+    case Event(op: AgentOperation, _) =>
       stay() replying ProbeSystemOperationFailed(op, ApiException(ResourceNotFound))
     case Event(op: ProbeOperation, _) =>
       stay() replying ProbeOperationFailed(op, ApiException(ResourceNotFound))
@@ -243,7 +243,7 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
   }
 
   when(SystemFailed) {
-    case Event(op: ProbeSystemOperation, state: SystemError) =>
+    case Event(op: AgentOperation, state: SystemError) =>
       stop() replying ProbeSystemOperationFailed(op, state.ex)
     case Event(op: ProbeOperation, state: SystemError) =>
       stop() replying ProbeOperationFailed(op, state.ex)
@@ -284,7 +284,7 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
           val properties = checkSpec.properties
           checksAdded.put(resource, ProbeBehavior.extensions(checkType).configure(properties))
         case None =>
-          checksAdded.put(resource, ProbeSystem.checkPlaceholder.configure(Map.empty))
+          checksAdded.put(resource, Agent.checkPlaceholder.configure(Map.empty))
       }
     }
 
@@ -345,8 +345,8 @@ class ProbeSystem(services: ActorRef) extends LoggingFSM[ProbeSystem.State,Probe
   }
 }
 
-object ProbeSystem {
-  def props(services: ActorRef) = Props(classOf[ProbeSystem], services)
+object Agent {
+  def props(services: ActorRef) = Props(classOf[Agent], services)
 
   val checkPlaceholder = new ContainerProbe()
 
@@ -365,37 +365,37 @@ object ProbeSystem {
   sealed trait Data
   case object SystemWaiting extends Data
   case class SystemInitializing(agentId: AgentId) extends Data
-  case class SystemRegistering(op: RegisterProbeSystem, sender: ActorRef) extends Data
+  case class SystemRegistering(op: RegisterAgent, sender: ActorRef) extends Data
   case class SystemRunning(agentId: AgentId, registration: AgentRegistration, lsn: Long) extends Data
-  case class SystemUpdating(op: UpdateProbeSystem, sender: ActorRef, prev: SystemRunning) extends Data
-  case class SystemRetiring(op: RetireProbeSystem, sender: ActorRef, prev: SystemRunning) extends Data
+  case class SystemUpdating(op: UpdateAgent, sender: ActorRef, prev: SystemRunning) extends Data
+  case class SystemRetiring(op: RetireAgent, sender: ActorRef, prev: SystemRunning) extends Data
   case class SystemRetired(agentId: AgentId, registration: AgentRegistration, lsn: Long) extends Data
   case class SystemError(ex: Throwable) extends Data
 }
 
-case class ReviveProbeSystem(agentId: AgentId)
+case class ReviveAgent(agentId: AgentId)
 case class ChangeProbe(probeType: String, policy: CheckPolicy, factory: ProcessorFactory, children: Set[ProbeRef], lsn: Long)
 case class RetireProbe(lsn: Long)
 
 /**
  *
  */
-sealed trait ProbeSystemOperation extends ServiceOperation { val agentId: AgentId }
-sealed trait ProbeSystemCommand extends ServiceCommand with ProbeSystemOperation
-sealed trait ProbeSystemQuery extends ServiceQuery with ProbeSystemOperation
-case class ProbeSystemOperationFailed(op: ProbeSystemOperation, failure: Throwable) extends ServiceOperationFailed
+sealed trait AgentOperation extends ServiceOperation { val agentId: AgentId }
+sealed trait AgentCommand extends ServiceCommand with AgentOperation
+sealed trait AgentQuery extends ServiceQuery with AgentOperation
+case class ProbeSystemOperationFailed(op: AgentOperation, failure: Throwable) extends ServiceOperationFailed
 
-case class RegisterProbeSystem(agentId: AgentId, registration: AgentRegistration) extends ProbeSystemCommand
-case class RegisterProbeSystemResult(op: RegisterProbeSystem, metadata: AgentMetadata)
+case class RegisterAgent(agentId: AgentId, registration: AgentRegistration) extends AgentCommand
+case class RegisterProbeSystemResult(op: RegisterAgent, metadata: AgentMetadata)
 
-case class UpdateProbeSystem(agentId: AgentId, registration: AgentRegistration) extends ProbeSystemCommand
-case class UpdateProbeSystemResult(op: UpdateProbeSystem, metadata: AgentMetadata)
+case class UpdateAgent(agentId: AgentId, registration: AgentRegistration) extends AgentCommand
+case class UpdateProbeSystemResult(op: UpdateAgent, metadata: AgentMetadata)
 
-case class RetireProbeSystem(agentId: AgentId) extends ProbeSystemCommand
-case class RetireProbeSystemResult(op: RetireProbeSystem, lsn: Long)
+case class RetireAgent(agentId: AgentId) extends AgentCommand
+case class RetireProbeSystemResult(op: RetireAgent, lsn: Long)
 
-case class DescribeProbeSystem(agentId: AgentId) extends ProbeSystemQuery
-case class DescribeProbeSystemResult(op: DescribeProbeSystem, registration: AgentRegistration, lsn: Long)
+case class DescribeAgent(agentId: AgentId) extends AgentQuery
+case class DescribeProbeSystemResult(op: DescribeAgent, registration: AgentRegistration, lsn: Long)
 
-case class MatchProbeSystem(agentId: AgentId, matchers: Set[CheckMatcher]) extends ProbeSystemQuery
-case class MatchProbeSystemResult(op: MatchProbeSystem, refs: Set[ProbeRef])
+case class MatchAgent(agentId: AgentId, matchers: Set[CheckMatcher]) extends AgentQuery
+case class MatchProbeSystemResult(op: MatchAgent, refs: Set[ProbeRef])

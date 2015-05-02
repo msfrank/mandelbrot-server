@@ -22,7 +22,7 @@ class TestServiceProxy(registryService: Option[ActorRef],
           log.debug("dropped {}", op)
       }
 
-    case op: ProbeSystemOperation =>
+    case op: AgentOperation =>
       registryService match {
         case Some(ref) =>
           ref forward op

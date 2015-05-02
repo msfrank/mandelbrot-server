@@ -68,7 +68,7 @@ trait ApiService extends HttpService {
       post {
         entity(as[AgentRegistration]) { case agentRegistration: AgentRegistration =>
           complete {
-            serviceProxy.ask(RegisterProbeSystem(agentRegistration.agentId, agentRegistration)).map {
+            serviceProxy.ask(RegisterAgent(agentRegistration.agentId, agentRegistration)).map {
               case result: RegisterProbeSystemResult =>
                 HttpResponse(StatusCodes.OK,
                              headers = List(Location("/v2/systems/" + agentRegistration.agentId.toString)),
@@ -111,7 +111,7 @@ trait ApiService extends HttpService {
         put {
           entity(as[AgentRegistration]) { case agentRegistration: AgentRegistration =>
             complete {
-              serviceProxy.ask(UpdateProbeSystem(agentId, agentRegistration)).map {
+              serviceProxy.ask(UpdateAgent(agentId, agentRegistration)).map {
                 case result: UpdateProbeSystemResult =>
                   HttpResponse(StatusCodes.OK,
                                headers = List(Location("/v2/systems/" + agentRegistration.agentId.toString)),
@@ -125,7 +125,7 @@ trait ApiService extends HttpService {
         /* unregister the probe system */
         delete {
           complete {
-            serviceProxy.ask(RetireProbeSystem(agentId)).map {
+            serviceProxy.ask(RetireAgent(agentId)).map {
               case result: RetireProbeSystemResult =>
                 HttpResponse(StatusCodes.Accepted)
               case failure: ServiceOperationFailed =>

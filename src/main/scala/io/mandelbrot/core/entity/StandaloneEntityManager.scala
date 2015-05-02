@@ -26,7 +26,7 @@ import scala.collection.mutable
 import java.net.URI
 
 import io.mandelbrot.core.registry.RegistryServiceOperation
-import io.mandelbrot.core.system.{ProbeSystem, ProbeSystemOperation, ProbeOperation}
+import io.mandelbrot.core.system.{Agent$, AgentOperation, ProbeOperation}
 
 /**
  *

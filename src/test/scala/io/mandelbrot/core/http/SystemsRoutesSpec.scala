@@ -16,7 +16,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 
 import io.mandelbrot.core.model._
-import io.mandelbrot.core.system.RegisterProbeSystem
+import io.mandelbrot.core.system.RegisterAgent
 import io.mandelbrot.core.http.json.JsonProtocol._
 import io.mandelbrot.core.{ServerConfig, MandelbrotConfig, ServiceProxy, AkkaConfig}
 import io.mandelbrot.core.ConfigConversions._
@@ -80,11 +80,11 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
     }
 
     "return a list of systems" in withServiceProxy {
-      Await.result(serviceProxy.ask(RegisterProbeSystem(agent1, registration1)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterProbeSystem(agent2, registration2)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterProbeSystem(agent3, registration3)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterProbeSystem(agent4, registration4)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterProbeSystem(agent5, registration5)), 5.seconds)
+      Await.result(serviceProxy.ask(RegisterAgent(agent1, registration1)), 5.seconds)
+      Await.result(serviceProxy.ask(RegisterAgent(agent2, registration2)), 5.seconds)
+      Await.result(serviceProxy.ask(RegisterAgent(agent3, registration3)), 5.seconds)
+      Await.result(serviceProxy.ask(RegisterAgent(agent4, registration4)), 5.seconds)
+      Await.result(serviceProxy.ask(RegisterAgent(agent5, registration5)), 5.seconds)
 
       Get("/v2/systems") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
@@ -95,11 +95,11 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
     }
 
     "page through a list of systems" in withServiceProxy {
-      Await.result(serviceProxy.ask(RegisterProbeSystem(agent1, registration1)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterProbeSystem(agent2, registration2)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterProbeSystem(agent3, registration3)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterProbeSystem(agent4, registration4)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterProbeSystem(agent5, registration5)), 5.seconds)
+      Await.result(serviceProxy.ask(RegisterAgent(agent1, registration1)), 5.seconds)
+      Await.result(serviceProxy.ask(RegisterAgent(agent2, registration2)), 5.seconds)
+      Await.result(serviceProxy.ask(RegisterAgent(agent3, registration3)), 5.seconds)
+      Await.result(serviceProxy.ask(RegisterAgent(agent4, registration4)), 5.seconds)
+      Await.result(serviceProxy.ask(RegisterAgent(agent5, registration5)), 5.seconds)
 
       val last = Get("/v2/systems?limit=3") ~> routes ~> check {
         status shouldEqual StatusCodes.OK

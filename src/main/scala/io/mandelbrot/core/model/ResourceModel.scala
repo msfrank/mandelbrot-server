@@ -106,7 +106,7 @@ object ProbeRef {
 }
 
 /**
- * A MetricSource uniquely identifies a metric within a ProbeSystem.
+ * A MetricSource uniquely identifies a metric within a Agent.
  */
 class MetricSource(val checkId: CheckId, val metricName: String) extends Ordered[MetricSource] with ResourceModel {
 
