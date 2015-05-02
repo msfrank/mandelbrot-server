@@ -55,7 +55,7 @@ trait ApiService extends HttpService {
   implicit val system: ActorSystem
   implicit def executionContext: ExecutionContext = actorRefFactory.dispatcher
   implicit val timeout: Timeout
-  implicit val serviceProxy: ActorRef
+  def serviceProxy: ActorRef
 
   val datetimeParser = ISODateTimeFormat.dateTimeParser().withZoneUTC()
 
@@ -113,7 +113,7 @@ trait ApiService extends HttpService {
             complete {
               serviceProxy.ask(UpdateProbeSystem(agentId, agentRegistration)).map {
                 case result: UpdateProbeSystemResult =>
-                  HttpResponse(StatusCodes.Accepted,
+                  HttpResponse(StatusCodes.OK,
                                headers = List(Location("/v2/systems/" + agentRegistration.agentId.toString)),
                                entity = JsonBody(result.metadata.toJson))
                 case failure: ServiceOperationFailed =>
