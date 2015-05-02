@@ -82,7 +82,7 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
   private val preparedGetAgent = session.prepare(
     s"""
        |SELECT registration, lsn FROM $tableName
-       |WHERE p = 0 AND uri = ?
+       |WHERE p = 0 AND agent_id = ?
      """.stripMargin)
 
   def getAgent(op: GetRegistration): Future[GetRegistrationResult] = {

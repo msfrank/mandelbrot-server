@@ -31,7 +31,7 @@ class CassandraStatePersisterSpec(_system: ActorSystem)
   "A CassandraStatePersister" should {
 
     "initialize check status when check doesn't exist" in {
-      val checkRef = CheckRef("test1")
+      val checkRef = CheckRef("foo.local.1:check")
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val op = InitializeCheckStatus(checkRef, timestamp)
       actor ! op
@@ -41,7 +41,7 @@ class CassandraStatePersisterSpec(_system: ActorSystem)
     }
 
     "initialize check status when check exists" in {
-      val checkRef = CheckRef("test2")
+      val checkRef = CheckRef("foo.local.2:check")
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val metrics = Map("metric" -> BigDecimal(0.1))
       val status = CheckStatus(timestamp, CheckKnown, Some("healthy"), CheckHealthy, metrics, Some(timestamp),
@@ -61,7 +61,7 @@ class CassandraStatePersisterSpec(_system: ActorSystem)
 
     val today = new DateTime(DateTimeZone.UTC).toDateMidnight
 
-    val checkRef = CheckRef("test3")
+    val checkRef = CheckRef("foo.local.3:check")
 
     val timestamp1 = today.toDateTime.plusMinutes(1)
     val metrics1 = CheckMetrics(timestamp1, Map("load" -> BigDecimal(1)))

@@ -51,7 +51,7 @@ class CheckStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with Imp
     }
 
     "update check status" in withSessionAndDAL { (session, dal) =>
-      val checkRef = CheckRef("test:1")
+      val checkRef = CheckRef("test.local.1:check")
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val epoch = EpochUtils.timestamp2epoch(timestamp)
       val correlation = UUID.randomUUID()
@@ -74,7 +74,7 @@ class CheckStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with Imp
     }
 
     "get check condition" in withSessionAndDAL { (session, dal) =>
-      val checkRef = CheckRef("test:2")
+      val checkRef = CheckRef("test.local.2:check")
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val epoch = EpochUtils.timestamp2epoch(timestamp)
       val correlation = UUID.randomUUID()
@@ -94,7 +94,7 @@ class CheckStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with Imp
     }
 
     "get check notifications" in withSessionAndDAL { (session, dal) =>
-      val checkRef = CheckRef("test:3")
+      val checkRef = CheckRef("test.local.3:check")
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val epoch = EpochUtils.timestamp2epoch(timestamp)
       val correlation = UUID.randomUUID()
@@ -108,7 +108,7 @@ class CheckStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with Imp
     }
 
     "get check metrics" in withSessionAndDAL { (session, dal) =>
-      val checkRef = CheckRef("test:4")
+      val checkRef = CheckRef("test.local.4:check")
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val epoch = EpochUtils.timestamp2epoch(timestamp)
       val correlation = UUID.randomUUID()

@@ -20,18 +20,17 @@
 package io.mandelbrot.core.system
 
 import akka.actor._
+import akka.pattern.ask
+import akka.pattern.pipe
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 import java.util.UUID
 
 import io.mandelbrot.core._
 import io.mandelbrot.core.model._
-import io.mandelbrot.core.registry._
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.metrics.MetricsBus
 import io.mandelbrot.core.util.Timer
-
-import scala.util.{Failure, Success}
 
 /**
  * the Check actor encapsulates all of the monitoring business logic.  For every check
@@ -42,9 +41,11 @@ class Check(val checkRef: CheckRef,
             val services: ActorRef,
             val metricsBus: MetricsBus) extends LoggingFSM[Check.State,Check.Data] with Stash with ProcessingOps {
   import Check._
+  import context.dispatcher
 
   // config
   val commitTimeout = 5.seconds
+  val queryTimeout = 5.seconds
 
   // state
   var checkType: String = null
@@ -193,6 +194,36 @@ class Check(val checkRef: CheckRef,
     /* retrieve the current check status */
     case Event(query: GetCheckStatus, NoData) =>
       stay() replying GetCheckStatusResult(query, getCheckStatus)
+
+    /* query state service for condition history */
+    case Event(query: GetCheckCondition, NoData) =>
+      services.ask(GetConditionHistory(checkRef, query.from, query.to, query.limit, query.last))(queryTimeout).map {
+        case result: GetConditionHistoryResult =>
+          GetCheckConditionResult(query, result.page)
+        case failure: StateServiceOperationFailed =>
+          CheckOperationFailed(query, failure.failure)
+      }.pipeTo(sender())
+      stay()
+
+    /* */
+    case Event(query: GetCheckNotifications, NoData) =>
+      services.ask(GetNotificationHistory(checkRef, query.from, query.to, query.limit, query.last))(queryTimeout).map {
+        case result: GetNotificationHistoryResult =>
+          GetCheckNotificationsResult(query, result.page)
+        case failure: StateServiceOperationFailed =>
+          CheckOperationFailed(query, failure.failure)
+      }.pipeTo(sender())
+      stay()
+
+    /* */
+    case Event(query: GetCheckMetrics, NoData) =>
+      services.ask(GetMetricHistory(checkRef, query.from, query.to, query.limit, query.last))(queryTimeout).map {
+        case result: GetMetricHistoryResult =>
+          GetCheckMetricsResult(query, result.page)
+        case failure: StateServiceOperationFailed =>
+          CheckOperationFailed(query, failure.failure)
+      }.pipeTo(sender())
+      stay()
 
     /* process a check evaluation from the client */
     case Event(command: ProcessCheckEvaluation, NoData) =>

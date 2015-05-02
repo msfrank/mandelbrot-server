@@ -3,7 +3,7 @@ package io.mandelbrot.persistence.cassandra
 import akka.actor.{Props, ActorLogging, Actor}
 import akka.pattern.pipe
 import com.typesafe.config.Config
-import org.joda.time.DateTime
+import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.Future
 
 import io.mandelbrot.core.state._
@@ -65,14 +65,14 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
           }
       }.map {
         case (epoch, committed, history) =>
-          history.lastOption.map(_.timestamp) match {
+          history.lastOption.map(_.timestamp).map(timestamp2last) match {
             case Some(timestamp) =>
               if (history.length < op.limit && epoch == EpochUtils.timestamp2epoch(committed.current))
                 GetConditionHistoryResult(op, CheckConditionPage(history, Some(timestamp), exhausted = true))
               else
                 GetConditionHistoryResult(op, CheckConditionPage(history, Some(timestamp), exhausted = false))
             case None =>
-              val last = Some(EpochUtils.epoch2timestamp(epoch))
+              val last = Some(EpochUtils.epoch2timestamp(epoch)).map(timestamp2last)
               val exhausted = if (epoch == EpochUtils.timestamp2epoch(committed.current)) true else false
               GetConditionHistoryResult(op, CheckConditionPage(history, last, exhausted))
           }
@@ -91,14 +91,14 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
           }
       }.map {
         case (epoch, committed, history) =>
-          history.lastOption.map(_.timestamp) match {
+          history.lastOption.map(_.timestamp).map(timestamp2last) match {
             case Some(timestamp) =>
               if (history.length < op.limit && epoch == EpochUtils.timestamp2epoch(committed.current))
                 GetNotificationHistoryResult(op, CheckNotificationsPage(history, Some(timestamp), exhausted = true))
               else
                 GetNotificationHistoryResult(op, CheckNotificationsPage(history, Some(timestamp), exhausted = false))
             case None =>
-              val last = Some(EpochUtils.epoch2timestamp(epoch))
+              val last = Some(EpochUtils.epoch2timestamp(epoch)).map(timestamp2last)
               val exhausted = if (epoch == EpochUtils.timestamp2epoch(committed.current)) true else false
               GetNotificationHistoryResult(op, CheckNotificationsPage(history, last, exhausted))
           }
@@ -117,14 +117,14 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
           }
       }.map {
         case (epoch, committed, history) =>
-          history.lastOption.map(_.timestamp) match {
+          history.lastOption.map(_.timestamp).map(timestamp2last) match {
             case Some(timestamp) =>
               if (history.length < op.limit && epoch == EpochUtils.timestamp2epoch(committed.current))
                 GetMetricHistoryResult(op, CheckMetricsPage(history, Some(timestamp), exhausted = true))
               else
                 GetMetricHistoryResult(op, CheckMetricsPage(history, Some(timestamp), exhausted = false))
             case None =>
-              val last = Some(EpochUtils.epoch2timestamp(epoch))
+              val last = Some(EpochUtils.epoch2timestamp(epoch)).map(timestamp2last)
               val exhausted = if (epoch == EpochUtils.timestamp2epoch(committed.current)) true else false
               GetMetricHistoryResult(op, CheckMetricsPage(history, last, exhausted))
           }
@@ -136,14 +136,26 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
   }
 
   /**
+   * convert the specified string containing seconds since the UNIX epoch
+   * to a DateTime with UTC timezone.
+   */
+  def last2timestamp(last: String): DateTime = new DateTime(last.toLong).withZone(DateTimeZone.UTC)
+
+  /**
+   * convert the specified DateTime with UTC timezone to a string containing
+   * seconds since the UNIX epoch.
+   */
+  def timestamp2last(timestamp: DateTime): String = timestamp.getMillis.toString
+
+  /**
    * determine which epoch to read from, given the specified constraints.
    */
   def getEpoch(checkRef: CheckRef,
                from: Option[DateTime],
                to: Option[DateTime],
-               last: Option[DateTime]): Future[(Long,CommittedIndex)] = {
+               last: Option[String]): Future[(Long,CommittedIndex)] = {
     committedIndexDAL.getCommittedIndex(checkRef).flatMap[(Long,CommittedIndex)] { committed =>
-      last match {
+      last.map(last2timestamp) match {
         // if last was specified, then return the epoch derived from the last timestamp
         case Some(timestamp) =>
           val epoch = EpochUtils.timestamp2epoch(timestamp)

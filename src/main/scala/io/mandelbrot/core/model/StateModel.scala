@@ -31,12 +31,12 @@ case class CheckCondition(timestamp: DateTime,
                           acknowledged: Option[UUID],
                           squelched: Boolean) extends StateModel
 
-case class CheckConditionPage(history: Vector[CheckCondition], last: Option[DateTime], exhausted: Boolean) extends StateModel
+case class CheckConditionPage(history: Vector[CheckCondition], last: Option[String], exhausted: Boolean) extends StateModel
 
 case class CheckNotifications(timestamp: DateTime, notifications: Vector[CheckNotification]) extends StateModel
 
-case class CheckNotificationsPage(history: Vector[CheckNotifications], last: Option[DateTime], exhausted: Boolean) extends StateModel
+case class CheckNotificationsPage(history: Vector[CheckNotifications], last: Option[String], exhausted: Boolean) extends StateModel
 
 case class CheckMetrics(timestamp: DateTime, metrics: Map[String,BigDecimal]) extends StateModel
 
-case class CheckMetricsPage(history: Vector[CheckMetrics], last: Option[DateTime], exhausted: Boolean) extends StateModel
+case class CheckMetricsPage(history: Vector[CheckMetrics], last: Option[String], exhausted: Boolean) extends StateModel

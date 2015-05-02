@@ -1,6 +1,7 @@
 package io.mandelbrot.persistence.cassandra
 
 import org.joda.time.{DateTimeZone, DateTime}
+import org.joda.time.format.ISODateTimeFormat
 import java.util.Date
 
 /**
