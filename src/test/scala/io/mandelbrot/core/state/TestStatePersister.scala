@@ -2,7 +2,7 @@ package io.mandelbrot.core.state
 
 import akka.actor._
 import com.typesafe.config.Config
-import io.mandelbrot.core.{ResourceNotFound, ApiException, NotImplemented}
+import io.mandelbrot.core.{state, ResourceNotFound, ApiException, NotImplemented}
 import org.joda.time.format.ISODateTimeFormat
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.collection.JavaConversions._
@@ -13,7 +13,6 @@ import io.mandelbrot.core.model._
 class TestStatePersister(settings: TestStatePersisterSettings) extends Actor with ActorLogging {
 
   val state = new util.HashMap[CheckRef,util.TreeMap[DateTime,UpdateCheckStatus]]()
-  val datetimeParser = ISODateTimeFormat.dateTimeParser().withZoneUTC()
 
   def receive = {
 
@@ -54,46 +53,99 @@ class TestStatePersister(settings: TestStatePersisterSettings) extends Actor wit
           sender() ! TrimCheckHistoryResult(op)
       }
 
+    /* return condition history */
     case op: GetConditionHistory =>
-      state.get(op.checkRef) match {
-        case null =>
-          sender() ! StateServiceOperationFailed(op, ApiException(ResourceNotFound))
-        case history if op.from.isEmpty && op.to.isEmpty =>
-          history.lastEntry() match {
-            case null =>
-              sender() ! GetConditionHistoryResult(op, CheckConditionPage(Vector.empty, None, exhausted = true))
-            case entry =>
-              val status = Vector(status2condition(entry.getValue))
-              sender() ! GetConditionHistoryResult(op, CheckConditionPage(status, None, exhausted = true))
-          }
-        case history =>
-          val last: Option[DateTime] = op.last.map(datetimeParser.parseDateTime)
-          val from: DateTime = last.getOrElse(op.from.getOrElse(new DateTime(0, DateTimeZone.UTC)))
-          val to: DateTime = op.to.getOrElse(new DateTime(Long.MaxValue, DateTimeZone.UTC))
-          val conditions = history.subMap(from, false, to, false)
-            .map(entry => status2condition(entry._2)).toVector
-          val page = if (conditions.length > op.limit) {
-            val subset = conditions.take(op.limit)
-            val last = subset.lastOption.map(_.timestamp.getMillis.toString)
-            val exhausted = false
-            CheckConditionPage(subset, last, exhausted)
-          } else {
-            CheckConditionPage(conditions, last = None, exhausted = true)
-          }
-          sender() ! GetConditionHistoryResult(op, page)
+      try {
+        val history = getHistory(op.checkRef, op.from, op.to, op.last).map(status2condition)
+        val page = if (history.length > op.limit) {
+          val subset = history.take(op.limit)
+          val last = subset.lastOption.map(_.timestamp.getMillis.toString)
+          CheckConditionPage(subset, last, exhausted = false)
+        } else {
+          CheckConditionPage(history, last = None, exhausted = true)
+        }
+        sender() ! GetConditionHistoryResult(op, page)
+      } catch {
+        case ex: Throwable => sender() ! StateServiceOperationFailed(op, ex)
       }
 
-    case op: GetNotificationHistory =>
-      sender() ! StateServiceOperationFailed(op, NotImplemented)
+    /* return notifications history */
+    case op: GetNotificationsHistory =>
+      try {
+        val history = getHistory(op.checkRef, op.from, op.to, op.last).map(status2notifications)
+        val page = if (history.length > op.limit) {
+          val subset = history.take(op.limit)
+          val last = subset.lastOption.map(_.timestamp.getMillis.toString)
+          CheckNotificationsPage(subset, last, exhausted = false)
+        } else {
+          CheckNotificationsPage(history, last = None, exhausted = true)
+        }
+        sender() ! GetNotificationsHistoryResult(op, page)
+      } catch {
+        case ex: Throwable => sender() ! StateServiceOperationFailed(op, ex)
+      }
 
-    case op: GetMetricHistory =>
-      sender() ! StateServiceOperationFailed(op, NotImplemented)
+    /* return metrics history */
+    case op: GetMetricsHistory =>
+      try {
+        val history = getHistory(op.checkRef, op.from, op.to, op.last).map(status2metrics)
+        val page = if (history.length > op.limit) {
+          val subset = history.take(op.limit)
+          val last = subset.lastOption.map(_.timestamp.getMillis.toString)
+          CheckMetricsPage(subset, last, exhausted = false)
+        } else {
+          CheckMetricsPage(history, last = None, exhausted = true)
+        }
+        sender() ! GetMetricsHistoryResult(op, page)
+      } catch {
+        case ex: Throwable => sender() ! StateServiceOperationFailed(op, ex)
+      }
   }
 
+  /**
+   * return the history entries matching the specified parameters.
+   */
+  def getHistory(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], last: Option[String]): Vector[UpdateCheckStatus] = {
+    state.get(checkRef) match {
+      // if there is no check, then raise ResourceNotFound
+      case null =>
+        throw ApiException(ResourceNotFound)
+      // if no timeseries params are specified, return the last entry
+      case history if from.isEmpty && to.isEmpty =>
+        history.lastEntry() match {
+          case null => Vector.empty
+          case entry => Vector(entry.getValue)
+        }
+      // otherwise return the subset of entries
+      case history =>
+        val _last: Option[DateTime] = last.map(s => new DateTime(s.toLong).withZone(DateTimeZone.UTC))
+        val _from: DateTime = _last.getOrElse(from.getOrElse(new DateTime(0, DateTimeZone.UTC)))
+        val _to: DateTime = to.getOrElse(new DateTime(Long.MaxValue, DateTimeZone.UTC))
+        history.subMap(_from, false, _to, false).map(entry => entry._2).toVector
+    }
+  }
+
+  /**
+   * convert the specified raw status into a Condition.
+   */
   def status2condition(updateCheckStatus: UpdateCheckStatus): CheckCondition = {
     val status = updateCheckStatus.status
     CheckCondition(status.timestamp, status.lifecycle, status.summary, status.health,
       status.correlation, status.acknowledged, status.squelched)
+  }
+
+  /**
+   * convert the specified raw status into a Notification set.
+   */
+  def status2notifications(updateCheckStatus: UpdateCheckStatus): CheckNotifications = {
+    CheckNotifications(updateCheckStatus.status.timestamp, updateCheckStatus.notifications)
+  }
+
+  /**
+   * convert the specified raw status into a Metrics set.
+   */
+  def status2metrics(updateCheckStatus: UpdateCheckStatus): CheckMetrics = {
+    CheckMetrics(updateCheckStatus.status.timestamp, updateCheckStatus.status.metrics)
   }
 }
 

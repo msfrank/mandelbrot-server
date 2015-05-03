@@ -49,12 +49,12 @@ class StateManager(settings: StateSettings) extends Actor with ActorLogging {
     case op: GetConditionHistory =>
       persister forward op
 
-    /* retrieve notification history */
-    case op: GetNotificationHistory =>
+    /* retrieve notifications history */
+    case op: GetNotificationsHistory =>
       persister forward op
 
-    /* retrieve metric history */
-    case op: GetMetricHistory =>
+    /* retrieve metrics history */
+    case op: GetMetricsHistory =>
       persister forward op
   }
 }
@@ -87,8 +87,8 @@ case class TrimCheckHistoryResult(op: TrimCheckHistory) extends StateServiceResu
 case class GetConditionHistory(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends StateServiceQuery
 case class GetConditionHistoryResult(op: GetConditionHistory, page: CheckConditionPage) extends StateServiceResult
 
-case class GetNotificationHistory(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends StateServiceQuery
-case class GetNotificationHistoryResult(op: GetNotificationHistory, page: CheckNotificationsPage) extends StateServiceResult
+case class GetNotificationsHistory(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends StateServiceQuery
+case class GetNotificationsHistoryResult(op: GetNotificationsHistory, page: CheckNotificationsPage) extends StateServiceResult
 
-case class GetMetricHistory(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends StateServiceQuery
-case class GetMetricHistoryResult(op: GetMetricHistory, page: CheckMetricsPage) extends StateServiceResult
+case class GetMetricsHistory(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends StateServiceQuery
+case class GetMetricsHistoryResult(op: GetMetricsHistory, page: CheckMetricsPage) extends StateServiceResult

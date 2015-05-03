@@ -207,8 +207,8 @@ class Check(val checkRef: CheckRef,
 
     /* */
     case Event(query: GetCheckNotifications, NoData) =>
-      services.ask(GetNotificationHistory(checkRef, query.from, query.to, query.limit, query.last))(queryTimeout).map {
-        case result: GetNotificationHistoryResult =>
+      services.ask(GetNotificationsHistory(checkRef, query.from, query.to, query.limit, query.last))(queryTimeout).map {
+        case result: GetNotificationsHistoryResult =>
           GetCheckNotificationsResult(query, result.page)
         case failure: StateServiceOperationFailed =>
           CheckOperationFailed(query, failure.failure)
@@ -217,8 +217,8 @@ class Check(val checkRef: CheckRef,
 
     /* */
     case Event(query: GetCheckMetrics, NoData) =>
-      services.ask(GetMetricHistory(checkRef, query.from, query.to, query.limit, query.last))(queryTimeout).map {
-        case result: GetMetricHistoryResult =>
+      services.ask(GetMetricsHistory(checkRef, query.from, query.to, query.limit, query.last))(queryTimeout).map {
+        case result: GetMetricsHistoryResult =>
           GetCheckMetricsResult(query, result.page)
         case failure: StateServiceOperationFailed =>
           CheckOperationFailed(query, failure.failure)

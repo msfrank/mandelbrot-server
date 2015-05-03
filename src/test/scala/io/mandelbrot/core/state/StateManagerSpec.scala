@@ -177,7 +177,90 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
         getConditionHistoryResult.page.last shouldEqual None
         getConditionHistoryResult.page.exhausted shouldEqual true
       }
+    }
 
+    "A StateManager servicing a GetNotificationsHistory request" should {
+
+      "return ResourceNotFound if check doesn't exist" in withStateService { stateService =>
+        stateService ! GetNotificationsHistory(checkRef, None, None, 10, None)
+        val getNotificationHistoryResult = expectMsgClass(classOf[StateServiceOperationFailed])
+        getNotificationHistoryResult.failure shouldEqual ApiException(ResourceNotFound)
+      }
+
+      "return the last notifications as the only element in a page if timeseries parameters are not specified" in withTestData { stateService =>
+        stateService ! GetNotificationsHistory(checkRef, None, None, 10, None)
+        val getNotificationHistoryResult = expectMsgClass(classOf[GetNotificationsHistoryResult])
+        getNotificationHistoryResult.page.last shouldEqual None
+        getNotificationHistoryResult.page.exhausted shouldEqual true
+        val notifications = getNotificationHistoryResult.page.history.loneElement
+        notifications shouldEqual notifications5
+      }
+
+      "return a page of notifications history newer than 'from' when 'from' is specified" in withTestData { stateService =>
+        stateService ! GetNotificationsHistory(checkRef, Some(timestamp3), None, 100, None)
+        val getNotificationHistoryResult = expectMsgClass(classOf[GetNotificationsHistoryResult])
+        getNotificationHistoryResult.page.history shouldEqual Vector(notifications4, notifications5)
+        getNotificationHistoryResult.page.last shouldEqual None
+        getNotificationHistoryResult.page.exhausted shouldEqual true
+      }
+
+      "return a page of notifications history older than 'to' when 'to' is specified" in withTestData { stateService =>
+        stateService ! GetNotificationsHistory(checkRef, None, Some(timestamp4), 100, None)
+        val getNotificationHistoryResult = expectMsgClass(classOf[GetNotificationsHistoryResult])
+        getNotificationHistoryResult.page.history shouldEqual Vector(notifications1, notifications2, notifications3)
+        getNotificationHistoryResult.page.last shouldEqual None
+        getNotificationHistoryResult.page.exhausted shouldEqual true
+      }
+
+      "return a page of notifications history between 'from' and 'to' when 'from' and 'to' are specified" in withTestData { stateService =>
+        stateService ! GetNotificationsHistory(checkRef, Some(timestamp2), Some(timestamp5), 100, None)
+        val getNotificationHistoryResult = expectMsgClass(classOf[GetNotificationsHistoryResult])
+        getNotificationHistoryResult.page.history shouldEqual Vector(notifications3, notifications4)
+        getNotificationHistoryResult.page.last shouldEqual None
+        getNotificationHistoryResult.page.exhausted shouldEqual true
+      }
+    }
+
+    "A StateManager servicing a GetMetricssHistory request" should {
+
+      "return ResourceNotFound if check doesn't exist" in withStateService { stateService =>
+        stateService ! GetMetricsHistory(checkRef, None, None, 10, None)
+        val getMetricsHistoryResult = expectMsgClass(classOf[StateServiceOperationFailed])
+        getMetricsHistoryResult.failure shouldEqual ApiException(ResourceNotFound)
+      }
+
+      "return the last metrics as the only element in a page if timeseries parameters are not specified" in withTestData { stateService =>
+        stateService ! GetMetricsHistory(checkRef, None, None, 10, None)
+        val getMetricsHistoryResult = expectMsgClass(classOf[GetMetricsHistoryResult])
+        getMetricsHistoryResult.page.last shouldEqual None
+        getMetricsHistoryResult.page.exhausted shouldEqual true
+        val metrics = getMetricsHistoryResult.page.history.loneElement
+        metrics shouldEqual metrics5
+      }
+
+      "return a page of metrics history newer than 'from' when 'from' is specified" in withTestData { stateService =>
+        stateService ! GetMetricsHistory(checkRef, Some(timestamp3), None, 100, None)
+        val getMetricsHistoryResult = expectMsgClass(classOf[GetMetricsHistoryResult])
+        getMetricsHistoryResult.page.history shouldEqual Vector(metrics4, metrics5)
+        getMetricsHistoryResult.page.last shouldEqual None
+        getMetricsHistoryResult.page.exhausted shouldEqual true
+      }
+
+      "return a page of metrics history older than 'to' when 'to' is specified" in withTestData { stateService =>
+        stateService ! GetMetricsHistory(checkRef, None, Some(timestamp4), 100, None)
+        val getMetricsHistoryResult = expectMsgClass(classOf[GetMetricsHistoryResult])
+        getMetricsHistoryResult.page.history shouldEqual Vector(metrics1, metrics2, metrics3)
+        getMetricsHistoryResult.page.last shouldEqual None
+        getMetricsHistoryResult.page.exhausted shouldEqual true
+      }
+
+      "return a page of metrics history between 'from' and 'to' when 'from' and 'to' are specified" in withTestData { stateService =>
+        stateService ! GetMetricsHistory(checkRef, Some(timestamp2), Some(timestamp5), 100, None)
+        val getMetricsHistoryResult = expectMsgClass(classOf[GetMetricsHistoryResult])
+        getMetricsHistoryResult.page.history shouldEqual Vector(metrics3, metrics4)
+        getMetricsHistoryResult.page.last shouldEqual None
+        getMetricsHistoryResult.page.exhausted shouldEqual true
+      }
     }
   }
 }

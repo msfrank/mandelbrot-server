@@ -83,7 +83,7 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
       }.pipeTo(sender())
 
     /* retrieve notification history for the specified CheckRef */
-    case op: GetNotificationHistory =>
+    case op: GetNotificationsHistory =>
       getEpoch(op.checkRef, op.from, op.to, op.last).flatMap {
         case (epoch, committed) =>
           checkStatusDAL.getCheckNotificationsHistory(op.checkRef, epoch, op.from, op.to, op.limit).map {
@@ -94,13 +94,13 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
           history.lastOption.map(_.timestamp).map(timestamp2last) match {
             case Some(timestamp) =>
               if (history.length < op.limit && epoch == EpochUtils.timestamp2epoch(committed.current))
-                GetNotificationHistoryResult(op, CheckNotificationsPage(history, Some(timestamp), exhausted = true))
+                GetNotificationsHistoryResult(op, CheckNotificationsPage(history, Some(timestamp), exhausted = true))
               else
-                GetNotificationHistoryResult(op, CheckNotificationsPage(history, Some(timestamp), exhausted = false))
+                GetNotificationsHistoryResult(op, CheckNotificationsPage(history, Some(timestamp), exhausted = false))
             case None =>
               val last = Some(EpochUtils.epoch2timestamp(epoch)).map(timestamp2last)
               val exhausted = if (epoch == EpochUtils.timestamp2epoch(committed.current)) true else false
-              GetNotificationHistoryResult(op, CheckNotificationsPage(history, last, exhausted))
+              GetNotificationsHistoryResult(op, CheckNotificationsPage(history, last, exhausted))
           }
       }.recover {
         case ex: Throwable =>
@@ -109,7 +109,7 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
       }.pipeTo(sender())
 
     /* retrieve metrics history for the specified CheckRef */
-    case op: GetMetricHistory =>
+    case op: GetMetricsHistory =>
       getEpoch(op.checkRef, op.from, op.to, op.last).flatMap {
         case (epoch, committed) =>
           checkStatusDAL.getCheckMetricsHistory(op.checkRef, epoch, op.from, op.to, op.limit).map {
@@ -120,13 +120,13 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
           history.lastOption.map(_.timestamp).map(timestamp2last) match {
             case Some(timestamp) =>
               if (history.length < op.limit && epoch == EpochUtils.timestamp2epoch(committed.current))
-                GetMetricHistoryResult(op, CheckMetricsPage(history, Some(timestamp), exhausted = true))
+                GetMetricsHistoryResult(op, CheckMetricsPage(history, Some(timestamp), exhausted = true))
               else
-                GetMetricHistoryResult(op, CheckMetricsPage(history, Some(timestamp), exhausted = false))
+                GetMetricsHistoryResult(op, CheckMetricsPage(history, Some(timestamp), exhausted = false))
             case None =>
               val last = Some(EpochUtils.epoch2timestamp(epoch)).map(timestamp2last)
               val exhausted = if (epoch == EpochUtils.timestamp2epoch(committed.current)) true else false
-              GetMetricHistoryResult(op, CheckMetricsPage(history, last, exhausted))
+              GetMetricsHistoryResult(op, CheckMetricsPage(history, last, exhausted))
           }
       }.recover {
         case ex: Throwable =>

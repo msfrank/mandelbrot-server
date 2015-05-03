@@ -142,57 +142,57 @@ class CassandraStatePersisterSpec(_system: ActorSystem)
     }
 
     "retrieve notifications history with no windowing parameters" in {
-      actor ! GetNotificationHistory(checkRef, None, None, 100, None)
-      val getNotificationHistoryResult = expectMsgClass(classOf[GetNotificationHistoryResult])
+      actor ! GetNotificationsHistory(checkRef, None, None, 100, None)
+      val getNotificationHistoryResult = expectMsgClass(classOf[GetNotificationsHistoryResult])
       getNotificationHistoryResult.page.history shouldEqual Vector(notifications1, notifications2, notifications3, notifications4, notifications5)
       getNotificationHistoryResult.page.exhausted shouldEqual true
     }
 
     "retrieve notifications history with from specified" in {
-      actor ! GetNotificationHistory(checkRef, Some(timestamp3), None, 100, None)
-      val getNotificationHistoryResult = expectMsgClass(classOf[GetNotificationHistoryResult])
+      actor ! GetNotificationsHistory(checkRef, Some(timestamp3), None, 100, None)
+      val getNotificationHistoryResult = expectMsgClass(classOf[GetNotificationsHistoryResult])
       getNotificationHistoryResult.page.history shouldEqual Vector(notifications3, notifications4, notifications5)
       getNotificationHistoryResult.page.exhausted shouldEqual true
     }
 
     "retrieve notifications history with to specified" in {
-      actor ! GetNotificationHistory(checkRef, None, Some(timestamp4), 100, None)
-      val getNotificationHistoryResult = expectMsgClass(classOf[GetNotificationHistoryResult])
+      actor ! GetNotificationsHistory(checkRef, None, Some(timestamp4), 100, None)
+      val getNotificationHistoryResult = expectMsgClass(classOf[GetNotificationsHistoryResult])
       getNotificationHistoryResult.page.history shouldEqual Vector(notifications1, notifications2, notifications3)
       getNotificationHistoryResult.page.exhausted shouldEqual true
     }
 
     "retrieve notifications history with from and to specified" in {
-      actor ! GetNotificationHistory(checkRef, Some(timestamp2), Some(timestamp5), 100, None)
-      val getNotificationHistoryResult = expectMsgClass(classOf[GetNotificationHistoryResult])
+      actor ! GetNotificationsHistory(checkRef, Some(timestamp2), Some(timestamp5), 100, None)
+      val getNotificationHistoryResult = expectMsgClass(classOf[GetNotificationsHistoryResult])
       getNotificationHistoryResult.page.history shouldEqual Vector(notifications2, notifications3, notifications4)
       getNotificationHistoryResult.page.exhausted shouldEqual true
     }
 
     "retrieve metrics history with no windowing parameters" in {
-      actor ! GetMetricHistory(checkRef, None, None, 100, None)
-      val getMetricHistoryResult = expectMsgClass(classOf[GetMetricHistoryResult])
+      actor ! GetMetricsHistory(checkRef, None, None, 100, None)
+      val getMetricHistoryResult = expectMsgClass(classOf[GetMetricsHistoryResult])
       getMetricHistoryResult.page.history shouldEqual Vector(metrics1, metrics2, metrics3, metrics4, metrics5)
       getMetricHistoryResult.page.exhausted shouldEqual true
     }
 
     "retrieve metrics history with from specified" in {
-      actor ! GetMetricHistory(checkRef, Some(timestamp3), None, 100, None)
-      val getMetricHistoryResult = expectMsgClass(classOf[GetMetricHistoryResult])
+      actor ! GetMetricsHistory(checkRef, Some(timestamp3), None, 100, None)
+      val getMetricHistoryResult = expectMsgClass(classOf[GetMetricsHistoryResult])
       getMetricHistoryResult.page.history shouldEqual Vector(metrics3, metrics4, metrics5)
       getMetricHistoryResult.page.exhausted shouldEqual true
     }
 
     "retrieve metrics history with to specified" in {
-      actor ! GetMetricHistory(checkRef, None, Some(timestamp4), 100, None)
-      val getMetricHistoryResult = expectMsgClass(classOf[GetMetricHistoryResult])
+      actor ! GetMetricsHistory(checkRef, None, Some(timestamp4), 100, None)
+      val getMetricHistoryResult = expectMsgClass(classOf[GetMetricsHistoryResult])
       getMetricHistoryResult.page.history shouldEqual Vector(metrics1, metrics2, metrics3)
       getMetricHistoryResult.page.exhausted shouldEqual true
     }
 
     "retrieve metrics history with from and to specified" in {
-      actor ! GetMetricHistory(checkRef, Some(timestamp2), Some(timestamp5), 100, None)
-      val getMetricHistoryResult = expectMsgClass(classOf[GetMetricHistoryResult])
+      actor ! GetMetricsHistory(checkRef, Some(timestamp2), Some(timestamp5), 100, None)
+      val getMetricHistoryResult = expectMsgClass(classOf[GetMetricsHistoryResult])
       getMetricHistoryResult.page.history shouldEqual Vector(metrics2, metrics3, metrics4)
       getMetricHistoryResult.page.exhausted shouldEqual true
     }
