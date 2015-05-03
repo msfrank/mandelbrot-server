@@ -2,7 +2,7 @@ package io.mandelbrot.core.state
 
 import akka.actor._
 import com.typesafe.config.Config
-import io.mandelbrot.core.NotImplemented
+import io.mandelbrot.core.{ResourceNotFound, ApiException, NotImplemented}
 import org.joda.time.format.ISODateTimeFormat
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.collection.JavaConversions._
@@ -34,6 +34,7 @@ class TestStatePersister(settings: TestStatePersisterSettings) extends Actor wit
         case null =>
           val history = new util.TreeMap[DateTime,UpdateCheckStatus]()
           history.put(op.status.timestamp, op)
+          state.put(op.checkRef, history)
           sender() ! UpdateCheckStatusResult(op)
         case history =>
           history.put(op.status.timestamp, op)
@@ -56,26 +57,28 @@ class TestStatePersister(settings: TestStatePersisterSettings) extends Actor wit
     case op: GetConditionHistory =>
       state.get(op.checkRef) match {
         case null =>
-          sender() ! GetConditionHistoryResult(op, CheckConditionPage(Vector.empty, None, exhausted = true))
+          sender() ! StateServiceOperationFailed(op, ApiException(ResourceNotFound))
+        case history if op.from.isEmpty && op.to.isEmpty =>
+          history.lastEntry() match {
+            case null =>
+              sender() ! GetConditionHistoryResult(op, CheckConditionPage(Vector.empty, None, exhausted = true))
+            case entry =>
+              val status = Vector(status2condition(entry.getValue))
+              sender() ! GetConditionHistoryResult(op, CheckConditionPage(status, None, exhausted = true))
+          }
         case history =>
           val last: Option[DateTime] = op.last.map(datetimeParser.parseDateTime)
           val from: DateTime = last.getOrElse(op.from.getOrElse(new DateTime(0, DateTimeZone.UTC)))
           val to: DateTime = op.to.getOrElse(new DateTime(Long.MaxValue, DateTimeZone.UTC))
-          val conditions = history.subMap(from, false, to, true)
-            .map(_._2.status)
-            .map { status =>
-              CheckCondition(status.timestamp, status.lifecycle, status.summary, status.health,
-                status.correlation, status.acknowledged, status.squelched)
-            }.toVector
+          val conditions = history.subMap(from, false, to, false)
+            .map(entry => status2condition(entry._2)).toVector
           val page = if (conditions.length > op.limit) {
             val subset = conditions.take(op.limit)
             val last = subset.lastOption.map(_.timestamp.getMillis.toString)
             val exhausted = false
             CheckConditionPage(subset, last, exhausted)
           } else {
-            val last = conditions.lastOption.map(_.timestamp.getMillis.toString)
-            val exhausted = false
-            CheckConditionPage(conditions, last, exhausted)
+            CheckConditionPage(conditions, last = None, exhausted = true)
           }
           sender() ! GetConditionHistoryResult(op, page)
       }
@@ -85,6 +88,12 @@ class TestStatePersister(settings: TestStatePersisterSettings) extends Actor wit
 
     case op: GetMetricHistory =>
       sender() ! StateServiceOperationFailed(op, NotImplemented)
+  }
+
+  def status2condition(updateCheckStatus: UpdateCheckStatus): CheckCondition = {
+    val status = updateCheckStatus.status
+    CheckCondition(status.timestamp, status.lifecycle, status.summary, status.health,
+      status.correlation, status.acknowledged, status.squelched)
   }
 }
 

@@ -22,7 +22,7 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
   val services = system.actorOf(ServiceProxy.props(), "service-proxy")
 
-  "A Agent" should {
+  "An Agent" should {
 
     "register when it doesn't exist in the registry" in {
 
