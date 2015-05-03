@@ -36,13 +36,20 @@ class StateManager(settings: StateSettings) extends Actor with ActorLogging {
 
   def receive = {
 
+    /* retrieve the current status for the specified check */
     case op: InitializeCheckStatus =>
       persister forward op
-      
+
+    /* append status to the specified check */
     case op: UpdateCheckStatus =>
       persister forward op
-      
+
+    /* delete all state for the specified check */
     case op: DeleteCheckStatus =>
+      persister forward op
+
+    /* trim history for the specified check */
+    case op: TrimCheckHistory =>
       persister forward op
 
     /* retrieve condition history */

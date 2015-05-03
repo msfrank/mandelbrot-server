@@ -122,7 +122,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       }
     }
 
-    "A StateManager servicing an UpdateCheckStatus request" should {
+    "servicing an UpdateCheckStatus request" should {
 
       "update check status if the check doesn't exist" in withStateService { stateService =>
         stateService ! UpdateCheckStatus(checkRef, status1, notifications1.notifications, lastTimestamp = None)
@@ -137,7 +137,52 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       }
     }
 
-    "A StateManager servicing a GetConditionHistory request" should {
+    "servicing a DeleteCheckStatus request" should {
+
+      "delete check status if the check doesn't exist" in withStateService { stateService =>
+        stateService ! DeleteCheckStatus(checkRef, lastStatus = None)
+        val deleteCheckStatusResult = expectMsgClass(classOf[DeleteCheckStatusResult])
+      }
+
+      "delete check status if the check exists" in withStateService { stateService =>
+        stateService ! UpdateCheckStatus(checkRef, status1, notifications1.notifications, lastTimestamp = None)
+        val updateCheckStatusResult1 = expectMsgClass(classOf[UpdateCheckStatusResult])
+        stateService ! UpdateCheckStatus(checkRef, status2, notifications2.notifications, Some(status1.timestamp))
+        val updateCheckStatusResult2 = expectMsgClass(classOf[UpdateCheckStatusResult])
+        stateService ! UpdateCheckStatus(checkRef, status3, notifications3.notifications, Some(status2.timestamp))
+        val updateCheckStatusResult3 = expectMsgClass(classOf[UpdateCheckStatusResult])
+
+        stateService ! DeleteCheckStatus(checkRef, lastStatus = None)
+        val deleteCheckStatusResult = expectMsgClass(classOf[DeleteCheckStatusResult])
+
+        stateService ! InitializeCheckStatus(checkRef, timestamp4)
+        val initializeCheckStatusResult = expectMsgClass(classOf[InitializeCheckStatusResult])
+        initializeCheckStatusResult.status shouldEqual None
+      }
+
+    }
+
+    "servicing a TrimCheckHistory request" should {
+
+      "trim check history if the check doesn't exist" in withStateService { stateService =>
+        stateService ! TrimCheckHistory(checkRef, until = timestamp5)
+        val trimCheckHistoryResult = expectMsgClass(classOf[TrimCheckHistoryResult])
+      }
+
+      "trim check history to the specified point if the check exists" in withStateService { stateService =>
+        stateService ! UpdateCheckStatus(checkRef, status1, notifications1.notifications, lastTimestamp = None)
+        val updateCheckStatusResult1 = expectMsgClass(classOf[UpdateCheckStatusResult])
+        stateService ! UpdateCheckStatus(checkRef, status2, notifications2.notifications, Some(status1.timestamp))
+        val updateCheckStatusResult2 = expectMsgClass(classOf[UpdateCheckStatusResult])
+        stateService ! UpdateCheckStatus(checkRef, status3, notifications3.notifications, Some(status2.timestamp))
+        val updateCheckStatusResult3 = expectMsgClass(classOf[UpdateCheckStatusResult])
+
+        stateService ! TrimCheckHistory(checkRef, until = timestamp2)
+        val trimCheckHistoryResult = expectMsgClass(classOf[TrimCheckHistoryResult])
+      }
+    }
+
+    "servicing a GetConditionHistory request" should {
 
       "return ResourceNotFound if check doesn't exist" in withStateService { stateService =>
         stateService ! GetConditionHistory(checkRef, None, None, 10, None)
@@ -179,7 +224,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       }
     }
 
-    "A StateManager servicing a GetNotificationsHistory request" should {
+    "servicing a GetNotificationsHistory request" should {
 
       "return ResourceNotFound if check doesn't exist" in withStateService { stateService =>
         stateService ! GetNotificationsHistory(checkRef, None, None, 10, None)
@@ -221,7 +266,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       }
     }
 
-    "A StateManager servicing a GetMetricssHistory request" should {
+    "servicing a GetMetricssHistory request" should {
 
       "return ResourceNotFound if check doesn't exist" in withStateService { stateService =>
         stateService ! GetMetricsHistory(checkRef, None, None, 10, None)
