@@ -69,7 +69,7 @@ trait ApiService extends HttpService {
         entity(as[AgentRegistration]) { case agentRegistration: AgentRegistration =>
           complete {
             serviceProxy.ask(RegisterAgent(agentRegistration.agentId, agentRegistration)).map {
-              case result: RegisterCheckSystemResult =>
+              case result: RegisterAgentResult =>
                 HttpResponse(StatusCodes.OK,
                              headers = List(Location("/v2/systems/" + agentRegistration.agentId.toString)),
                              entity = JsonBody(result.metadata.toJson))
@@ -112,7 +112,7 @@ trait ApiService extends HttpService {
           entity(as[AgentRegistration]) { case agentRegistration: AgentRegistration =>
             complete {
               serviceProxy.ask(UpdateAgent(agentId, agentRegistration)).map {
-                case result: UpdateCheckSystemResult =>
+                case result: UpdateAgentResult =>
                   HttpResponse(StatusCodes.OK,
                                headers = List(Location("/v2/systems/" + agentRegistration.agentId.toString)),
                                entity = JsonBody(result.metadata.toJson))
@@ -126,7 +126,7 @@ trait ApiService extends HttpService {
         delete {
           complete {
             serviceProxy.ask(RetireAgent(agentId)).map {
-              case result: RetireCheckSystemResult =>
+              case result: RetireAgentResult =>
                 HttpResponse(StatusCodes.Accepted)
               case failure: ServiceOperationFailed =>
                 throw failure.failure

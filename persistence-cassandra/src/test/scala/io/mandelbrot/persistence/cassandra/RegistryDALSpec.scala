@@ -5,7 +5,7 @@ import akka.actor.ActorSystem
 import com.datastax.driver.core.Session
 import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
 import org.scalatest.ShouldMatchers
-import org.joda.time.DateTime
+import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 import scala.concurrent.Await
 import java.net.URI
@@ -55,31 +55,35 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
       val agentId = AgentId("test.foo")
       val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, Map.empty, Map.empty)
       val op = CreateRegistration(agentId, registration)
-      val timestamp = DateTime.now()
+      val timestamp = DateTime.now(DateTimeZone.UTC)
       Await.result(dal.createAgent(op, timestamp), 5.seconds)
       val getAgentResult = Await.result(dal.getAgent(GetRegistration(agentId)), 5.seconds)
       getAgentResult.registration shouldEqual registration
-      getAgentResult.lsn shouldEqual 1
+      getAgentResult.metadata.agentId shouldEqual agentId
+      getAgentResult.metadata.joinedOn shouldEqual timestamp
+      getAgentResult.metadata.lastUpdate shouldEqual timestamp
+      getAgentResult.metadata.lsn shouldEqual 1
     }
 
     "update a check system" in withSessionAndDAL { (session, dal) =>
       val agentId = AgentId("test.foo")
       val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, Map.empty, Map.empty)
-      val op = UpdateRegistration(agentId, registration, lsn = 2)
-      val timestamp = DateTime.now()
-      Await.result(dal.updateAgent(op, timestamp), 5.seconds)
+      val timestamp = DateTime.now(DateTimeZone.UTC)
+      val metadata = AgentMetadata(agentId, timestamp, timestamp, 2)
+      val op = UpdateRegistration(agentId, registration, metadata)
+      Await.result(dal.updateAgent(op), 5.seconds)
       val getAgentResult = Await.result(dal.getAgent(GetRegistration(agentId)), 5.seconds)
       getAgentResult.registration shouldEqual registration
-      getAgentResult.lsn shouldEqual 3
+      getAgentResult.metadata shouldEqual metadata
     }
 
     "delete a check system" in withSessionAndDAL { (session, dal) =>
       val agentId = AgentId("test.foo")
       val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, Map.empty, Map.empty)
-      val timestamp = DateTime.now()
+      val timestamp = DateTime.now(DateTimeZone.UTC)
       Await.result(dal.createAgent(CreateRegistration(agentId, registration), timestamp), 5.seconds)
       val getAgentResult = Await.result(dal.getAgent(GetRegistration(agentId)), 5.seconds)
-      val op = DeleteRegistration(agentId, lsn = 1)
+      val op = DeleteRegistration(agentId)
       val deleteEntityResult = Await.result(dal.deleteAgent(op), 5.seconds)
       val ex = the[ApiException] thrownBy {
         Await.result(dal.getAgent(GetRegistration(agentId)), 5.seconds)
@@ -88,7 +92,7 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
     }
 
     "list check systems" in withSessionAndDAL { (session,dal) =>
-      val timestamp = DateTime.now()
+      val timestamp = DateTime.now(DateTimeZone.UTC)
       val agent1 = AgentId("test.1")
       val registration1 = AgentRegistration(agent1, "mandelbrot", Map.empty, Map.empty, Map.empty)
       val agent2 = AgentId("test.2")
@@ -105,7 +109,7 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
     }
 
     "page through check systems" in withSessionAndDAL { (session,dal) =>
-      val timestamp = DateTime.now()
+      val timestamp = DateTime.now(DateTimeZone.UTC)
       val agent1 = AgentId("test.1")
       val registration1 = AgentRegistration(agent1, "mandelbrot", Map.empty, Map.empty, Map.empty)
       val agent2 = AgentId("test.2")

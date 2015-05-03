@@ -76,14 +76,14 @@ case class RegistryServiceOperationFailed(op: RegistryServiceOperation, failure:
 case class CreateRegistration(agentId: AgentId, registration: AgentRegistration) extends RegistryServiceCommand
 case class CreateRegistrationResult(op: CreateRegistration, metadata: AgentMetadata)
 
-case class UpdateRegistration(agentId: AgentId, registration: AgentRegistration, lsn: Long) extends RegistryServiceCommand
-case class UpdateRegistrationResult(op: UpdateRegistration, metadata: AgentMetadata)
+case class UpdateRegistration(agentId: AgentId, registration: AgentRegistration, metadata: AgentMetadata) extends RegistryServiceCommand
+case class UpdateRegistrationResult(op: UpdateRegistration)
 
-case class DeleteRegistration(agentId: AgentId, lsn: Long) extends RegistryServiceCommand
-case class DeleteRegistrationResult(op: DeleteRegistration, lsn: Long)
+case class DeleteRegistration(agentId: AgentId) extends RegistryServiceCommand
+case class DeleteRegistrationResult(op: DeleteRegistration)
 
 case class ListRegistrations(limit: Int, last: Option[String]) extends RegistryServiceQuery
 case class ListRegistrationsResult(op: ListRegistrations, page: AgentsPage)
 
 case class GetRegistration(agentId: AgentId) extends RegistryServiceQuery
-case class GetRegistrationResult(op: GetRegistration, registration: AgentRegistration, lsn: Long)
+case class GetRegistrationResult(op: GetRegistration, registration: AgentRegistration, metadata: AgentMetadata)

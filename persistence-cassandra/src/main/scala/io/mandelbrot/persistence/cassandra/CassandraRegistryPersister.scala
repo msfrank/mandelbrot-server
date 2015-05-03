@@ -26,7 +26,7 @@ class CassandraRegistryPersister(settings: CassandraRegistryPersisterSettings) e
 
     case op: UpdateRegistration =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      registry.updateAgent(op, timestamp).recover {
+      registry.updateAgent(op).recover {
         case ex: Throwable => sender () ! RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 

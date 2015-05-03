@@ -38,8 +38,8 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val checkSystem = system.actorOf(Agent.props(services))
 
       checkSystem ! RegisterAgent(agentId, registration)
-      val registerCheckSystemResult = expectMsgClass(classOf[RegisterCheckSystemResult])
-      registerCheckSystemResult.metadata.lsn shouldEqual 0
+      val registerCheckSystemResult = expectMsgClass(classOf[RegisterAgentResult])
+      registerCheckSystemResult.metadata.lsn shouldEqual 1
     }
 
     "revive when it exists in the registry" in {
@@ -61,9 +61,9 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       checkSystem ! ReviveAgent(agentId)
 
       checkSystem ! DescribeAgent(agentId)
-      val describeCheckSystemResult = expectMsgClass(classOf[DescribeCheckSystemResult])
+      val describeCheckSystemResult = expectMsgClass(classOf[DescribeAgentResult])
       describeCheckSystemResult.registration shouldEqual registration
-      describeCheckSystemResult.lsn shouldEqual 0
+      describeCheckSystemResult.lsn shouldEqual 1
     }
 
     "update checks when the registration changes" in {
@@ -80,15 +80,15 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val checkSystem = system.actorOf(Agent.props(services))
 
       checkSystem ! RegisterAgent(agentId, registration1)
-      val registerCheckSystemResult = expectMsgClass(classOf[RegisterCheckSystemResult])
+      val registerCheckSystemResult = expectMsgClass(classOf[RegisterAgentResult])
 
       val check2 = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, properties, metadata)
       val checks2 = Map(CheckId("check2") -> check2)
       val registration2 = AgentRegistration(agentId, "mandelbrot", Map.empty, checks2, metrics)
 
       checkSystem ! UpdateAgent(agentId, registration2)
-      val updateCheckSystemResult = expectMsgClass(classOf[UpdateCheckSystemResult])
-      updateCheckSystemResult.metadata.lsn shouldEqual 1
+      val updateCheckSystemResult = expectMsgClass(classOf[UpdateAgentResult])
+      updateCheckSystemResult.metadata.lsn shouldEqual 2
 
       checkSystem ! GetCheckStatus(CheckRef("test.3:check2"))
       val getCheckStatusResult = expectMsgClass(classOf[GetCheckStatusResult])

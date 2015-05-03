@@ -20,6 +20,7 @@
 package io.mandelbrot.core.system
 
 import akka.actor._
+import org.joda.time.{DateTimeZone, DateTime}
 import scala.collection.mutable
 
 import io.mandelbrot.core._
@@ -67,8 +68,8 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
   when(SystemRegistering) {
 
     case Event(result: CreateRegistrationResult, state: SystemRegistering) =>
-      state.sender ! RegisterCheckSystemResult(state.op, result.metadata)
-      goto(SystemRunning) using SystemRunning(state.op.agentId, result.op.registration, result.metadata.lsn)
+      state.sender ! RegisterAgentResult(state.op, result.metadata)
+      goto(SystemRunning) using SystemRunning(state.op.agentId, result.op.registration, result.metadata)
 
     case Event(failure: RegistryServiceOperationFailed, state: SystemRegistering) =>
       state.sender ! failure
@@ -86,7 +87,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
   when(SystemInitializing) {
 
     case Event(result: GetRegistrationResult, state: SystemInitializing) =>
-      goto(SystemRunning) using SystemRunning(state.agentId, result.registration, result.lsn)
+      goto(SystemRunning) using SystemRunning(state.agentId, result.registration, result.metadata)
 
     case Event(failure: RegistryServiceOperationFailed, state: SystemInitializing) =>
       goto(SystemFailed) using SystemError(failure.failure)
@@ -105,7 +106,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       case state: SystemRunning =>
         log.debug("configuring check system {}", state.agentId)
         unstashAll()
-        applyCheckRegistration(state.agentId, state.registration, state.lsn)
+        applyCheckRegistration(state.agentId, state.registration, state.metadata.lsn)
       case _ =>
     }
   }
@@ -114,7 +115,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
 
     /* get the Agent spec */
     case Event(query: DescribeAgent, state: SystemRunning) =>
-      stay() replying DescribeCheckSystemResult(query, state.registration, state.lsn)
+      stay() replying DescribeAgentResult(query, state.registration, state.metadata.lsn)
 
     case Event(query: MatchAgent, state: SystemRunning) =>
       if (query.matchers.nonEmpty) {
@@ -122,19 +123,24 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
           val checkRef = CheckRef(state.agentId, checkId)
           query.matchers.collectFirst { case matcher if matcher.matches(checkRef.checkId) => checkRef }
         }.toSet
-        stay() replying MatchCheckSystemResult(query, matchingRefs)
-      } else stay() replying MatchCheckSystemResult(query, checks.keySet.map(checkId => CheckRef(state.agentId, checkId)))
+        stay() replying MatchAgentResult(query, matchingRefs)
+      } else stay() replying MatchAgentResult(query, checks.keySet.map(checkId => CheckRef(state.agentId, checkId)))
 
     case Event(op: RegisterAgent, state: SystemRunning) =>
       stay() replying AgentOperationFailed(op, ApiException(Conflict))
 
     /* update checks */
     case Event(op: UpdateAgent, state: SystemRunning) =>
-      goto(SystemUpdating) using SystemUpdating(op, sender(), state)
+      val timestamp = DateTime.now(DateTimeZone.UTC)
+      val lsn = state.metadata.lsn + 1
+      val metadata = state.metadata.copy(lastUpdate = timestamp, lsn = lsn)
+      val update = UpdateRegistration(op.agentId, op.registration, metadata)
+      goto(SystemUpdating) using SystemUpdating(op, sender(), update, state)
 
     /* retire all running checks */
     case Event(op: RetireAgent, state: SystemRunning) =>
-      goto(SystemRetiring) using SystemRetiring(op, sender(), state)
+      val delete = DeleteRegistration(op.agentId)
+      goto(SystemRetiring) using SystemRetiring(op, sender(), delete, state)
 
     /* ignore check status from top level checks */
     case Event(status: CheckStatus, state: SystemRunning) =>
@@ -162,7 +168,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       retiredChecks.remove(actorRef)
       if (zombieChecks.contains(checkRef)) {
         zombieChecks.remove(checkRef)
-        applyCheckRegistration(state.agentId, state.registration, state.lsn)
+        applyCheckRegistration(state.agentId, state.registration, state.metadata.lsn)
       } else
         log.debug("check {} has been terminated", checkRef)
       stay()
@@ -171,15 +177,15 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
   onTransition {
     case _ -> SystemUpdating => nextStateData match  {
       case state: SystemUpdating =>
-        services ! UpdateRegistration(state.op.agentId, state.op.registration, state.prev.lsn)
+        services ! state.update
       case _ =>
     }
   }
 
   when(SystemUpdating) {
     case Event(result: UpdateRegistrationResult, state: SystemUpdating) =>
-      state.sender ! UpdateCheckSystemResult(state.op, result.metadata)
-      goto(SystemRunning) using SystemRunning(state.op.agentId, state.op.registration, result.metadata.lsn)
+      state.sender ! UpdateAgentResult(state.op, state.update.metadata)
+      goto(SystemRunning) using SystemRunning(state.op.agentId, state.op.registration, state.update.metadata)
     case Event(failure: RegistryServiceOperationFailed, state: SystemUpdating) =>
       state.sender ! failure
       goto(SystemRunning) using state.prev
@@ -191,15 +197,15 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
   onTransition {
     case _ -> SystemRetiring => nextStateData match {
       case state: SystemRetiring =>
-        services ! DeleteRegistration(state.op.agentId, state.prev.lsn)
+        services ! state.delete
       case _ =>
     }
   }
 
   when(SystemRetiring) {
     case Event(result: DeleteRegistrationResult, state: SystemRetiring) =>
-      state.sender ! RetireCheckSystemResult(state.op, result.lsn)
-      goto(SystemRetired) using SystemRetired(state.prev.agentId, state.prev.registration, result.lsn)
+      state.sender ! RetireAgentResult(state.op, state.prev.metadata.lsn)
+      goto(SystemRetired) using SystemRetired(state.prev.agentId, state.prev.registration, state.prev.metadata)
     case Event(failure: RegistryServiceOperationFailed, state: SystemRetiring) =>
       state.sender ! failure
       goto(SystemRunning) using state.prev
@@ -214,8 +220,8 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
         unstashAll()
         checks.foreach {
           case (checkRef,checkActor) if !retiredChecks.contains(checkActor.actor) =>
-            checkActor.actor ! RetireCheck(state.lsn)
-            retiredChecks.put(checkActor.actor, (checkRef,state.lsn))
+            checkActor.actor ! RetireCheck(state.metadata.lsn)
+            retiredChecks.put(checkActor.actor, (checkRef,state.metadata.lsn))
           case _ => // do nothing
         }
       case _ =>
@@ -366,10 +372,10 @@ object Agent {
   case object SystemWaiting extends Data
   case class SystemInitializing(agentId: AgentId) extends Data
   case class SystemRegistering(op: RegisterAgent, sender: ActorRef) extends Data
-  case class SystemRunning(agentId: AgentId, registration: AgentRegistration, lsn: Long) extends Data
-  case class SystemUpdating(op: UpdateAgent, sender: ActorRef, prev: SystemRunning) extends Data
-  case class SystemRetiring(op: RetireAgent, sender: ActorRef, prev: SystemRunning) extends Data
-  case class SystemRetired(agentId: AgentId, registration: AgentRegistration, lsn: Long) extends Data
+  case class SystemRunning(agentId: AgentId, registration: AgentRegistration, metadata: AgentMetadata) extends Data
+  case class SystemUpdating(op: UpdateAgent, sender: ActorRef, update: UpdateRegistration, prev: SystemRunning) extends Data
+  case class SystemRetiring(op: RetireAgent, sender: ActorRef, delete: DeleteRegistration, prev: SystemRunning) extends Data
+  case class SystemRetired(agentId: AgentId, registration: AgentRegistration, metadata: AgentMetadata) extends Data
   case class SystemError(ex: Throwable) extends Data
 }
 
@@ -386,16 +392,16 @@ sealed trait AgentQuery extends ServiceQuery with AgentOperation
 case class AgentOperationFailed(op: AgentOperation, failure: Throwable) extends ServiceOperationFailed
 
 case class RegisterAgent(agentId: AgentId, registration: AgentRegistration) extends AgentCommand
-case class RegisterCheckSystemResult(op: RegisterAgent, metadata: AgentMetadata)
+case class RegisterAgentResult(op: RegisterAgent, metadata: AgentMetadata)
 
 case class UpdateAgent(agentId: AgentId, registration: AgentRegistration) extends AgentCommand
-case class UpdateCheckSystemResult(op: UpdateAgent, metadata: AgentMetadata)
+case class UpdateAgentResult(op: UpdateAgent, metadata: AgentMetadata)
 
 case class RetireAgent(agentId: AgentId) extends AgentCommand
-case class RetireCheckSystemResult(op: RetireAgent, lsn: Long)
+case class RetireAgentResult(op: RetireAgent, lsn: Long)
 
 case class DescribeAgent(agentId: AgentId) extends AgentQuery
-case class DescribeCheckSystemResult(op: DescribeAgent, registration: AgentRegistration, lsn: Long)
+case class DescribeAgentResult(op: DescribeAgent, registration: AgentRegistration, lsn: Long)
 
 case class MatchAgent(agentId: AgentId, matchers: Set[CheckMatcher]) extends AgentQuery
-case class MatchCheckSystemResult(op: MatchAgent, refs: Set[CheckRef])
+case class MatchAgentResult(op: MatchAgent, refs: Set[CheckRef])

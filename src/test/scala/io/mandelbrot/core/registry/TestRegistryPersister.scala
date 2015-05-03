@@ -16,32 +16,18 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
   def receive = {
 
     case op: CreateRegistration =>
-      if (!registrations.containsKey(op.agentId)) {
-        val timestamp = DateTime.now(DateTimeZone.UTC)
-        val metadata = AgentMetadata(op.agentId, timestamp, timestamp, 0)
-        registrations.put(op.agentId, (metadata, op.registration))
-        sender() ! CreateRegistrationResult(op, metadata)
-      } else sender() ! RegistryServiceOperationFailed(op, ApiException(Conflict))
+      val timestamp = DateTime.now(DateTimeZone.UTC)
+      val metadata = AgentMetadata(op.agentId, timestamp, timestamp, 1)
+      registrations.put(op.agentId, (metadata, op.registration))
+      sender() ! CreateRegistrationResult(op, metadata)
 
     case op: UpdateRegistration =>
-      registrations.get(op.agentId) match {
-        case null =>
-          sender() ! RegistryServiceOperationFailed(op, ApiException(ResourceNotFound))
-        case (metadata: AgentMetadata, registration: AgentRegistration) =>
-          val timestamp = DateTime.now(DateTimeZone.UTC)
-          val lsn = metadata.lsn + 1
-          val updated = metadata.copy(lastUpdate = timestamp, lsn = lsn)
-          registrations.put(op.agentId, (updated, registration))
-          sender() ! UpdateRegistrationResult(op, updated)
-      }
+      registrations.put(op.agentId, (op.metadata, op.registration))
+      sender() ! UpdateRegistrationResult(op)
 
     case op: DeleteRegistration =>
-      registrations.remove(op.agentId) match {
-        case null =>
-          sender() ! RegistryServiceOperationFailed(op, ApiException(ResourceNotFound))
-        case (metadata: AgentMetadata, registration: AgentRegistration) =>
-          sender() ! DeleteRegistrationResult(op, metadata.lsn)
-      }
+      registrations.remove(op.agentId)
+      sender() ! DeleteRegistrationResult(op)
 
     case op: ListRegistrations =>
       op.last match {
@@ -67,7 +53,7 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
         case null =>
           sender() ! RegistryServiceOperationFailed(op, ApiException(ResourceNotFound))
         case (metadata: AgentMetadata, registration: AgentRegistration) =>
-          sender() ! GetRegistrationResult(op, registration, metadata.lsn)
+          sender() ! GetRegistrationResult(op, registration, metadata)
       }
   }
 }

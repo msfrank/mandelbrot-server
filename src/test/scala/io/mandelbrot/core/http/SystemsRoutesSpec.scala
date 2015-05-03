@@ -217,7 +217,7 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
 
   "route /v2/systems/(agentId)/checks/(checkId)/condition" should {
 
-    "get the latest condition when no timeseries params are specified" ignore withServiceProxy {
+    "get the latest condition when no timeseries params are specified" in withServiceProxy {
       Post("/v2/systems", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/systems/" + registration1.agentId.toString))
@@ -264,7 +264,7 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
 
   "route /v2/systems/(agentId)/checks/(checkId)/notifications" should {
 
-    "get the latest notifications when no timeseries params are specified" ignore withServiceProxy {
+    "get the latest notifications when no timeseries params are specified" in withServiceProxy {
       Post("/v2/systems", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/systems/" + registration1.agentId.toString))
@@ -308,7 +308,7 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
 
   "route /v2/systems/(agentId)/checks/(checkId)/metrics" should {
 
-    "get the latest metrics when no timeseries params are specified" ignore withServiceProxy {
+    "get the latest metrics when no timeseries params are specified" in withServiceProxy {
       Post("/v2/systems", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/systems/" + registration1.agentId.toString))

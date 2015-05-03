@@ -1,7 +1,7 @@
 package io.mandelbrot.persistence.cassandra
 
 import com.datastax.driver.core.{BoundStatement, Session}
-import org.joda.time.DateTime
+import org.joda.time.{DateTimeZone, DateTime}
 import spray.json._
 import scala.concurrent.{Future, ExecutionContext}
 import scala.collection.JavaConversions._
@@ -52,17 +52,18 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
   private val preparedUpdateAgent = session.prepare(
     s"""
        |UPDATE $tableName
-       |SET registration = ?, lsn = ?, last_update = ?
+       |SET registration = ?, lsn = ?, last_update = ?, joined_on = ?
        |WHERE p = 0 AND agent_id = ?
      """.stripMargin)
 
-  def updateAgent(op: UpdateRegistration, timestamp: DateTime): Future[UpdateRegistrationResult] = {
+  def updateAgent(op: UpdateRegistration): Future[UpdateRegistrationResult] = {
     val agentId = op.agentId.toString
     val registration = op.registration.toJson.toString()
-    val _timestamp = timestamp.toDate
-    val lsn: java.lang.Long = op.lsn + 1
-    executeAsync(new BoundStatement(preparedUpdateAgent).bind(registration, lsn, _timestamp, agentId)).map {
-      resultSet => UpdateRegistrationResult(op, AgentMetadata(op.agentId, timestamp, timestamp, lsn))
+    val lastUpdate = op.metadata.lastUpdate.toDate
+    val joinedOn = op.metadata.joinedOn.toDate
+    val lsn: java.lang.Long = op.metadata.lsn
+    executeAsync(new BoundStatement(preparedUpdateAgent).bind(registration, lsn, lastUpdate, joinedOn, agentId)).map {
+      resultSet => UpdateRegistrationResult(op)
     }
   }
 
@@ -75,13 +76,13 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
   def deleteAgent(op: DeleteRegistration): Future[DeleteRegistrationResult] = {
     val agentId = op.agentId.toString
     executeAsync(new BoundStatement(preparedDeleteAgent).bind(agentId)).map {
-      resultSet => DeleteRegistrationResult(op, op.lsn)
+      resultSet => DeleteRegistrationResult(op)
     }
   }
 
   private val preparedGetAgent = session.prepare(
     s"""
-       |SELECT registration, lsn FROM $tableName
+       |SELECT registration, lsn, last_update, joined_on FROM $tableName
        |WHERE p = 0 AND agent_id = ?
      """.stripMargin)
 
@@ -92,7 +93,10 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
       if (row != null) {
         val registration = JsonParser(row.getString(0)).convertTo[AgentRegistration]
         val lsn = row.getLong(1)
-        GetRegistrationResult(op, registration, lsn)
+        val lastUpdate = new DateTime(row.getDate(2), DateTimeZone.UTC)
+        val joinedOn = new DateTime(row.getDate(3), DateTimeZone.UTC)
+        val metadata = AgentMetadata(op.agentId, joinedOn, lastUpdate, lsn)
+        GetRegistrationResult(op, registration, metadata)
       } else throw ApiException(ResourceNotFound)
     }
   }
@@ -112,8 +116,8 @@ class RegistryDAL(settings: CassandraRegistryPersisterSettings,
       val agents = resultSet.all().map { row =>
         val agentId = AgentId(row.getString(0))
         val lsn = row.getLong(1)
-        val lastUpdate = new DateTime(row.getDate(2))
-        val joinedOn = new DateTime(row.getDate(3))
+        val lastUpdate = new DateTime(row.getDate(2), DateTimeZone.UTC)
+        val joinedOn = new DateTime(row.getDate(3), DateTimeZone.UTC)
         AgentMetadata(agentId, joinedOn, lastUpdate, lsn)
       }.toVector
       val token = if (agents.length < limit) None else agents.lastOption.map(_.agentId.toString)
