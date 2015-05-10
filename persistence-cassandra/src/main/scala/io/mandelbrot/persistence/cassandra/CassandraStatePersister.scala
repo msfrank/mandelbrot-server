@@ -1,23 +1,18 @@
 package io.mandelbrot.persistence.cassandra
 
-import akka.actor.Status.Failure
-import akka.actor.{ActorRef, Props, ActorLogging, Actor}
-import akka.pattern.pipe
+import akka.actor.{Props, ActorLogging, Actor}
 import com.typesafe.config.Config
 import org.joda.time.{DateTimeZone, DateTime}
-import scala.concurrent.Future
 
-import io.mandelbrot.core.state._
-import io.mandelbrot.core.model._
 import io.mandelbrot.core._
-
-import scala.concurrent.duration.FiniteDuration
+import io.mandelbrot.core.state._
+import io.mandelbrot.persistence.cassandra.dal.{CheckStatusIndexDAL, CheckStatusDAL}
+import io.mandelbrot.persistence.cassandra.task._
 
 /**
  *
  */
 class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends Actor with ActorLogging {
-  import context.dispatcher
 
   // state
   val session = Cassandra(context.system).getSession
@@ -39,6 +34,10 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
 
     case op: TrimCheckHistory =>
       sender() ! StateServiceOperationFailed(op, ApiException(NotImplemented))
+
+    case op: GetConditionHistory if op.from.isEmpty && op.to.isEmpty =>
+      val props = LastCheckConditionTask.props(op, sender(), checkStatusIndexDAL, checkStatusDAL)
+      context.actorOf(props)
 
     /* retrieve condition history for the specified CheckRef */
     case op: GetConditionHistory =>

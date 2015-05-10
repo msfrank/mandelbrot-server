@@ -1,12 +1,13 @@
-package io.mandelbrot.persistence.cassandra
+package io.mandelbrot.persistence.cassandra.task
 
-import akka.actor.{Props, ActorRef, Actor, ActorLogging}
 import akka.actor.Status.Failure
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.pattern.pipe
-
 import io.mandelbrot.core.model.CheckStatus
 import io.mandelbrot.core.state._
-import io.mandelbrot.core.{ResourceNotFound, ApiException}
+import io.mandelbrot.core.{ApiException, ResourceNotFound}
+import io.mandelbrot.persistence.cassandra.dal.{EpochList, CheckStatusIndexDAL, CheckStatusDAL}
+import io.mandelbrot.persistence.cassandra.EpochUtils
 
 /**
  * Given a CheckRef, find the latest status.  Throw ResourceNotFound

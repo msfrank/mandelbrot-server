@@ -1,11 +1,12 @@
-package io.mandelbrot.persistence.cassandra
+package io.mandelbrot.persistence.cassandra.task
 
 import akka.actor.Status.Failure
-import akka.actor.{Props, ActorRef, ActorLogging, Actor}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.pattern.pipe
 
-import io.mandelbrot.core.state.{UpdateCheckStatusResult, StateServiceOperationFailed, UpdateCheckStatus}
-import io.mandelbrot.persistence.cassandra.UpdateCheckStatusTask.PutStatus
+import io.mandelbrot.core.state.{StateServiceOperationFailed, UpdateCheckStatus, UpdateCheckStatusResult}
+import io.mandelbrot.persistence.cassandra.dal.{CheckStatusIndexDAL, CheckStatusDAL}
+import io.mandelbrot.persistence.cassandra.EpochUtils
 
 /**
  * given a CheckRef and the status, persist the status, updating the
@@ -16,7 +17,7 @@ class UpdateCheckStatusTask(op: UpdateCheckStatus,
                             caller: ActorRef,
                             checkStatusIndexDAL: CheckStatusIndexDAL,
                             checkStatusDAL: CheckStatusDAL) extends Actor with ActorLogging {
-  import UpdateCheckStatusTask.PutEpoch
+  import UpdateCheckStatusTask._
   import context.dispatcher
 
   val epoch = EpochUtils.timestamp2epoch(op.status.timestamp)

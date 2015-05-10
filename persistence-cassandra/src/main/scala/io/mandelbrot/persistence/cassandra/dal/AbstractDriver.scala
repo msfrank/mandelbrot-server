@@ -1,9 +1,10 @@
-package io.mandelbrot.persistence.cassandra
+package io.mandelbrot.persistence.cassandra.dal
 
 import com.datastax.driver.core.policies.RetryPolicy
-import com.datastax.driver.core.{ConsistencyLevel, ResultSet, Statement, Session}
-import com.google.common.util.concurrent.{Futures, FutureCallback, ListenableFuture}
-import scala.concurrent.{Promise, Future}
+import com.datastax.driver.core.{ConsistencyLevel, ResultSet, Session, Statement}
+import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture}
+
+import scala.concurrent.{Future, Promise}
 
 /**
  *

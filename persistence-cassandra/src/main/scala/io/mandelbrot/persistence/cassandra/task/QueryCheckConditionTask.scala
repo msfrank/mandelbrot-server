@@ -1,14 +1,16 @@
-package io.mandelbrot.persistence.cassandra
+package io.mandelbrot.persistence.cassandra.task
 
-import akka.actor._
-import akka.actor.SupervisorStrategy.{Stop, Restart}
 import akka.actor.Status.Failure
+import akka.actor.SupervisorStrategy.Stop
+import akka.actor._
 import akka.pattern.pipe
-import org.joda.time.{DateTimeZone, DateTime}
+import org.joda.time.{DateTime, DateTimeZone}
 
+import io.mandelbrot.core.model.{CheckCondition, CheckConditionPage}
 import io.mandelbrot.core.state._
-import io.mandelbrot.core.model.{CheckConditionPage, CheckCondition}
-import io.mandelbrot.core.{InternalError, ResourceNotFound, ApiException}
+import io.mandelbrot.core.{ApiException, InternalError, ResourceNotFound}
+import io.mandelbrot.persistence.cassandra._
+import io.mandelbrot.persistence.cassandra.dal.{EpochList, CheckStatusIndexDAL, CheckConditionHistory, CheckStatusDAL}
 
 /**
  * Given a CheckRef, find the latest status.  Throw ResourceNotFound
@@ -36,17 +38,19 @@ class QueryCheckConditionTask(op: GetConditionHistory,
   var conditions: Vector[CheckCondition] = Vector.empty
 
   override def preStart(): Unit = {
-    val from = last.getOrElse(op.from.getOrElse(EpochUtils.SMALLEST_TIMESTAMP)).toDateMidnight.toDateTime(DateTimeZone.UTC)
-    val to = op.to.getOrElse(EpochUtils.LARGEST_TIMESTAMP)
-    checkStatusIndexDAL.listEpochsInclusiveAscending(op.checkRef, from, to, maxEpochs).pipeTo(self)
-    log.debug("retrieving epochs from {} to {}", from, to)
+    if (op.from.isEmpty && op.to.isEmpty) {
+      checkStatusIndexDAL.getLastEpoch(op.checkRef).map(epoch => EpochList(List(epoch))).pipeTo(self)
+    } else {
+      val from = last.getOrElse(op.from.getOrElse(EpochUtils.SMALLEST_TIMESTAMP)).toDateMidnight.toDateTime(DateTimeZone.UTC)
+      val to = op.to.getOrElse(EpochUtils.LARGEST_TIMESTAMP)
+      checkStatusIndexDAL.listEpochsInclusiveAscending(op.checkRef, from, to, maxEpochs).pipeTo(self)
+    }
   }
 
   def receive = {
 
     /* there are no more epochs left to search */
     case EpochList(Nil) =>
-      log.debug("received empty epoch list")
       if (conditions.isEmpty) {
         caller ! StateServiceOperationFailed(op, ApiException(ResourceNotFound))
       } else {
@@ -56,7 +60,6 @@ class QueryCheckConditionTask(op: GetConditionHistory,
 
     /* the list of epochs to search */
     case epochList: EpochList =>
-      log.debug("received epoch list {}", epochList.epochs)
       epochs = epochs ++ epochList.epochs
       epochsFound = epochsFound + epochList.epochs.length
       val epoch = epochs.head
@@ -66,7 +69,6 @@ class QueryCheckConditionTask(op: GetConditionHistory,
 
     /* we have exhausted the current epoch */
     case history: CheckConditionHistory if history.conditions.isEmpty =>
-      log.debug("received check condition history {}", history.conditions)
       val epoch = epochs.head
       epochs = epochs.tail
       // we haven't reached the request limit yet, and there are more epochs to search
@@ -94,7 +96,6 @@ class QueryCheckConditionTask(op: GetConditionHistory,
 
     /* add history to the result */
     case history: CheckConditionHistory =>
-      log.debug("received check condition history {}", history.conditions)
       val nleft = op.limit - conditions.length
       if (history.conditions.length < nleft) {
         conditions = conditions ++ history.conditions
@@ -114,7 +115,6 @@ class QueryCheckConditionTask(op: GetConditionHistory,
 
     /* */
     case Failure(ex: Throwable) =>
-      log.debug("caught throwable {}", ex)
       caller ! StateServiceOperationFailed(op, ex)
       context.stop(self)
   }
@@ -133,7 +133,6 @@ class QueryCheckConditionTask(op: GetConditionHistory,
    */
   override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 1) {
     case ex: Throwable =>
-      log.debug("supervisor strategy caught throwable {}", ex)
       caller ! StateServiceOperationFailed(op, ApiException(InternalError, ex))
       Stop
   }

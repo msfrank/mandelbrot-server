@@ -1,14 +1,16 @@
-package io.mandelbrot.persistence.cassandra
+package io.mandelbrot.persistence.cassandra.dal
 
+import com.datastax.driver.core.querybuilder.{Clause, QueryBuilder}
 import com.datastax.driver.core.{BoundStatement, Session}
-import scala.concurrent.{ExecutionContext, Future}
-import scala.collection.JavaConversions._
-import org.joda.time.{DateTimeZone, DateTime}
+import io.mandelbrot.core.http.json.JsonProtocol._
+import io.mandelbrot.core.model._
+import io.mandelbrot.core.{ApiException, ResourceNotFound}
+import io.mandelbrot.persistence.cassandra.{EpochUtils, CassandraStatePersisterSettings}
+import org.joda.time.{DateTime, DateTimeZone}
 import spray.json._
 
-import io.mandelbrot.core.{ApiException, ResourceNotFound}
-import io.mandelbrot.core.model._
-import io.mandelbrot.core.http.json.JsonProtocol._
+import scala.collection.JavaConversions._
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
  *
@@ -107,6 +109,26 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     }
   }
 
+  /**
+   *
+   */
+  def startClause(from: Option[DateTime], fromExclusive: Boolean): Clause = from match {
+    case None if fromExclusive => QueryBuilder.gt("timestamp", EpochUtils.SMALLEST_DATE)
+    case None => QueryBuilder.gte("timestamp", EpochUtils.SMALLEST_DATE)
+    case Some(timestamp) if fromExclusive => QueryBuilder.gt("timestamp", timestamp.toDate)
+    case Some(timestamp) => QueryBuilder.gte("timestamp", timestamp.toDate)
+  }
+
+  /**
+   *
+   */
+  def endClause(to: Option[DateTime], toInclusive: Boolean): Clause = to match {
+    case None if toInclusive => QueryBuilder.lte("timestamp", EpochUtils.LARGEST_DATE)
+    case None => QueryBuilder.lt("timestamp", EpochUtils.LARGEST_DATE)
+    case Some(timestamp) if toInclusive => QueryBuilder.lte("timestamp", timestamp.toDate)
+    case Some(timestamp) => QueryBuilder.lt("timestamp", timestamp.toDate)
+  }
+
   private val preparedGetCheckCondition = session.prepare(
     s"""
        |SELECT condition
@@ -149,6 +171,37 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     statement.bind(_checkRef, _epoch, start, end, _limit)
     statement.setFetchSize(limit)
     executeAsync(statement).map { resultSet =>
+      val conditions = resultSet.all()
+        .map(row => string2checkCondition(row.getString(0)))
+        .toVector
+      CheckConditionHistory(conditions)
+    }
+  }
+
+  /**
+   *
+   */
+  def getCheckConditionHistory(checkRef: CheckRef,
+                               epoch: Long,
+                               from: Option[DateTime],
+                               to: Option[DateTime],
+                               limit: Int,
+                               fromExclusive: Boolean,
+                               toInclusive: Boolean,
+                               descending: Boolean): Future[CheckConditionHistory] = {
+    val start = startClause(from, fromExclusive)
+    val end = endClause(to, toInclusive)
+    val ordering = if (descending) QueryBuilder.desc("timestamp") else QueryBuilder.asc("timestamp")
+    val select = QueryBuilder.select("condition")
+      .from(tableName)
+      .where(QueryBuilder.eq("check_ref", checkRef.toString))
+        .and(QueryBuilder.eq("epoch", epoch))
+        .and(start)
+        .and(end)
+      .orderBy(ordering)
+      .limit(limit)
+    select.setFetchSize(limit)
+    executeAsync(select).map { resultSet =>
       val conditions = resultSet.all()
         .map(row => string2checkCondition(row.getString(0)))
         .toVector

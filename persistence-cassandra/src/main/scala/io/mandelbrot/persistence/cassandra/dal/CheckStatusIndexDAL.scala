@@ -1,13 +1,13 @@
-package io.mandelbrot.persistence.cassandra
+package io.mandelbrot.persistence.cassandra.dal
 
 import com.datastax.driver.core.{BoundStatement, Session}
-
-import scala.concurrent.{ExecutionContext, Future}
-import scala.collection.JavaConversions._
+import io.mandelbrot.core.model._
+import io.mandelbrot.core.{ApiException, ResourceNotFound}
+import io.mandelbrot.persistence.cassandra.CassandraStatePersisterSettings
 import org.joda.time.DateTime
 
-import io.mandelbrot.core.{ApiException, ResourceNotFound}
-import io.mandelbrot.core.model._
+import scala.collection.JavaConversions._
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
  *

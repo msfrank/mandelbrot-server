@@ -1,16 +1,16 @@
-package io.mandelbrot.persistence.cassandra
+package io.mandelbrot.persistence.cassandra.dal
 
 import com.datastax.driver.core.{BoundStatement, Session}
-import org.joda.time.{DateTimeZone, DateTime}
-import spray.json._
-import scala.concurrent.{Future, ExecutionContext}
-import scala.collection.JavaConversions._
-import java.net.URI
-
-import io.mandelbrot.core.registry._
-import io.mandelbrot.core.model._
 import io.mandelbrot.core.http.json.JsonProtocol._
+import io.mandelbrot.core.model._
+import io.mandelbrot.core.registry._
 import io.mandelbrot.core.{ApiException, ResourceNotFound}
+import io.mandelbrot.persistence.cassandra.CassandraRegistryPersisterSettings
+import org.joda.time.{DateTime, DateTimeZone}
+import spray.json._
+
+import scala.collection.JavaConversions._
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
  *

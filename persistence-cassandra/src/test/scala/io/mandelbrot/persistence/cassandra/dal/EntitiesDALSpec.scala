@@ -1,17 +1,17 @@
-package io.mandelbrot.persistence.cassandra
+package io.mandelbrot.persistence.cassandra.dal
 
-import akka.testkit.{ImplicitSender, TestKit}
 import akka.actor.ActorSystem
+import akka.testkit.{ImplicitSender, TestKit}
 import com.datastax.driver.core.Session
-import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
-import org.scalatest.ShouldMatchers
 import org.joda.time.DateTime
-import scala.concurrent.duration._
+import org.scalatest.{BeforeAndAfterAll, ShouldMatchers, WordSpecLike}
 import scala.concurrent.Await
+import scala.concurrent.duration._
 
-import io.mandelbrot.core.{ResourceNotFound, ApiException, AkkaConfig}
 import io.mandelbrot.core.ConfigConversions._
 import io.mandelbrot.core.entity._
+import io.mandelbrot.core.{AkkaConfig, ApiException, ResourceNotFound}
+import io.mandelbrot.persistence.cassandra.{Cassandra, CassandraConfig, CassandraEntityCoordinatorSettings}
 
 class EntitiesDALSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
 
@@ -40,7 +40,6 @@ class EntitiesDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
     var _dal: EntitiesDAL = null
     def withSessionAndDAL(testCode: (Session,EntitiesDAL) => Any) = {
-      import system.dispatcher
       val session = Cassandra(system).getSession
       if (_dal == null)
         _dal = new EntitiesDAL(settings, session, system.dispatcher)

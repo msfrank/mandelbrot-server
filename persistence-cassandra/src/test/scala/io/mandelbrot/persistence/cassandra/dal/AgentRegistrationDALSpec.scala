@@ -1,19 +1,19 @@
-package io.mandelbrot.persistence.cassandra
+package io.mandelbrot.persistence.cassandra.dal
 
-import akka.testkit.{ImplicitSender, TestKit}
 import akka.actor.ActorSystem
+import akka.testkit.{ImplicitSender, TestKit}
 import com.datastax.driver.core.Session
-import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
-import org.scalatest.ShouldMatchers
-import org.joda.time.{DateTimeZone, DateTime}
-import scala.concurrent.duration._
-import scala.concurrent.Await
-import java.net.URI
+import org.joda.time.{DateTime, DateTimeZone}
+import org.scalatest.{BeforeAndAfterAll, ShouldMatchers, WordSpecLike}
 
-import io.mandelbrot.core.{ResourceNotFound, ApiException, AkkaConfig}
+import scala.concurrent.Await
+import scala.concurrent.duration._
+
 import io.mandelbrot.core.ConfigConversions._
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.registry._
+import io.mandelbrot.core.{AkkaConfig, ApiException, ResourceNotFound}
+import io.mandelbrot.persistence.cassandra.{Cassandra, CassandraConfig, CassandraRegistryPersisterSettings}
 
 class AgentRegistrationDALSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
 
@@ -43,7 +43,6 @@ class AgentRegistrationDALSpec(_system: ActorSystem) extends TestKit(_system) wi
     var _dal: AgentRegistrationDAL = null
 
     def withSessionAndDAL(testCode: (Session,AgentRegistrationDAL) => Any) = {
-      import system.dispatcher
       val session = Cassandra(system).getSession
       if (_dal == null)
         _dal = new AgentRegistrationDAL(settings, session, system.dispatcher)

@@ -3,6 +3,7 @@ package io.mandelbrot.persistence.cassandra
 import akka.actor._
 import akka.pattern.pipe
 import com.typesafe.config.Config
+import io.mandelbrot.persistence.cassandra.dal.{ShardsDAL, EntitiesDAL}
 import org.joda.time.{DateTimeZone, DateTime}
 
 import io.mandelbrot.core.entity._

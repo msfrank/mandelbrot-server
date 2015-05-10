@@ -1,17 +1,17 @@
-package io.mandelbrot.persistence.cassandra
+package io.mandelbrot.persistence.cassandra.dal
 
+import akka.actor.{ActorSystem, Address}
 import akka.testkit.{ImplicitSender, TestKit}
-import akka.actor.{Address, ActorSystem}
 import com.datastax.driver.core.Session
-import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
-import org.scalatest.ShouldMatchers
 import org.joda.time.DateTime
-import scala.concurrent.duration._
+import org.scalatest.{BeforeAndAfterAll, ShouldMatchers, WordSpecLike}
 import scala.concurrent.Await
+import scala.concurrent.duration._
 
-import io.mandelbrot.core.{Conflict, ApiException, AkkaConfig}
 import io.mandelbrot.core.ConfigConversions._
 import io.mandelbrot.core.entity._
+import io.mandelbrot.core.{AkkaConfig, ApiException, Conflict}
+import io.mandelbrot.persistence.cassandra.{Cassandra, CassandraConfig, CassandraEntityCoordinatorSettings}
 
 class ShardsDALSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
 
@@ -41,7 +41,6 @@ class ShardsDALSpec(_system: ActorSystem) extends TestKit(_system) with Implicit
     var _dal: ShardsDAL = null
 
     def withSessionAndDAL(testCode: (Session, ShardsDAL) => Any) = {
-      import system.dispatcher
       val session = Cassandra(system).getSession
       if (_dal == null)
         _dal = new ShardsDAL(settings, session, system.dispatcher)

@@ -1,19 +1,19 @@
-package io.mandelbrot.persistence.cassandra
+package io.mandelbrot.persistence.cassandra.dal
 
 import java.util.UUID
 
-import akka.testkit.{ImplicitSender, TestKit}
 import akka.actor.ActorSystem
+import akka.testkit.{ImplicitSender, TestKit}
 import com.datastax.driver.core.Session
-import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
-import org.scalatest.ShouldMatchers
-import org.joda.time.{DateTimeZone, DateTime}
-import scala.concurrent.duration._
+import org.joda.time.{DateTime, DateTimeZone}
+import org.scalatest.{BeforeAndAfterAll, ShouldMatchers, WordSpecLike}
 import scala.concurrent.Await
+import scala.concurrent.duration._
 
 import io.mandelbrot.core.AkkaConfig
 import io.mandelbrot.core.ConfigConversions._
 import io.mandelbrot.core.model._
+import io.mandelbrot.persistence.cassandra.{Cassandra, CassandraConfig, CassandraStatePersisterSettings, EpochUtils}
 
 class CheckStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
 

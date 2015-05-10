@@ -1,13 +1,14 @@
-package io.mandelbrot.persistence.cassandra
+package io.mandelbrot.persistence.cassandra.dal
 
 import akka.actor.AddressFromURIString
 import com.datastax.driver.core.{BoundStatement, Session}
-import org.joda.time.DateTime
-import scala.concurrent.{ExecutionContext, Future}
-import scala.collection.JavaConversions._
-
-import io.mandelbrot.core.{ResourceNotFound, Conflict, ApiException}
 import io.mandelbrot.core.entity._
+import io.mandelbrot.core.{ApiException, Conflict, ResourceNotFound}
+import io.mandelbrot.persistence.cassandra.CassandraEntityCoordinatorSettings
+import org.joda.time.DateTime
+
+import scala.collection.JavaConversions._
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
  *
