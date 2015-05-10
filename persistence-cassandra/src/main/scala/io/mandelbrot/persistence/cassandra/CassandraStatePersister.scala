@@ -35,22 +35,35 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
     case op: TrimCheckHistory =>
       sender() ! StateServiceOperationFailed(op, ApiException(NotImplemented))
 
+    /* retrieve the last condition for the specified CheckRef */
     case op: GetConditionHistory if op.from.isEmpty && op.to.isEmpty =>
       val props = LastCheckConditionTask.props(op, sender(), checkStatusIndexDAL, checkStatusDAL)
       context.actorOf(props)
 
     /* retrieve condition history for the specified CheckRef */
     case op: GetConditionHistory =>
-      val props = QueryCheckConditionTask.props(op, sender(), checkStatusIndexDAL, checkStatusDAL)
+      val props = GetCheckConditionTask.props(op, sender(), checkStatusIndexDAL, checkStatusDAL)
+      context.actorOf(props)
+
+    /* retrieve the last notifications for the specified CheckRef */
+    case op: GetNotificationsHistory if op.from.isEmpty && op.to.isEmpty =>
+      val props = LastCheckNotificationsTask.props(op, sender(), checkStatusIndexDAL, checkStatusDAL)
       context.actorOf(props)
 
     /* retrieve notification history for the specified CheckRef */
     case op: GetNotificationsHistory =>
-      sender() ! StateServiceOperationFailed(op, ApiException(NotImplemented))
+      val props = GetCheckNotificationsTask.props(op, sender(), checkStatusIndexDAL, checkStatusDAL)
+      context.actorOf(props)
+
+    /* retrieve the last metrics for the specified CheckRef */
+    case op: GetMetricsHistory if op.from.isEmpty && op.to.isEmpty =>
+      val props = LastCheckMetricsTask.props(op, sender(), checkStatusIndexDAL, checkStatusDAL)
+      context.actorOf(props)
 
     /* retrieve metrics history for the specified CheckRef */
     case op: GetMetricsHistory =>
-      sender() ! StateServiceOperationFailed(op, ApiException(NotImplemented))
+      val props = GetCheckMetricsTask.props(op, sender(), checkStatusIndexDAL, checkStatusDAL)
+      context.actorOf(props)
   }
 
   /**

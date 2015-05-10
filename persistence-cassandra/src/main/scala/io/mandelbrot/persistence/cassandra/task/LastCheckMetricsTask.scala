@@ -6,18 +6,20 @@ import akka.actor.Status.Failure
 import org.joda.time.{DateTime, DateTimeZone}
 
 import io.mandelbrot.core.state._
-import io.mandelbrot.core.model.{CheckCondition, CheckConditionPage}
-import io.mandelbrot.core.{ApiException, InternalError, ResourceNotFound}
-import io.mandelbrot.persistence.cassandra.dal.{CheckStatusIndexDAL, CheckStatusDAL}
+import io.mandelbrot.core.state.GetMetricsHistory
+import io.mandelbrot.core.model.{CheckMetrics, CheckMetricsPage}
+import io.mandelbrot.core.{ResourceNotFound, InternalError, ApiException}
+import io.mandelbrot.persistence.cassandra.dal.{CheckStatusDAL, CheckStatusIndexDAL}
+
 
 /**
  * Given a CheckRef, find the latest status.  Throw ResourceNotFound
  * if the CheckRef doesn't exist.
  */
-class LastCheckConditionTask(op: GetConditionHistory,
-                              caller: ActorRef,
-                              checkStatusIndexDAL: CheckStatusIndexDAL,
-                              checkStatusDAL: CheckStatusDAL) extends Actor with ActorLogging {
+class LastCheckMetricsTask(op: GetMetricsHistory,
+                           caller: ActorRef,
+                           checkStatusIndexDAL: CheckStatusIndexDAL,
+                           checkStatusDAL: CheckStatusDAL) extends Actor with ActorLogging {
 
   override def preStart(): Unit = {
     val initialize = InitializeCheckStatus(op.checkRef, DateTime.now(DateTimeZone.UTC))
@@ -28,9 +30,8 @@ class LastCheckConditionTask(op: GetConditionHistory,
 
     /* return the newest condition */
     case InitializeCheckStatusResult(_, Some(status)) =>
-      val condition = CheckCondition(status.timestamp, status.lifecycle, status.summary, status.health,
-        status.correlation, status.acknowledged, status.squelched)
-      caller ! GetConditionHistoryResult(op, CheckConditionPage(Vector(condition), last = None, exhausted = true))
+      val metrics = CheckMetrics(status.timestamp, status.metrics)
+      caller ! GetMetricsHistoryResult(op, CheckMetricsPage(Vector(metrics), last = None, exhausted = true))
       context.stop(self)
 
     /* there was no status data, so return ResourceNotFound */
@@ -54,11 +55,11 @@ class LastCheckConditionTask(op: GetConditionHistory,
   }
 }
 
-object LastCheckConditionTask {
-  def props(op: GetConditionHistory,
+object LastCheckMetricsTask {
+  def props(op: GetMetricsHistory,
             caller: ActorRef,
             checkStatusIndexDAL: CheckStatusIndexDAL,
             checkStatusDAL: CheckStatusDAL) = {
-    Props(classOf[LastCheckConditionTask], op, caller, checkStatusIndexDAL, checkStatusDAL)
+    Props(classOf[LastCheckMetricsTask], op, caller, checkStatusIndexDAL, checkStatusDAL)
   }
 }

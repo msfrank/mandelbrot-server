@@ -263,6 +263,37 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     }
   }
 
+  /**
+   *
+   */
+  def getCheckNotificationsHistory(checkRef: CheckRef,
+                                   epoch: Long,
+                                   from: Option[DateTime],
+                                   to: Option[DateTime],
+                                   limit: Int,
+                                   fromExclusive: Boolean,
+                                   toInclusive: Boolean,
+                                   descending: Boolean): Future[CheckNotificationsHistory] = {
+    val start = startClause(from, fromExclusive)
+    val end = endClause(to, toInclusive)
+    val ordering = if (descending) QueryBuilder.desc("timestamp") else QueryBuilder.asc("timestamp")
+    val select = QueryBuilder.select("notifications")
+      .from(tableName)
+      .where(QueryBuilder.eq("check_ref", checkRef.toString))
+        .and(QueryBuilder.eq("epoch", epoch))
+        .and(start)
+        .and(end)
+      .orderBy(ordering)
+      .limit(limit)
+    select.setFetchSize(limit)
+    executeAsync(select).map { resultSet =>
+      val notifications = resultSet.all()
+        .map(row => string2checkNotifications(row.getString(0)))
+        .toVector
+      CheckNotificationsHistory(notifications)
+    }
+  }
+
   private val preparedGetCheckMetrics = session.prepare(
     s"""
        |SELECT metrics
@@ -312,6 +343,37 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
       val metrics = resultSet.all()
         .flatMap(row => Option(row.getString(0)))
         .map(string2checkMetrics)
+        .toVector
+      CheckMetricsHistory(metrics)
+    }
+  }
+
+  /**
+   *
+   */
+  def getCheckMetricsHistory(checkRef: CheckRef,
+                             epoch: Long,
+                             from: Option[DateTime],
+                             to: Option[DateTime],
+                             limit: Int,
+                             fromExclusive: Boolean,
+                             toInclusive: Boolean,
+                             descending: Boolean): Future[CheckMetricsHistory] = {
+    val start = startClause(from, fromExclusive)
+    val end = endClause(to, toInclusive)
+    val ordering = if (descending) QueryBuilder.desc("timestamp") else QueryBuilder.asc("timestamp")
+    val select = QueryBuilder.select("metrics")
+      .from(tableName)
+      .where(QueryBuilder.eq("check_ref", checkRef.toString))
+        .and(QueryBuilder.eq("epoch", epoch))
+        .and(start)
+        .and(end)
+      .orderBy(ordering)
+      .limit(limit)
+    select.setFetchSize(limit)
+    executeAsync(select).map { resultSet =>
+      val metrics = resultSet.all()
+        .map(row => string2checkMetrics(row.getString(0)))
         .toVector
       CheckMetricsHistory(metrics)
     }
