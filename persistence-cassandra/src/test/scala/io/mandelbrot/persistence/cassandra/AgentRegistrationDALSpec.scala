@@ -15,9 +15,9 @@ import io.mandelbrot.core.ConfigConversions._
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.registry._
 
-class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
+class AgentRegistrationDALSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
 
-  def this() = this(ActorSystem("RegistryDALSpec", AkkaConfig ++ CassandraConfig))
+  def this() = this(ActorSystem("AgentRegistrationDALSpec", AkkaConfig ++ CassandraConfig))
 
   override def afterAll(): Unit = {
     Cassandra(system).dropKeyspace()
@@ -25,11 +25,11 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
   val settings = CassandraRegistryPersisterSettings()
 
-  "A RegistryDAL" should {
+  "An AgentRegistrationDAL" should {
 
     "create the entities table during initialization" in {
       val session = Cassandra(system).getSession
-      val dal = new RegistryDAL(settings, session, system.dispatcher)
+      val dal = new AgentRegistrationDAL(settings, session, system.dispatcher)
       val keyspaceName = Cassandra(system).keyspaceName
       val keyspaceMeta = session.getCluster.getMetadata.getKeyspace(keyspaceName)
       val table = keyspaceMeta.getTable(dal.tableName)
@@ -38,15 +38,15 @@ class RegistryDALSpec(_system: ActorSystem) extends TestKit(_system) with Implic
     }
   }
 
-  "A RegistryDAL" should {
+  "An AgentRegistrationDAL" should {
 
-    var _dal: RegistryDAL = null
+    var _dal: AgentRegistrationDAL = null
 
-    def withSessionAndDAL(testCode: (Session,RegistryDAL) => Any) = {
+    def withSessionAndDAL(testCode: (Session,AgentRegistrationDAL) => Any) = {
       import system.dispatcher
       val session = Cassandra(system).getSession
       if (_dal == null)
-        _dal = new RegistryDAL(settings, session, system.dispatcher)
+        _dal = new AgentRegistrationDAL(settings, session, system.dispatcher)
       Await.result(_dal.flushEntities(), 5.seconds)
       testCode(session, _dal)
     }

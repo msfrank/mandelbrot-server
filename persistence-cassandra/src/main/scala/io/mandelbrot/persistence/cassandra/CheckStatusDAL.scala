@@ -139,7 +139,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
                                epoch: Long,
                                from: Option[DateTime],
                                to: Option[DateTime],
-                               limit: Int): Future[Vector[CheckCondition]] = {
+                               limit: Int): Future[CheckConditionHistory] = {
     val _checkRef = checkRef.toString
     val _epoch: java.lang.Long = epoch
     val start = from.map(_.toDate).getOrElse(EpochUtils.SMALLEST_DATE)
@@ -149,7 +149,10 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     statement.bind(_checkRef, _epoch, start, end, _limit)
     statement.setFetchSize(limit)
     executeAsync(statement).map { resultSet =>
-      resultSet.all().map(row => string2checkCondition(row.getString(0))).toVector
+      val conditions = resultSet.all()
+        .map(row => string2checkCondition(row.getString(0)))
+        .toVector
+      CheckConditionHistory(conditions)
     }
   }
 
@@ -185,7 +188,11 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
        |LIMIT ?
      """.stripMargin)
 
-  def getCheckNotificationsHistory(checkRef: CheckRef, epoch: Long, from: Option[DateTime], to: Option[DateTime], limit: Int): Future[Vector[CheckNotifications]] = {
+  def getCheckNotificationsHistory(checkRef: CheckRef,
+                                   epoch: Long,
+                                   from: Option[DateTime],
+                                   to: Option[DateTime],
+                                   limit: Int): Future[CheckNotificationsHistory] = {
     val _checkRef = checkRef.toString
     val _epoch: java.lang.Long = epoch
     val start = from.map(_.toDate).getOrElse(EpochUtils.SMALLEST_DATE)
@@ -195,10 +202,11 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     statement.bind(_checkRef, _epoch, start, end, _limit)
     statement.setFetchSize(limit)
     executeAsync(statement).map { resultSet =>
-      resultSet.all()
+      val notifications = resultSet.all()
         .flatMap(row => Option(row.getString(0)))
         .map(string2checkNotifications)
         .toVector
+      CheckNotificationsHistory(notifications)
     }
   }
 
@@ -234,7 +242,11 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
        |LIMIT ?
      """.stripMargin)
 
-  def getCheckMetricsHistory(checkRef: CheckRef, epoch: Long, from: Option[DateTime], to: Option[DateTime], limit: Int): Future[Vector[CheckMetrics]] = {
+  def getCheckMetricsHistory(checkRef: CheckRef,
+                             epoch: Long,
+                             from: Option[DateTime],
+                             to: Option[DateTime],
+                             limit: Int): Future[CheckMetricsHistory] = {
     val _checkRef = checkRef.toString
     val _epoch: java.lang.Long = epoch
     val start = from.map(_.toDate).getOrElse(EpochUtils.SMALLEST_DATE)
@@ -244,10 +256,75 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     statement.bind(_checkRef, _epoch, start, end, _limit)
     statement.setFetchSize(limit)
     executeAsync(statement).map { resultSet =>
-      resultSet.all()
+      val metrics = resultSet.all()
         .flatMap(row => Option(row.getString(0)))
         .map(string2checkMetrics)
         .toVector
+      CheckMetricsHistory(metrics)
+    }
+  }
+
+  private val preparedGetFirstCheckStatus = session.prepare(
+    s"""
+       |SELECT timestamp, last_update, last_change, condition, metrics
+       |FROM $tableName
+       |WHERE check_ref = ? AND epoch = ?
+       |ORDER BY timestamp ASC
+       |LIMIT 1
+     """.stripMargin)
+
+  def getFirstCheckStatus(checkRef: CheckRef, epoch: Long): Future[CheckStatus] = {
+    val _checkRef = checkRef.toString
+    val _epoch: java.lang.Long = epoch
+    val statement = new BoundStatement(preparedGetFirstCheckStatus)
+    statement.bind(_checkRef, _epoch)
+    executeAsync(statement).map {
+      case resultSet =>
+        val row = resultSet.one()
+        if (row == null) throw ApiException(ResourceNotFound) else {
+          val timestamp = new DateTime(row.getDate(0), DateTimeZone.UTC)
+          val lastUpdate = Option(row.getDate(1)).map(new DateTime(_, DateTimeZone.UTC))
+          val lastChange = Option(row.getDate(2)).map(new DateTime(_, DateTimeZone.UTC))
+          val condition = string2checkCondition(row.getString(3))
+          val metrics = Option(row.getString(4))
+            .map(string2checkMetrics)
+            .map(_.metrics)
+            .getOrElse(Map.empty[String,BigDecimal])
+          CheckStatus(timestamp, condition.lifecycle, condition.summary, condition.health, metrics,
+            lastUpdate, lastChange, condition.correlation, condition.acknowledged, condition.squelched)
+        }
+    }
+  }
+
+  private val preparedGetLastCheckStatus = session.prepare(
+    s"""
+       |SELECT timestamp, last_update, last_change, condition, metrics
+       |FROM $tableName
+       |WHERE check_ref = ? AND epoch = ?
+       |ORDER BY timestamp DESC
+       |LIMIT 1
+     """.stripMargin)
+
+  def getLastCheckStatus(checkRef: CheckRef, epoch: Long): Future[CheckStatus] = {
+    val _checkRef = checkRef.toString
+    val _epoch: java.lang.Long = epoch
+    val statement = new BoundStatement(preparedGetLastCheckStatus)
+    statement.bind(_checkRef, _epoch)
+    executeAsync(statement).map {
+      case resultSet =>
+        val row = resultSet.one()
+        if (row == null) throw ApiException(ResourceNotFound) else {
+          val timestamp = new DateTime(row.getDate(0), DateTimeZone.UTC)
+          val lastUpdate = Option(row.getDate(1)).map(new DateTime(_, DateTimeZone.UTC))
+          val lastChange = Option(row.getDate(2)).map(new DateTime(_, DateTimeZone.UTC))
+          val condition = string2checkCondition(row.getString(3))
+          val metrics = Option(row.getString(4))
+            .map(string2checkMetrics)
+            .map(_.metrics)
+            .getOrElse(Map.empty[String,BigDecimal])
+          CheckStatus(timestamp, condition.lifecycle, condition.summary, condition.health, metrics,
+            lastUpdate, lastChange, condition.correlation, condition.acknowledged, condition.squelched)
+        }
     }
   }
 
@@ -280,3 +357,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
 
   def checkMetrics2string(metrics: CheckMetrics): String = metrics.toJson.prettyPrint
 }
+
+case class CheckConditionHistory(conditions: Vector[CheckCondition])
+case class CheckNotificationsHistory(notifications: Vector[CheckNotifications])
+case class CheckMetricsHistory(metrics: Vector[CheckMetrics])

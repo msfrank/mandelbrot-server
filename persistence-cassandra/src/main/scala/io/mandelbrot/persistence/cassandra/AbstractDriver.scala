@@ -1,6 +1,7 @@
 package io.mandelbrot.persistence.cassandra
 
-import com.datastax.driver.core.{ResultSet, Statement, Session}
+import com.datastax.driver.core.policies.RetryPolicy
+import com.datastax.driver.core.{ConsistencyLevel, ResultSet, Statement, Session}
 import com.google.common.util.concurrent.{Futures, FutureCallback, ListenableFuture}
 import scala.concurrent.{Promise, Future}
 
@@ -28,3 +29,9 @@ trait AbstractDriver {
     listenable2scalaFuture(session.executeAsync(query))
   }
 }
+
+case class StatementSettings(consistencyLevel: ConsistencyLevel,
+                             serialConsistencyLevel: ConsistencyLevel,
+                             fetchSize: Int,
+                             retryPolicy: RetryPolicy,
+                             tracePercentage: Double)

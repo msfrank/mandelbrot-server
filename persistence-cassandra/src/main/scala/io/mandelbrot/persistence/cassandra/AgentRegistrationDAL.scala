@@ -15,11 +15,11 @@ import io.mandelbrot.core.{ApiException, ResourceNotFound}
 /**
  *
  */
-class RegistryDAL(settings: CassandraRegistryPersisterSettings,
-                  val session: Session,
-                  implicit val ec: ExecutionContext) extends AbstractDriver {
+class AgentRegistrationDAL(settings: CassandraRegistryPersisterSettings,
+                           val session: Session,
+                           implicit val ec: ExecutionContext) extends AbstractDriver {
 
-  val tableName: String = "registry"
+  val tableName: String = "agent_registration"
 
   session.execute(
     s"""

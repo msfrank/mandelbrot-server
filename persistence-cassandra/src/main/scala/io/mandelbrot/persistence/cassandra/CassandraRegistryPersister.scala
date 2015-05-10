@@ -14,7 +14,7 @@ class CassandraRegistryPersister(settings: CassandraRegistryPersisterSettings) e
   import context.dispatcher
 
   val session = Cassandra(context.system).getSession
-  val registry = new RegistryDAL(settings, session, context.dispatcher)
+  val registry = new AgentRegistrationDAL(settings, session, context.dispatcher)
 
   def receive = {
 

@@ -9,8 +9,12 @@ import java.util.Date
  */
 object EpochUtils {
 
-  val LARGEST_DATE = new Date(java.lang.Long.MAX_VALUE)
-  val SMALLEST_DATE = new Date(0)
+  val LARGEST_EPOCH = java.lang.Long.MAX_VALUE
+  val LARGEST_TIMESTAMP = epoch2timestamp(LARGEST_EPOCH)
+  val LARGEST_DATE = new Date(LARGEST_EPOCH)
+  val SMALLEST_EPOCH = 0
+  val SMALLEST_TIMESTAMP = epoch2timestamp(SMALLEST_EPOCH)
+  val SMALLEST_DATE = new Date(SMALLEST_EPOCH)
 
   /**
    * convert DateTime to our own 'epoch'.
