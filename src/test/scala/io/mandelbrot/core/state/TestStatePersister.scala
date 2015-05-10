@@ -41,16 +41,18 @@ class TestStatePersister(settings: TestStatePersisterSettings) extends Actor wit
       }
 
     case op: DeleteCheckStatus =>
-      state.remove(op.checkRef)
-      sender() ! DeleteCheckStatusResult(op)
-
-    case op: TrimCheckHistory =>
-      state.get(op.checkRef) match {
-        case null =>
-          sender() ! TrimCheckHistoryResult(op)
-        case history =>
-          history.headMap(op.until).map(_._1).foreach(history.remove)
-          sender() ! TrimCheckHistoryResult(op)
+      op.until match {
+        case None =>
+          state.remove(op.checkRef)
+          sender() ! DeleteCheckStatusResult(op)
+        case Some(until) =>
+          state.get(op.checkRef) match {
+            case null =>
+              sender() ! DeleteCheckStatusResult(op)
+            case history =>
+              history.headMap(until).map(_._1).foreach(history.remove)
+              sender() ! DeleteCheckStatusResult(op)
+          }
       }
 
     /* return condition history */

@@ -137,10 +137,10 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       }
     }
 
-    "servicing a DeleteCheckStatus request" should {
+    "servicing a DeleteCheckStatus request without 'until' parameter specified" should {
 
       "delete check status if the check doesn't exist" in withStateService { stateService =>
-        stateService ! DeleteCheckStatus(checkRef, lastStatus = None)
+        stateService ! DeleteCheckStatus(checkRef, until = None)
         val deleteCheckStatusResult = expectMsgClass(classOf[DeleteCheckStatusResult])
       }
 
@@ -152,7 +152,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
         stateService ! UpdateCheckStatus(checkRef, status3, notifications3.notifications, Some(status2.timestamp))
         val updateCheckStatusResult3 = expectMsgClass(classOf[UpdateCheckStatusResult])
 
-        stateService ! DeleteCheckStatus(checkRef, lastStatus = None)
+        stateService ! DeleteCheckStatus(checkRef, until = None)
         val deleteCheckStatusResult = expectMsgClass(classOf[DeleteCheckStatusResult])
 
         stateService ! InitializeCheckStatus(checkRef, timestamp4)
@@ -162,11 +162,11 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
 
     }
 
-    "servicing a TrimCheckHistory request" should {
+    "servicing a DeleteCheckStatus request with 'until' parameter specified" should {
 
       "trim check history if the check doesn't exist" in withStateService { stateService =>
-        stateService ! TrimCheckHistory(checkRef, until = timestamp5)
-        val trimCheckHistoryResult = expectMsgClass(classOf[TrimCheckHistoryResult])
+        stateService ! DeleteCheckStatus(checkRef, until = Some(timestamp5))
+        val trimCheckHistoryResult = expectMsgClass(classOf[DeleteCheckStatusResult])
       }
 
       "trim check history to the specified point if the check exists" in withStateService { stateService =>
@@ -177,8 +177,8 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
         stateService ! UpdateCheckStatus(checkRef, status3, notifications3.notifications, Some(status2.timestamp))
         val updateCheckStatusResult3 = expectMsgClass(classOf[UpdateCheckStatusResult])
 
-        stateService ! TrimCheckHistory(checkRef, until = timestamp2)
-        val trimCheckHistoryResult = expectMsgClass(classOf[TrimCheckHistoryResult])
+        stateService ! DeleteCheckStatus(checkRef, until = Some(timestamp2))
+        val trimCheckHistoryResult = expectMsgClass(classOf[DeleteCheckStatusResult])
       }
     }
 

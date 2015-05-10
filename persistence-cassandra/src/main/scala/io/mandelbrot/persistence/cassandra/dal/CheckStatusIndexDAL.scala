@@ -1,6 +1,6 @@
 package io.mandelbrot.persistence.cassandra.dal
 
-import com.datastax.driver.core.{BoundStatement, Session}
+import com.datastax.driver.core.{BatchStatement, BoundStatement, Session}
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.{ApiException, ResourceNotFound}
 import io.mandelbrot.persistence.cassandra.CassandraStatePersisterSettings
@@ -114,6 +114,25 @@ class CheckStatusIndexDAL(settings: CassandraStatePersisterSettings,
     val statement = new BoundStatement(preparedPutEpoch)
     statement.bind(_checkRef, _epoch)
     executeAsync(statement).map { _ => Unit }
+  }
+
+  private val preparedDeleteEpoch = session.prepare(
+    s"""
+       |DELETE FROM $tableName
+       |WHERE check_ref = ? AND epoch = ?
+     """.stripMargin)
+
+  def deleteEpochs(checkRef: CheckRef, epochs: List[Long]): Future[Unit] = {
+    // we actually want to use an unlogged batch here :)  see:
+    // http://christopher-batey.blogspot.com/2015/02/cassandra-anti-pattern-misuse-of.html
+    val batch = new BatchStatement(BatchStatement.Type.UNLOGGED)
+    epochs.foreach { epoch =>
+      val statement = new BoundStatement(preparedDeleteEpoch)
+      val _epoch: java.lang.Long = epoch
+      statement.bind(checkRef.toString, _epoch)
+      batch.add(statement)
+    }
+    executeAsync(batch).map { _ => Unit }
   }
 
   private val preparedDeleteIndex = session.prepare(

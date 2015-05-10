@@ -30,10 +30,8 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
       context.actorOf(props)
 
     case op: DeleteCheckStatus =>
-      sender() ! StateServiceOperationFailed(op, ApiException(NotImplemented))
-
-    case op: TrimCheckHistory =>
-      sender() ! StateServiceOperationFailed(op, ApiException(NotImplemented))
+      val props = DeleteCheckStatusTask.props(op, sender(), checkStatusIndexDAL, checkStatusDAL)
+      context.actorOf(props)
 
     /* retrieve the last condition for the specified CheckRef */
     case op: GetConditionHistory if op.from.isEmpty && op.to.isEmpty =>

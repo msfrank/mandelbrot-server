@@ -44,12 +44,8 @@ class StateManager(settings: StateSettings) extends Actor with ActorLogging {
     case op: UpdateCheckStatus =>
       persister forward op
 
-    /* delete all state for the specified check */
+    /* delete state for the specified check */
     case op: DeleteCheckStatus =>
-      persister forward op
-
-    /* trim history for the specified check */
-    case op: TrimCheckHistory =>
       persister forward op
 
     /* retrieve condition history */
@@ -85,11 +81,8 @@ case class InitializeCheckStatusResult(op: InitializeCheckStatus, status: Option
 case class UpdateCheckStatus(checkRef: CheckRef, status: CheckStatus, notifications: Vector[CheckNotification], lastTimestamp: Option[DateTime]) extends StateServiceCommand
 case class UpdateCheckStatusResult(op: UpdateCheckStatus) extends StateServiceResult
 
-case class DeleteCheckStatus(checkRef: CheckRef, lastStatus: Option[CheckStatus]) extends StateServiceCommand
+case class DeleteCheckStatus(checkRef: CheckRef, until: Option[DateTime]) extends StateServiceCommand
 case class DeleteCheckStatusResult(op: DeleteCheckStatus) extends StateServiceResult
-
-case class TrimCheckHistory(checkRef: CheckRef, until: DateTime) extends StateServiceCommand
-case class TrimCheckHistoryResult(op: TrimCheckHistory) extends StateServiceResult
 
 case class GetConditionHistory(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends StateServiceQuery
 case class GetConditionHistoryResult(op: GetConditionHistory, page: CheckConditionPage) extends StateServiceResult
