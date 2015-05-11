@@ -60,10 +60,10 @@ trait ApiService extends HttpService {
   val datetimeParser = ISODateTimeFormat.dateTimeParser().withZoneUTC()
 
   /**
-   * Spray routes for managing systems
+   * Spray routes for managing agents
    */
-  val systemsRoutes = {
-    path("systems") {
+  val agentsRoutes = {
+    path("agents") {
       /* register new check system, or fail if it already exists */
       post {
         entity(as[AgentRegistration]) { case agentRegistration: AgentRegistration =>
@@ -71,7 +71,7 @@ trait ApiService extends HttpService {
             serviceProxy.ask(RegisterAgent(agentRegistration.agentId, agentRegistration)).map {
               case result: RegisterAgentResult =>
                 HttpResponse(StatusCodes.OK,
-                             headers = List(Location("/v2/systems/" + agentRegistration.agentId.toString)),
+                             headers = List(Location("/v2/agents/" + agentRegistration.agentId.toString)),
                              entity = JsonBody(result.metadata.toJson))
               case failure: ServiceOperationFailed =>
                 throw failure.failure
@@ -79,7 +79,7 @@ trait ApiService extends HttpService {
           }
         }
       } ~
-      /* enumerate all registered check systems */
+      /* enumerate all registered check agents */
       get {
         pagingParams { paging =>
           complete {
@@ -94,7 +94,7 @@ trait ApiService extends HttpService {
         }
       }
     } ~
-    pathPrefix("systems" / AgentIdMatcher) { case agentId: AgentId =>
+    pathPrefix("agents" / AgentIdMatcher) { case agentId: AgentId =>
       pathEndOrSingleSlash {
         /* retrieve the spec for the specified check system */
         get {
@@ -114,7 +114,7 @@ trait ApiService extends HttpService {
               serviceProxy.ask(UpdateAgent(agentId, agentRegistration)).map {
                 case result: UpdateAgentResult =>
                   HttpResponse(StatusCodes.OK,
-                               headers = List(Location("/v2/systems/" + agentRegistration.agentId.toString)),
+                               headers = List(Location("/v2/agents/" + agentRegistration.agentId.toString)),
                                entity = JsonBody(result.metadata.toJson))
                 case failure: ServiceOperationFailed =>
                   throw failure.failure
@@ -304,7 +304,7 @@ trait ApiService extends HttpService {
   }
 
   val version2 = pathPrefix("v2") {
-    systemsRoutes ~ shardsRoutes ~ nodesRoutes
+    agentsRoutes ~ shardsRoutes ~ nodesRoutes
   }
 
   val routes = version2
