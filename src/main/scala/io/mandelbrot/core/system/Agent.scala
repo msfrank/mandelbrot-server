@@ -22,6 +22,7 @@ package io.mandelbrot.core.system
 import akka.actor._
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.collection.mutable
+import scala.concurrent.duration._
 
 import io.mandelbrot.core._
 import io.mandelbrot.core.model._
@@ -282,39 +283,47 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
     val checkSet = checks.keySet
 
     // create a processor factory for each check which isn't in checkSet
-    val checksAdded = new mutable.HashMap[CheckId,CheckBehaviorExtension#DependentProcessorFactory]
-    (registrationSet -- checkSet).toVector.sorted.foreach { case resource: Resource =>
-      registration.checks.get(resource) match {
+    val checksAdded = new mutable.HashMap[CheckId,(CheckSpec,CheckBehaviorExtension#DependentProcessorFactory)]
+    (registrationSet -- checkSet).toVector.sorted.foreach { case checkId: CheckId =>
+      registration.checks.get(checkId) match {
         case Some(checkSpec) =>
           val checkType = checkSpec.checkType
           val properties = checkSpec.properties
-          checksAdded.put(resource, CheckBehavior.extensions(checkType).configure(properties))
+          val factory = CheckBehavior.extensions(checkType).configure(properties)
+          checksAdded.put(checkId, (checkSpec,factory))
         case None =>
-          checksAdded.put(resource, Agent.checkPlaceholder.configure(Map.empty))
+          val factory = Agent.placeholderCheck.configure(Map.empty)
+          checksAdded.put(checkId, (placeholderCheckSpec,factory))
       }
     }
 
     // create a processor factory for each check which has been updated
-    val checksUpdated = new mutable.HashMap[CheckId,CheckBehaviorExtension#DependentProcessorFactory]
-    checkSet.intersect(registrationSet).foreach { case resource: Resource =>
-      val checkSpec = registration.checks(resource)
-      val checkType = checkSpec.checkType
-      val properties = checkSpec.properties
-      val factory = CheckBehavior.extensions(checkType).configure(properties)
-      checksUpdated.put(resource, factory)
+    val checksUpdated = new mutable.HashMap[CheckId,(CheckSpec,CheckBehaviorExtension#DependentProcessorFactory)]
+    checkSet.intersect(registrationSet).foreach { case checkId: CheckId =>
+      registration.checks.get(checkId) match {
+        case Some(checkSpec) =>
+          val checkType = checkSpec.checkType
+          val properties = checkSpec.properties
+          val factory = CheckBehavior.extensions(checkType).configure(properties)
+          checksUpdated.put(checkId, (checkSpec,factory))
+        case None =>
+          val factory = Agent.placeholderCheck.configure(Map.empty)
+          checksUpdated.put(checkId, (placeholderCheckSpec,factory))
+      }
     }
 
     // remove stale checks
     val checksRemoved = checkSet -- registrationSet
-    checksRemoved.toVector.sorted.reverse.foreach { case resource: Resource =>
-      log.debug("check {} retires", resource)
-      val CheckActor(_, _, actor) = checks(resource)
+    checksRemoved.toVector.sorted.reverse.foreach { case checkId: CheckId =>
+      log.debug("check {} retires", checkId)
+      val CheckActor(_, _, actor) = checks(checkId)
       actor ! RetireCheck(lsn)
-      retiredChecks.put(actor, (resource,lsn))
+      retiredChecks.put(actor, (checkId,lsn))
     }
 
     // create check actors for each added check
-    checksAdded.keys.toVector.sorted.foreach { case checkId: CheckId =>
+    checksAdded.keys.toVector.sorted.foreach { checkId =>
+      val (checkSpec, factory) = checksAdded(checkId)
       val checkRef = CheckRef(agentId, checkId)
       val actor = checkId.parentOption match {
         case Some(parent) =>
@@ -324,19 +333,18 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       }
       log.debug("check {} joins {}", checkId, agentId)
       context.watch(actor)
-      val checkSpec = registration.checks(checkId)
-      val factory = checksAdded(checkId)
       checks = checks + (checkId -> CheckActor(checkSpec, factory, actor))
     }
 
     // update existing checks and mark zombie checks
-    checksUpdated.toVector.foreach {
-      case (resource, factory) if retiredChecks.contains(checks(resource).actor) =>
-        zombieChecks.add(resource)
-      case (resource, factory) =>
-        val CheckActor(_, _, actor) = checks(resource)
-        val checkSpec = registration.checks(resource)
-        checks = checks + (resource -> CheckActor(checkSpec, factory, actor))
+    checksUpdated.keys.toVector.foreach { checkId =>
+      val (checkSpec, factory) = checksUpdated(checkId)
+      if (retiredChecks.contains(checks(checkId).actor)) {
+        zombieChecks.add(checkId)
+      } else {
+        val CheckActor(_, _, actor) = checks(checkId)
+        checks = checks + (checkId -> CheckActor(checkSpec, factory, actor))
+      }
     }
 
     // configure all added and updated checks
@@ -354,8 +362,11 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
 object Agent {
   def props(services: ActorRef) = Props(classOf[Agent], services)
 
-  val checkPlaceholder = new ContainerCheck()
-
+  val placeholderCheck = new ContainerCheck()
+  val placeholderCheckSpec = CheckSpec("io.mandelbrot.core.system.ContainerCheck",
+    CheckPolicy(0.seconds, 5.minutes, 5.minutes, 5.minutes, None), Map.empty, Map.empty
+  )
+  
   case class CheckActor(spec: CheckSpec, factory: CheckBehaviorExtension#DependentProcessorFactory, actor: ActorRef)
 
   sealed trait State

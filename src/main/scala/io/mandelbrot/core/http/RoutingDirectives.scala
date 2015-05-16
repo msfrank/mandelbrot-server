@@ -20,19 +20,16 @@
 package io.mandelbrot.core.http
 
 import akka.actor.{AddressFromURIString, Address}
-import io.mandelbrot.core.model.{CheckId, AgentId}
-import org.joda.time.DateTime
-import org.joda.time.format.ISODateTimeFormat
-import spray.http.{ContentTypes, HttpEntity, HttpHeader, HttpHeaders}
+import spray.http.{HttpHeader, HttpHeaders}
 import spray.http.Uri.Path
 import spray.routing.PathMatcher1
 import spray.routing.PathMatcher.{Unmatched, Matched}
 import spray.util.SSLSessionInfo
-import spray.json._
+import org.joda.time.{DateTimeZone, DateTime}
+import org.joda.time.format.ISODateTimeFormat
 import shapeless.HNil
-import java.nio.charset.Charset
-import java.net.URI
 
+import io.mandelbrot.core.model.{CheckId, AgentId}
 import io.mandelbrot.core.{BadRequest, ApiException}
 
 /**
@@ -70,7 +67,7 @@ object RoutingDirectives {
   } catch {
     case ex: IllegalArgumentException =>
       try {
-        new DateTime(string.toLong)
+        new DateTime(string.toLong, DateTimeZone.UTC)
       } catch {
         case ex: Throwable => throw ApiException(BadRequest)
       }

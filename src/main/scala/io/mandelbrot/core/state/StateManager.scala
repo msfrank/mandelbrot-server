@@ -50,14 +50,17 @@ class StateManager(settings: StateSettings) extends Actor with ActorLogging {
 
     /* retrieve condition history */
     case op: GetConditionHistory =>
+      log.debug("get condition history: {}", op)
       persister forward op
 
     /* retrieve notifications history */
     case op: GetNotificationsHistory =>
+      log.debug("get notifications history: {}", op)
       persister forward op
 
     /* retrieve metrics history */
     case op: GetMetricsHistory =>
+      log.debug("get metrics history: {}", op)
       persister forward op
   }
 }
