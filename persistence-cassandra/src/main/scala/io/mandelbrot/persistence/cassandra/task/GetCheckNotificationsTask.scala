@@ -62,7 +62,8 @@ class GetCheckNotificationsTask(op: GetNotificationsHistory,
       val epoch = epochs.head
       val from = last.orElse(op.from).map(_.plus(1L))
       val limit = op.limit - notifications.length
-      checkStatusDAL.getCheckNotificationsHistory(op.checkRef, epoch, from, op.to, limit).pipeTo(self)
+      checkStatusDAL.getCheckNotificationsHistory(op.checkRef, epoch, from, op.to, limit,
+        !op.fromInclusive, !op.toExclusive, op.descending).pipeTo(self)
 
     /* we have exhausted the current epoch */
     case history: CheckNotificationsHistory if history.notifications.isEmpty =>
@@ -72,7 +73,8 @@ class GetCheckNotificationsTask(op: GetNotificationsHistory,
       if (epochs.nonEmpty) {
         val from = last.orElse(op.from).map(_.plus(1L))
         val limit = op.limit - notifications.length
-        checkStatusDAL.getCheckNotificationsHistory(op.checkRef, epochs.head, from, op.to, limit).pipeTo(self)
+        checkStatusDAL.getCheckNotificationsHistory(op.checkRef, epochs.head, from, op.to, limit,
+          !op.fromInclusive, !op.toExclusive, op.descending).pipeTo(self)
       } else if (epochsFound < maxEpochs) {
         // we are confident we have read from all epochs, so this query is exhausted
         caller ! GetNotificationsHistoryResult(op, CheckNotificationsPage(notifications, last = None, exhausted = true))
@@ -101,7 +103,8 @@ class GetCheckNotificationsTask(op: GetNotificationsHistory,
         val epoch = epochs.head
         val from = Some(notifications.last.timestamp.plus(1L))
         val limit = op.limit - notifications.length
-        checkStatusDAL.getCheckNotificationsHistory(op.checkRef, epoch, from, op.to, limit).pipeTo(self)
+        checkStatusDAL.getCheckNotificationsHistory(op.checkRef, epoch, from, op.to, limit,
+          !op.fromInclusive, !op.toExclusive, op.descending).pipeTo(self)
       } else {
         // we have reached the request limit, so return what we've got
         notifications = notifications ++ history.notifications.take(nleft)

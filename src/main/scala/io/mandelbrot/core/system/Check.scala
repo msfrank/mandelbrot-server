@@ -197,7 +197,8 @@ class Check(val checkRef: CheckRef,
 
     /* query state service for condition history */
     case Event(query: GetCheckCondition, NoData) =>
-      services.ask(GetConditionHistory(checkRef, query.from, query.to, query.limit, query.last))(queryTimeout).map {
+      services.ask(GetConditionHistory(checkRef, query.from, query.to, query.limit,
+        query.fromInclusive, query.toExclusive, query.descending, query.last))(queryTimeout).map {
         case result: GetConditionHistoryResult =>
           GetCheckConditionResult(query, result.page)
         case failure: StateServiceOperationFailed =>
@@ -207,7 +208,8 @@ class Check(val checkRef: CheckRef,
 
     /* */
     case Event(query: GetCheckNotifications, NoData) =>
-      services.ask(GetNotificationsHistory(checkRef, query.from, query.to, query.limit, query.last))(queryTimeout).map {
+      services.ask(GetNotificationsHistory(checkRef, query.from, query.to, query.limit,
+        query.fromInclusive, query.toExclusive, query.descending, query.last))(queryTimeout).map {
         case result: GetNotificationsHistoryResult =>
           GetCheckNotificationsResult(query, result.page)
         case failure: StateServiceOperationFailed =>
@@ -217,7 +219,8 @@ class Check(val checkRef: CheckRef,
 
     /* */
     case Event(query: GetCheckMetrics, NoData) =>
-      services.ask(GetMetricsHistory(checkRef, query.from, query.to, query.limit, query.last))(queryTimeout).map {
+      services.ask(GetMetricsHistory(checkRef, query.from, query.to, query.limit,
+        query.fromInclusive, query.toExclusive, query.descending, query.last))(queryTimeout).map {
         case result: GetMetricsHistoryResult =>
           GetCheckMetricsResult(query, result.page)
         case failure: StateServiceOperationFailed =>
@@ -414,13 +417,34 @@ case class CheckOperationFailed(op: CheckOperation, failure: Throwable) extends 
 case class GetCheckStatus(checkRef: CheckRef) extends CheckQuery
 case class GetCheckStatusResult(op: GetCheckStatus, status: CheckStatus) extends CheckResult
 
-case class GetCheckCondition(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends CheckQuery
+case class GetCheckCondition(checkRef: CheckRef,
+                             from: Option[DateTime],
+                             to: Option[DateTime],
+                             limit: Int,
+                             fromInclusive: Boolean,
+                             toExclusive: Boolean,
+                             descending: Boolean,
+                             last: Option[String]) extends CheckQuery
 case class GetCheckConditionResult(op: GetCheckCondition, page: CheckConditionPage) extends CheckResult
 
-case class GetCheckNotifications(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends CheckQuery
+case class GetCheckNotifications(checkRef: CheckRef,
+                                 from: Option[DateTime],
+                                 to: Option[DateTime],
+                                 limit: Int,
+                                 fromInclusive: Boolean,
+                                 toExclusive: Boolean,
+                                 descending: Boolean,
+                                 last: Option[String]) extends CheckQuery
 case class GetCheckNotificationsResult(op: GetCheckNotifications, page: CheckNotificationsPage) extends CheckResult
 
-case class GetCheckMetrics(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends CheckQuery
+case class GetCheckMetrics(checkRef: CheckRef,
+                           from: Option[DateTime],
+                           to: Option[DateTime],
+                           limit: Int,
+                           fromInclusive: Boolean,
+                           toExclusive: Boolean,
+                           descending: Boolean,
+                           last: Option[String]) extends CheckQuery
 case class GetCheckMetricsResult(op: GetCheckMetrics, page: CheckMetricsPage) extends CheckResult
 
 case class ProcessCheckEvaluation(checkRef: CheckRef, evaluation: CheckEvaluation) extends CheckCommand

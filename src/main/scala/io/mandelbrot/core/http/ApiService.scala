@@ -167,7 +167,9 @@ trait ApiService extends HttpService {
             pagingParams { paging =>
                complete {
                 val limit = paging.limit.getOrElse(settings.pageLimit)
-                serviceProxy.ask(GetCheckCondition(CheckRef(agentId, checkId), timeseries.from, timeseries.to, limit, paging.last)).map {
+                serviceProxy.ask(GetCheckCondition(CheckRef(agentId, checkId), timeseries.from,
+                  timeseries.to, limit, timeseries.fromInclusive, timeseries.toExclusive,
+                  timeseries.descending, paging.last)).map {
                   case result: GetCheckConditionResult =>
                     result.page
                   case failure: ServiceOperationFailed =>
@@ -183,7 +185,10 @@ trait ApiService extends HttpService {
             pagingParams { paging =>
               complete {
                 val limit = paging.limit.getOrElse(settings.pageLimit)
-                serviceProxy.ask(GetCheckNotifications(CheckRef(agentId, checkId), timeseries.from, timeseries.to, limit, paging.last)).map {
+                serviceProxy.ask(GetCheckNotifications(CheckRef(agentId, checkId), timeseries.from,
+                  timeseries.to, limit,
+                  timeseries.fromInclusive, timeseries.toExclusive, timeseries.descending,
+                  paging.last)).map {
                   case result: GetCheckNotificationsResult =>
                     result.page
                   case failure: ServiceOperationFailed =>
@@ -199,7 +204,9 @@ trait ApiService extends HttpService {
             pagingParams { paging =>
               complete {
                 val limit = paging.limit.getOrElse(settings.pageLimit)
-                serviceProxy.ask(GetCheckMetrics(CheckRef(agentId, checkId), timeseries.from, timeseries.to, limit, paging.last)).map {
+                serviceProxy.ask(GetCheckMetrics(CheckRef(agentId, checkId), timeseries.from,
+                  timeseries.to, limit, timeseries.fromInclusive, timeseries.toExclusive,
+                  timeseries.descending, paging.last)).map {
                   case result: GetCheckMetricsResult =>
                     result.page
                   case failure: ServiceOperationFailed =>

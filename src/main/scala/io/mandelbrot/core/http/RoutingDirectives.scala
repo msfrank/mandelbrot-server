@@ -58,9 +58,10 @@ object RoutingDirectives {
   /**
    *
    */
-  case class TimeseriesParams(from: Option[DateTime], to: Option[DateTime])
-  private val parameters2timeseriesParams: Directive[Option[String] :: Option[String] :: HNil] = {
-    parameters('from.as[String].?, 'to.as[String].?)
+  case class TimeseriesParams(from: Option[DateTime], to: Option[DateTime], fromInclusive: Boolean, toExclusive: Boolean, descending: Boolean)
+  private val parameters2timeseriesParams: Directive[Option[String] :: Option[Boolean] :: Option[String] :: Option[Boolean] :: Option[Boolean] :: HNil] = {
+    parameters('from.as[String].?, 'fromInclusive.as[Boolean].?,
+      'to.as[String].?, 'toExclusive.as[Boolean].?, 'descending.as[Boolean].?)
   }
   private def parseDateTime(string: String): DateTime = try {
    datetimeParser.parseDateTime(string)
@@ -74,8 +75,8 @@ object RoutingDirectives {
     case ex: Throwable => throw ApiException(BadRequest)
   }
   val timeseriesParams: Directive1[TimeseriesParams] = parameters2timeseriesParams.hmap {
-    case from :: to :: HNil =>
-      TimeseriesParams(from.map(parseDateTime), to.map(parseDateTime))
+    case from :: fromInclusive :: to :: toExclusive :: descending :: HNil =>
+      TimeseriesParams(from.map(parseDateTime), to.map(parseDateTime), fromInclusive.getOrElse(false), toExclusive.getOrElse(false), descending.getOrElse(false))
   }
 
   /**

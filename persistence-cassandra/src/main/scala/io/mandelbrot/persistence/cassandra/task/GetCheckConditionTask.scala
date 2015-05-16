@@ -61,7 +61,8 @@ class GetCheckConditionTask(op: GetConditionHistory,
       val epoch = epochs.head
       val from = last.orElse(op.from).map(_.plus(1L))
       val limit = op.limit - conditions.length
-      checkStatusDAL.getCheckConditionHistory(op.checkRef, epoch, from, op.to, limit).pipeTo(self)
+      checkStatusDAL.getCheckConditionHistory(op.checkRef, epoch, from, op.to, limit,
+        !op.fromInclusive, !op.toExclusive, op.descending).pipeTo(self)
 
     /* we have exhausted the current epoch */
     case history: CheckConditionHistory if history.conditions.isEmpty =>
@@ -71,7 +72,8 @@ class GetCheckConditionTask(op: GetConditionHistory,
       if (epochs.nonEmpty) {
         val from = last.orElse(op.from).map(_.plus(1L))
         val limit = op.limit - conditions.length
-        checkStatusDAL.getCheckConditionHistory(op.checkRef, epochs.head, from, op.to, limit).pipeTo(self)
+        checkStatusDAL.getCheckConditionHistory(op.checkRef, epochs.head, from, op.to, limit,
+          !op.fromInclusive, !op.toExclusive, op.descending).pipeTo(self)
       } else if (epochsFound < maxEpochs) {
         // we are confident we have read from all epochs, so this query is exhausted
         caller ! GetConditionHistoryResult(op, CheckConditionPage(conditions, last = None, exhausted = true))
@@ -100,7 +102,8 @@ class GetCheckConditionTask(op: GetConditionHistory,
         val epoch = epochs.head
         val from = Some(conditions.last.timestamp.plus(1L))
         val limit = op.limit - conditions.length
-        checkStatusDAL.getCheckConditionHistory(op.checkRef, epoch, from, op.to, limit).pipeTo(self)
+        checkStatusDAL.getCheckConditionHistory(op.checkRef, epoch, from, op.to, limit,
+          !op.fromInclusive, !op.toExclusive, op.descending).pipeTo(self)
       } else {
         // we have reached the request limit, so return what we've got
         conditions = conditions ++ history.conditions.take(nleft)

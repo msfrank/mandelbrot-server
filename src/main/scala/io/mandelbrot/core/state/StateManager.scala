@@ -81,17 +81,41 @@ case class StateServiceOperationFailed(op: StateServiceOperation, failure: Throw
 case class InitializeCheckStatus(checkRef: CheckRef, timestamp: DateTime) extends StateServiceCommand
 case class InitializeCheckStatusResult(op: InitializeCheckStatus, status: Option[CheckStatus]) extends StateServiceResult
 
-case class UpdateCheckStatus(checkRef: CheckRef, status: CheckStatus, notifications: Vector[CheckNotification], lastTimestamp: Option[DateTime]) extends StateServiceCommand
+case class UpdateCheckStatus(checkRef: CheckRef,
+                             status: CheckStatus,
+                             notifications: Vector[CheckNotification],
+                             lastTimestamp: Option[DateTime]) extends StateServiceCommand
 case class UpdateCheckStatusResult(op: UpdateCheckStatus) extends StateServiceResult
 
 case class DeleteCheckStatus(checkRef: CheckRef, until: Option[DateTime]) extends StateServiceCommand
 case class DeleteCheckStatusResult(op: DeleteCheckStatus) extends StateServiceResult
 
-case class GetConditionHistory(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends StateServiceQuery
+case class GetConditionHistory(checkRef: CheckRef,
+                               from: Option[DateTime],
+                               to: Option[DateTime],
+                               limit: Int,
+                               fromInclusive: Boolean = false,
+                               toExclusive: Boolean = false,
+                               descending: Boolean = false,
+                               last: Option[String] = None) extends StateServiceQuery
 case class GetConditionHistoryResult(op: GetConditionHistory, page: CheckConditionPage) extends StateServiceResult
 
-case class GetNotificationsHistory(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends StateServiceQuery
+case class GetNotificationsHistory(checkRef: CheckRef,
+                                   from: Option[DateTime],
+                                   to: Option[DateTime],
+                                   limit: Int,
+                                   fromInclusive: Boolean = false,
+                                   toExclusive: Boolean = false,
+                                   descending: Boolean = false,
+                                   last: Option[String] = None) extends StateServiceQuery
 case class GetNotificationsHistoryResult(op: GetNotificationsHistory, page: CheckNotificationsPage) extends StateServiceResult
 
-case class GetMetricsHistory(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], limit: Int, last: Option[String]) extends StateServiceQuery
+case class GetMetricsHistory(checkRef: CheckRef,
+                             from: Option[DateTime],
+                             to: Option[DateTime],
+                             limit: Int,
+                             fromInclusive: Boolean = false,
+                             toExclusive: Boolean = false,
+                             descending: Boolean = false,
+                             last: Option[String] = None) extends StateServiceQuery
 case class GetMetricsHistoryResult(op: GetMetricsHistory, page: CheckMetricsPage) extends StateServiceResult
