@@ -1,7 +1,9 @@
 package io.mandelbrot.persistence.cassandra
 
-import akka.actor.{Props, ActorLogging, Actor}
+import akka.actor.{OneForOneStrategy, Props, ActorLogging, Actor}
+import akka.actor.SupervisorStrategy.{Restart, Stop}
 import com.typesafe.config.Config
+import com.datastax.driver.core.exceptions._
 import org.joda.time.{DateTimeZone, DateTime}
 
 import io.mandelbrot.core._
@@ -76,6 +78,14 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
    */
   def timestamp2last(timestamp: DateTime): String = timestamp.getMillis.toString
 
+  override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 3) {
+    /* transient cassandra exceptions */
+    case ex: QueryTimeoutException => Restart
+    case ex: NoHostAvailableException => Restart
+    case ex: UnavailableException => Restart
+    /* if we receive any other exception then stop the task */
+    case ex: Throwable => Stop
+  }
 }
 
 object CassandraStatePersister {

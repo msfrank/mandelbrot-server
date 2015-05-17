@@ -1,12 +1,14 @@
 package io.mandelbrot.persistence.cassandra
 
-import akka.actor.{Props, ActorLogging, Actor}
+import akka.actor.{OneForOneStrategy, Props, ActorLogging, Actor}
+import akka.actor.SupervisorStrategy.{Stop,Restart}
 import akka.pattern.pipe
+import com.datastax.driver.core.exceptions._
 import com.typesafe.config.Config
-import io.mandelbrot.persistence.cassandra.dal.AgentRegistrationDAL
 import org.joda.time.{DateTimeZone, DateTime}
 
 import io.mandelbrot.core.registry._
+import io.mandelbrot.persistence.cassandra.dal.AgentRegistrationDAL
 
 /**
  *
@@ -45,6 +47,15 @@ class CassandraRegistryPersister(settings: CassandraRegistryPersisterSettings) e
       registry.listAgents(op).recover {
         case ex: Throwable => RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
+  }
+
+  override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 3) {
+    /* transient cassandra exceptions */
+    case ex: QueryTimeoutException => Restart
+    case ex: NoHostAvailableException => Restart
+    case ex: UnavailableException => Restart
+    /* if we receive any other exception then stop the task */
+    case ex: Throwable => Stop
   }
 }
 

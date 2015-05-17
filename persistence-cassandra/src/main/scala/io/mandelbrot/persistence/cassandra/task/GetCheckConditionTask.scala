@@ -1,8 +1,7 @@
 package io.mandelbrot.persistence.cassandra.task
 
-import akka.actor.Status.Failure
-import akka.actor.SupervisorStrategy.Stop
 import akka.actor._
+import akka.actor.Status.Failure
 import akka.pattern.pipe
 import org.joda.time.{DateTime, DateTimeZone}
 
@@ -124,16 +123,6 @@ class GetCheckConditionTask(op: GetConditionHistory,
    */
   def extractIterator(last: Option[String]): Option[DateTime] = last.map { string =>
     EpochUtils.epoch2timestamp(string.toLong)
-  }
-
-  /**
-   * if we receive an exception, then stop the task and return InternalError
-   * to the caller.
-   */
-  override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 1) {
-    case ex: Throwable =>
-      caller ! StateServiceOperationFailed(op, ApiException(InternalError, ex))
-      Stop
   }
 }
 

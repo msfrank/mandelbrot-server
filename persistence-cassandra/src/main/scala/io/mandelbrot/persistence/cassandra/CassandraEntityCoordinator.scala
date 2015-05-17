@@ -1,12 +1,14 @@
 package io.mandelbrot.persistence.cassandra
 
 import akka.actor._
+import akka.actor.SupervisorStrategy.{Restart, Stop}
 import akka.pattern.pipe
+import com.datastax.driver.core.exceptions._
 import com.typesafe.config.Config
-import io.mandelbrot.persistence.cassandra.dal.{ShardsDAL, EntitiesDAL}
 import org.joda.time.{DateTimeZone, DateTime}
 
 import io.mandelbrot.core.entity._
+import io.mandelbrot.persistence.cassandra.dal.{ShardsDAL, EntitiesDAL}
 
 /**
  *
@@ -64,6 +66,14 @@ class CassandraEntityCoordinator(settings: CassandraEntityCoordinatorSettings) e
       }.pipeTo(sender())
   }
 
+  override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 3) {
+    /* transient cassandra exceptions */
+    case ex: QueryTimeoutException => Restart
+    case ex: NoHostAvailableException => Restart
+    case ex: UnavailableException => Restart
+    /* if we receive any other exception then stop the task */
+    case ex: Throwable => Stop
+  }
 }
 
 object CassandraEntityCoordinator {
