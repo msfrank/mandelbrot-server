@@ -9,7 +9,7 @@ import sbtassembly.MergeStrategy
 
 object MandelbrotServerBuild extends Build {
 
-  val mandelbrotVersion = "0.0.9"
+  val mandelbrotVersion = "0.0.10"
 
   val scalaLangVersion = "2.11.5"
   val scalaParsersVersion = "1.0.3"
