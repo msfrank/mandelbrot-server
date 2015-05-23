@@ -62,8 +62,13 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       services ! GetRegistration(revive.agentId)
       goto(SystemInitializing) using SystemInitializing(revive.agentId)
       
-    case Event(unhandled, _) =>
-      throw new IllegalStateException("illegal message %s while in Incubating state".format(unhandled))
+    case Event(op: AgentOperation, _) =>
+      stash()
+      stay()
+
+    case Event(op: CheckOperation, _) =>
+      stash()
+      stay()
   }
 
   when(SystemRegistering) {
