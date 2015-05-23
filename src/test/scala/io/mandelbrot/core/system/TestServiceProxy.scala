@@ -17,7 +17,7 @@ class TestServiceProxy(registryService: Option[ActorRef],
       registryService match {
         case Some(ref) =>
           ref forward op
-          log.debug("forwarded {}", op)
+          log.debug("forwarded {} to {}", op, ref)
         case None =>
           log.debug("dropped {}", op)
       }
@@ -26,7 +26,7 @@ class TestServiceProxy(registryService: Option[ActorRef],
       registryService match {
         case Some(ref) =>
           ref forward op
-          log.debug("forwarded {}", op)
+          log.debug("forwarded {} to {}", op, ref)
         case None =>
           log.debug("dropped {}", op)
       }
@@ -35,7 +35,7 @@ class TestServiceProxy(registryService: Option[ActorRef],
       registryService match {
         case Some(ref) =>
           ref forward op
-          log.debug("forwarded {}", op)
+          log.debug("forwarded {} to {}", op, ref)
         case None =>
           log.debug("dropped {}", op)
       }
@@ -44,7 +44,7 @@ class TestServiceProxy(registryService: Option[ActorRef],
       notificationService match {
         case Some(ref) =>
           ref forward op
-          log.debug("forwarded {}", op)
+          log.debug("forwarded {} to {}", op, ref)
         case None =>
           log.debug("dropped {}", op)
       }
@@ -53,7 +53,7 @@ class TestServiceProxy(registryService: Option[ActorRef],
       notificationService match {
         case Some(ref) =>
           ref forward event
-          log.debug("forwarded {}", event)
+          log.debug("forwarded {} to {}", event, ref)
         case None =>
           log.debug("dropped {}", event)
       }
@@ -62,7 +62,7 @@ class TestServiceProxy(registryService: Option[ActorRef],
       stateService match {
         case Some(ref) =>
           ref forward op
-          log.debug("forwarded {}", op)
+          log.debug("forwarded {} to {}", op, ref)
         case None =>
           log.debug("dropped {}", op)
       }

@@ -135,7 +135,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
 
     /* get the Agent spec */
     case Event(query: DescribeAgent, state: SystemRunning) =>
-      stay() replying DescribeAgentResult(query, state.registration, generation)
+      stay() replying DescribeAgentResult(query, state.registration, state.metadata)
 
     case Event(query: MatchAgent, state: SystemRunning) =>
       if (query.matchers.nonEmpty) {
@@ -237,7 +237,8 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
     /* we have marked agent as retired */
     case Event(result: RetireRegistrationResult, state: SystemRetiring) =>
       state.sender ! RetireAgentResult(state.op, result.op.metadata)
-      goto(SystemRetired) using SystemRetired(result.op.agentId, result.op.registration, result.op.metadata)
+      services ! PutTombstone(state.retire.agentId, state.retire.metadata.generation, state.retire.metadata.expires.get)
+      stay()
 
     /* we have written the tombstone */
     case Event(result: PutTombstoneResult, state: SystemRetiring) =>
@@ -264,6 +265,10 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
     case Event(failure @ RegistryServiceOperationFailed(op: RetireRegistration, _), state: SystemRetiring) =>
       state.sender ! failure
       goto(SystemRunning) using state.prev // go back to RUNNING
+
+    /* PutTombstone failed */
+    case Event(failure @ RegistryServiceOperationFailed(op: PutTombstone, _), state: SystemRetiring) =>
+      throw new IllegalStateException("failed to put tombstone for {} with generation {}".format(op.agentId, op.generation))
 
     /* we stash any other message while in transitional state */
     case Event(_, state: SystemRetiring) =>
@@ -296,6 +301,12 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
     case Event(op: RegisterAgent, state: SystemRetired) =>
       self.forward(op)
       goto(SystemIncubating) using SystemWaiting
+
+    case Event(op: DescribeAgent, state: SystemRetired) =>
+      stay() replying DescribeAgentResult(op, state.registration, state.metadata)
+
+    case Event(op: MatchAgent, state: SystemRetired) =>
+      stay() replying AgentOperationFailed(op, ApiException(ResourceNotFound))
 
     /* agent doesn't exist anymore, so return resource not found */
     case Event(op: AgentOperation, _) =>
@@ -478,7 +489,7 @@ case class DeleteAgent(agentId: AgentId, generation: Long) extends AgentCommand
 case class DeleteAgentResult(op: DeleteAgent)
 
 case class DescribeAgent(agentId: AgentId) extends AgentQuery
-case class DescribeAgentResult(op: DescribeAgent, registration: AgentRegistration, generation: Long)
+case class DescribeAgentResult(op: DescribeAgent, registration: AgentRegistration, metadata: AgentMetadata)
 
 case class MatchAgent(agentId: AgentId, matchers: Set[CheckMatcher]) extends AgentQuery
 case class MatchAgentResult(op: MatchAgent, refs: Set[CheckRef])

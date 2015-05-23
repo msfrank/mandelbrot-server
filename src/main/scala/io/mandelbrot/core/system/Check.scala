@@ -335,14 +335,10 @@ class Check(val checkRef: CheckRef,
       sender() ! GetCheckStatusResult(query, getCheckStatus)
       stay()
 
-    /* check state has been committed, now we can apply the mutation */
+    /* check state has been committed, stop the actor */
     case Event(result: UpdateCheckStatusResult, NoData) =>
       commit()
-      stay()
-
-    /* check delete has completed, stop the actor */
-    case Event(result: DeleteCheckStatusResult, NoData) =>
-      commit()
+      log.debug("{} is retired", result.op.checkRef)
       stop()
 
     /* state failed to commit */

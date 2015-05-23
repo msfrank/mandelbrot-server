@@ -12,7 +12,7 @@ import io.mandelbrot.core.model.{AgentId, AgentsPage}
 class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Actor with ActorLogging {
 
   val registrations = new util.TreeMap[AgentId, List[RegistryServiceCommand]]
-  val tombstones = new util.TreeMap[AgentId,DateTime]()
+  val tombstones = new util.TreeSet[Tombstone]()
 
   def receive = {
 
@@ -34,6 +34,14 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
     case op: DeleteRegistration =>
       registrations.remove(op.agentId)
       sender() ! DeleteRegistrationResult(op)
+
+    case op: PutTombstone =>
+      tombstones.add(Tombstone(op.expires, op.agentId, op.generation))
+      sender() ! PutTombstoneResult(op)
+
+    case op: DeleteTombstone =>
+      tombstones.remove(Tombstone(op.expires, op.agentId, op.generation))
+      sender() ! DeleteTombstoneResult(op)
 
     case op: ListRegistrations =>
       op.last match {
@@ -78,6 +86,14 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
           }
       }
   }
+}
+
+case class Tombstone(expires: DateTime, agentId: AgentId, generation: Long) extends Comparable[Tombstone] with Ordered[Tombstone] {
+  override def compare(other: Tombstone): Int = {
+    import scala.math.Ordered.orderingToOrdered
+    (expires.getMillis, agentId.toString, generation).compare((other.expires.getMillis, other.agentId.toString, other.generation))
+  }
+  override def compareTo(other: Tombstone): Int = compare(other)
 }
 
 object TestRegistryPersister {

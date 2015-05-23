@@ -21,6 +21,7 @@ package io.mandelbrot.core.registry
 
 import akka.actor._
 import com.typesafe.config.Config
+import org.joda.time.DateTime
 
 import io.mandelbrot.core._
 import io.mandelbrot.core.model._
@@ -90,8 +91,11 @@ case class RetireRegistrationResult(op: RetireRegistration)
 case class DeleteRegistration(agentId: AgentId, generation: Long) extends RegistryServiceCommand
 case class DeleteRegistrationResult(op: DeleteRegistration)
 
-case class PutTombstone(agentId: AgentId, generation: Long) extends RegistryServiceCommand
+case class PutTombstone(agentId: AgentId, generation: Long, expires: DateTime) extends RegistryServiceCommand
 case class PutTombstoneResult(op: PutTombstone)
+
+case class DeleteTombstone(agentId: AgentId, generation: Long, expires: DateTime) extends RegistryServiceCommand
+case class DeleteTombstoneResult(op: DeleteTombstone)
 
 case class ListRegistrations(limit: Int, last: Option[String]) extends RegistryServiceQuery
 case class ListRegistrationsResult(op: ListRegistrations, page: AgentsPage)

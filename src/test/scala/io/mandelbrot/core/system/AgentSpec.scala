@@ -1,15 +1,14 @@
 package io.mandelbrot.core.system
 
-import akka.actor.ActorSystem
-import akka.testkit.{TestProbe, ImplicitSender, TestKit}
-import io.mandelbrot.core.registry.{CreateRegistrationResult, CreateRegistration}
+import akka.actor.{PoisonPill, ActorRef, ActorSystem}
+import akka.testkit.{ImplicitSender, TestKit}
 import org.joda.time.{DateTimeZone, DateTime}
 import org.scalatest.{BeforeAndAfterAll, ShouldMatchers, WordSpecLike}
 import scala.concurrent.duration._
 
-import io.mandelbrot.core.entity.Entity
-import io.mandelbrot.core.{MandelbrotConfig, ServiceProxy, AkkaConfig}
 import io.mandelbrot.core.model._
+import io.mandelbrot.core.registry.{CreateRegistrationResult, CreateRegistration}
+import io.mandelbrot.core.{MandelbrotConfig, ServiceProxy, AkkaConfig}
 import io.mandelbrot.core.ConfigConversions._
 
 class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
@@ -21,11 +20,17 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     TestKit.shutdownActorSystem(system)
   }
 
-  val services = system.actorOf(ServiceProxy.props(), "service-proxy")
+  def withServiceProxy(testCode: (ActorRef) => Any) {
+    val services = system.actorOf(ServiceProxy.props())
+    testCode(services)
+    services ! PoisonPill
+  }
+
+  //val services = system.actorOf(ServiceProxy.props(), "service-proxy")
 
   "An Agent" should {
 
-    "register when it doesn't exist in the registry" in {
+    "register when it doesn't exist in the registry" in withServiceProxy { services =>
 
       val agentId = AgentId("test.1")
       val policy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
@@ -41,7 +46,7 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       registerAgentResult.metadata.generation shouldEqual 1
     }
 
-    "revive when it exists in the registry" in {
+    "revive when it exists in the registry" in withServiceProxy { services =>
 
       val agentId = AgentId("test.2")
       val policy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
@@ -62,10 +67,10 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       agent ! DescribeAgent(agentId)
       val describeAgentResult = expectMsgClass(classOf[DescribeAgentResult])
       describeAgentResult.registration shouldEqual registration
-      describeAgentResult.generation shouldEqual 1
+      describeAgentResult.metadata shouldEqual metadata
     }
 
-    "update checks when the registration changes" in {
+    "update checks when the registration changes" in withServiceProxy { services =>
 
       val agentId = AgentId("test.3")
       val policy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
@@ -89,6 +94,34 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
       agent ! GetCheckStatus(CheckRef("test.3:check2"))
       val getCheckStatusResult = expectMsgClass(classOf[GetCheckStatusResult])
+    }
+
+    "mark registration and stop checks when retiring" in withServiceProxy { services =>
+
+      val agentId = AgentId("test.4")
+      val policy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
+      val check1 = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, Map.empty, Map.empty)
+      val checks1 = Map(CheckId("check1") -> check1)
+      val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
+      val registration1 = AgentRegistration(agentId, "mandelbrot", Map.empty, checks1, metrics)
+
+      val agent = system.actorOf(Agent.props(services))
+
+      agent ! RegisterAgent(agentId, registration1)
+      val registerAgentResult = expectMsgClass(classOf[RegisterAgentResult])
+
+      agent ! DescribeAgent(AgentId("test.4"))
+      val describeAgentResult1 = expectMsgClass(classOf[DescribeAgentResult])
+      describeAgentResult1.registration shouldEqual registration1
+
+      agent ! RetireAgent(agentId)
+      val retireAgentResult = expectMsgClass(classOf[RetireAgentResult])
+      retireAgentResult.metadata.expires.nonEmpty shouldEqual true
+
+      agent ! DescribeAgent(AgentId("test.4"))
+      val describeAgentResult2 = expectMsgClass(classOf[DescribeAgentResult])
+      describeAgentResult2.registration shouldEqual registration1
+      describeAgentResult2.metadata shouldEqual retireAgentResult.metadata
     }
   }
 }

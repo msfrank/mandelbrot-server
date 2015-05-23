@@ -151,7 +151,7 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       check.underlyingActor.processor shouldBe a [TestProcessorChange]
     }
 
-    "transition to retired behavior" ignore {
+    "transition to retired behavior" in {
       val checkRef = CheckRef("foo.local:check")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val checkType = "io.mandelbrot.core.system.TestBehavior"
@@ -162,15 +162,18 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
       val check = system.actorOf(Check.props(checkRef, blackhole, services, metricsBus))
       watch(check)
-      check ! ChangeCheck(checkType, policy, factory, Set.empty, 1)
+      check ! ChangeCheck(checkType, policy, factory, Set.empty, lsn = 1)
 
       val initializeCheckStatus = stateService.expectMsgClass(classOf[InitializeCheckStatus])
       val status = CheckStatus(DateTime.now(), CheckKnown, None, CheckHealthy, Map.empty, None, None, None, None, false)
       stateService.reply(InitializeCheckStatusResult(initializeCheckStatus, Some(status)))
 
-      check ! RetireCheck(0)
-      val deleteCheckStatus = stateService.expectMsgClass(classOf[DeleteCheckStatus])
-      stateService.reply(DeleteCheckStatusResult(deleteCheckStatus))
+      val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
+      stateService.reply(UpdateCheckStatusResult(updateCheckStatus1))
+
+      check ! RetireCheck(lsn = 2)
+      val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
+      stateService.reply(UpdateCheckStatusResult(updateCheckStatus2))
 
       val result = expectMsgClass(classOf[Terminated])
       result.actor shouldEqual check

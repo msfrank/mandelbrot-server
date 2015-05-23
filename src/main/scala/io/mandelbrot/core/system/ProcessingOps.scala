@@ -96,11 +96,14 @@ trait ProcessingOps extends Actor with MutationOps {
   def commit(): Option[UpdateCheckStatus] = {
     // apply the mutation to the check
     inflight.map(_._1) match {
+
       case None => Vector.empty
+
       case Some(event: EventMutation) =>
         applyStatus(event.status)
         parent ! ChildMutates(checkRef, event.status)
         notify(event.notifications)
+
       case Some(command: CommandMutation) =>
         applyStatus(command.status)
         parent ! ChildMutates(checkRef, command.status)
