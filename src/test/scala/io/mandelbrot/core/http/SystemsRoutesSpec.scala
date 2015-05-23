@@ -60,21 +60,21 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
 
   val evaluation = CheckEvaluation(DateTime.now(DateTimeZone.UTC), Some("evaluates healthy"), Some(CheckHealthy), None)
 
-  "route /v2/systems" should {
+  "route /v2/agents" should {
 
     "register a system" in withServiceProxy {
-      Post("/v2/systems", registration1) ~> routes ~> check {
+      Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        header("Location") shouldEqual Some(Location("/v2/systems/" + registration1.agentId.toString))
+        header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
     }
 
     "fail to register a system if the system already exists" in withServiceProxy {
-      Post("/v2/systems", registration1) ~> routes ~> check {
+      Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        header("Location") shouldEqual Some(Location("/v2/systems/" + registration1.agentId.toString))
+        header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/systems", registration1) ~> routes ~> check {
+      Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.Conflict
       }
     }
@@ -86,7 +86,7 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
       Await.result(serviceProxy.ask(RegisterAgent(agent4, registration4)), 5.seconds)
       Await.result(serviceProxy.ask(RegisterAgent(agent5, registration5)), 5.seconds)
 
-      Get("/v2/systems") ~> routes ~> check {
+      Get("/v2/agents") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val page = responseAs[AgentsPage]
         page.agents.map(_.agentId) shouldEqual Vector(agent1, agent2, agent3, agent4, agent5)
@@ -101,7 +101,7 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
       Await.result(serviceProxy.ask(RegisterAgent(agent4, registration4)), 5.seconds)
       Await.result(serviceProxy.ask(RegisterAgent(agent5, registration5)), 5.seconds)
 
-      val last = Get("/v2/systems?limit=3") ~> routes ~> check {
+      val last = Get("/v2/agents?limit=3") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val page = responseAs[AgentsPage]
         page.agents.map(_.agentId) shouldEqual Vector(agent1, agent2, agent3)
@@ -109,7 +109,7 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
         page.last.get.toString
       }
 
-      Get("/v2/systems?last=%s&limit=3".format(last)) ~> routes ~> check {
+      Get("/v2/agents?last=%s&limit=3".format(last)) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val page = responseAs[AgentsPage]
         page.agents.map(_.agentId) shouldEqual Vector(agent4, agent5)
@@ -118,29 +118,29 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
     }
   }
 
-  "route /v2/systems/(agentId)" should {
+  "route /v2/agents/(agentId)" should {
 
     "update a system" in withServiceProxy {
-      Post("/v2/systems", registration1) ~> routes ~> check {
+      Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
-      Put("/v2/systems/" + registration1.agentId.toString, registration1) ~> routes ~> check {
+      Put("/v2/agents/" + registration1.agentId.toString, registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        header("Location") shouldEqual Some(Location("/v2/systems/" + registration1.agentId.toString))
+        header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
     }
 
     "fail to update a system if the system doesn't exist" in withServiceProxy {
-      Put("/v2/systems/" + agent1.toString, registration1) ~> routes ~> check {
+      Put("/v2/agents/" + agent1.toString, registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
 
     "get the registration for a system" in withServiceProxy {
-      Post("/v2/systems", registration1) ~> routes ~> check {
+      Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
-      Get("/v2/systems/" + registration1.agentId.toString) ~> routes ~> check {
+      Get("/v2/agents/" + registration1.agentId.toString) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val registration = responseAs[AgentRegistration]
         registration shouldEqual registration1
@@ -148,35 +148,35 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
     }
 
     "fail to get the registration for a system if the system doesn't exist" in withServiceProxy {
-      Get("/v2/systems/" + registration1.agentId.toString) ~> routes ~> check {
+      Get("/v2/agents/" + registration1.agentId.toString) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
 
     "delete a system" in withServiceProxy {
-      Post("/v2/systems", registration1) ~> routes ~> check {
+      Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
-      Delete("/v2/systems/" + registration1.agentId.toString) ~> routes ~> check {
+      Delete("/v2/agents/" + registration1.agentId.toString) ~> routes ~> check {
         status shouldEqual StatusCodes.Accepted
       }
     }
 
     "fail to delete a system if the system doesn't exist" in withServiceProxy {
-      Delete("/v2/systems/" + registration1.agentId.toString) ~> routes ~> check {
+      Delete("/v2/agents/" + registration1.agentId.toString) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
   }
 
-  "route /v2/systems/(agentId)/checks/(checkId)" should {
+  "route /v2/agents/(agentId)/checks/(checkId)" should {
 
     "get the status of a check" in withServiceProxy {
-      Post("/v2/systems", registration1) ~> routes ~> check {
+      Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        header("Location") shouldEqual Some(Location("/v2/systems/" + registration1.agentId.toString))
+        header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Get("/v2/systems/" + agent1.toString + "/checks/" + checkId.toString) ~> routes ~> check {
+      Get("/v2/agents/" + agent1.toString + "/checks/" + checkId.toString) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val checkStatus = responseAs[CheckStatus]
         checkStatus.lifecycle shouldEqual CheckJoining
@@ -186,21 +186,21 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
     }
 
     "fail to get the status of a check if the check doesn't exist" in withServiceProxy {
-      Get("/v2/systems/" + agent1.toString + "/checks/" + checkId.toString) ~> routes ~> check {
+      Get("/v2/agents/" + agent1.toString + "/checks/" + checkId.toString) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
       }
 
     }
 
     "submit an evaluation" in withServiceProxy {
-      Post("/v2/systems", registration1) ~> routes ~> check {
+      Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        header("Location") shouldEqual Some(Location("/v2/systems/" + registration1.agentId.toString))
+        header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/systems/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
-      Get("/v2/systems/" + registration1.agentId.toString + "/checks/" + checkId.toString) ~> routes ~> check {
+      Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val checkStatus = responseAs[CheckStatus]
         checkStatus.health shouldEqual evaluation.health.get
@@ -209,23 +209,23 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
     }
 
     "fail to submit an evaluation if the check doesn't exist" in withServiceProxy {
-      Post("/v2/systems/" + agent1 + "/checks/" + checkId, evaluation) ~> routes ~> check {
+      Post("/v2/agents/" + agent1 + "/checks/" + checkId, evaluation) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
   }
 
-  "route /v2/systems/(agentId)/checks/(checkId)/condition" should {
+  "route /v2/agents/(agentId)/checks/(checkId)/condition" should {
 
     "get the latest condition when no timeseries params are specified" in withServiceProxy {
-      Post("/v2/systems", registration1) ~> routes ~> check {
+      Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        header("Location") shouldEqual Some(Location("/v2/systems/" + registration1.agentId.toString))
+        header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/systems/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
-      Get("/v2/systems/" + registration1.agentId.toString + "/checks/" + checkId.toString + "/condition") ~> routes ~> check {
+      Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString + "/condition") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val page = responseAs[CheckConditionPage]
         page.history.length shouldEqual 1
@@ -236,43 +236,43 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
     }
 
     "fail to get the latest condition if the check doesn't exist" in withServiceProxy {
-      Post("/v2/systems", registration1) ~> routes ~> check {
+      Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        header("Location") shouldEqual Some(Location("/v2/systems/" + registration1.agentId.toString))
+        header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/systems/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
-      Get("/v2/systems/" + registration1.agentId.toString + "/checks/" + CheckId("notfound") + "/condition") ~> routes ~> check {
+      Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + CheckId("notfound") + "/condition") ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
 
     "fail to get the latest condition if the agent doesn't exist" in withServiceProxy {
-      Post("/v2/systems", registration1) ~> routes ~> check {
+      Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        header("Location") shouldEqual Some(Location("/v2/systems/" + registration1.agentId.toString))
+        header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/systems/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
-      Get("/v2/systems/" + AgentId("notfound") + "/checks/" + CheckId("notfound") + "/condition") ~> routes ~> check {
+      Get("/v2/agents/" + AgentId("notfound") + "/checks/" + CheckId("notfound") + "/condition") ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
   }
 
-  "route /v2/systems/(agentId)/checks/(checkId)/notifications" should {
+  "route /v2/agents/(agentId)/checks/(checkId)/notifications" should {
 
     "get the latest notifications when no timeseries params are specified" in withServiceProxy {
-      Post("/v2/systems", registration1) ~> routes ~> check {
+      Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        header("Location") shouldEqual Some(Location("/v2/systems/" + registration1.agentId.toString))
+        header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/systems/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
-      Get("/v2/systems/" + registration1.agentId.toString + "/checks/" + checkId.toString + "/notifications") ~> routes ~> check {
+      Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString + "/notifications") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val page = responseAs[CheckNotificationsPage]
         page.history.length shouldEqual 1
@@ -280,43 +280,43 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
     }
 
     "fail to get the latest notifications if the check doesn't exist" in withServiceProxy {
-      Post("/v2/systems", registration1) ~> routes ~> check {
+      Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        header("Location") shouldEqual Some(Location("/v2/systems/" + registration1.agentId.toString))
+        header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/systems/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
-      Get("/v2/systems/" + registration1.agentId.toString + "/checks/" + CheckId("notfound") + "/notifications") ~> routes ~> check {
+      Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + CheckId("notfound") + "/notifications") ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
 
     "fail to get the latest notifications if the agent doesn't exist" in withServiceProxy {
-      Post("/v2/systems", registration1) ~> routes ~> check {
+      Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        header("Location") shouldEqual Some(Location("/v2/systems/" + registration1.agentId.toString))
+        header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/systems/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
-      Get("/v2/systems/" + AgentId("notfound") + "/checks/" + CheckId("notfound") + "/notifications") ~> routes ~> check {
+      Get("/v2/agents/" + AgentId("notfound") + "/checks/" + CheckId("notfound") + "/notifications") ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
   }
 
-  "route /v2/systems/(agentId)/checks/(checkId)/metrics" should {
+  "route /v2/agents/(agentId)/checks/(checkId)/metrics" should {
 
     "get the latest metrics when no timeseries params are specified" in withServiceProxy {
-      Post("/v2/systems", registration1) ~> routes ~> check {
+      Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        header("Location") shouldEqual Some(Location("/v2/systems/" + registration1.agentId.toString))
+        header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/systems/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
-      Get("/v2/systems/" + registration1.agentId.toString + "/checks/" + checkId.toString + "/metrics") ~> routes ~> check {
+      Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString + "/metrics") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val page = responseAs[CheckMetricsPage]
         page.history.length shouldEqual 1
@@ -324,27 +324,27 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
     }
 
     "fail to get the latest metrics if the check doesn't exist" in withServiceProxy {
-      Post("/v2/systems", registration1) ~> routes ~> check {
+      Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        header("Location") shouldEqual Some(Location("/v2/systems/" + registration1.agentId.toString))
+        header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/systems/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
-      Get("/v2/systems/" + registration1.agentId.toString + "/checks/" + CheckId("notfound") + "/metrics") ~> routes ~> check {
+      Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + CheckId("notfound") + "/metrics") ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
 
     "fail to get the latest metrics if the agent doesn't exist" in withServiceProxy {
-      Post("/v2/systems", registration1) ~> routes ~> check {
+      Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        header("Location") shouldEqual Some(Location("/v2/systems/" + registration1.agentId.toString))
+        header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/systems/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, evaluation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
-      Get("/v2/systems/" + AgentId("notfound") + "/checks/" + CheckId("notfound") + "/metrics") ~> routes ~> check {
+      Get("/v2/agents/" + AgentId("notfound") + "/checks/" + CheckId("notfound") + "/metrics") ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }

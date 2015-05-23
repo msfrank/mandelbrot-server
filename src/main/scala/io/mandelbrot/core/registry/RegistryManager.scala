@@ -69,17 +69,35 @@ sealed trait RegistryServiceCommand extends ServiceCommand with RegistryServiceO
 sealed trait RegistryServiceQuery extends ServiceQuery with RegistryServiceOperation
 case class RegistryServiceOperationFailed(op: RegistryServiceOperation, failure: Throwable) extends ServiceOperationFailed
 
-case class CreateRegistration(agentId: AgentId, registration: AgentRegistration) extends RegistryServiceCommand
+case class CreateRegistration(agentId: AgentId,
+                              registration: AgentRegistration,
+                              metadata: AgentMetadata,
+                              lsn: Long) extends RegistryServiceCommand
 case class CreateRegistrationResult(op: CreateRegistration, metadata: AgentMetadata)
 
-case class UpdateRegistration(agentId: AgentId, registration: AgentRegistration, metadata: AgentMetadata) extends RegistryServiceCommand
+case class UpdateRegistration(agentId: AgentId,
+                              registration: AgentRegistration,
+                              metadata: AgentMetadata,
+                              lsn: Long) extends RegistryServiceCommand
 case class UpdateRegistrationResult(op: UpdateRegistration)
 
-case class DeleteRegistration(agentId: AgentId) extends RegistryServiceCommand
+case class RetireRegistration(agentId: AgentId,
+                              registration: AgentRegistration,
+                              metadata: AgentMetadata,
+                              lsn: Long) extends RegistryServiceCommand
+case class RetireRegistrationResult(op: RetireRegistration)
+
+case class DeleteRegistration(agentId: AgentId, generation: Long) extends RegistryServiceCommand
 case class DeleteRegistrationResult(op: DeleteRegistration)
+
+case class PutTombstone(agentId: AgentId, generation: Long) extends RegistryServiceCommand
+case class PutTombstoneResult(op: PutTombstone)
 
 case class ListRegistrations(limit: Int, last: Option[String]) extends RegistryServiceQuery
 case class ListRegistrationsResult(op: ListRegistrations, page: AgentsPage)
 
 case class GetRegistration(agentId: AgentId) extends RegistryServiceQuery
-case class GetRegistrationResult(op: GetRegistration, registration: AgentRegistration, metadata: AgentMetadata)
+case class GetRegistrationResult(op: GetRegistration,
+                                 registration: AgentRegistration,
+                                 metadata: AgentMetadata,
+                                 lsn: Long)

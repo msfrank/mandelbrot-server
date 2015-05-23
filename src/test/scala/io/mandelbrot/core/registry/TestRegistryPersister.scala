@@ -4,26 +4,32 @@ import akka.actor._
 import com.typesafe.config.Config
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.collection.JavaConversions._
-import java.net.URI
+import java.util
 
-import io.mandelbrot.core.{ResourceNotFound, Conflict, ApiException}
-import io.mandelbrot.core.model.{AgentId, AgentsPage, AgentRegistration, AgentMetadata}
+import io.mandelbrot.core.{ResourceNotFound, InternalError, ApiException}
+import io.mandelbrot.core.model.{AgentId, AgentsPage}
 
 class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Actor with ActorLogging {
 
-  val registrations = new java.util.TreeMap[AgentId, (AgentMetadata,AgentRegistration)]
+  val registrations = new util.TreeMap[AgentId, List[RegistryServiceCommand]]
+  val tombstones = new util.TreeMap[AgentId,DateTime]()
 
   def receive = {
 
     case op: CreateRegistration =>
-      val timestamp = DateTime.now(DateTimeZone.UTC)
-      val metadata = AgentMetadata(op.agentId, timestamp, timestamp, 1)
-      registrations.put(op.agentId, (metadata, op.registration))
-      sender() ! CreateRegistrationResult(op, metadata)
+      val events = registrations.getOrDefault(op.agentId, List.empty[RegistryServiceCommand])
+      registrations.put(op.agentId, events :+ op)
+      sender() ! CreateRegistrationResult(op, op.metadata)
 
     case op: UpdateRegistration =>
-      registrations.put(op.agentId, (op.metadata, op.registration))
+      val events = registrations.getOrDefault(op.agentId, List.empty[RegistryServiceCommand])
+      registrations.put(op.agentId, events :+ op)
       sender() ! UpdateRegistrationResult(op)
+
+    case op: RetireRegistration =>
+      val events = registrations.getOrDefault(op.agentId, List.empty[RegistryServiceCommand])
+      registrations.put(op.agentId, events :+ op)
+      sender() ! RetireRegistrationResult(op)
 
     case op: DeleteRegistration =>
       registrations.remove(op.agentId)
@@ -32,19 +38,24 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
     case op: ListRegistrations =>
       op.last match {
         case None =>
-          val systems = registrations.values()
-            .take(op.limit)
-            .map(_._1).toVector
-          val last = if (systems.length < op.limit) None else systems.lastOption.map(_.agentId.toString)
-          val page = AgentsPage(systems, last)
+          val agents = registrations.values().take(op.limit).flatMap(_.lastOption).map {
+            case event: CreateRegistration => event.metadata
+            case event: UpdateRegistration => event.metadata
+            case event: RetireRegistration => event.metadata
+            case event => throw new IllegalArgumentException("unexpected event " + event.toString)
+          }.toVector
+          val last = if (agents.length < op.limit) None else agents.lastOption.map(_.agentId.toString)
+          val page = AgentsPage(agents, last)
           sender() ! ListRegistrationsResult(op, page)
         case Some(prev) =>
-          val systems = registrations.tailMap(AgentId(prev), false)
-            .values()
-            .take(op.limit)
-            .map(_._1).toVector
-          val last = if (systems.length < op.limit) None else systems.lastOption.map(_.agentId.toString)
-          val page = AgentsPage(systems, last)
+          val agents = registrations.tailMap(AgentId(prev), false).values().take(op.limit).flatMap(_.lastOption).map {
+            case event: CreateRegistration => event.metadata
+            case event: UpdateRegistration => event.metadata
+            case event: RetireRegistration => event.metadata
+            case event => throw new IllegalArgumentException("unexpected event " + event.toString)
+          }.toVector
+          val last = if (agents.length < op.limit) None else agents.lastOption.map(_.agentId.toString)
+          val page = AgentsPage(agents, last)
           sender() ! ListRegistrationsResult(op, page)
       }
 
@@ -52,8 +63,19 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
       registrations.get(op.agentId) match {
         case null =>
           sender() ! RegistryServiceOperationFailed(op, ApiException(ResourceNotFound))
-        case (metadata: AgentMetadata, registration: AgentRegistration) =>
-          sender() ! GetRegistrationResult(op, registration, metadata)
+        case events =>
+          events.lastOption match {
+            case None =>
+              sender() ! RegistryServiceOperationFailed(op, ApiException(ResourceNotFound))
+            case Some(event: CreateRegistration) =>
+              sender() ! GetRegistrationResult(op, event.registration, event.metadata, event.lsn)
+            case Some(event: UpdateRegistration) =>
+              sender() ! GetRegistrationResult(op, event.registration, event.metadata, event.lsn)
+            case Some(event: RetireRegistration) =>
+              sender() ! GetRegistrationResult(op, event.registration, event.metadata, event.lsn)
+            case Some(event: RegistryServiceCommand) =>
+              sender() ! RegistryServiceOperationFailed(op, ApiException(InternalError))
+          }
       }
   }
 }

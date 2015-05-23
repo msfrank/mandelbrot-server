@@ -66,72 +66,96 @@ class RegistryManagerSpec(_system: ActorSystem) extends TestKit(_system) with Im
     "servicing a CreateRegistration request" should {
 
       "create a registration if the agent doesn't exist" in withRegistryService { registryService =>
-        registryService ! CreateRegistration(agent1, registration1)
+        val timestamp = DateTime.now(DateTimeZone.UTC)
+        val metadata = AgentMetadata(agent1, 1, timestamp, timestamp, None)
+        registryService ! CreateRegistration(agent1, registration1, metadata, lsn = 1)
         val createRegistrationResult = expectMsgClass(classOf[CreateRegistrationResult])
-        createRegistrationResult.metadata.agentId shouldEqual agent1
-        createRegistrationResult.metadata.lsn shouldEqual 1
+        createRegistrationResult.metadata shouldEqual metadata
+        registryService ! GetRegistration(agent1)
+        val getRegistrationResult = expectMsgClass(classOf[GetRegistrationResult])
+        getRegistrationResult.registration shouldEqual registration1
+        getRegistrationResult.metadata shouldEqual metadata
+        getRegistrationResult.lsn shouldEqual 1
       }
 
       "overwrite a registration if the agent already exists" in withRegistryService { registryService =>
-        registryService ! CreateRegistration(agent1, registration1)
+        val timestamp = DateTime.now(DateTimeZone.UTC)
+        val metadata = AgentMetadata(agent1, 1, timestamp, timestamp, None)
+        registryService ! CreateRegistration(agent1, registration1, metadata, lsn = 1)
         val createRegistrationResult1 = expectMsgClass(classOf[CreateRegistrationResult])
-        createRegistrationResult1.metadata.agentId shouldEqual agent1
-        createRegistrationResult1.metadata.lsn shouldEqual 1
+        createRegistrationResult1.metadata shouldEqual metadata
 
-        registryService ! CreateRegistration(agent1, registration1)
+        registryService ! CreateRegistration(agent1, registration1, metadata, lsn = 2)
         val createRegistrationResult2 = expectMsgClass(classOf[CreateRegistrationResult])
-        createRegistrationResult2.metadata.agentId shouldEqual agent1
-        createRegistrationResult2.metadata.lsn shouldEqual 1
+        createRegistrationResult2.metadata shouldEqual metadata
+
+        registryService ! GetRegistration(agent1)
+        val getRegistrationResult = expectMsgClass(classOf[GetRegistrationResult])
+        getRegistrationResult.registration shouldEqual registration1
+        getRegistrationResult.metadata shouldEqual metadata
+        getRegistrationResult.lsn shouldEqual 2
       }
     }
 
     "servicing an UpdateRegistration request" should {
 
       "update a registration if the agent exists" in withRegistryService { registryService =>
-        registryService ! CreateRegistration(agent1, registration1)
+        val timestamp1 = DateTime.now(DateTimeZone.UTC)
+        val metadata1 = AgentMetadata(agent1, 1, timestamp1, timestamp1, None)
+        registryService ! CreateRegistration(agent1, registration1, metadata1, lsn = 1)
         val createRegistrationResult = expectMsgClass(classOf[CreateRegistrationResult])
-        createRegistrationResult.metadata.agentId shouldEqual agent1
-        createRegistrationResult.metadata.lsn shouldEqual 1
+        createRegistrationResult.metadata shouldEqual metadata1
 
         val updatedRegistration = registration1.copy(metadata = Map("foo" -> "bar"))
-        val updatedMetadata = createRegistrationResult.metadata.copy(lsn = 2)
-        registryService ! UpdateRegistration(agent1, updatedRegistration, updatedMetadata)
+        val updatedMetadata = metadata1.copy(lastUpdate = DateTime.now(DateTimeZone.UTC))
+        registryService ! UpdateRegistration(agent1, updatedRegistration, updatedMetadata, lsn = 2)
         val updateRegistrationResult = expectMsgClass(classOf[UpdateRegistrationResult])
 
         registryService ! GetRegistration(agent1)
         val getRegistrationResult = expectMsgClass(classOf[GetRegistrationResult])
         getRegistrationResult.registration shouldEqual updatedRegistration
         getRegistrationResult.metadata shouldEqual updatedMetadata
+        getRegistrationResult.lsn shouldEqual 2
       }
 
       "create a registration if the agent doesn't exist" in withRegistryService { registryService =>
         val timestamp = DateTime.now(DateTimeZone.UTC)
-        val metadata = AgentMetadata(agent1, joinedOn = timestamp, lastUpdate = timestamp, lsn = 2)
-        registryService ! UpdateRegistration(agent1, registration1, metadata)
+        val metadata = AgentMetadata(agent1, 1, timestamp, timestamp, None)
+        registryService ! UpdateRegistration(agent1, registration1, metadata, lsn = 1)
         val updateRegistrationResult = expectMsgClass(classOf[UpdateRegistrationResult])
 
         registryService ! GetRegistration(agent1)
         val getRegistrationResult = expectMsgClass(classOf[GetRegistrationResult])
         getRegistrationResult.registration shouldEqual registration1
         getRegistrationResult.metadata shouldEqual metadata
+        getRegistrationResult.lsn shouldEqual 1
       }
     }
 
     "servicing a DeleteRegistration request" should {
 
       "delete a registration if the agent exists" in withRegistryService { registryService =>
-        registryService ! CreateRegistration(agent1, registration1)
+        val timestamp = DateTime.now(DateTimeZone.UTC)
+        val metadata = AgentMetadata(agent1, 1, timestamp, timestamp, None)
+        registryService ! CreateRegistration(agent1, registration1, metadata, lsn = 1)
         val createRegistrationResult = expectMsgClass(classOf[CreateRegistrationResult])
-        createRegistrationResult.metadata.agentId shouldEqual agent1
-        createRegistrationResult.metadata.lsn shouldEqual 1
+        createRegistrationResult.metadata shouldEqual metadata
 
-        registryService ! DeleteRegistration(agent1)
+        registryService ! DeleteRegistration(agent1, generation = metadata.generation)
         val deleteRegistrationResult = expectMsgClass(classOf[DeleteRegistrationResult])
+
+        registryService ! GetRegistration(agent1)
+        val getRegistrationResult = expectMsgClass(classOf[RegistryServiceOperationFailed])
+        getRegistrationResult.failure shouldEqual ApiException(ResourceNotFound)
       }
 
       "do nothing if the agent doesn't exist" in withRegistryService { registryService =>
-        registryService ! DeleteRegistration(agent1)
+        registryService ! DeleteRegistration(agent1, generation = 1)
         val deleteRegistrationResult = expectMsgClass(classOf[DeleteRegistrationResult])
+
+        registryService ! GetRegistration(agent1)
+        val getRegistrationResult = expectMsgClass(classOf[RegistryServiceOperationFailed])
+        getRegistrationResult.failure shouldEqual ApiException(ResourceNotFound)
       }
     }
 

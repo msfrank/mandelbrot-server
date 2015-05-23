@@ -34,7 +34,11 @@ case class MetricSpec(sourceType: SourceType,
                       cf: Option[ConsolidationFunction]) extends RegistryModel
 
 /* metadata about an agent */
-case class AgentMetadata(agentId: AgentId, joinedOn: DateTime, lastUpdate: DateTime, lsn: Long) extends RegistryModel
+case class AgentMetadata(agentId: AgentId,
+                         generation: Long,
+                         joinedOn: DateTime,
+                         lastUpdate: DateTime,
+                         expires: Option[DateTime]) extends RegistryModel
 
 /* a page of agent metadata */
 case class AgentsPage(agents: Vector[AgentMetadata], last: Option[String]) extends RegistryModel

@@ -62,7 +62,7 @@ trait RegistryProtocol extends DefaultJsonProtocol with ConstantsProtocol with R
   }
 
   /* convert AgentMetadata class */
-  implicit val AgentMetadataFormat = jsonFormat4(AgentMetadata)
+  implicit val AgentMetadataFormat = jsonFormat5(AgentMetadata)
 
   /* convert AgentsPage class */
   implicit val AgentsPageFormat = jsonFormat2(AgentsPage)
