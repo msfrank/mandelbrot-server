@@ -21,11 +21,11 @@ import io.mandelbrot.core.http.json.JsonProtocol._
 import io.mandelbrot.core.{ServerConfig, MandelbrotConfig, ServiceProxy, AkkaConfig}
 import io.mandelbrot.core.ConfigConversions._
 
-class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService with ShouldMatchers with BeforeAndAfter {
+class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService with ShouldMatchers with BeforeAndAfter {
 
   override def testConfig: Config = AkkaConfig ++ MandelbrotConfig
   override def actorRefFactory = system
-  override implicit def log: LoggingAdapter = Logging(system, classOf[SystemsRoutesSpec])
+  override implicit def log: LoggingAdapter = Logging(system, classOf[AgentsRoutesSpec])
 
   override val settings: HttpSettings = ServerConfig(system).settings.http
   override implicit val timeout: Timeout = settings.requestTimeout
@@ -158,7 +158,7 @@ class SystemsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService
         status shouldEqual StatusCodes.OK
       }
       Delete("/v2/agents/" + registration1.agentId.toString) ~> routes ~> check {
-        status shouldEqual StatusCodes.Accepted
+        status shouldEqual StatusCodes.OK
       }
     }
 

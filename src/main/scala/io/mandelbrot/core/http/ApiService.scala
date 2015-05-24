@@ -127,7 +127,7 @@ trait ApiService extends HttpService {
           complete {
             serviceProxy.ask(RetireAgent(agentId)).map {
               case result: RetireAgentResult =>
-                HttpResponse(StatusCodes.Accepted)
+                HttpResponse(StatusCodes.OK)
               case failure: ServiceOperationFailed =>
                 throw failure.failure
             }
