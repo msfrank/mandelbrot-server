@@ -46,93 +46,75 @@ class AgentRegistrationDALSpec(_system: ActorSystem) extends TestKit(_system) wi
       val session = Cassandra(system).getSession
       if (_dal == null)
         _dal = new AgentRegistrationDAL(settings, session, system.dispatcher)
-      Await.result(_dal.flushEntities(), 5.seconds)
+      Await.result(_dal.flushAgentRegistrations(), 5.seconds)
       testCode(session, _dal)
     }
 
-    "create a check system" in withSessionAndDAL { (session, dal) =>
+    "create a registration" in withSessionAndDAL { (session, dal) =>
       val agentId = AgentId("test.foo")
-      val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, Map.empty, Map.empty)
-      val op = CreateRegistration(agentId, registration)
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      Await.result(dal.createAgent(op, timestamp), 5.seconds)
-      val getAgentResult = Await.result(dal.getAgent(GetRegistration(agentId)), 5.seconds)
-      getAgentResult.registration shouldEqual registration
-      getAgentResult.metadata.agentId shouldEqual agentId
-      getAgentResult.metadata.joinedOn shouldEqual timestamp
-      getAgentResult.metadata.lastUpdate shouldEqual timestamp
-      getAgentResult.metadata.lsn shouldEqual 1
+      val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, Map.empty, Map.empty)
+      val generation = 1L
+      val lsn = 1L
+      val metadata = AgentMetadata(agentId, generation, timestamp, timestamp, None)
+      Await.result(dal.updateAgentRegistration(agentId, generation, lsn, registration, timestamp, timestamp, None), 5.seconds)
+      val getRegistrationResult = Await.result(dal.getAgentRegistration(GetRegistration(agentId)), 5.seconds)
+      getRegistrationResult.registration shouldEqual registration
+      getRegistrationResult.metadata shouldEqual metadata
+      getRegistrationResult.lsn shouldEqual 1
     }
 
-    "update a check system" in withSessionAndDAL { (session, dal) =>
+    "update a registration" in withSessionAndDAL { (session, dal) =>
       val agentId = AgentId("test.foo")
-      val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, Map.empty, Map.empty)
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      val metadata = AgentMetadata(agentId, timestamp, timestamp, 2)
-      val op = UpdateRegistration(agentId, registration, metadata)
-      Await.result(dal.updateAgent(op), 5.seconds)
-      val getAgentResult = Await.result(dal.getAgent(GetRegistration(agentId)), 5.seconds)
-      getAgentResult.registration shouldEqual registration
-      getAgentResult.metadata shouldEqual metadata
+      val registration1 = AgentRegistration(agentId, "mandelbrot", Map("foo" -> "bar"), Map.empty, Map.empty)
+      val metadata1 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, None)
+      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 1, registration1, timestamp, timestamp, None), 5.seconds)
+      val registration2 = AgentRegistration(agentId, "mandelbrot", Map("foo" -> "baz"), Map.empty, Map.empty)
+      val metadata2 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, None)
+      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 2, registration2, timestamp, timestamp, None), 5.seconds)
+      val getRegistrationResult = Await.result(dal.getAgentRegistration(GetRegistration(agentId)), 5.seconds)
+      getRegistrationResult.registration shouldEqual registration2
+      getRegistrationResult.metadata shouldEqual metadata2
+      getRegistrationResult.lsn shouldEqual 2
     }
 
-    "delete a check system" in withSessionAndDAL { (session, dal) =>
+    "retire a registration" in withSessionAndDAL { (session, dal) =>
       val agentId = AgentId("test.foo")
-      val registration = AgentRegistration(agentId, "mandelbrot", Map.empty, Map.empty, Map.empty)
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      Await.result(dal.createAgent(CreateRegistration(agentId, registration), timestamp), 5.seconds)
-      val getAgentResult = Await.result(dal.getAgent(GetRegistration(agentId)), 5.seconds)
-      val op = DeleteRegistration(agentId)
-      val deleteEntityResult = Await.result(dal.deleteAgent(op), 5.seconds)
-      val ex = the[ApiException] thrownBy {
-        Await.result(dal.getAgent(GetRegistration(agentId)), 5.seconds)
-      }
-      ex.failure shouldEqual ResourceNotFound
+      val registration1 = AgentRegistration(agentId, "mandelbrot", Map("foo" -> "bar"), Map.empty, Map.empty)
+      val metadata1 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, None)
+      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 1, registration1, timestamp, timestamp, None), 5.seconds)
+      val registration2 = AgentRegistration(agentId, "mandelbrot", Map("foo" -> "baz"), Map.empty, Map.empty)
+      val metadata2 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, None)
+      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 2, registration2, timestamp, timestamp, None), 5.seconds)
+      val expires = DateTime.now(DateTimeZone.UTC)
+      val metadata3 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, Some(expires))
+      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 3, registration2, timestamp, timestamp, Some(expires)), 5.seconds)
+      val getRegistrationResult = Await.result(dal.getAgentRegistration(GetRegistration(agentId)), 5.seconds)
+      getRegistrationResult.registration shouldEqual registration2
+      getRegistrationResult.metadata shouldEqual metadata3
+      getRegistrationResult.lsn shouldEqual 3
     }
 
-    "list check systems" in withSessionAndDAL { (session,dal) =>
+    "get a registration at a specific point in time" in withSessionAndDAL { (session, dal) =>
+      val agentId = AgentId("test.foo")
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      val agent1 = AgentId("test.1")
-      val registration1 = AgentRegistration(agent1, "mandelbrot", Map.empty, Map.empty, Map.empty)
-      val agent2 = AgentId("test.2")
-      val registration2 = AgentRegistration(agent2, "mandelbrot", Map.empty, Map.empty, Map.empty)
-      val agent3 = AgentId("test.3")
-      val registration3 = AgentRegistration(agent3, "mandelbrot", Map.empty, Map.empty, Map.empty)
-      Await.result(dal.createAgent(CreateRegistration(agent1, registration1), timestamp), 5.seconds)
-      Await.result(dal.createAgent(CreateRegistration(agent2, registration2), timestamp), 5.seconds)
-      Await.result(dal.createAgent(CreateRegistration(agent3, registration3), timestamp), 5.seconds)
-      val op = ListRegistrations(10, None)
-      val listAgentsResult = Await.result(dal.listAgents(op), 5.seconds)
-      listAgentsResult.page.agents.map(_.agentId).toSet shouldEqual Set(agent1, agent2, agent3)
-      listAgentsResult.page.last shouldEqual None
+      val registration1 = AgentRegistration(agentId, "mandelbrot", Map("foo" -> "bar"), Map.empty, Map.empty)
+      val metadata1 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, None)
+      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 1, registration1, timestamp, timestamp, None), 5.seconds)
+      val registration2 = AgentRegistration(agentId, "mandelbrot", Map("foo" -> "baz"), Map.empty, Map.empty)
+      val metadata2 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, None)
+      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 2, registration2, timestamp, timestamp, None), 5.seconds)
+      val registration3 = AgentRegistration(agentId, "mandelbrot", Map("foo" -> "qux"), Map.empty, Map.empty)
+      val metadata3 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, None)
+      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 3, registration3, timestamp, timestamp, None), 5.seconds)
+      val (registrationResult,metadataResult) = Await.result(dal.getAgentRegistration(agentId, generation = 1, lsn = 1), 5.seconds)
+      registrationResult shouldEqual registration1
+      metadataResult shouldEqual metadata1
     }
 
-    "page through check systems" in withSessionAndDAL { (session,dal) =>
-      val timestamp = DateTime.now(DateTimeZone.UTC)
-      val agent1 = AgentId("test.1")
-      val registration1 = AgentRegistration(agent1, "mandelbrot", Map.empty, Map.empty, Map.empty)
-      val agent2 = AgentId("test.2")
-      val registration2 = AgentRegistration(agent2, "mandelbrot", Map.empty, Map.empty, Map.empty)
-      val agent3 = AgentId("test.3")
-      val registration3 = AgentRegistration(agent3, "mandelbrot", Map.empty, Map.empty, Map.empty)
-      val agent4 = AgentId("test.4")
-      val registration4 = AgentRegistration(agent4, "mandelbrot", Map.empty, Map.empty, Map.empty)
-      val agent5 = AgentId("test.5")
-      val registration5 = AgentRegistration(agent5, "mandelbrot", Map.empty, Map.empty, Map.empty)
-      Await.result(dal.createAgent(CreateRegistration(agent1, registration1), timestamp), 5.seconds)
-      Await.result(dal.createAgent(CreateRegistration(agent2, registration2), timestamp), 5.seconds)
-      Await.result(dal.createAgent(CreateRegistration(agent3, registration3), timestamp), 5.seconds)
-      Await.result(dal.createAgent(CreateRegistration(agent4, registration4), timestamp), 5.seconds)
-      Await.result(dal.createAgent(CreateRegistration(agent5, registration5), timestamp), 5.seconds)
-      val listAgentsResult1 = Await.result(dal.listAgents(ListRegistrations(limit = 2, None)), 5.seconds)
-      listAgentsResult1.page.agents.map(_.agentId).toSet shouldEqual Set(agent1, agent2)
-      listAgentsResult1.page.last shouldEqual Some(agent2.toString)
-      val listAgentsResult2 = Await.result(dal.listAgents(ListRegistrations(limit = 2, listAgentsResult1.page.last)), 5.seconds)
-      listAgentsResult2.page.agents.map(_.agentId).toSet shouldEqual Set(agent3, agent4)
-      listAgentsResult2.page.last shouldEqual Some(agent4.toString)
-      val listAgentsResult3 = Await.result(dal.listAgents(ListRegistrations(limit = 2, listAgentsResult2.page.last)), 5.seconds)
-      listAgentsResult3.page.agents.map(_.agentId).toSet shouldEqual Set(agent5)
-      listAgentsResult3.page.last shouldEqual None
+    "page through registration history" in withSessionAndDAL { (session,dal) =>
     }
   }
 }

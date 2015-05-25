@@ -13,8 +13,7 @@ import io.mandelbrot.persistence.cassandra.dal.{EpochList, CheckStatusIndexDAL, 
 import scala.concurrent.Future
 
 /**
- * Given a CheckRef, find the latest status.  Throw ResourceNotFound
- * if the CheckRef doesn't exist.
+ *
  */
 class DeleteCheckStatusTask(op: DeleteCheckStatus,
                             caller: ActorRef,

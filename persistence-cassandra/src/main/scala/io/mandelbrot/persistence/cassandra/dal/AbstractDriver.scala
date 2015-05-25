@@ -1,13 +1,12 @@
 package io.mandelbrot.persistence.cassandra.dal
 
-import com.datastax.driver.core.policies.RetryPolicy
-import com.datastax.driver.core.{ConsistencyLevel, ResultSet, Session, Statement}
+import com.datastax.driver.core.{ResultSet, Session, Statement}
 import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture}
-
 import scala.concurrent.{Future, Promise}
 
 /**
- *
+ * Adds some sugar around the cassandra session to bridge the guava futures returned
+ * by session.executeAsync to scala futures which can be used by akka.
  */
 trait AbstractDriver {
 
@@ -30,9 +29,3 @@ trait AbstractDriver {
     listenable2scalaFuture(session.executeAsync(query))
   }
 }
-
-case class StatementSettings(consistencyLevel: ConsistencyLevel,
-                             serialConsistencyLevel: ConsistencyLevel,
-                             fetchSize: Int,
-                             retryPolicy: RetryPolicy,
-                             tracePercentage: Double)

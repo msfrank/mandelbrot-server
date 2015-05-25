@@ -1,14 +1,17 @@
 package io.mandelbrot.persistence.cassandra
 
 import akka.actor.{OneForOneStrategy, Props, ActorLogging, Actor}
-import akka.actor.SupervisorStrategy.{Stop,Restart}
 import akka.pattern.pipe
-import com.datastax.driver.core.exceptions._
+import akka.actor.SupervisorStrategy.{Stop,Restart}
 import com.typesafe.config.Config
-import org.joda.time.{DateTimeZone, DateTime}
+import com.datastax.driver.core.exceptions._
+import io.mandelbrot.core.model.AgentId
+import io.mandelbrot.core.{NotImplemented, ApiException}
 
 import io.mandelbrot.core.registry._
-import io.mandelbrot.persistence.cassandra.dal.AgentRegistrationDAL
+import io.mandelbrot.persistence.cassandra.dal.{AgentTombstoneDAL, AgentRegistrationDAL}
+
+import scala.util.hashing.MurmurHash3
 
 /**
  *
@@ -17,37 +20,68 @@ class CassandraRegistryPersister(settings: CassandraRegistryPersisterSettings) e
   import context.dispatcher
 
   val session = Cassandra(context.system).getSession
-  val registry = new AgentRegistrationDAL(settings, session, context.dispatcher)
+  val agentRegistrationDAL = new AgentRegistrationDAL(settings, session, context.dispatcher)
+  val agentTombstoneDAL = new AgentTombstoneDAL(settings, session, context.dispatcher)
 
   def receive = {
 
-    case op: CreateRegistration =>
-      val timestamp = DateTime.now(DateTimeZone.UTC)
-      registry.createAgent(op, timestamp).recover {
+    case op: GetRegistration =>
+      agentRegistrationDAL.getAgentRegistration(op).recover {
         case ex: Throwable => sender() ! RegistryServiceOperationFailed(op, ex)
+      }.pipeTo(sender())
+
+    case op: CreateRegistration =>
+      agentRegistrationDAL.updateAgentRegistration(op.agentId, op.metadata.generation,
+        op.lsn, op.registration, op.metadata.joinedOn, op.metadata.lastUpdate, op.metadata.expires).map {
+        _ => CreateRegistrationResult(op, op.metadata)
+      }.recover {
+        case ex: Throwable => RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     case op: UpdateRegistration =>
-      val timestamp = DateTime.now(DateTimeZone.UTC)
-      registry.updateAgent(op).recover {
-        case ex: Throwable => sender () ! RegistryServiceOperationFailed(op, ex)
+      agentRegistrationDAL.updateAgentRegistration(op.agentId, op.metadata.generation,
+        op.lsn, op.registration, op.metadata.joinedOn, op.metadata.lastUpdate, op.metadata.expires).map{
+        _ => UpdateRegistrationResult(op)
+      }.recover {
+        case ex: Throwable => RegistryServiceOperationFailed(op, ex)
+      }.pipeTo(sender())
+
+    case op: RetireRegistration =>
+      agentRegistrationDAL.updateAgentRegistration(op.agentId, op.metadata.generation,
+        op.lsn, op.registration, op.metadata.joinedOn, op.metadata.lastUpdate, op.metadata.expires).map {
+        _ => RetireRegistrationResult(op)
+      }.recover {
+        case ex: Throwable => RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     case op: DeleteRegistration =>
-      registry.deleteAgent(op).recover {
-        case ex: Throwable => sender() ! RegistryServiceOperationFailed(op, ex)
+      sender() ! RegistryServiceOperationFailed(op, ApiException(NotImplemented))
+
+    case op: PutTombstone =>
+      val partition = calculatePartition(op.agentId)
+      agentTombstoneDAL.putTombstone(partition, op.expires, op.agentId, op.generation).map {
+        _ => PutTombstoneResult(op)
+      }.recover {
+        case ex: Throwable => RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
-    case op: GetRegistration =>
-      registry.getAgent(op).recover {
-        case ex: Throwable => sender() ! RegistryServiceOperationFailed(op, ex)
+    case op: DeleteTombstone =>
+      val partition = calculatePartition(op.agentId)
+      agentTombstoneDAL.deleteTombstone(partition, op.expires, op.agentId, op.generation).map {
+        _ => DeleteTombstoneResult(op)
+      }.recover {
+        case ex: Throwable => RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     case op: ListRegistrations =>
-      registry.listAgents(op).recover {
-        case ex: Throwable => RegistryServiceOperationFailed(op, ex)
-      }.pipeTo(sender())
+      sender() ! RegistryServiceOperationFailed(op, ApiException(NotImplemented))
   }
+
+  /**
+   * given an AgentId, return an Integer partition key.  this is used to spread out
+   * tombstones across multiple partitions.
+   */
+  def calculatePartition(agentId: AgentId): Int = MurmurHash3.stringHash(agentId.toString)
 
   override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 3) {
     /* transient cassandra exceptions */

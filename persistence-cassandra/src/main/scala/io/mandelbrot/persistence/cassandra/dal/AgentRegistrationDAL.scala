@@ -1,131 +1,228 @@
 package io.mandelbrot.persistence.cassandra.dal
 
+import java.util
+
+import com.datastax.driver.core.querybuilder.{QueryBuilder, Clause}
 import com.datastax.driver.core.{BoundStatement, Session}
-import io.mandelbrot.core.http.json.JsonProtocol._
-import io.mandelbrot.core.model._
-import io.mandelbrot.core.registry._
-import io.mandelbrot.core.{ApiException, ResourceNotFound}
-import io.mandelbrot.persistence.cassandra.CassandraRegistryPersisterSettings
-import org.joda.time.{DateTime, DateTimeZone}
 import spray.json._
-
+import org.joda.time.{DateTimeZone, DateTime}
+import scala.concurrent.{Future, ExecutionContext}
 import scala.collection.JavaConversions._
-import scala.concurrent.{ExecutionContext, Future}
 
-/**
- *
- */
+import io.mandelbrot.core.model.{AgentMetadata, AgentId, AgentRegistration}
+import io.mandelbrot.core.http.json.JsonProtocol._
+import io.mandelbrot.core.registry.{GetRegistration, GetRegistrationResult}
+import io.mandelbrot.persistence.cassandra.CassandraRegistryPersisterSettings
+import io.mandelbrot.core.{ResourceNotFound, ApiException}
+
 class AgentRegistrationDAL(settings: CassandraRegistryPersisterSettings,
                            val session: Session,
                            implicit val ec: ExecutionContext) extends AbstractDriver {
 
-  val tableName: String = "agent_registration"
+
+  val tableName: String = "agent_status"
 
   session.execute(
     s"""
        |CREATE TABLE IF NOT EXISTS $tableName (
-       |  p int,
        |  agent_id text,
-       |  registration text,
+       |  generation bigint,
        |  lsn bigint,
-       |  last_update timestamp,
+       |  registration text,
        |  joined_on timestamp,
-       |  PRIMARY KEY(p, agent_id)
-       |);
+       |  updated_on timestamp,
+       |  expires_on timestamp,
+       |  PRIMARY KEY (agent_id, generation, lsn)
+       |)
      """.stripMargin)
 
-  private val preparedCreateAgent = session.prepare(
+  private val preparedUpdateAgentRegistration = session.prepare(
     s"""
-       |INSERT INTO $tableName (p, agent_id, registration, lsn, last_update, joined_on)
-       |VALUES (0, ?, ?, 1, ?, ?)
+       |INSERT INTO $tableName (agent_id, generation, lsn, registration, joined_on, updated_on, expires_on)
+       |VALUES (?, ?, ?, ?, ?, ?, ?)
      """.stripMargin)
 
-  def createAgent(op: CreateRegistration, timestamp: DateTime): Future[CreateRegistrationResult] = {
-    val agentId = op.agentId.toString
-    val registration = op.registration.toJson.toString()
-    val _timestamp = timestamp.toDate
-    executeAsync(new BoundStatement(preparedCreateAgent).bind(agentId, registration, _timestamp, _timestamp)).map {
-      resultSet => CreateRegistrationResult(op, AgentMetadata(op.agentId, timestamp, timestamp, 1))
+  /**
+   *
+   */
+  def updateAgentRegistration(agentId: AgentId,
+                              generation: Long,
+                              lsn: Long,
+                              registration: AgentRegistration,
+                              joinedOn: DateTime,
+                              updatedOn: DateTime,
+                              expiresOn: Option[DateTime]): Future[Unit] = {
+    val _agentId = agentId.toString
+    val _generation: java.lang.Long = generation
+    val _lsn: java.lang.Long = lsn
+    val _registration = agentRegistration2string(registration)
+    val _joinedOn = joinedOn.toDate
+    val _updatedOn = updatedOn.toDate
+    val _expiresOn = expiresOn.map(_.toDate).orNull
+    val statement = new BoundStatement(preparedUpdateAgentRegistration)
+    statement.bind(_agentId, _generation, _lsn, _registration, _joinedOn, _updatedOn, _expiresOn)
+    executeAsync(statement).map { _ => Unit }
+  }
+
+  private val preparedGetAgentRegistration = session.prepare(
+    s"""
+       |SELECT registration, joined_on, updated_on, expires_on
+       |FROM $tableName
+       |WHERE agent_id = ? AND generation = ? AND lsn = ?
+     """.stripMargin)
+
+  def getAgentRegistration(agentId: AgentId, generation: Long, lsn: Long): Future[(AgentRegistration,AgentMetadata)] = {
+    val _agentId = agentId.toString
+    val _generation: java.lang.Long = generation
+    val _lsn: java.lang.Long = lsn
+    val statement = new BoundStatement(preparedGetAgentRegistration)
+    statement.bind(_agentId, _generation, _lsn)
+    executeAsync(statement).map {
+      case resultSet =>
+        val row = resultSet.one()
+        if (row != null) {
+          val registration = string2agentRegistration(row.getString(0))
+          val joinedOn = new DateTime(row.getDate(1), DateTimeZone.UTC)
+          val updatedOn = new DateTime(row.getDate(2), DateTimeZone.UTC)
+          val expiresOn = Option(row.getDate(3)).map(new DateTime(_, DateTimeZone.UTC))
+          val metadata = AgentMetadata(agentId, generation, joinedOn, updatedOn, expiresOn)
+          (registration,metadata)
+        } else throw ApiException(ResourceNotFound)
     }
   }
 
-  private val preparedUpdateAgent = session.prepare(
+  private val preparedGetLastAgentRegistration = session.prepare(
     s"""
-       |UPDATE $tableName
-       |SET registration = ?, lsn = ?, last_update = ?, joined_on = ?
-       |WHERE p = 0 AND agent_id = ?
+       |SELECT generation, lsn, registration, joined_on, updated_on, expires_on
+       |FROM $tableName
+       |WHERE agent_id = ?
+       |ORDER BY generation DESC, lsn DESC
+       |LIMIT 1
      """.stripMargin)
 
-  def updateAgent(op: UpdateRegistration): Future[UpdateRegistrationResult] = {
-    val agentId = op.agentId.toString
-    val registration = op.registration.toJson.toString()
-    val lastUpdate = op.metadata.lastUpdate.toDate
-    val joinedOn = op.metadata.joinedOn.toDate
-    val lsn: java.lang.Long = op.metadata.lsn
-    executeAsync(new BoundStatement(preparedUpdateAgent).bind(registration, lsn, lastUpdate, joinedOn, agentId)).map {
-      resultSet => UpdateRegistrationResult(op)
-    }
-  }
-
-  private val preparedDeleteAgent = session.prepare(
-    s"""
-       |DELETE FROM $tableName
-       |WHERE p = 0 AND agent_id = ?
-     """.stripMargin)
-
-  def deleteAgent(op: DeleteRegistration): Future[DeleteRegistrationResult] = {
-    val agentId = op.agentId.toString
-    executeAsync(new BoundStatement(preparedDeleteAgent).bind(agentId)).map {
-      resultSet => DeleteRegistrationResult(op)
-    }
-  }
-
-  private val preparedGetAgent = session.prepare(
-    s"""
-       |SELECT registration, lsn, last_update, joined_on FROM $tableName
-       |WHERE p = 0 AND agent_id = ?
-     """.stripMargin)
-
-  def getAgent(op: GetRegistration): Future[GetRegistrationResult] = {
-    val agentId = op.agentId.toString
-    executeAsync(new BoundStatement(preparedGetAgent).bind(agentId)).map { resultSet =>
+  def getAgentRegistration(op: GetRegistration): Future[GetRegistrationResult] = {
+    val statement = new BoundStatement(preparedGetLastAgentRegistration)
+    statement.bind(op.agentId.toString)
+    executeAsync(statement).map { resultSet =>
       val row = resultSet.one()
       if (row != null) {
-        val registration = JsonParser(row.getString(0)).convertTo[AgentRegistration]
+        val generation = row.getLong(0)
         val lsn = row.getLong(1)
-        val lastUpdate = new DateTime(row.getDate(2), DateTimeZone.UTC)
+        val registration = string2agentRegistration(row.getString(2))
         val joinedOn = new DateTime(row.getDate(3), DateTimeZone.UTC)
-        val metadata = AgentMetadata(op.agentId, joinedOn, lastUpdate, lsn)
-        GetRegistrationResult(op, registration, metadata)
+        val updatedOn = new DateTime(row.getDate(4), DateTimeZone.UTC)
+        val expiresOn = Option(row.getDate(5)).map(new DateTime(_, DateTimeZone.UTC))
+        val metadata = AgentMetadata(op.agentId, generation, joinedOn, updatedOn, expiresOn)
+        GetRegistrationResult(op, registration, metadata, lsn)
       } else throw ApiException(ResourceNotFound)
     }
   }
 
-  private val preparedListAgents = session.prepare(
-    s"""
-       |SELECT agent_id, lsn, last_update, joined_on FROM $tableName
-       |WHERE p = 0 AND agent_id > ?
-       |ORDER BY agent_id ASC
-       |LIMIT ?
-     """.stripMargin)
+  private val generationLsnColumns: java.util.List[String] = util.Arrays.asList("generation", "lsn")
+  private val largestGenerationLsn = util.Arrays.asList(Long.MaxValue, Long.MaxValue).asInstanceOf[util.List[Object]]
+  private val smallestGenerationLsn = util.Arrays.asList(0L, 0L).asInstanceOf[util.List[Object]]
 
-  def listAgents(op: ListRegistrations): Future[ListRegistrationsResult] = {
-    val last = op.last.map(_.toString).getOrElse("")
-    val limit: java.lang.Integer = op.limit
-    executeAsync(new BoundStatement(preparedListAgents).bind(last, limit)).map { resultSet =>
-      val agents = resultSet.all().map { row =>
-        val agentId = AgentId(row.getString(0))
+  /**
+   *
+   */
+  def startClause(from: Option[(Long,Long)], fromExclusive: Boolean): Clause = from match {
+    case None if fromExclusive => QueryBuilder.gt(generationLsnColumns, smallestGenerationLsn)
+    case None => QueryBuilder.gte(generationLsnColumns, smallestGenerationLsn)
+    case Some((generation,lsn)) =>
+      val generationLsn = util.Arrays.asList(generation, lsn).asInstanceOf[util.List[Object]]
+      if (fromExclusive)
+        QueryBuilder.gt(generationLsnColumns, generationLsn)
+      else
+        QueryBuilder.gte(generationLsnColumns, generationLsn)
+  }
+
+  /**
+   *
+   */
+  def endClause(to: Option[(Long,Long)], toInclusive: Boolean): Clause = to match {
+    case None if toInclusive => QueryBuilder.lte(generationLsnColumns, largestGenerationLsn)
+    case None => QueryBuilder.lt(generationLsnColumns, largestGenerationLsn)
+    case Some((generation,lsn)) =>
+      val generationLsn = util.Arrays.asList(generation, lsn).asInstanceOf[util.List[Object]]
+      if (toInclusive)
+        QueryBuilder.lte(generationLsnColumns, generationLsn)
+      else
+        QueryBuilder.lt(generationLsnColumns, generationLsn)
+  }
+
+  /**
+   *
+   */
+  def getAgentRegistrationHistory(agentId: AgentId,
+                                  from: Option[(Long,Long)],
+                                  to: Option[(Long,Long)],
+                                  limit: Int,
+                                  fromExclusive: Boolean,
+                                  toInclusive: Boolean,
+                                  descending: Boolean): Future[AgentRegistrationHistory] = {
+    val start = startClause(from, fromExclusive)
+    val end = endClause(to, toInclusive)
+    val ordering = if (descending) {
+      List(QueryBuilder.desc("generation"), QueryBuilder.desc("lsn"))
+    } else {
+      List(QueryBuilder.asc("generation"), QueryBuilder.asc("lsn"))
+    }
+    val select = QueryBuilder.select("generation", "lsn", "registration", "joined_on", "updated_on", "expires_on")
+      .from(tableName)
+      .where(QueryBuilder.eq("agent_id", agentId.toString))
+        .and(start)
+        .and(end)
+      .orderBy(ordering :_*)
+      .limit(limit)
+    select.setFetchSize(limit)
+    executeAsync(select).map { resultSet =>
+      val snapshots = resultSet.all().map { row =>
+        val generation = row.getLong(0)
         val lsn = row.getLong(1)
-        val lastUpdate = new DateTime(row.getDate(2), DateTimeZone.UTC)
+        val registration = string2agentRegistration(row.getString(2))
         val joinedOn = new DateTime(row.getDate(3), DateTimeZone.UTC)
-        AgentMetadata(agentId, joinedOn, lastUpdate, lsn)
+        val updatedOn = new DateTime(row.getDate(4), DateTimeZone.UTC)
+        val expiresOn = Option(row.getDate(5)).map(new DateTime(_, DateTimeZone.UTC))
+        val metadata = AgentMetadata(agentId, generation, joinedOn, updatedOn, expiresOn)
+        AgentRegistrationSnapshot(agentId, registration, metadata, lsn)
       }.toVector
-      val token = if (agents.length < limit) None else agents.lastOption.map(_.agentId.toString)
-      ListRegistrationsResult(op, AgentsPage(agents, token))
+      AgentRegistrationHistory(snapshots)
     }
   }
 
-  def flushEntities(): Future[Unit] = {
-    executeAsync(s"TRUNCATE $tableName").map { resultSet => }
+  private val preparedDeleteAgentRegistrationAtLsn = session.prepare(
+    s"""
+       |DELETE FROM $tableName
+       |WHERE agent_id = ? AND generation = ? AND lsn = ?
+     """.stripMargin)
+
+  def deleteAgentRegistration(agentId: AgentId, generation: Long, lsn: Long): Future[Unit] = {
+    val statement = new BoundStatement(preparedDeleteAgentRegistrationAtLsn)
+    val _generation: java.lang.Long = generation
+    val _lsn: java.lang.Long = lsn
+    statement.bind(agentId.toString, _generation, _lsn)
+    executeAsync(statement).map { _ => Unit }
   }
+
+  private val preparedDeleteAgentRegistration = session.prepare(
+    s"""
+       |DELETE FROM $tableName WHERE agent_id = ?
+     """.stripMargin)
+
+  def deleteAgentRegistration(agentId: AgentId): Future[Unit] = {
+    val statement = new BoundStatement(preparedDeleteAgentRegistration)
+    statement.bind(agentId.toString)
+    executeAsync(statement).map { _ => Unit }
+  }
+
+  def flushAgentRegistrations(): Future[Unit] = {
+    executeAsync(s"TRUNCATE $tableName").map { _ => Unit }
+  }
+
+  def string2agentRegistration(string: String): AgentRegistration = string.parseJson.convertTo[AgentRegistration]
+
+  def agentRegistration2string(registration: AgentRegistration): String = registration.toJson.prettyPrint
 }
+
+case class AgentRegistrationSnapshot(agentId: AgentId, registration: AgentRegistration, metadata: AgentMetadata, lsn: Long)
+case class AgentRegistrationHistory(snapshots: Vector[AgentRegistrationSnapshot])

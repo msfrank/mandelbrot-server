@@ -124,7 +124,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
   onTransition {
     case _ -> SystemRunning => nextStateData match {
       case state: SystemRunning =>
-        log.debug("configuring check system {}", state.agentId)
+        log.debug("configuring agent {}", state.agentId)
         unstashAll()
         applyCheckRegistration(state.agentId, state.registration, lsn)
       case _ =>
