@@ -32,7 +32,7 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
 
     case op: GetRegistrationHistory =>
       try {
-        val page = registrations.get(op.checkRef) match {
+        val page = registrations.get(op.agentId) match {
           // if there is no check, then raise ResourceNotFound
           case null =>
             throw ApiException(ResourceNotFound)
@@ -54,7 +54,7 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
               val event = events(agents.length - 1)
               Some(generationLsn2string(event.metadata.generation, event.lsn))
             } else None
-            RegistrationsPage(agents, last, exhausted = false)
+            RegistrationsPage(agents, last, exhausted = last.isEmpty)
         }
         sender() ! GetRegistrationHistoryResult(op, page)
       } catch {

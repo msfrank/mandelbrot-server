@@ -4,6 +4,8 @@ import akka.actor.{PoisonPill, ActorRef, ActorSystem}
 import akka.testkit.{ImplicitSender, TestKit}
 import org.joda.time.{DateTimeZone, DateTime}
 import org.scalatest.{ShouldMatchers, BeforeAndAfterAll, WordSpecLike}
+import org.scalatest.LoneElement._
+import org.scalatest.Inside._
 import scala.concurrent.duration._
 
 import io.mandelbrot.core.model._
@@ -55,8 +57,36 @@ class RegistryManagerSpec(_system: ActorSystem) extends TestKit(_system) with Im
   val metrics5 = Map(CheckId("check5") -> Map("metric5" -> MetricSpec(GaugeSource, Units, None, None, None)))
   val registration5 = AgentRegistration(agent5, "mandelbrot", Map.empty, checks5, metrics5)
 
+  val joinedOn = new DateTime(0, DateTimeZone.UTC)
+  val registrationHistory1 = AgentRegistration(agent1, "mandelbrot", Map("history" -> "1"), checks1, metrics1)
+  val metadataHistory1 = AgentMetadata(agent1, 1, joinedOn, joinedOn, None)
+  val registrationHistory2 = AgentRegistration(agent1, "mandelbrot", Map("history" -> "2"), checks1, metrics1)
+  val metadataHistory2 = AgentMetadata(agent1, 1, joinedOn, joinedOn.plusMinutes(1), None)
+  val registrationHistory3 = AgentRegistration(agent1, "mandelbrot", Map("history" -> "3"), checks1, metrics1)
+  val metadataHistory3 = AgentMetadata(agent1, 1, joinedOn, joinedOn.plusMinutes(1), None)
+  val registrationHistory4 = AgentRegistration(agent1, "mandelbrot", Map("history" -> "4"), checks1, metrics1)
+  val metadataHistory4 = AgentMetadata(agent1, 1, joinedOn, joinedOn.plusMinutes(1), None)
+  val registrationHistory5 = AgentRegistration(agent1, "mandelbrot", Map("history" -> "5"), checks1, metrics1)
+  val metadataHistory5 = AgentMetadata(agent1, 1, joinedOn, joinedOn.plusMinutes(1), None)
+
   def withTestData(testCode: (ActorRef) => Any): Unit = {
     withRegistryService { registryService =>
+
+      registryService ! CreateRegistration(agent1, registrationHistory1, metadataHistory1, lsn = 1)
+      expectMsgClass(classOf[CreateRegistrationResult])
+
+      registryService ! UpdateRegistration(agent1, registrationHistory2, metadataHistory2, lsn = 2)
+      expectMsgClass(classOf[UpdateRegistrationResult])
+
+      registryService ! UpdateRegistration(agent1, registrationHistory3, metadataHistory3, lsn = 3)
+      expectMsgClass(classOf[UpdateRegistrationResult])
+
+      registryService ! UpdateRegistration(agent1, registrationHistory4, metadataHistory4, lsn = 4)
+      expectMsgClass(classOf[UpdateRegistrationResult])
+
+      registryService ! UpdateRegistration(agent1, registrationHistory5, metadataHistory5, lsn = 5)
+      expectMsgClass(classOf[UpdateRegistrationResult])
+
       testCode(registryService)
     }
   }
@@ -161,10 +191,72 @@ class RegistryManagerSpec(_system: ActorSystem) extends TestKit(_system) with Im
 
     "servicing a GetRegistration request" should {
 
+      "return the current registration if the agent exists" in withTestData { registryService =>
+        registryService ! GetRegistration(agent1)
+        val getRegistrationResult = expectMsgClass(classOf[GetRegistrationResult])
+        getRegistrationResult.registration shouldEqual registrationHistory5
+        getRegistrationResult.metadata shouldEqual metadataHistory5
+        getRegistrationResult.lsn shouldEqual 5
+      }
+
+      "return ResourceNotFound if the agent doesn't exist" in withTestData { registryService =>
+        registryService ! GetRegistration(agent2)
+        val getRegistrationResult = expectMsgClass(classOf[RegistryServiceOperationFailed])
+        getRegistrationResult.failure shouldEqual ApiException(ResourceNotFound)
+      }
     }
 
-    "servicing a ListRegistrations request" should {
+    "servicing a GetRegistrationHistory request" should {
+      import RegistryManager.{MinGenerationLsn, MaxGenerationLsn}
 
+      "return ResourceNotFound if agent doesn't exist" in withTestData { registryService =>
+        registryService ! GetRegistrationHistory(agent2, None, None, 10)
+        val getRegistrationHistoryResult = expectMsgClass(classOf[RegistryServiceOperationFailed])
+        getRegistrationHistoryResult.failure shouldEqual ApiException(ResourceNotFound)
+      }
+
+      "return registration history if the agent exists" in withTestData { registryService =>
+        registryService ! GetRegistrationHistory(agent1, Some(MinGenerationLsn), Some(MaxGenerationLsn), 100)
+        val getRegistrationHistoryResult = expectMsgClass(classOf[GetRegistrationHistoryResult])
+        val page = getRegistrationHistoryResult.page
+        page.agents shouldEqual Vector( registrationHistory1, registrationHistory2,
+          registrationHistory3, registrationHistory4, registrationHistory5)
+        page.last shouldEqual None
+        page.exhausted shouldEqual true
+      }
+
+      "return the last history as the only element in a page if timeseries parameters are not specified" in withTestData { registryService =>
+        registryService ! GetRegistrationHistory(agent1, None, None, 100)
+        val getRegistrationHistoryResult = expectMsgClass(classOf[GetRegistrationHistoryResult])
+        getRegistrationHistoryResult.page.last shouldEqual None
+        getRegistrationHistoryResult.page.exhausted shouldEqual true
+        val registration = getRegistrationHistoryResult.page.agents.loneElement
+        registration shouldEqual registrationHistory5
+      }
+
+      "return a page of history history newer than 'from' when 'from' is specified" in withTestData { registryService =>
+        registryService ! GetRegistrationHistory(agent1, Some(GenerationLsn(1,3)), None, 100)
+        val getRegistrationHistoryResult = expectMsgClass(classOf[GetRegistrationHistoryResult])
+        getRegistrationHistoryResult.page.agents shouldEqual Vector(registrationHistory4, registrationHistory5)
+        getRegistrationHistoryResult.page.last shouldEqual None
+        getRegistrationHistoryResult.page.exhausted shouldEqual true
+      }
+
+      "return a page of history history older than 'to' when 'to' is specified" in withTestData { registryService =>
+        registryService ! GetRegistrationHistory(agent1, None, Some(GenerationLsn(1,3)), 100)
+        val getRegistrationHistoryResult = expectMsgClass(classOf[GetRegistrationHistoryResult])
+        getRegistrationHistoryResult.page.agents shouldEqual Vector(registrationHistory1, registrationHistory2, registrationHistory3)
+        getRegistrationHistoryResult.page.last shouldEqual None
+        getRegistrationHistoryResult.page.exhausted shouldEqual true
+      }
+
+      "return a page of history history between 'from' and 'to' when 'from' and 'to' are specified" in withTestData { registryService =>
+        registryService ! GetRegistrationHistory(agent1, Some(GenerationLsn(1,2)), Some(GenerationLsn(1,4)), 100)
+        val getRegistrationHistoryResult = expectMsgClass(classOf[GetRegistrationHistoryResult])
+        getRegistrationHistoryResult.page.agents shouldEqual Vector(registrationHistory3, registrationHistory4)
+        getRegistrationHistoryResult.page.last shouldEqual None
+        getRegistrationHistoryResult.page.exhausted shouldEqual true
+      }
     }
   }
 }

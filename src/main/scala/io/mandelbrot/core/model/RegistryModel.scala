@@ -57,13 +57,11 @@ case class GenerationLsn(generation: Long, lsn: Long) extends Ordered[Generation
 }
 /* a marker to delete agent registrations for a particular generation */
 case class AgentTombstone(expires: DateTime, agentId: AgentId, generation: Long)
-  extends Comparable[AgentTombstone]
-  with Ordered[AgentTombstone]
+  extends Ordered[AgentTombstone]
   with RegistryModel {
   override def compare(other: AgentTombstone): Int = {
     import scala.math.Ordered.orderingToOrdered
     (expires.getMillis, agentId.toString, generation)
       .compare((other.expires.getMillis, other.agentId.toString, other.generation))
   }
-  override def compareTo(other: AgentTombstone): Int = compare(other)
 }

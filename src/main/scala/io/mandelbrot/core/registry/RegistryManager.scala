@@ -83,7 +83,7 @@ case class GetRegistrationResult(op: GetRegistration,
                                  metadata: AgentMetadata,
                                  lsn: Long)
 
-case class GetRegistrationHistory(checkRef: CheckRef,
+case class GetRegistrationHistory(agentId: AgentId,
                                   from: Option[GenerationLsn],
                                   to: Option[GenerationLsn],
                                   limit: Int,
@@ -92,7 +92,6 @@ case class GetRegistrationHistory(checkRef: CheckRef,
                                   descending: Boolean = false,
                                   last: Option[String] = None) extends RegistryServiceQuery
 case class GetRegistrationHistoryResult(op: GetRegistrationHistory, page: RegistrationsPage)
-
 
 case class CreateRegistration(agentId: AgentId,
                               registration: AgentRegistration,
