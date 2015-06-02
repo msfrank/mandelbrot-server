@@ -72,9 +72,6 @@ class CassandraRegistryPersister(settings: CassandraRegistryPersisterSettings) e
       }.recover {
         case ex: Throwable => RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
-
-    case op: ListRegistrations =>
-      sender() ! RegistryServiceOperationFailed(op, ApiException(NotImplemented))
   }
 
   /**

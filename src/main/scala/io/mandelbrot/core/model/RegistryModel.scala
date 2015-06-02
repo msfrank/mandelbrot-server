@@ -2,7 +2,6 @@ package io.mandelbrot.core.model
 
 import org.joda.time.DateTime
 import scala.concurrent.duration.FiniteDuration
-import java.net.URI
 
 sealed trait RegistryModel
 
@@ -41,7 +40,30 @@ case class AgentMetadata(agentId: AgentId,
                          expires: Option[DateTime]) extends RegistryModel
 
 /* a page of agent metadata */
-case class AgentsPage(agents: Vector[AgentMetadata], last: Option[String]) extends RegistryModel
+case class AgentsPage(agents: Vector[AgentMetadata], last: Option[String], exhausted: Boolean) extends RegistryModel
 
 /* a page of agent metadata */
-case class AgentRegistrationPage(registrations: Vector[AgentMetadata], last: Option[String]) extends RegistryModel
+case class RegistrationsPage(agents: Vector[AgentRegistration], last: Option[String], exhausted: Boolean) extends RegistryModel
+
+/* a page of group names */
+case class GroupsPage(groups: Vector[String], last: Option[String], exhausted: Boolean) extends RegistryModel
+
+/* convenience class containing the agent generation and lsn */
+case class GenerationLsn(generation: Long, lsn: Long) extends Ordered[GenerationLsn] with RegistryModel {
+  def compare(other: GenerationLsn): Int = {
+    import scala.math.Ordered.orderingToOrdered
+    (generation, lsn).compare((other.generation, other.lsn))
+  }
+}
+/* a marker to delete agent registrations for a particular generation */
+case class AgentTombstone(expires: DateTime, agentId: AgentId, generation: Long)
+  extends Comparable[AgentTombstone]
+  with Ordered[AgentTombstone]
+  with RegistryModel {
+  override def compare(other: AgentTombstone): Int = {
+    import scala.math.Ordered.orderingToOrdered
+    (expires.getMillis, agentId.toString, generation)
+      .compare((other.expires.getMillis, other.agentId.toString, other.generation))
+  }
+  override def compareTo(other: AgentTombstone): Int = compare(other)
+}

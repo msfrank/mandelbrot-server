@@ -64,7 +64,7 @@ trait ApiService extends HttpService {
    */
   val agentsRoutes = {
     path("agents") {
-      /* register new check system, or fail if it already exists */
+      /* register new agent, or fail if it already exists */
       post {
         entity(as[AgentRegistration]) { case agentRegistration: AgentRegistration =>
           complete {
@@ -73,20 +73,6 @@ trait ApiService extends HttpService {
                 HttpResponse(StatusCodes.OK,
                              headers = List(Location("/v2/agents/" + agentRegistration.agentId.toString)),
                              entity = JsonBody(result.metadata.toJson))
-              case failure: ServiceOperationFailed =>
-                throw failure.failure
-            }
-          }
-        }
-      } ~
-      /* enumerate all registered check agents */
-      get {
-        pagingParams { paging =>
-          complete {
-            val limit = paging.limit.getOrElse(settings.pageLimit)
-            serviceProxy.ask(ListRegistrations(limit, paging.last)).map {
-              case result: ListRegistrationsResult =>
-                result.page
               case failure: ServiceOperationFailed =>
                 throw failure.failure
             }
