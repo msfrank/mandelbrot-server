@@ -11,7 +11,7 @@ import io.mandelbrot.core.model._
 class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Actor with ActorLogging {
   import RegistryManager.{MinGenerationLsn,MaxGenerationLsn}
 
-  val groups = new util.TreeMap[String,util.TreeSet[AgentMetadata]]()
+  val groups = new util.TreeMap[String,util.TreeMap[String,AgentMetadata]]()
   val registrations = new util.TreeMap[AgentId, util.TreeMap[GenerationLsn,RegistrationEvent]]()
   val tombstones = new util.TreeSet[AgentTombstone]()
 
@@ -97,6 +97,35 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
     case op: DeleteTombstone =>
       tombstones.remove(AgentTombstone(op.expires, op.agentId, op.generation))
       sender() ! DeleteTombstoneResult(op)
+
+    case op: AddAgentToGroup =>
+      val group = groups.getOrDefault(op.groupName, new util.TreeMap[String,AgentMetadata]())
+      group.put(op.metadata.agentId.toString, op.metadata)
+      groups.put(op.groupName, group)
+      sender() ! AddAgentToGroupResult(op)
+
+    case op: RemoveAgentFromGroup =>
+      val group = groups.getOrDefault(op.groupName, new util.TreeMap[String,AgentMetadata]())
+      group.remove(op.agentId.toString)
+      groups.put(op.groupName, group)
+      sender() ! RemoveAgentFromGroupResult(op)
+
+    case op: DescribeGroup =>
+      groups.get(op.groupName) match {
+        case null =>
+          sender() ! DescribeGroupResult(op, MetadataPage(Vector.empty, None, exhausted = true))
+        case group if op.last.isDefined =>
+          val members = group.tailMap(op.last.get, false)
+          val metadata = members.take(op.limit).values.toVector
+          val last = if (members.size() > metadata.length) Some(metadata.last.agentId.toString) else None
+          val page = MetadataPage(metadata, last, exhausted = last.isEmpty)
+          sender() ! DescribeGroupResult(op, page)
+        case group =>
+          val metadata = group.take(op.limit).values.toVector
+          val last = if (group.size() > metadata.length) Some(metadata.last.agentId.toString) else None
+          val page = MetadataPage(metadata, last, exhausted = last.isEmpty)
+          sender() ! DescribeGroupResult(op, page)
+      }
   }
 
   def string2generationLsn(string: String): GenerationLsn = {

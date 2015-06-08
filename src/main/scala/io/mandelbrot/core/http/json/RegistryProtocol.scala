@@ -36,11 +36,14 @@ trait RegistryProtocol extends DefaultJsonProtocol with ConstantsProtocol with R
   /* convert MetricSpec class */
   implicit val MetricSpecFormat = jsonFormat5(MetricSpec)
 
-  /* a little extra magic here- we use lazyFormat because CheckSpec has a recursive definition */
+  /* convert CheckSpec class */
   implicit val CheckSpecFormat = jsonFormat4(CheckSpec)
 
   /* convert AgentSpec class */
   implicit val AgentRegistrationFormat = jsonFormat5(AgentSpec)
+
+  /* convert AgentMetadata class */
+  implicit val AgentMetadataFormat = jsonFormat5(AgentMetadata)
 
   /* convert AggregateEvaluation class */
   implicit object AggregateEvaluationFormat extends RootJsonFormat[AggregateEvaluation] {
@@ -61,11 +64,8 @@ trait RegistryProtocol extends DefaultJsonProtocol with ConstantsProtocol with R
     }
   }
 
-  /* convert AgentMetadata class */
-  implicit val AgentMetadataFormat = jsonFormat5(AgentMetadata)
-
-  /* convert AgentsPage class */
-  implicit val AgentsPageFormat = jsonFormat3(AgentsPage)
+  /* convert MetadataPage class */
+  implicit val MetadataPageFormat = jsonFormat3(MetadataPage)
 
   /* convert RegistrationsPage class */
   implicit val RegistrationsPageFormat = jsonFormat3(RegistrationsPage)
@@ -74,8 +74,8 @@ trait RegistryProtocol extends DefaultJsonProtocol with ConstantsProtocol with R
   implicit val GroupsPageFormat = jsonFormat3(GroupsPage)
 
   /* registry operations */
-  implicit val RegisterCheckSystemFormat = jsonFormat2(RegisterAgent)
+  implicit val RegisterAgentFormat = jsonFormat2(RegisterAgent)
 
   /* check system operations */
-  implicit val UpdateCheckSystemFormat = jsonFormat2(UpdateAgent)
+  implicit val UpdateAgentFormat = jsonFormat2(UpdateAgent)
 }

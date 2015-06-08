@@ -88,8 +88,8 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService 
 
       Get("/v2/agents") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        val page = responseAs[AgentsPage]
-        page.agents.map(_.agentId) shouldEqual Vector(agent1, agent2, agent3, agent4, agent5)
+        val page = responseAs[MetadataPage]
+        page.metadata.map(_.agentId) shouldEqual Vector(agent1, agent2, agent3, agent4, agent5)
         page.last shouldEqual None
       }
     }
@@ -103,16 +103,16 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService 
 
       val last = Get("/v2/agents?limit=3") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        val page = responseAs[AgentsPage]
-        page.agents.map(_.agentId) shouldEqual Vector(agent1, agent2, agent3)
+        val page = responseAs[MetadataPage]
+        page.metadata.map(_.agentId) shouldEqual Vector(agent1, agent2, agent3)
         page.last shouldEqual Some(agent3.toString)
         page.last.get.toString
       }
 
       Get("/v2/agents?last=%s&limit=3".format(last)) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        val page = responseAs[AgentsPage]
-        page.agents.map(_.agentId) shouldEqual Vector(agent4, agent5)
+        val page = responseAs[MetadataPage]
+        page.metadata.map(_.agentId) shouldEqual Vector(agent4, agent5)
         page.last shouldEqual None
       }
     }

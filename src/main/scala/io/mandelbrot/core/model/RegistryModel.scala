@@ -43,7 +43,7 @@ case class AgentMetadata(agentId: AgentId,
 case class AgentRegistration(spec: AgentSpec, metadata: AgentMetadata, lsn: Long, committed: Boolean) extends RegistryModel
 
 /* a page of agent metadata */
-case class AgentsPage(agents: Vector[AgentMetadata], last: Option[String], exhausted: Boolean) extends RegistryModel
+case class MetadataPage(metadata: Vector[AgentMetadata], last: Option[String], exhausted: Boolean) extends RegistryModel
 
 /* a page of agent metadata */
 case class RegistrationsPage(agents: Vector[AgentSpec], last: Option[String], exhausted: Boolean) extends RegistryModel
