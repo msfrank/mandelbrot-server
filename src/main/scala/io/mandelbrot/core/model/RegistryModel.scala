@@ -5,12 +5,12 @@ import scala.concurrent.duration.FiniteDuration
 
 sealed trait RegistryModel
 
-/* a dynamic agent registration */
-case class AgentRegistration(agentId: AgentId,
-                             agentType: String,
-                             metadata: Map[String,String],
-                             checks: Map[CheckId,CheckSpec],
-                             metrics: Map[CheckId,Map[String,MetricSpec]]) extends RegistryModel
+/* agent specification */
+case class AgentSpec(agentId: AgentId,
+                     agentType: String,
+                     metadata: Map[String,String],
+                     checks: Map[CheckId,CheckSpec],
+                     metrics: Map[CheckId,Map[String,MetricSpec]]) extends RegistryModel
 
 /* tunable parameters which apply to all check types */
 case class CheckPolicy(joiningTimeout: FiniteDuration,
@@ -39,28 +39,29 @@ case class AgentMetadata(agentId: AgentId,
                          lastUpdate: DateTime,
                          expires: Option[DateTime]) extends RegistryModel
 
+/* */
+case class AgentRegistration(spec: AgentSpec, metadata: AgentMetadata, lsn: Long, committed: Boolean) extends RegistryModel
+
 /* a page of agent metadata */
 case class AgentsPage(agents: Vector[AgentMetadata], last: Option[String], exhausted: Boolean) extends RegistryModel
 
 /* a page of agent metadata */
-case class RegistrationsPage(agents: Vector[AgentRegistration], last: Option[String], exhausted: Boolean) extends RegistryModel
+case class RegistrationsPage(agents: Vector[AgentSpec], last: Option[String], exhausted: Boolean) extends RegistryModel
 
 /* a page of group names */
 case class GroupsPage(groups: Vector[String], last: Option[String], exhausted: Boolean) extends RegistryModel
 
 /* convenience class containing the agent generation and lsn */
 case class GenerationLsn(generation: Long, lsn: Long) extends Ordered[GenerationLsn] with RegistryModel {
+  import scala.math.Ordered.orderingToOrdered
   def compare(other: GenerationLsn): Int = {
-    import scala.math.Ordered.orderingToOrdered
     (generation, lsn).compare((other.generation, other.lsn))
   }
 }
 /* a marker to delete agent registrations for a particular generation */
-case class AgentTombstone(expires: DateTime, agentId: AgentId, generation: Long)
-  extends Ordered[AgentTombstone]
-  with RegistryModel {
+case class AgentTombstone(expires: DateTime, agentId: AgentId, generation: Long) extends Ordered[AgentTombstone] with RegistryModel {
+  import scala.math.Ordered.orderingToOrdered
   override def compare(other: AgentTombstone): Int = {
-    import scala.math.Ordered.orderingToOrdered
     (expires.getMillis, agentId.toString, generation)
       .compare((other.expires.getMillis, other.agentId.toString, other.generation))
   }

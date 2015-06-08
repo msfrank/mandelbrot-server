@@ -57,65 +57,105 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
     initialize()
   }
 
+  /*
+   * The agent always starts in INCUBATING state.  it waits for the first message,
+   * and uses the message type to determine whether to transition to REGISTERING or
+   * INITIALIZING.  Any other message is stashed.
+   */
   when(SystemIncubating) {
 
     case Event(op: RegisterAgent, _) =>
-      val timestamp = DateTime.now(DateTimeZone.UTC)
-      val metadata = AgentMetadata(op.agentId, generation + 1, timestamp, timestamp, None)
-      services ! CreateRegistration(op.agentId, op.registration, metadata, lsn + 1)
+      services ! GetRegistration(op.agentId)
       goto(SystemRegistering) using SystemRegistering(op, sender())
 
-    case Event(revive: ReviveAgent, _) =>
-      services ! GetRegistration(revive.agentId)
-      goto(SystemInitializing) using SystemInitializing(revive.agentId)
-      
+    case Event(op: ReviveAgent, _) =>
+      services ! GetRegistration(op.agentId)
+      goto(SystemInitializing) using SystemInitializing(op, sender())
+
+    /* stash any agent operations for later */
     case Event(op: AgentOperation, _) =>
       stash()
       stay()
 
+    /* stash any check operations for later */
     case Event(op: CheckOperation, _) =>
       stash()
       stay()
   }
 
+  /*
+   * The agent transitions to REGISTERING state when the first message received was
+   * RegisterAgent.
+   */
   when(SystemRegistering) {
 
+    /* the agent already exists */
+    case Event(result: GetRegistrationResult, state: SystemRegistering) =>
+      val timestamp = DateTime.now(DateTimeZone.UTC)
+      val metadata = result.metadata.copy(generation = result.metadata.generation + 1, lastUpdate = timestamp)
+      services ! CreateRegistration(state.op.agentId, state.op.registration, metadata, result.lsn + 1)
+      stay()
+
+    /* the agent doesn't exist */
+    case Event(RegistryServiceOperationFailed(_: GetRegistration, ApiException(ResourceNotFound)), state: SystemRegistering) =>
+      val timestamp = DateTime.now(DateTimeZone.UTC)
+      val metadata = AgentMetadata(state.op.agentId, generation + 1, timestamp, timestamp, None)
+      services ! CreateRegistration(state.op.agentId, state.op.registration, metadata, lsn + 1)
+      stay()
+
+    /* we successfully registered the agent */
     case Event(result: CreateRegistrationResult, state: SystemRegistering) =>
       state.sender ! RegisterAgentResult(state.op, result.metadata)
+      // set the generation and lsn state variables now
       generation = result.metadata.generation
       lsn = result.op.lsn
       goto(SystemRunning) using SystemRunning(state.op.agentId, result.op.registration, result.metadata)
 
+    /* any unhandled failure */
     case Event(failure: RegistryServiceOperationFailed, state: SystemRegistering) =>
-      state.sender ! failure
-      goto(SystemFailed) using SystemError(failure.failure)
+      state.sender ! AgentOperationFailed(state.op, failure.failure)
+      throw failure.failure
 
+    /* stash any agent operations for later */
     case Event(op: AgentOperation, _) =>
       stash()
       stay()
 
+    /* stash any check operations for later */
     case Event(op: CheckOperation, _) =>
       stash()
       stay()
   }
 
+  /*
+   * The agent transitions to INITIALIZING state when the first message received was
+   * ReviveAgent.
+   */
   when(SystemInitializing) {
 
+    /* the agent exists and is retired */
+    case Event(result: GetRegistrationResult, state: SystemInitializing) if result.metadata.expires.isDefined =>
+      generation = result.metadata.generation
+      lsn = result.lsn
+      goto(SystemRetired) using SystemRetired(state.op.agentId, result.registration, result.metadata)
+
+    /* the agent exists and is active */
     case Event(result: GetRegistrationResult, state: SystemInitializing) =>
       generation = result.metadata.generation
       lsn = result.lsn
-      if (result.metadata.expires.isDefined)
-        goto(SystemRetired) using SystemRetired(state.agentId, result.registration, result.metadata)
-      else
-        goto(SystemRunning) using SystemRunning(state.agentId, result.registration, result.metadata)
+      goto(SystemRunning) using SystemRunning(state.op.agentId, result.registration, result.metadata)
 
+    /* any unhandled failure */
     case Event(failure: RegistryServiceOperationFailed, state: SystemInitializing) =>
-      goto(SystemFailed) using SystemError(failure.failure)
+      state.sender ! AgentOperationFailed(state.op, failure.failure)
+      throw failure.failure
 
+    /* stash any agent operations for later */
     case Event(op: AgentOperation, _) =>
       stash()
       stay()
 
+    /* stash any check operations for later */
     case Event(op: CheckOperation, _) =>
       stash()
       stay()
@@ -334,7 +374,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
    * given a registration, return the set of all check resources, including
    * the implicit containers.
    */
-  def makeRegistrationSet(registration: AgentRegistration): Set[CheckId] = {
+  def makeRegistrationSet(registration: AgentSpec): Set[CheckId] = {
     var registrationSet = registration.checks.keySet
     for (resource <- registrationSet) {
       var parent = resource.parentOption
@@ -349,7 +389,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
   /**
    * apply the spec to the check system, adding and removing checks as necessary
    */
-  def applyCheckRegistration(agentId: AgentId, registration: AgentRegistration, lsn: Long): Unit = {
+  def applyCheckRegistration(agentId: AgentId, registration: AgentSpec, lsn: Long): Unit = {
 
     val registrationSet = makeRegistrationSet(registration)
     val checkSet = checks.keySet
@@ -453,18 +493,17 @@ object Agent {
 
   sealed trait Data
   case object SystemWaiting extends Data
-  case class SystemInitializing(agentId: AgentId) extends Data
+  case class SystemInitializing(op: ReviveAgent, sender: ActorRef) extends Data
   case class SystemRegistering(op: RegisterAgent, sender: ActorRef) extends Data
-  case class SystemRunning(agentId: AgentId, registration: AgentRegistration, metadata: AgentMetadata) extends Data
+  case class SystemRunning(agentId: AgentId, registration: AgentSpec, metadata: AgentMetadata) extends Data
   case class SystemUpdating(op: UpdateAgent, sender: ActorRef, update: UpdateRegistration, prev: SystemRunning) extends Data
   case class SystemRetiring(op: RetireAgent, sender: ActorRef, retire: RetireRegistration, prev: SystemRunning) extends Data
-  case class SystemRetired(agentId: AgentId, registration: AgentRegistration, metadata: AgentMetadata) extends Data
+  case class SystemRetired(agentId: AgentId, registration: AgentSpec, metadata: AgentMetadata) extends Data
   case class SystemError(ex: Throwable) extends Data
 
   case object StopAgent
 }
 
-case class ReviveAgent(agentId: AgentId)
 case class ChangeCheck(checkType: String, policy: CheckPolicy, factory: ProcessorFactory, children: Set[CheckRef], lsn: Long)
 case class RetireCheck(lsn: Long)
 
@@ -476,10 +515,13 @@ sealed trait AgentCommand extends ServiceCommand with AgentOperation
 sealed trait AgentQuery extends ServiceQuery with AgentOperation
 case class AgentOperationFailed(op: AgentOperation, failure: Throwable) extends ServiceOperationFailed
 
-case class RegisterAgent(agentId: AgentId, registration: AgentRegistration) extends AgentCommand
+case class RegisterAgent(agentId: AgentId, registration: AgentSpec) extends AgentCommand
 case class RegisterAgentResult(op: RegisterAgent, metadata: AgentMetadata)
 
-case class UpdateAgent(agentId: AgentId, registration: AgentRegistration) extends AgentCommand
+case class ReviveAgent(agentId: AgentId) extends AgentCommand
+case class ReviveAgentResult(op: ReviveAgent, metadata: AgentMetadata)
+
+case class UpdateAgent(agentId: AgentId, registration: AgentSpec) extends AgentCommand
 case class UpdateAgentResult(op: UpdateAgent, metadata: AgentMetadata)
 
 case class RetireAgent(agentId: AgentId) extends AgentCommand
@@ -489,7 +531,7 @@ case class DeleteAgent(agentId: AgentId, generation: Long) extends AgentCommand
 case class DeleteAgentResult(op: DeleteAgent)
 
 case class DescribeAgent(agentId: AgentId) extends AgentQuery
-case class DescribeAgentResult(op: DescribeAgent, registration: AgentRegistration, metadata: AgentMetadata)
+case class DescribeAgentResult(op: DescribeAgent, registration: AgentSpec, metadata: AgentMetadata)
 
 case class MatchAgent(agentId: AgentId, matchers: Set[CheckMatcher]) extends AgentQuery
 case class MatchAgentResult(op: MatchAgent, refs: Set[CheckRef])

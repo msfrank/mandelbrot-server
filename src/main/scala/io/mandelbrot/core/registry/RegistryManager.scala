@@ -53,7 +53,7 @@ class RegistryManager(settings: RegistrySettings) extends Actor with ActorLoggin
    * Returns true if the specified registration parameters adhere to server
    * policy, otherwise returns false.
    */
-  def registrationValid(registration: AgentRegistration): Boolean = {
+  def registrationValid(registration: AgentSpec): Boolean = {
     // FIXME: implement validation logic
     true
   }
@@ -79,7 +79,7 @@ case class RegistryServiceOperationFailed(op: RegistryServiceOperation, failure:
 
 case class GetRegistration(agentId: AgentId) extends RegistryServiceQuery
 case class GetRegistrationResult(op: GetRegistration,
-                                 registration: AgentRegistration,
+                                 registration: AgentSpec,
                                  metadata: AgentMetadata,
                                  lsn: Long)
 
@@ -94,19 +94,19 @@ case class GetRegistrationHistory(agentId: AgentId,
 case class GetRegistrationHistoryResult(op: GetRegistrationHistory, page: RegistrationsPage)
 
 case class CreateRegistration(agentId: AgentId,
-                              registration: AgentRegistration,
+                              registration: AgentSpec,
                               metadata: AgentMetadata,
                               lsn: Long) extends RegistryServiceCommand
 case class CreateRegistrationResult(op: CreateRegistration, metadata: AgentMetadata)
 
 case class UpdateRegistration(agentId: AgentId,
-                              registration: AgentRegistration,
+                              registration: AgentSpec,
                               metadata: AgentMetadata,
                               lsn: Long) extends RegistryServiceCommand
 case class UpdateRegistrationResult(op: UpdateRegistration)
 
 case class RetireRegistration(agentId: AgentId,
-                              registration: AgentRegistration,
+                              registration: AgentSpec,
                               metadata: AgentMetadata,
                               lsn: Long) extends RegistryServiceCommand
 case class RetireRegistrationResult(op: RetireRegistration)

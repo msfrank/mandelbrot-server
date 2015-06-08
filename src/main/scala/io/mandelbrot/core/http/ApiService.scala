@@ -66,7 +66,7 @@ trait ApiService extends HttpService {
     path("agents") {
       /* register new agent, or fail if it already exists */
       post {
-        entity(as[AgentRegistration]) { case agentRegistration: AgentRegistration =>
+        entity(as[AgentSpec]) { case agentRegistration: AgentSpec =>
           complete {
             serviceProxy.ask(RegisterAgent(agentRegistration.agentId, agentRegistration)).map {
               case result: RegisterAgentResult =>
@@ -95,7 +95,7 @@ trait ApiService extends HttpService {
         } ~
         /* update the spec for the specified check system */
         put {
-          entity(as[AgentRegistration]) { case agentRegistration: AgentRegistration =>
+          entity(as[AgentSpec]) { case agentRegistration: AgentSpec =>
             complete {
               serviceProxy.ask(UpdateAgent(agentId, agentRegistration)).map {
                 case result: UpdateAgentResult =>

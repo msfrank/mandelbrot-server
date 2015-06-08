@@ -9,7 +9,7 @@ import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.{Future, ExecutionContext}
 import scala.collection.JavaConversions._
 
-import io.mandelbrot.core.model.{AgentMetadata, AgentId, AgentRegistration}
+import io.mandelbrot.core.model.{AgentMetadata, AgentId, AgentSpec}
 import io.mandelbrot.core.http.json.JsonProtocol._
 import io.mandelbrot.core.registry.{GetRegistration, GetRegistrationResult}
 import io.mandelbrot.persistence.cassandra.CassandraRegistryPersisterSettings
@@ -48,7 +48,7 @@ class AgentRegistrationDAL(settings: CassandraRegistryPersisterSettings,
   def updateAgentRegistration(agentId: AgentId,
                               generation: Long,
                               lsn: Long,
-                              registration: AgentRegistration,
+                              registration: AgentSpec,
                               joinedOn: DateTime,
                               updatedOn: DateTime,
                               expiresOn: Option[DateTime]): Future[Unit] = {
@@ -71,7 +71,7 @@ class AgentRegistrationDAL(settings: CassandraRegistryPersisterSettings,
        |WHERE agent_id = ? AND generation = ? AND lsn = ?
      """.stripMargin)
 
-  def getAgentRegistration(agentId: AgentId, generation: Long, lsn: Long): Future[(AgentRegistration,AgentMetadata)] = {
+  def getAgentRegistration(agentId: AgentId, generation: Long, lsn: Long): Future[(AgentSpec,AgentMetadata)] = {
     val _agentId = agentId.toString
     val _generation: java.lang.Long = generation
     val _lsn: java.lang.Long = lsn
@@ -219,10 +219,10 @@ class AgentRegistrationDAL(settings: CassandraRegistryPersisterSettings,
     executeAsync(s"TRUNCATE $tableName").map { _ => Unit }
   }
 
-  def string2agentRegistration(string: String): AgentRegistration = string.parseJson.convertTo[AgentRegistration]
+  def string2agentRegistration(string: String): AgentSpec = string.parseJson.convertTo[AgentSpec]
 
-  def agentRegistration2string(registration: AgentRegistration): String = registration.toJson.prettyPrint
+  def agentRegistration2string(registration: AgentSpec): String = registration.toJson.prettyPrint
 }
 
-case class AgentRegistrationSnapshot(agentId: AgentId, registration: AgentRegistration, metadata: AgentMetadata, lsn: Long)
+case class AgentRegistrationSnapshot(agentId: AgentId, registration: AgentSpec, metadata: AgentMetadata, lsn: Long)
 case class AgentRegistrationHistory(snapshots: Vector[AgentRegistrationSnapshot])

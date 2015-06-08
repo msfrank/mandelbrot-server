@@ -109,7 +109,7 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
   def generationLsn2string(generation: Long, lsn: Long): String = "{}:{}".format(generation, lsn)
 }
 
-case class RegistrationEvent(registration: AgentRegistration,
+case class RegistrationEvent(registration: AgentSpec,
                              metadata: AgentMetadata,
                              lsn: Long,
                              committed: Boolean)

@@ -39,8 +39,8 @@ trait RegistryProtocol extends DefaultJsonProtocol with ConstantsProtocol with R
   /* a little extra magic here- we use lazyFormat because CheckSpec has a recursive definition */
   implicit val CheckSpecFormat = jsonFormat4(CheckSpec)
 
-  /* convert AgentRegistration class */
-  implicit val AgentRegistrationFormat = jsonFormat5(AgentRegistration)
+  /* convert AgentSpec class */
+  implicit val AgentRegistrationFormat = jsonFormat5(AgentSpec)
 
   /* convert AggregateEvaluation class */
   implicit object AggregateEvaluationFormat extends RootJsonFormat[AggregateEvaluation] {

@@ -52,11 +52,11 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService 
   val agent3 = AgentId("test.3")
   val agent4 = AgentId("test.4")
   val agent5 = AgentId("test.5")
-  val registration1 = AgentRegistration(agent1, "mandelbrot", Map.empty, checks, metrics)
-  val registration2 = AgentRegistration(agent2, "mandelbrot", Map.empty, checks, metrics)
-  val registration3 = AgentRegistration(agent3, "mandelbrot", Map.empty, checks, metrics)
-  val registration4 = AgentRegistration(agent4, "mandelbrot", Map.empty, checks, metrics)
-  val registration5 = AgentRegistration(agent5, "mandelbrot", Map.empty, checks, metrics)
+  val registration1 = AgentSpec(agent1, "mandelbrot", Map.empty, checks, metrics)
+  val registration2 = AgentSpec(agent2, "mandelbrot", Map.empty, checks, metrics)
+  val registration3 = AgentSpec(agent3, "mandelbrot", Map.empty, checks, metrics)
+  val registration4 = AgentSpec(agent4, "mandelbrot", Map.empty, checks, metrics)
+  val registration5 = AgentSpec(agent5, "mandelbrot", Map.empty, checks, metrics)
 
   val evaluation = CheckEvaluation(DateTime.now(DateTimeZone.UTC), Some("evaluates healthy"), Some(CheckHealthy), None)
 
@@ -142,7 +142,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService 
       }
       Get("/v2/agents/" + registration1.agentId.toString) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        val registration = responseAs[AgentRegistration]
+        val registration = responseAs[AgentSpec]
         registration shouldEqual registration1
       }
     }
