@@ -10,7 +10,8 @@ case class AgentSpec(agentId: AgentId,
                      agentType: String,
                      metadata: Map[String,String],
                      checks: Map[CheckId,CheckSpec],
-                     metrics: Map[CheckId,Map[String,MetricSpec]]) extends RegistryModel
+                     metrics: Map[CheckId,Map[String,MetricSpec]],
+                     groups: Set[String]) extends RegistryModel
 
 /* tunable parameters which apply to all check types */
 case class CheckPolicy(joiningTimeout: FiniteDuration,

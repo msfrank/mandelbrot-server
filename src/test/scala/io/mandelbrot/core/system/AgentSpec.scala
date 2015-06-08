@@ -37,7 +37,7 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val check = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, Map.empty, Map.empty)
       val checks = Map(CheckId("load") -> check)
       val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
-      val registration = AgentSpec(agentId, "mandelbrot", Map.empty, checks, metrics)
+      val registration = AgentSpec(agentId, "mandelbrot", Map.empty, checks, metrics, Set.empty)
 
       val agent = system.actorOf(Agent.props(services))
 
@@ -53,7 +53,7 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val check = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, Map.empty, Map.empty)
       val checks = Map(CheckId("load") -> check)
       val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
-      val registration = AgentSpec(agentId, "mandelbrot", Map.empty, checks, metrics)
+      val registration = AgentSpec(agentId, "mandelbrot", Map.empty, checks, metrics, Set.empty)
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val metadata = AgentMetadata(agentId, 1, timestamp, timestamp, None)
 
@@ -77,7 +77,7 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val check1 = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, Map.empty, Map.empty)
       val checks1 = Map(CheckId("check1") -> check1)
       val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
-      val registration1 = AgentSpec(agentId, "mandelbrot", Map.empty, checks1, metrics)
+      val registration1 = AgentSpec(agentId, "mandelbrot", Map.empty, checks1, metrics, Set.empty)
 
       val agent = system.actorOf(Agent.props(services))
 
@@ -86,7 +86,7 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
       val check2 = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, Map.empty, Map.empty)
       val checks2 = Map(CheckId("check2") -> check2)
-      val registration2 = AgentSpec(agentId, "mandelbrot", Map.empty, checks2, metrics)
+      val registration2 = AgentSpec(agentId, "mandelbrot", Map.empty, checks2, metrics, Set.empty)
 
       agent ! UpdateAgent(agentId, registration2)
       val updateAgentResult = expectMsgClass(classOf[UpdateAgentResult])
@@ -103,7 +103,7 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val check1 = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, Map.empty, Map.empty)
       val checks1 = Map(CheckId("check1") -> check1)
       val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
-      val registration1 = AgentSpec(agentId, "mandelbrot", Map.empty, checks1, metrics)
+      val registration1 = AgentSpec(agentId, "mandelbrot", Map.empty, checks1, metrics, Set.empty)
 
       val agent = system.actorOf(Agent.props(services))
 
