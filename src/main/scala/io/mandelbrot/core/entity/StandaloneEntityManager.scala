@@ -21,12 +21,7 @@ package io.mandelbrot.core.entity
 
 import akka.actor._
 import io.mandelbrot.core._
-import io.mandelbrot.core.entity.EntityFunctions.{EntityReviver, ShardResolver, KeyExtractor, PropsCreator}
-import scala.collection.mutable
-import java.net.URI
-
-import io.mandelbrot.core.registry.RegistryServiceOperation
-import io.mandelbrot.core.system.{Agent$, AgentOperation, CheckOperation}
+import io.mandelbrot.core.entity.EntityFunctions.{EntityReviver, PropsCreator}
 
 /**
  *

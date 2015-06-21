@@ -19,6 +19,7 @@
 
 package io.mandelbrot.core.http.json
 
+import io.mandelbrot.core.agent.{UpdateAgent, RegisterAgent}
 import spray.json._
 
 import io.mandelbrot.core.metrics._

@@ -5,6 +5,7 @@ import akka.pattern.ask
 import akka.event.{Logging, LoggingAdapter}
 import akka.util.Timeout
 import com.typesafe.config.Config
+import io.mandelbrot.core.agent.RegisterAgent
 import org.joda.time.{DateTimeZone, DateTime}
 import org.scalatest.{BeforeAndAfter, WordSpec, ShouldMatchers}
 import org.scalatest._
@@ -16,7 +17,6 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 
 import io.mandelbrot.core.model._
-import io.mandelbrot.core.system.RegisterAgent
 import io.mandelbrot.core.http.json.JsonProtocol._
 import io.mandelbrot.core.{ServerConfig, MandelbrotConfig, ServiceProxy, AkkaConfig}
 import io.mandelbrot.core.ConfigConversions._

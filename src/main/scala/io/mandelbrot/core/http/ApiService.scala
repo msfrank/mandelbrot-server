@@ -23,6 +23,7 @@ import akka.actor.{ActorRef, ActorSystem}
 import akka.pattern.ask
 import akka.util.Timeout
 import akka.event.LoggingAdapter
+import io.mandelbrot.core.agent._
 import io.mandelbrot.core.http.json.JsonBody
 import spray.routing.{HttpService, ExceptionHandler}
 import spray.http._

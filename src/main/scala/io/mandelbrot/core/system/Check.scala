@@ -22,6 +22,7 @@ package io.mandelbrot.core.system
 import akka.actor._
 import akka.pattern.ask
 import akka.pattern.pipe
+import io.mandelbrot.core.agent.{RetireCheck, ChangeCheck}
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 import java.util.UUID

@@ -21,6 +21,7 @@ package io.mandelbrot.core.system
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
+import io.mandelbrot.core.agent.ChangeCheck
 import org.joda.time.DateTime
 import org.scalatest.ShouldMatchers
 import org.scalatest.{WordSpecLike, BeforeAndAfterAll}

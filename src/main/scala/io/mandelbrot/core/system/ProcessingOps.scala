@@ -2,6 +2,7 @@ package io.mandelbrot.core.system
 
 import akka.actor.{Actor, ActorRef}
 import akka.event.LoggingAdapter
+import io.mandelbrot.core.agent.RetireCheck
 import io.mandelbrot.core.state.UpdateCheckStatus
 import org.joda.time.DateTime
 import scala.util.{Failure, Success}

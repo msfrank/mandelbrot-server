@@ -1,6 +1,7 @@
 package io.mandelbrot.core.system
 
 import akka.actor.{ActorLogging, Props, Actor, ActorRef}
+import io.mandelbrot.core.agent.AgentOperation
 import io.mandelbrot.core.model.NotificationEvent
 
 import io.mandelbrot.core.registry.RegistryServiceOperation

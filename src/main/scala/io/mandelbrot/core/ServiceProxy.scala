@@ -22,6 +22,7 @@ package io.mandelbrot.core
 import java.net.URI
 
 import akka.actor._
+import io.mandelbrot.core.agent.{ReviveAgent, RegisterAgent, AgentOperation, Agent}
 import io.mandelbrot.core.entity._
 import io.mandelbrot.core.model.{AgentId, NotificationEvent}
 import io.mandelbrot.core.notification._

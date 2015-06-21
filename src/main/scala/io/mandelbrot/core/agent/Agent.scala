@@ -17,18 +17,18 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.system
+package io.mandelbrot.core.agent
 
 import akka.actor._
-import akka.pattern.{ask,pipe}
-import org.joda.time.{DateTimeZone, DateTime}
-import scala.collection.mutable
-import scala.concurrent.duration._
-
 import io.mandelbrot.core._
+import io.mandelbrot.core.metrics.MetricsBus
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.metrics.MetricsBus
+import io.mandelbrot.core.system._
+import org.joda.time.{DateTime, DateTimeZone}
+
+import scala.collection.mutable
+import scala.concurrent.duration._
 
 /**
  * the Agent manages a collection of Checks underneath a URI.  the Agent

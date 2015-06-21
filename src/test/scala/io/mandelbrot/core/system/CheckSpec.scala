@@ -2,6 +2,7 @@ package io.mandelbrot.core.system
 
 import akka.actor.{PoisonPill, ActorSystem, Terminated}
 import akka.testkit.{TestProbe, ImplicitSender, TestActorRef, TestKit}
+import io.mandelbrot.core.agent.{RetireCheck, ChangeCheck}
 import org.joda.time.DateTime
 import org.scalatest.ShouldMatchers
 import org.scalatest.{WordSpecLike, BeforeAndAfterAll}

@@ -1,9 +1,7 @@
-package io.mandelbrot.core.system
+package io.mandelbrot.core.agent
 
-import akka.actor.{ActorRef, Props, ActorLogging, Actor}
-import org.joda.time.{DateTimeZone, DateTime}
-
-import io.mandelbrot.core.model.{AgentRegistration, AgentSpec, AgentMetadata}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import io.mandelbrot.core.model.{AgentMetadata, AgentRegistration, AgentSpec}
 import io.mandelbrot.core.registry._
 
 /**

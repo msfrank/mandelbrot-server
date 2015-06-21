@@ -1,15 +1,16 @@
-package io.mandelbrot.core.system
+package io.mandelbrot.core.agent
 
-import akka.actor.{PoisonPill, ActorRef, ActorSystem}
+import akka.actor.{ActorRef, ActorSystem, PoisonPill}
 import akka.testkit.{ImplicitSender, TestKit}
-import org.joda.time.{DateTimeZone, DateTime}
-import org.scalatest.{BeforeAndAfterAll, ShouldMatchers, WordSpecLike}
-import scala.concurrent.duration._
-
-import io.mandelbrot.core.model._
-import io.mandelbrot.core.registry.{CommitRegistrationResult, CommitRegistration, PutRegistrationResult, PutRegistration}
-import io.mandelbrot.core.{MandelbrotConfig, ServiceProxy, AkkaConfig}
 import io.mandelbrot.core.ConfigConversions._
+import io.mandelbrot.core.model._
+import io.mandelbrot.core.registry.{CommitRegistration, CommitRegistrationResult}
+import io.mandelbrot.core.system.{GetCheckStatus, GetCheckStatusResult}
+import io.mandelbrot.core.{AkkaConfig, MandelbrotConfig, ServiceProxy}
+import org.joda.time.{DateTime, DateTimeZone}
+import org.scalatest.{BeforeAndAfterAll, ShouldMatchers, WordSpecLike}
+
+import scala.concurrent.duration._
 
 class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
 
