@@ -199,8 +199,19 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
    * if the task fails, then supervision will catch the exception.
    */
   when(AgentRecovering) {
+
     case Event(result: RecoverAgentTaskComplete, state: AgentRecovering) =>
       goto(state.nextState) using state.nextData
+
+    /* stash any agent operations for later */
+    case Event(op: AgentOperation, _) =>
+      stash()
+      stay()
+
+    /* stash any check operations for later */
+    case Event(op: CheckOperation, _) =>
+      stash()
+      stay()
   }
 
   onTransition {
@@ -296,8 +307,19 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
    * UPDATING is a transitional state
    */
   when(AgentUpdating) {
+
     case Event(result: UpdateAgentTaskComplete, state: AgentUpdating) =>
       goto(AgentRunning) using AgentRunning(state.op.agentId, result.registration, result.metadata)
+
+    /* stash any agent operations for later */
+    case Event(op: AgentOperation, _) =>
+      stash()
+      stay()
+
+    /* stash any check operations for later */
+    case Event(op: CheckOperation, _) =>
+      stash()
+      stay()
   }
 
   onTransition {
@@ -336,6 +358,16 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       if (checks.isEmpty) {
         goto(AgentRetired) using AgentRetired(state.op.agentId, state.commit.spec, state.commit.metadata)
       } else stay()
+
+    /* stash any agent operations for later */
+    case Event(op: AgentOperation, _) =>
+      stash()
+      stay()
+
+    /* stash any check operations for later */
+    case Event(op: CheckOperation, _) =>
+      stash()
+      stay()
   }
 
   onTransition {

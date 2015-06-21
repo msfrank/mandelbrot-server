@@ -1,6 +1,6 @@
 package io.mandelbrot.core.system
 
-import akka.actor.{ActorSystem, Terminated}
+import akka.actor.{PoisonPill, ActorSystem, Terminated}
 import akka.testkit.{TestProbe, ImplicitSender, TestActorRef, TestKit}
 import org.joda.time.DateTime
 import org.scalatest.ShouldMatchers
@@ -172,6 +172,8 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       stateService.reply(UpdateCheckStatusResult(updateCheckStatus1))
 
       check ! RetireCheck(lsn = 2)
+      check ! PoisonPill
+
       val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
       stateService.reply(UpdateCheckStatusResult(updateCheckStatus2))
 
