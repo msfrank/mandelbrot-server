@@ -113,8 +113,7 @@ class GetCheckConditionTask(op: GetConditionHistory,
 
     /* */
     case Failure(ex: Throwable) =>
-      caller ! StateServiceOperationFailed(op, ex)
-      context.stop(self)
+      throw ex
   }
 
   /**

@@ -50,48 +50,23 @@ class AgentRegistrationDALSpec(_system: ActorSystem) extends TestKit(_system) wi
       testCode(session, _dal)
     }
 
-    "create a registration" in withSessionAndDAL { (session, dal) =>
+    "put a registration" in withSessionAndDAL { (session, dal) =>
       val agentId = AgentId("test.foo")
       val timestamp = DateTime.now(DateTimeZone.UTC)
-      val registration = AgentSpec(agentId, "mandelbrot", Map.empty, Map.empty, Map.empty, Set.empty)
-      val generation = 1L
-      val lsn = 1L
-      val metadata = AgentMetadata(agentId, generation, timestamp, timestamp, None)
-      Await.result(dal.updateAgentRegistration(agentId, generation, lsn, registration, timestamp, timestamp, None), 5.seconds)
-      val getRegistrationResult = Await.result(dal.getAgentRegistration(GetRegistration(agentId)), 5.seconds)
-      getRegistrationResult.registration shouldEqual registration
-      getRegistrationResult.metadata shouldEqual metadata
-      getRegistrationResult.lsn shouldEqual 1
-    }
 
-    "update a registration" in withSessionAndDAL { (session, dal) =>
-      val agentId = AgentId("test.foo")
-      val timestamp = DateTime.now(DateTimeZone.UTC)
       val registration1 = AgentSpec(agentId, "mandelbrot", Map("foo" -> "bar"), Map.empty, Map.empty, Set.empty)
       val metadata1 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, None)
-      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 1, registration1, timestamp, timestamp, None), 5.seconds)
-      val registration2 = AgentSpec(agentId, "mandelbrot", Map("foo" -> "baz"), Map.empty, Map.empty, Set.empty)
-      val metadata2 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, None)
-      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 2, registration2, timestamp, timestamp, None), 5.seconds)
-      val getRegistrationResult = Await.result(dal.getAgentRegistration(GetRegistration(agentId)), 5.seconds)
-      getRegistrationResult.registration shouldEqual registration2
-      getRegistrationResult.metadata shouldEqual metadata2
-      getRegistrationResult.lsn shouldEqual 2
-    }
+      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 1, registration1, timestamp, timestamp, None, committed = true), 5.seconds)
 
-    "retire a registration" in withSessionAndDAL { (session, dal) =>
-      val agentId = AgentId("test.foo")
-      val timestamp = DateTime.now(DateTimeZone.UTC)
-      val registration1 = AgentSpec(agentId, "mandelbrot", Map("foo" -> "bar"), Map.empty, Map.empty, Set.empty)
-      val metadata1 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, None)
-      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 1, registration1, timestamp, timestamp, None), 5.seconds)
       val registration2 = AgentSpec(agentId, "mandelbrot", Map("foo" -> "baz"), Map.empty, Map.empty, Set.empty)
       val metadata2 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, None)
-      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 2, registration2, timestamp, timestamp, None), 5.seconds)
+      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 2, registration2, timestamp, timestamp, None, committed = true), 5.seconds)
+
       val expires = DateTime.now(DateTimeZone.UTC)
       val metadata3 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, Some(expires))
-      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 3, registration2, timestamp, timestamp, Some(expires)), 5.seconds)
-      val getRegistrationResult = Await.result(dal.getAgentRegistration(GetRegistration(agentId)), 5.seconds)
+      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 3, registration2, timestamp, timestamp, Some(expires), committed = true), 5.seconds)
+
+      val getRegistrationResult = Await.result(dal.getLastAgentRegistration(GetRegistration(agentId)), 5.seconds)
       getRegistrationResult.registration shouldEqual registration2
       getRegistrationResult.metadata shouldEqual metadata3
       getRegistrationResult.lsn shouldEqual 3
@@ -100,15 +75,19 @@ class AgentRegistrationDALSpec(_system: ActorSystem) extends TestKit(_system) wi
     "get a registration at a specific point in time" in withSessionAndDAL { (session, dal) =>
       val agentId = AgentId("test.foo")
       val timestamp = DateTime.now(DateTimeZone.UTC)
+
       val registration1 = AgentSpec(agentId, "mandelbrot", Map("foo" -> "bar"), Map.empty, Map.empty, Set.empty)
       val metadata1 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, None)
-      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 1, registration1, timestamp, timestamp, None), 5.seconds)
+      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 1, registration1, timestamp, timestamp, None, committed = true), 5.seconds)
+
       val registration2 = AgentSpec(agentId, "mandelbrot", Map("foo" -> "baz"), Map.empty, Map.empty, Set.empty)
       val metadata2 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, None)
-      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 2, registration2, timestamp, timestamp, None), 5.seconds)
+      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 2, registration2, timestamp, timestamp, None, committed = true), 5.seconds)
+
       val registration3 = AgentSpec(agentId, "mandelbrot", Map("foo" -> "qux"), Map.empty, Map.empty, Set.empty)
       val metadata3 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, None)
-      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 3, registration3, timestamp, timestamp, None), 5.seconds)
+      Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 3, registration3, timestamp, timestamp, None, committed = true), 5.seconds)
+
       val (registrationResult,metadataResult) = Await.result(dal.getAgentRegistration(agentId, generation = 1, lsn = 1), 5.seconds)
       registrationResult shouldEqual registration1
       metadataResult shouldEqual metadata1

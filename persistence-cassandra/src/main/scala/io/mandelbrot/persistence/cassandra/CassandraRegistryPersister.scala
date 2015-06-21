@@ -5,11 +5,12 @@ import akka.pattern.pipe
 import akka.actor.SupervisorStrategy.{Stop,Restart}
 import com.typesafe.config.Config
 import com.datastax.driver.core.exceptions._
-import io.mandelbrot.core.model.AgentId
+import io.mandelbrot.core.model.{RegistrationsPage, AgentId}
 import io.mandelbrot.core.{NotImplemented, ApiException}
 
 import io.mandelbrot.core.registry._
 import io.mandelbrot.persistence.cassandra.dal.{AgentTombstoneDAL, AgentRegistrationDAL}
+import io.mandelbrot.persistence.cassandra.task.GetAgentRegistrationHistoryTask
 
 import scala.util.hashing.MurmurHash3
 
@@ -26,21 +27,25 @@ class CassandraRegistryPersister(settings: CassandraRegistryPersisterSettings) e
   def receive = {
 
     case op: GetRegistration =>
-      agentRegistrationDAL.getAgentRegistration(op).recover {
-        case ex: Throwable => sender() ! RegistryServiceOperationFailed(op, ex)
+      agentRegistrationDAL.getLastAgentRegistration(op).recover {
+        case ex: Throwable => RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
+    case op: GetRegistrationHistory =>
+      val props = GetAgentRegistrationHistoryTask.props(op, sender(), agentRegistrationDAL)
+      context.actorOf(props)
+
     case op: PutRegistration =>
-      agentRegistrationDAL.updateAgentRegistration(op.agentId, op.metadata.generation,
-        op.lsn, op.registration, op.metadata.joinedOn, op.metadata.lastUpdate, op.metadata.expires).map {
+      agentRegistrationDAL.updateAgentRegistration(op.agentId, op.metadata.generation, op.lsn,
+        op.registration, op.metadata.joinedOn, op.metadata.lastUpdate, op.metadata.expires, committed = false).map {
         _ => PutRegistrationResult(op, op.metadata)
       }.recover {
         case ex: Throwable => RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
     case op: CommitRegistration =>
-      agentRegistrationDAL.updateAgentRegistration(op.agentId, op.metadata.generation,
-        op.lsn, op.registration, op.metadata.joinedOn, op.metadata.lastUpdate, op.metadata.expires).map{
+      agentRegistrationDAL.updateAgentRegistration(op.agentId, op.metadata.generation, op.lsn,
+        op.registration, op.metadata.joinedOn, op.metadata.lastUpdate, op.metadata.expires, committed = true).map {
         _ => CommitRegistrationResult(op)
       }.recover {
         case ex: Throwable => RegistryServiceOperationFailed(op, ex)

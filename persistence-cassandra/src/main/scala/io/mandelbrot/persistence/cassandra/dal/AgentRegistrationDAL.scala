@@ -9,7 +9,7 @@ import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.{Future, ExecutionContext}
 import scala.collection.JavaConversions._
 
-import io.mandelbrot.core.model.{AgentMetadata, AgentId, AgentSpec}
+import io.mandelbrot.core.model.{GenerationLsn, AgentMetadata, AgentId, AgentSpec}
 import io.mandelbrot.core.http.json.JsonProtocol._
 import io.mandelbrot.core.registry.{GetRegistration, GetRegistrationResult}
 import io.mandelbrot.persistence.cassandra.CassandraRegistryPersisterSettings
@@ -32,14 +32,15 @@ class AgentRegistrationDAL(settings: CassandraRegistryPersisterSettings,
        |  joined_on timestamp,
        |  updated_on timestamp,
        |  expires_on timestamp,
+       |  committed boolean,
        |  PRIMARY KEY (agent_id, generation, lsn)
        |)
      """.stripMargin)
 
   private val preparedUpdateAgentRegistration = session.prepare(
     s"""
-       |INSERT INTO $tableName (agent_id, generation, lsn, registration, joined_on, updated_on, expires_on)
-       |VALUES (?, ?, ?, ?, ?, ?, ?)
+       |INSERT INTO $tableName (agent_id, generation, lsn, registration, joined_on, updated_on, expires_on, committed)
+       |VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      """.stripMargin)
 
   /**
@@ -51,7 +52,8 @@ class AgentRegistrationDAL(settings: CassandraRegistryPersisterSettings,
                               registration: AgentSpec,
                               joinedOn: DateTime,
                               updatedOn: DateTime,
-                              expiresOn: Option[DateTime]): Future[Unit] = {
+                              expiresOn: Option[DateTime],
+                              committed: Boolean): Future[Unit] = {
     val _agentId = agentId.toString
     val _generation: java.lang.Long = generation
     val _lsn: java.lang.Long = lsn
@@ -59,8 +61,9 @@ class AgentRegistrationDAL(settings: CassandraRegistryPersisterSettings,
     val _joinedOn = joinedOn.toDate
     val _updatedOn = updatedOn.toDate
     val _expiresOn = expiresOn.map(_.toDate).orNull
+    val _committed: java.lang.Boolean = committed
     val statement = new BoundStatement(preparedUpdateAgentRegistration)
-    statement.bind(_agentId, _generation, _lsn, _registration, _joinedOn, _updatedOn, _expiresOn)
+    statement.bind(_agentId, _generation, _lsn, _registration, _joinedOn, _updatedOn, _expiresOn, _committed)
     executeAsync(statement).map { _ => Unit }
   }
 
@@ -93,14 +96,14 @@ class AgentRegistrationDAL(settings: CassandraRegistryPersisterSettings,
 
   private val preparedGetLastAgentRegistration = session.prepare(
     s"""
-       |SELECT generation, lsn, registration, joined_on, updated_on, expires_on
+       |SELECT generation, lsn, registration, joined_on, updated_on, expires_on, committed
        |FROM $tableName
        |WHERE agent_id = ?
        |ORDER BY generation DESC, lsn DESC
        |LIMIT 1
      """.stripMargin)
 
-  def getAgentRegistration(op: GetRegistration): Future[GetRegistrationResult] = {
+  def getLastAgentRegistration(op: GetRegistration): Future[GetRegistrationResult] = {
     val statement = new BoundStatement(preparedGetLastAgentRegistration)
     statement.bind(op.agentId.toString)
     executeAsync(statement).map { resultSet =>
@@ -112,8 +115,9 @@ class AgentRegistrationDAL(settings: CassandraRegistryPersisterSettings,
         val joinedOn = new DateTime(row.getDate(3), DateTimeZone.UTC)
         val updatedOn = new DateTime(row.getDate(4), DateTimeZone.UTC)
         val expiresOn = Option(row.getDate(5)).map(new DateTime(_, DateTimeZone.UTC))
+        val committed = row.getBool(6)
         val metadata = AgentMetadata(op.agentId, generation, joinedOn, updatedOn, expiresOn)
-        GetRegistrationResult(op, registration, metadata, lsn)
+        GetRegistrationResult(op, registration, metadata, lsn, committed)
       } else throw ApiException(ResourceNotFound)
     }
   }
@@ -125,43 +129,43 @@ class AgentRegistrationDAL(settings: CassandraRegistryPersisterSettings,
   /**
    *
    */
-  def startClause(from: Option[(Long,Long)], fromExclusive: Boolean): Clause = from match {
-    case None if fromExclusive => QueryBuilder.gt(generationLsnColumns, smallestGenerationLsn)
-    case None => QueryBuilder.gte(generationLsnColumns, smallestGenerationLsn)
-    case Some((generation,lsn)) =>
+  def startClause(from: Option[GenerationLsn], fromInclusive: Boolean): Clause = from match {
+    case None if fromInclusive => QueryBuilder.gte(generationLsnColumns, smallestGenerationLsn)
+    case None => QueryBuilder.gt(generationLsnColumns, smallestGenerationLsn)
+    case Some(GenerationLsn(generation,lsn)) =>
       val generationLsn = util.Arrays.asList(generation, lsn).asInstanceOf[util.List[Object]]
-      if (fromExclusive)
-        QueryBuilder.gt(generationLsnColumns, generationLsn)
-      else
+      if (fromInclusive)
         QueryBuilder.gte(generationLsnColumns, generationLsn)
+      else
+        QueryBuilder.gt(generationLsnColumns, generationLsn)
   }
 
   /**
    *
    */
-  def endClause(to: Option[(Long,Long)], toInclusive: Boolean): Clause = to match {
-    case None if toInclusive => QueryBuilder.lte(generationLsnColumns, largestGenerationLsn)
-    case None => QueryBuilder.lt(generationLsnColumns, largestGenerationLsn)
-    case Some((generation,lsn)) =>
+  def endClause(to: Option[GenerationLsn], toExclusive: Boolean): Clause = to match {
+    case None if toExclusive => QueryBuilder.lt(generationLsnColumns, largestGenerationLsn)
+    case None => QueryBuilder.lte(generationLsnColumns, largestGenerationLsn)
+    case Some(GenerationLsn(generation,lsn)) =>
       val generationLsn = util.Arrays.asList(generation, lsn).asInstanceOf[util.List[Object]]
-      if (toInclusive)
-        QueryBuilder.lte(generationLsnColumns, generationLsn)
-      else
+      if (toExclusive)
         QueryBuilder.lt(generationLsnColumns, generationLsn)
+      else
+        QueryBuilder.lte(generationLsnColumns, generationLsn)
   }
 
   /**
    *
    */
   def getAgentRegistrationHistory(agentId: AgentId,
-                                  from: Option[(Long,Long)],
-                                  to: Option[(Long,Long)],
+                                  from: Option[GenerationLsn],
+                                  to: Option[GenerationLsn],
                                   limit: Int,
-                                  fromExclusive: Boolean,
-                                  toInclusive: Boolean,
+                                  fromInclusive: Boolean,
+                                  toExclusive: Boolean,
                                   descending: Boolean): Future[AgentRegistrationHistory] = {
-    val start = startClause(from, fromExclusive)
-    val end = endClause(to, toInclusive)
+    val start = startClause(from, fromInclusive)
+    val end = endClause(to, toExclusive)
     val ordering = if (descending) {
       List(QueryBuilder.desc("generation"), QueryBuilder.desc("lsn"))
     } else {
