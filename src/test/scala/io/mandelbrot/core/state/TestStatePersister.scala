@@ -123,7 +123,7 @@ class TestStatePersister(settings: TestStatePersisterSettings) extends Actor wit
         val _last: Option[DateTime] = last.map(s => new DateTime(s.toLong).withZone(DateTimeZone.UTC))
         val _from: DateTime = _last.getOrElse(from.getOrElse(new DateTime(0, DateTimeZone.UTC)))
         val _to: DateTime = to.getOrElse(new DateTime(Long.MaxValue, DateTimeZone.UTC))
-        history.subMap(_from, false, _to, false).map(entry => entry._2).toVector
+        history.subMap(_from, false, _to, true).map(entry => entry._2).toVector
     }
   }
 

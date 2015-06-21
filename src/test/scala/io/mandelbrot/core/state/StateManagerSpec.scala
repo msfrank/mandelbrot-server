@@ -8,7 +8,6 @@ import org.scalatest.LoneElement._
 import org.scalatest.Inside._
 
 import io.mandelbrot.core.model._
-import io.mandelbrot.core.util.Timestamp
 import io.mandelbrot.core._
 import io.mandelbrot.core.ConfigConversions._
 
@@ -210,13 +209,13 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       "return a page of condition history older than 'to' when 'to' is specified" in withTestData { stateService =>
         stateService ! GetConditionHistory(checkRef, None, Some(timestamp4), 100)
         val getConditionHistoryResult = expectMsgClass(classOf[GetConditionHistoryResult])
-        getConditionHistoryResult.page.history shouldEqual Vector(condition1, condition2, condition3)
+        getConditionHistoryResult.page.history shouldEqual Vector(condition1, condition2, condition3, condition4)
         getConditionHistoryResult.page.last shouldEqual None
         getConditionHistoryResult.page.exhausted shouldEqual true
       }
 
       "return a page of condition history between 'from' and 'to' when 'from' and 'to' are specified" in withTestData { stateService =>
-        stateService ! GetConditionHistory(checkRef, Some(timestamp2), Some(timestamp5), 100)
+        stateService ! GetConditionHistory(checkRef, Some(timestamp2), Some(timestamp4), 100)
         val getConditionHistoryResult = expectMsgClass(classOf[GetConditionHistoryResult])
         getConditionHistoryResult.page.history shouldEqual Vector(condition3, condition4)
         getConditionHistoryResult.page.last shouldEqual None
@@ -252,13 +251,13 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       "return a page of notifications history older than 'to' when 'to' is specified" in withTestData { stateService =>
         stateService ! GetNotificationsHistory(checkRef, None, Some(timestamp4), 100)
         val getNotificationHistoryResult = expectMsgClass(classOf[GetNotificationsHistoryResult])
-        getNotificationHistoryResult.page.history shouldEqual Vector(notifications1, notifications2, notifications3)
+        getNotificationHistoryResult.page.history shouldEqual Vector(notifications1, notifications2, notifications3, notifications4)
         getNotificationHistoryResult.page.last shouldEqual None
         getNotificationHistoryResult.page.exhausted shouldEqual true
       }
 
       "return a page of notifications history between 'from' and 'to' when 'from' and 'to' are specified" in withTestData { stateService =>
-        stateService ! GetNotificationsHistory(checkRef, Some(timestamp2), Some(timestamp5), 100)
+        stateService ! GetNotificationsHistory(checkRef, Some(timestamp2), Some(timestamp4), 100)
         val getNotificationHistoryResult = expectMsgClass(classOf[GetNotificationsHistoryResult])
         getNotificationHistoryResult.page.history shouldEqual Vector(notifications3, notifications4)
         getNotificationHistoryResult.page.last shouldEqual None
@@ -294,13 +293,13 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       "return a page of metrics history older than 'to' when 'to' is specified" in withTestData { stateService =>
         stateService ! GetMetricsHistory(checkRef, None, Some(timestamp4), 100)
         val getMetricsHistoryResult = expectMsgClass(classOf[GetMetricsHistoryResult])
-        getMetricsHistoryResult.page.history shouldEqual Vector(metrics1, metrics2, metrics3)
+        getMetricsHistoryResult.page.history shouldEqual Vector(metrics1, metrics2, metrics3, metrics4)
         getMetricsHistoryResult.page.last shouldEqual None
         getMetricsHistoryResult.page.exhausted shouldEqual true
       }
 
       "return a page of metrics history between 'from' and 'to' when 'from' and 'to' are specified" in withTestData { stateService =>
-        stateService ! GetMetricsHistory(checkRef, Some(timestamp2), Some(timestamp5), 100)
+        stateService ! GetMetricsHistory(checkRef, Some(timestamp2), Some(timestamp4), 100)
         val getMetricsHistoryResult = expectMsgClass(classOf[GetMetricsHistoryResult])
         getMetricsHistoryResult.page.history shouldEqual Vector(metrics3, metrics4)
         getMetricsHistoryResult.page.last shouldEqual None
