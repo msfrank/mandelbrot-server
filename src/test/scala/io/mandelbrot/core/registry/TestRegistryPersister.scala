@@ -100,13 +100,16 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
     case op: RemoveAgentFromGroup =>
       val group = groups.getOrDefault(op.groupName, new util.TreeMap[String,AgentMetadata]())
       group.remove(op.agentId.toString)
-      groups.put(op.groupName, group)
+      if (group.isEmpty)
+        groups.remove(op.groupName)
+      else
+        groups.put(op.groupName, group)
       sender() ! RemoveAgentFromGroupResult(op)
 
     case op: DescribeGroup =>
       groups.get(op.groupName) match {
         case null =>
-          sender() ! DescribeGroupResult(op, MetadataPage(Vector.empty, None, exhausted = true))
+          sender() ! RegistryServiceOperationFailed(op, ApiException(ResourceNotFound))
         case group if op.last.isDefined =>
           val members = group.tailMap(op.last.get, false)
           val metadata = members.take(op.limit).values.toVector

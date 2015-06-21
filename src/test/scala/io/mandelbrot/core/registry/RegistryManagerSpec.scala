@@ -308,18 +308,14 @@ class RegistryManagerSpec(_system: ActorSystem) extends TestKit(_system) with Im
         registryService ! RemoveAgentFromGroup(metadata.agentId, groupName)
         expectMsgClass(classOf[RemoveAgentFromGroupResult])
         registryService ! DescribeGroup(groupName, 100, None)
-        val describeGroupResult2 = expectMsgClass(classOf[DescribeGroupResult])
-        describeGroupResult2.page.metadata shouldBe empty
-        describeGroupResult2.page.last shouldEqual None
-        describeGroupResult2.page.exhausted shouldEqual true
+        val describeGroupResult2 = expectMsgClass(classOf[RegistryServiceOperationFailed])
+        describeGroupResult2.failure shouldEqual ApiException(ResourceNotFound)
       }
 
       "do nothing if the agent is not a part of the specified group" in withRegistryService { registryService =>
         registryService ! DescribeGroup("nosuchgroup", 100, None)
-        val describeGroupResult = expectMsgClass(classOf[DescribeGroupResult])
-        describeGroupResult.page.metadata shouldBe empty
-        describeGroupResult.page.last shouldEqual None
-        describeGroupResult.page.exhausted shouldEqual true
+        val describeGroupResult = expectMsgClass(classOf[RegistryServiceOperationFailed])
+        describeGroupResult.failure shouldEqual ApiException(ResourceNotFound)
       }
     }
   }

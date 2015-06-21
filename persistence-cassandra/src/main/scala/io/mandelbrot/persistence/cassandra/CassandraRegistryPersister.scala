@@ -10,7 +10,7 @@ import io.mandelbrot.core.{NotImplemented, ApiException}
 
 import io.mandelbrot.core.registry._
 import io.mandelbrot.persistence.cassandra.dal.{AgentGroupDAL, AgentTombstoneDAL, AgentRegistrationDAL}
-import io.mandelbrot.persistence.cassandra.task.GetAgentRegistrationHistoryTask
+import io.mandelbrot.persistence.cassandra.task.{DescribeGroupTask, GetAgentRegistrationHistoryTask}
 
 import scala.util.hashing.MurmurHash3
 
@@ -84,6 +84,10 @@ class CassandraRegistryPersister(settings: CassandraRegistryPersisterSettings) e
       }.recover {
         case ex: Throwable => RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
+
+    case op: DescribeGroup =>
+      val props = DescribeGroupTask.props(op, sender(), agentGroupDAL)
+      context.actorOf(props)
   }
 
   /**

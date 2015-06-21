@@ -20,7 +20,7 @@ class GetAgentRegistrationHistoryTask(op: GetRegistrationHistory,
   // contains the epoch and timestamp where we left off, or None
   val last: Option[GenerationLsn] = extractIterator(op.last)
   val from = last.orElse(op.from)
-  val fromInclusive: Boolean = if (last.isDefined) true else op.fromInclusive
+  val fromInclusive: Boolean = if (last.isDefined) false else op.fromInclusive
 
   override def preStart(): Unit = {
     // if there are no timeseries parameters, then as a special case return only the last entry

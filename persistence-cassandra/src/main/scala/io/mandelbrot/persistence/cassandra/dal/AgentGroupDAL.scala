@@ -1,5 +1,6 @@
 package io.mandelbrot.persistence.cassandra.dal
 
+import com.datastax.driver.core.querybuilder.{QueryBuilder, Clause}
 import com.datastax.driver.core.{BoundStatement, Session}
 import spray.json._
 import scala.concurrent.{ExecutionContext, Future}
@@ -56,6 +57,46 @@ class AgentGroupDAL(settings: CassandraRegistryPersisterSettings,
       .bind(_groupName, _agentId))
       .map { _ => }
   }
+  /**
+   *
+   */
+  def startClause(from: Option[String], fromInclusive: Boolean): Option[Clause] = from match {
+    case None => None
+    case Some(start) if fromInclusive => Some(QueryBuilder.gte("agent_id", start))
+    case Some(start) => Some(QueryBuilder.gt("agent_id", start))
+  }
+
+  /**
+   *
+   */
+  def endClause(to: Option[String], toExclusive: Boolean): Option[Clause] = to match {
+    case None => None
+    case Some(end) if toExclusive => Some(QueryBuilder.lt("agent_id", end))
+    case Some(end) => Some(QueryBuilder.lte("agent_id", end))
+  }
+
+  /**
+   *
+   */
+  def describeGroup(groupName: String,
+                    from: Option[String],
+                    to: Option[String],
+                    limit: Int,
+                    fromInclusive: Boolean,
+                    toExclusive: Boolean,
+                    descending: Boolean): Future[AgentGroupMetadata] = {
+    val ordering = if (descending) QueryBuilder.desc("agent_id") else QueryBuilder.asc("agent_id")
+    val select = QueryBuilder.select("metadata").from(tableName)
+    var where = select.where(QueryBuilder.eq("group_name", groupName))
+    startClause(from, fromInclusive).foreach { clause => where = where.and(clause) }
+    endClause(to, toExclusive).foreach { clause => where = where.and(clause) }
+    val query = where.orderBy(ordering).limit(limit).setFetchSize(limit)
+    executeAsync(query).map { resultSet =>
+      val members = resultSet.all().map { row => string2agentMetadata(row.getString(0))
+      }.toVector
+      AgentGroupMetadata(members)
+    }
+  }
 
   def flushGroups(): Future[Unit] = {
     executeAsync(s"TRUNCATE $tableName").map { _ => }
@@ -65,3 +106,5 @@ class AgentGroupDAL(settings: CassandraRegistryPersisterSettings,
 
   def agentMetadata2string(metadata: AgentMetadata): String = metadata.toJson.prettyPrint
 }
+
+case class AgentGroupMetadata(members: Vector[AgentMetadata])
