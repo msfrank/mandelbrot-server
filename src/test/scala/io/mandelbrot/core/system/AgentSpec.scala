@@ -7,7 +7,7 @@ import org.scalatest.{BeforeAndAfterAll, ShouldMatchers, WordSpecLike}
 import scala.concurrent.duration._
 
 import io.mandelbrot.core.model._
-import io.mandelbrot.core.registry.{CreateRegistrationResult, CreateRegistration}
+import io.mandelbrot.core.registry.{CommitRegistrationResult, CommitRegistration, PutRegistrationResult, PutRegistration}
 import io.mandelbrot.core.{MandelbrotConfig, ServiceProxy, AkkaConfig}
 import io.mandelbrot.core.ConfigConversions._
 
@@ -57,8 +57,8 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val metadata = AgentMetadata(agentId, 1, timestamp, timestamp, None)
 
-      services ! CreateRegistration(agentId, registration, metadata, 1)
-      expectMsgClass(classOf[CreateRegistrationResult])
+      services ! CommitRegistration(agentId, registration, metadata, 1)
+      expectMsgClass(classOf[CommitRegistrationResult])
 
       val agent = system.actorOf(Agent.props(services))
 

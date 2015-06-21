@@ -72,20 +72,20 @@ class RegistryManagerSpec(_system: ActorSystem) extends TestKit(_system) with Im
   def withTestData(testCode: (ActorRef) => Any): Unit = {
     withRegistryService { registryService =>
 
-      registryService ! CreateRegistration(agent1, registrationHistory1, metadataHistory1, lsn = 1)
-      expectMsgClass(classOf[CreateRegistrationResult])
+      registryService ! PutRegistration(agent1, registrationHistory1, metadataHistory1, lsn = 1)
+      expectMsgClass(classOf[PutRegistrationResult])
 
-      registryService ! UpdateRegistration(agent1, registrationHistory2, metadataHistory2, lsn = 2)
-      expectMsgClass(classOf[UpdateRegistrationResult])
+      registryService ! CommitRegistration(agent1, registrationHistory2, metadataHistory2, lsn = 2)
+      expectMsgClass(classOf[CommitRegistrationResult])
 
-      registryService ! UpdateRegistration(agent1, registrationHistory3, metadataHistory3, lsn = 3)
-      expectMsgClass(classOf[UpdateRegistrationResult])
+      registryService ! CommitRegistration(agent1, registrationHistory3, metadataHistory3, lsn = 3)
+      expectMsgClass(classOf[CommitRegistrationResult])
 
-      registryService ! UpdateRegistration(agent1, registrationHistory4, metadataHistory4, lsn = 4)
-      expectMsgClass(classOf[UpdateRegistrationResult])
+      registryService ! CommitRegistration(agent1, registrationHistory4, metadataHistory4, lsn = 4)
+      expectMsgClass(classOf[CommitRegistrationResult])
 
-      registryService ! UpdateRegistration(agent1, registrationHistory5, metadataHistory5, lsn = 5)
-      expectMsgClass(classOf[UpdateRegistrationResult])
+      registryService ! CommitRegistration(agent1, registrationHistory5, metadataHistory5, lsn = 5)
+      expectMsgClass(classOf[CommitRegistrationResult])
 
       testCode(registryService)
     }
@@ -93,13 +93,13 @@ class RegistryManagerSpec(_system: ActorSystem) extends TestKit(_system) with Im
 
   "A RegistryManager" when {
 
-    "servicing a CreateRegistration request" should {
+    "servicing a PutRegistration request" should {
 
       "create a registration if the agent doesn't exist" in withRegistryService { registryService =>
         val timestamp = DateTime.now(DateTimeZone.UTC)
         val metadata = AgentMetadata(agent1, 1, timestamp, timestamp, None)
-        registryService ! CreateRegistration(agent1, registration1, metadata, lsn = 1)
-        val createRegistrationResult = expectMsgClass(classOf[CreateRegistrationResult])
+        registryService ! PutRegistration(agent1, registration1, metadata, lsn = 1)
+        val createRegistrationResult = expectMsgClass(classOf[PutRegistrationResult])
         createRegistrationResult.metadata shouldEqual metadata
         registryService ! GetRegistration(agent1)
         val getRegistrationResult = expectMsgClass(classOf[GetRegistrationResult])
@@ -111,12 +111,12 @@ class RegistryManagerSpec(_system: ActorSystem) extends TestKit(_system) with Im
       "overwrite a registration if the agent already exists" in withRegistryService { registryService =>
         val timestamp = DateTime.now(DateTimeZone.UTC)
         val metadata = AgentMetadata(agent1, 1, timestamp, timestamp, None)
-        registryService ! CreateRegistration(agent1, registration1, metadata, lsn = 1)
-        val createRegistrationResult1 = expectMsgClass(classOf[CreateRegistrationResult])
+        registryService ! PutRegistration(agent1, registration1, metadata, lsn = 1)
+        val createRegistrationResult1 = expectMsgClass(classOf[PutRegistrationResult])
         createRegistrationResult1.metadata shouldEqual metadata
 
-        registryService ! CreateRegistration(agent1, registration1, metadata, lsn = 2)
-        val createRegistrationResult2 = expectMsgClass(classOf[CreateRegistrationResult])
+        registryService ! PutRegistration(agent1, registration1, metadata, lsn = 2)
+        val createRegistrationResult2 = expectMsgClass(classOf[PutRegistrationResult])
         createRegistrationResult2.metadata shouldEqual metadata
 
         registryService ! GetRegistration(agent1)
@@ -127,19 +127,19 @@ class RegistryManagerSpec(_system: ActorSystem) extends TestKit(_system) with Im
       }
     }
 
-    "servicing an UpdateRegistration request" should {
+    "servicing an CommitRegistration request" should {
 
       "update a registration if the agent exists" in withRegistryService { registryService =>
         val timestamp1 = DateTime.now(DateTimeZone.UTC)
         val metadata1 = AgentMetadata(agent1, 1, timestamp1, timestamp1, None)
-        registryService ! CreateRegistration(agent1, registration1, metadata1, lsn = 1)
-        val createRegistrationResult = expectMsgClass(classOf[CreateRegistrationResult])
+        registryService ! PutRegistration(agent1, registration1, metadata1, lsn = 1)
+        val createRegistrationResult = expectMsgClass(classOf[PutRegistrationResult])
         createRegistrationResult.metadata shouldEqual metadata1
 
         val updatedRegistration = registration1.copy(metadata = Map("foo" -> "bar"))
         val updatedMetadata = metadata1.copy(lastUpdate = DateTime.now(DateTimeZone.UTC))
-        registryService ! UpdateRegistration(agent1, updatedRegistration, updatedMetadata, lsn = 2)
-        val updateRegistrationResult = expectMsgClass(classOf[UpdateRegistrationResult])
+        registryService ! CommitRegistration(agent1, updatedRegistration, updatedMetadata, lsn = 2)
+        val updateRegistrationResult = expectMsgClass(classOf[CommitRegistrationResult])
 
         registryService ! GetRegistration(agent1)
         val getRegistrationResult = expectMsgClass(classOf[GetRegistrationResult])
@@ -151,8 +151,8 @@ class RegistryManagerSpec(_system: ActorSystem) extends TestKit(_system) with Im
       "create a registration if the agent doesn't exist" in withRegistryService { registryService =>
         val timestamp = DateTime.now(DateTimeZone.UTC)
         val metadata = AgentMetadata(agent1, 1, timestamp, timestamp, None)
-        registryService ! UpdateRegistration(agent1, registration1, metadata, lsn = 1)
-        val updateRegistrationResult = expectMsgClass(classOf[UpdateRegistrationResult])
+        registryService ! CommitRegistration(agent1, registration1, metadata, lsn = 1)
+        val updateRegistrationResult = expectMsgClass(classOf[CommitRegistrationResult])
 
         registryService ! GetRegistration(agent1)
         val getRegistrationResult = expectMsgClass(classOf[GetRegistrationResult])
@@ -167,8 +167,8 @@ class RegistryManagerSpec(_system: ActorSystem) extends TestKit(_system) with Im
       "delete a registration if the agent exists" in withRegistryService { registryService =>
         val timestamp = DateTime.now(DateTimeZone.UTC)
         val metadata = AgentMetadata(agent1, 1, timestamp, timestamp, None)
-        registryService ! CreateRegistration(agent1, registration1, metadata, lsn = 1)
-        val createRegistrationResult = expectMsgClass(classOf[CreateRegistrationResult])
+        registryService ! PutRegistration(agent1, registration1, metadata, lsn = 1)
+        val createRegistrationResult = expectMsgClass(classOf[PutRegistrationResult])
         createRegistrationResult.metadata shouldEqual metadata
 
         registryService ! DeleteRegistration(agent1, generation = metadata.generation)

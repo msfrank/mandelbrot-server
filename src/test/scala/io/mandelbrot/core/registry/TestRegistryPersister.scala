@@ -24,7 +24,7 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
         case events =>
           events.lastOption.map(_._2) match {
             case Some(event: RegistrationEvent) =>
-              sender() ! GetRegistrationResult(op, event.registration, event.metadata, event.lsn)
+              sender() ! GetRegistrationResult(op, event.registration, event.metadata, event.lsn, event.committed)
             case None =>
               sender() ! RegistryServiceOperationFailed(op, ApiException(ResourceNotFound))
           }
@@ -61,26 +61,19 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
         case ex: Throwable => sender() ! RegistryServiceOperationFailed(op, ex)
       }
 
-    case op: CreateRegistration =>
+    case op: PutRegistration =>
       val events = registrations.getOrDefault(op.agentId, new util.TreeMap[GenerationLsn,RegistrationEvent])
       val event = RegistrationEvent(op.registration, op.metadata, op.lsn, committed = false)
       events.put(GenerationLsn(op.metadata.generation,op.lsn), event)
       registrations.put(op.agentId, events)
-      sender() ! CreateRegistrationResult(op, op.metadata)
+      sender() ! PutRegistrationResult(op, op.metadata)
 
-    case op: UpdateRegistration =>
+    case op: CommitRegistration =>
       val events = registrations.getOrDefault(op.agentId, new util.TreeMap[GenerationLsn,RegistrationEvent])
-      val event = RegistrationEvent(op.registration, op.metadata, op.lsn, committed = false)
+      val event = RegistrationEvent(op.registration, op.metadata, op.lsn, committed = true)
       events.put(GenerationLsn(op.metadata.generation,op.lsn), event)
       registrations.put(op.agentId, events)
-      sender() ! UpdateRegistrationResult(op)
-
-    case op: RetireRegistration =>
-      val events = registrations.getOrDefault(op.agentId, new util.TreeMap[GenerationLsn,RegistrationEvent])
-      val event = RegistrationEvent(op.registration, op.metadata, op.lsn, committed = false)
-      events.put(GenerationLsn(op.metadata.generation,op.lsn), event)
-      registrations.put(op.agentId, events)
-      sender() ! RetireRegistrationResult(op)
+      sender() ! CommitRegistrationResult(op)
 
     case op: DeleteRegistration =>
       registrations.remove(op.agentId)

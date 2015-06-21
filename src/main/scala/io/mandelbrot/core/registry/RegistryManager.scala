@@ -35,17 +35,21 @@ class RegistryManager(settings: RegistrySettings) extends Actor with ActorLoggin
   val registrar: ActorRef = context.actorOf(settings.props, "registrar")
 
   def receive = {
-    case op: CreateRegistration =>
+
+    case op: PutRegistration =>
       if (!registrationValid(op.registration))
         sender() ! RegistryServiceOperationFailed(op, ApiException(BadRequest))
       else registrar forward op
 
-    case op: UpdateRegistration =>
+    case op: CommitRegistration =>
       if (!registrationValid(op.registration))
         sender() ! RegistryServiceOperationFailed(op, ApiException(BadRequest))
       else registrar forward op
 
-    case op: RegistryServiceOperation =>
+    case op: RegistryServiceQuery =>
+      registrar forward op
+
+    case op: RegistryServiceCommand =>
       registrar forward op
   }
 
@@ -81,7 +85,8 @@ case class GetRegistration(agentId: AgentId) extends RegistryServiceQuery
 case class GetRegistrationResult(op: GetRegistration,
                                  registration: AgentSpec,
                                  metadata: AgentMetadata,
-                                 lsn: Long)
+                                 lsn: Long,
+                                 committed: Boolean)
 
 case class GetRegistrationHistory(agentId: AgentId,
                                   from: Option[GenerationLsn],
@@ -93,23 +98,17 @@ case class GetRegistrationHistory(agentId: AgentId,
                                   last: Option[String] = None) extends RegistryServiceQuery
 case class GetRegistrationHistoryResult(op: GetRegistrationHistory, page: RegistrationsPage)
 
-case class CreateRegistration(agentId: AgentId,
-                              registration: AgentSpec,
-                              metadata: AgentMetadata,
-                              lsn: Long) extends RegistryServiceCommand
-case class CreateRegistrationResult(op: CreateRegistration, metadata: AgentMetadata)
+case class PutRegistration(agentId: AgentId,
+                           registration: AgentSpec,
+                           metadata: AgentMetadata,
+                           lsn: Long) extends RegistryServiceCommand
+case class PutRegistrationResult(op: PutRegistration, metadata: AgentMetadata)
 
-case class UpdateRegistration(agentId: AgentId,
+case class CommitRegistration(agentId: AgentId,
                               registration: AgentSpec,
                               metadata: AgentMetadata,
                               lsn: Long) extends RegistryServiceCommand
-case class UpdateRegistrationResult(op: UpdateRegistration)
-
-case class RetireRegistration(agentId: AgentId,
-                              registration: AgentSpec,
-                              metadata: AgentMetadata,
-                              lsn: Long) extends RegistryServiceCommand
-case class RetireRegistrationResult(op: RetireRegistration)
+case class CommitRegistrationResult(op: CommitRegistration)
 
 case class DeleteRegistration(agentId: AgentId, generation: Long) extends RegistryServiceCommand
 case class DeleteRegistrationResult(op: DeleteRegistration)

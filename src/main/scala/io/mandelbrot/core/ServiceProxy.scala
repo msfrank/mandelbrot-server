@@ -41,10 +41,6 @@ class ServiceProxy extends Actor with ActorLogging {
   val settings = ServerConfig(context.system).settings
   val deliveryAttempts = settings.cluster.deliveryAttempts
 
-  val registryService = context.actorOf(RegistryManager.props(settings.registry), "registry-service")
-  val notificationService = context.actorOf(NotificationManager.props(settings.notification), "notification-service")
-  val stateService = context.actorOf(StateManager.props(settings.state), "state-service")
-
   //
   val keyExtractor: EntityFunctions.KeyExtractor = {
     case op: CheckOperation => op.checkRef.agentId.toString
@@ -61,6 +57,9 @@ class ServiceProxy extends Actor with ActorLogging {
     case key => ReviveAgent(AgentId(key))
   }
 
+  val registryService = context.actorOf(RegistryManager.props(settings.registry), "registry-service")
+  val notificationService = context.actorOf(NotificationManager.props(settings.notification), "notification-service")
+  val stateService = context.actorOf(StateManager.props(settings.state), "state-service")
   val entityService = context.actorOf(EntityManager.props(settings.cluster, propsCreator, entityReviver), "entity-service")
 
   def receive = {
@@ -88,6 +87,13 @@ class ServiceProxy extends Actor with ActorLogging {
       } catch {
         case ex: Throwable => sender() ! EntityDeliveryFailed(op, ApiException(BadRequest))
       }
+  }
+
+  override def unhandled(message: Any): Unit = {
+    message match {
+      case op: ServiceOperation => log.warning("dropping unhandled ServiceOperation {}", op)
+      case other => log.error("dropping unhandled message {}", other)
+    }
   }
 }
 

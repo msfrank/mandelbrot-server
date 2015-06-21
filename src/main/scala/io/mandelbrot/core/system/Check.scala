@@ -55,9 +55,9 @@ class Check(val checkRef: CheckRef,
   var children: Set[CheckRef] = null
   var checkGeneration: Long = 0L
   var lastCommitted: Option[DateTime] = None
-  val alertTimer = new Timer(context, self, CheckAlertTimeout)
   val commitTimer = new Timer(context, self, CheckCommitTimeout)
   val expiryTimer = new Timer(context, self, CheckExpiryTimeout)
+  val alertTimer = new Timer(context, self, CheckAlertTimeout)
 
   startWith(Incubating, NoData)
 
@@ -123,7 +123,7 @@ class Check(val checkRef: CheckRef,
       throw failure
 
     /* stash any other messages for processing later */
-    case Event(other, state: Initializing) =>
+    case Event(_, state: Initializing) =>
       stash()
       stay()
   }
@@ -339,7 +339,7 @@ class Check(val checkRef: CheckRef,
     case Event(result: UpdateCheckStatusResult, NoData) =>
       commit()
       log.debug("{} is retired", result.op.checkRef)
-      stop()
+      stay()
 
     /* state failed to commit */
     case Event(failure: StateServiceOperationFailed, NoData) =>

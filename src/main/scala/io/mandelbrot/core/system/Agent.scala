@@ -20,6 +20,7 @@
 package io.mandelbrot.core.system
 
 import akka.actor._
+import akka.pattern.{ask,pipe}
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -43,6 +44,8 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
   val settings = ServerConfig(context.system).settings
   val retirementPeriod = 1.days     // FIXME: define this in agent registration
   val activeRetirement = 5.minutes  // FIXME: define this in ServerConfig
+  val updatingTimeout = 5.seconds   // FIXME: define this in ServerConfig
+  val retiringTimeout = 5.seconds   // FIXME: define this in ServerConfig
 
   // state
   var checks: Map[CheckId,CheckActor] = Map.empty
@@ -53,7 +56,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
   var lsn: Long = 0
 
   override def preStart(): Unit = {
-    startWith(SystemIncubating, SystemWaiting)
+    startWith(AgentIncubating, NoData)
     initialize()
   }
 
@@ -62,15 +65,13 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
    * and uses the message type to determine whether to transition to REGISTERING or
    * INITIALIZING.  Any other message is stashed.
    */
-  when(SystemIncubating) {
+  when(AgentIncubating) {
 
     case Event(op: RegisterAgent, _) =>
-      services ! GetRegistration(op.agentId)
-      goto(SystemRegistering) using SystemRegistering(op, sender())
+      goto(AgentRegistering) using AgentRegistering(op, sender())
 
     case Event(op: ReviveAgent, _) =>
-      services ! GetRegistration(op.agentId)
-      goto(SystemInitializing) using SystemInitializing(op, sender())
+      goto(AgentInitializing) using AgentInitializing(op, sender())
 
     /* stash any agent operations for later */
     case Event(op: AgentOperation, _) =>
@@ -81,72 +82,50 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
     case Event(op: CheckOperation, _) =>
       stash()
       stay()
+  }
+
+  onTransition {
+    /* request the current registration when we are transitioning to REGISTERING */
+    case _ -> AgentRegistering =>
+      val state = nextStateData.asInstanceOf[AgentRegistering]
+      services ! GetRegistration(state.op.agentId)
   }
 
   /*
    * The agent transitions to REGISTERING state when the first message received was
-   * RegisterAgent.
+   * RegisterAgent.  If the agent exists but needs recovery, then we transition to
+   * RECOVERING, and configure the recovery state to loop us back to REGISTERING state
+   * once recovery finishes.  Otherwise we start the agent registration task and wait
+   * for the registration complete message.  If the registration task fails, then the
+   * supervision strategy will catch the failure.
    */
-  when(SystemRegistering) {
+  when(AgentRegistering) {
+
+    /* the agent already exists and has uncommitted changes */
+    case Event(result: GetRegistrationResult, state: AgentRegistering) if !result.committed =>
+      val commit = CommitRegistration(state.op.agentId, result.registration, result.metadata, result.lsn)
+      goto(AgentRecovering) using AgentRecovering(commit, AgentRegistering, state)
 
     /* the agent already exists */
-    case Event(result: GetRegistrationResult, state: SystemRegistering) =>
+    case Event(result: GetRegistrationResult, state: AgentRegistering) =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val metadata = result.metadata.copy(generation = result.metadata.generation + 1, lastUpdate = timestamp)
-      services ! CreateRegistration(state.op.agentId, state.op.registration, metadata, result.lsn + 1)
+      services ! PutRegistration(state.op.agentId, state.op.registration, metadata, result.lsn + 1)
       stay()
 
     /* the agent doesn't exist */
-    case Event(RegistryServiceOperationFailed(_: GetRegistration, ApiException(ResourceNotFound)), state: SystemRegistering) =>
-      val timestamp = DateTime.now(DateTimeZone.UTC)
-      val metadata = AgentMetadata(state.op.agentId, generation + 1, timestamp, timestamp, None)
-      services ! CreateRegistration(state.op.agentId, state.op.registration, metadata, lsn + 1)
+    case Event(RegistryServiceOperationFailed(_: GetRegistration, ApiException(ResourceNotFound)), state: AgentRegistering) =>
+      context.actorOf(RegisterAgentTask.props(state.op, state.sender, generation + 1, lsn + 1, services))
       stay()
 
     /* we successfully registered the agent */
-    case Event(result: CreateRegistrationResult, state: SystemRegistering) =>
-      state.sender ! RegisterAgentResult(state.op, result.metadata)
-      // set the generation and lsn state variables now
-      generation = result.metadata.generation
-      lsn = result.op.lsn
-      goto(SystemRunning) using SystemRunning(state.op.agentId, result.op.registration, result.metadata)
-
-    /* any unhandled failure */
-    case Event(failure: RegistryServiceOperationFailed, state: SystemRegistering) =>
-      state.sender ! AgentOperationFailed(state.op, failure.failure)
-      throw failure.failure
-
-    /* stash any agent operations for later */
-    case Event(op: AgentOperation, _) =>
-      stash()
-      stay()
-
-    /* stash any check operations for later */
-    case Event(op: CheckOperation, _) =>
-      stash()
-      stay()
-  }
-
-  /*
-   * The agent transitions to INITIALIZING state when the first message received was
-   * ReviveAgent.
-   */
-  when(SystemInitializing) {
-
-    /* the agent exists and is retired */
-    case Event(result: GetRegistrationResult, state: SystemInitializing) if result.metadata.expires.isDefined =>
+    case Event(result: RegisterAgentTaskComplete, state: AgentRegistering) =>
       generation = result.metadata.generation
       lsn = result.lsn
-      goto(SystemRetired) using SystemRetired(state.op.agentId, result.registration, result.metadata)
-
-    /* the agent exists and is active */
-    case Event(result: GetRegistrationResult, state: SystemInitializing) =>
-      generation = result.metadata.generation
-      lsn = result.lsn
-      goto(SystemRunning) using SystemRunning(state.op.agentId, result.registration, result.metadata)
+      goto(AgentRunning) using AgentRunning(state.op.agentId, result.registration, result.metadata)
 
     /* any unhandled failure */
-    case Event(failure: RegistryServiceOperationFailed, state: SystemInitializing) =>
+    case Event(failure: RegistryServiceOperationFailed, state: AgentRegistering) =>
       state.sender ! AgentOperationFailed(state.op, failure.failure)
       throw failure.failure
 
@@ -162,22 +141,89 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
   }
 
   onTransition {
-    case _ -> SystemRunning => nextStateData match {
-      case state: SystemRunning =>
-        log.debug("configuring agent {}", state.agentId)
-        unstashAll()
-        applyCheckRegistration(state.agentId, state.registration, lsn)
-      case _ =>
-    }
+    /* request the current registration when we are transitioning to INITIALIZING */
+    case _ -> AgentInitializing =>
+      val state = nextStateData.asInstanceOf[AgentInitializing]
+      services ! GetRegistration(state.op.agentId)
   }
 
-  when (SystemRunning) {
+  /*
+   * The agent transitions to INITIALIZING state when the first message received was
+   * ReviveAgent.
+   */
+  when(AgentInitializing) {
+
+    /* the agent exists and has uncommitted changes */
+    case Event(result: GetRegistrationResult, state: AgentInitializing) if !result.committed =>
+      val commit = CommitRegistration(state.op.agentId, result.registration, result.metadata, result.lsn)
+      goto(AgentRecovering) using AgentRecovering(commit, AgentInitializing, state)
+
+    /* the agent exists and is retired */
+    case Event(result: GetRegistrationResult, state: AgentInitializing) if result.metadata.expires.isDefined =>
+      generation = result.metadata.generation
+      lsn = result.lsn
+      goto(AgentRetired) using AgentRetired(state.op.agentId, result.registration, result.metadata)
+
+    /* the agent exists and is active */
+    case Event(result: GetRegistrationResult, state: AgentInitializing) =>
+      generation = result.metadata.generation
+      lsn = result.lsn
+      goto(AgentRunning) using AgentRunning(state.op.agentId, result.registration, result.metadata)
+
+    /* any unhandled failure */
+    case Event(failure: RegistryServiceOperationFailed, state: AgentInitializing) =>
+      state.sender ! AgentOperationFailed(state.op, failure.failure)
+      throw failure.failure
+
+    /* stash any agent operations for later */
+    case Event(op: AgentOperation, _) =>
+      stash()
+      stay()
+
+    /* stash any check operations for later */
+    case Event(op: CheckOperation, _) =>
+      stash()
+      stay()
+  }
+
+  onTransition {
+    /* start the agent recovery task when we are transitioning to RECOVERING */
+    case _ -> AgentRecovering =>
+      val state = nextStateData.asInstanceOf[AgentRecovering]
+      context.actorOf(RecoverAgentTask.props(state.commit, services))
+  }
+
+  /*
+   * When the agent transitions to RECOVERING state, the recovery task has already
+   * been started, so we simply wait until the recovery complete message is received.
+   * if the task fails, then supervision will catch the exception.
+   */
+  when(AgentRecovering) {
+    case Event(result: RecoverAgentTaskComplete, state: AgentRecovering) =>
+      goto(state.nextState) using state.nextData
+  }
+
+  onTransition {
+    /* apply the current registration and unstash pending operations */
+    case _ -> AgentRunning =>
+      val state = nextStateData.asInstanceOf[AgentRunning]
+      log.debug("configuring agent {}", state.agentId)
+      applyAgentRegistration(state.agentId, state.registration, lsn)
+      retiredChecks.keys.foreach(_ ! PoisonPill)
+      unstashAll()
+  }
+
+  /*
+   *
+   */
+  when (AgentRunning) {
 
     /* get the Agent spec */
-    case Event(query: DescribeAgent, state: SystemRunning) =>
+    case Event(query: DescribeAgent, state: AgentRunning) =>
       stay() replying DescribeAgentResult(query, state.registration, state.metadata)
 
-    case Event(query: MatchAgent, state: SystemRunning) =>
+    /* return all checks which match the query */
+    case Event(query: MatchAgent, state: AgentRunning) =>
       if (query.matchers.nonEmpty) {
         val matchingRefs = checks.keys.flatMap { case checkId =>
           val checkRef = CheckRef(state.agentId, checkId)
@@ -186,29 +232,33 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
         stay() replying MatchAgentResult(query, matchingRefs)
       } else stay() replying MatchAgentResult(query, checks.keySet.map(checkId => CheckRef(state.agentId, checkId)))
 
-    case Event(op: RegisterAgent, state: SystemRunning) =>
+    /* return Conflict because the agent already exists */
+    case Event(op: RegisterAgent, state: AgentRunning) =>
       stay() replying AgentOperationFailed(op, ApiException(Conflict))
 
-    /* update checks */
-    case Event(op: UpdateAgent, state: SystemRunning) =>
+    /* apply updated agent registration */
+    case Event(op: UpdateAgent, state: AgentRunning) =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val metadata = state.metadata.copy(lastUpdate = timestamp)
-      val update = UpdateRegistration(op.agentId, op.registration, metadata, lsn + 1)
-      goto(SystemUpdating) using SystemUpdating(op, sender(), update, state)
+      val current = AgentRegistration(state.registration, state.metadata, lsn, committed = true)
+      val commit = AgentRegistration(op.registration, metadata, lsn + 1, committed = false)
+      val nextData = AgentRunning(state.agentId, op.registration, metadata)
+      goto(AgentUpdating) using AgentUpdating(op, sender(), current, commit)
 
     /* retire all running checks */
-    case Event(op: RetireAgent, state: SystemRunning) =>
+    case Event(op: RetireAgent, state: AgentRunning) =>
       val tombstone = DateTime.now(DateTimeZone.UTC).plus(retirementPeriod.toMillis)
       val metadata = state.metadata.copy(expires = Some(tombstone))
-      val retire = RetireRegistration(op.agentId, state.registration, metadata, lsn + 1)
-      goto(SystemRetiring) using SystemRetiring(op, sender(), retire, state)
+      val current = AgentRegistration(state.registration, state.metadata, lsn, committed = true)
+      val commit = AgentRegistration(state.registration, metadata, lsn + 1, committed = false)
+      goto(AgentRetiring) using AgentRetiring(op, sender(), current, commit)
 
     /* ignore check status from top level checks */
-    case Event(status: CheckStatus, state: SystemRunning) =>
+    case Event(status: CheckStatus, state: AgentRunning) =>
       stay()
 
     /* forward check operations to the specified check */
-    case Event(op: CheckOperation, state: SystemRunning) =>
+    case Event(op: CheckOperation, state: AgentRunning) =>
       checks.get(op.checkRef.checkId) match {
         case Some(checkActor: CheckActor) =>
           checkActor.actor.forward(op)
@@ -218,49 +268,49 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       stay()
 
     /* handle notifications which have been passed up from Check */
-    case Event(notification: NotificationEvent, state: SystemRunning) =>
+    case Event(notification: NotificationEvent, state: AgentRunning) =>
       services ! notification
       stay()
 
     /* clean up retired checks, reanimate zombie checks */
-    case Event(Terminated(actorRef), state: SystemRunning) =>
+    case Event(Terminated(actorRef), state: AgentRunning) =>
       val (checkRef,lsn) = retiredChecks(actorRef)
       checks = checks - checkRef
       retiredChecks.remove(actorRef)
       if (zombieChecks.contains(checkRef)) {
         zombieChecks.remove(checkRef)
-        applyCheckRegistration(state.agentId, state.registration, lsn)
+        applyAgentRegistration(state.agentId, state.registration, lsn)
       } else
         log.debug("check {} has been terminated", checkRef)
       stay()
   }
 
   onTransition {
-    case _ -> SystemUpdating => nextStateData match  {
-      case state: SystemUpdating =>
-        services ! state.update
-      case _ =>
-    }
+    /* start the agent update task when we are transitioning to UPDATING */
+    case _ -> AgentUpdating =>
+      val state = nextStateData.asInstanceOf[AgentUpdating]
+      context.actorOf(UpdateAgentTask.props(state.op, state.sender, state.current, state.commit, services))
   }
 
-  when(SystemUpdating) {
-    case Event(result: UpdateRegistrationResult, state: SystemUpdating) =>
-      state.sender ! UpdateAgentResult(state.op, state.update.metadata)
-      goto(SystemRunning) using SystemRunning(state.op.agentId, state.op.registration, state.update.metadata)
-    case Event(failure: RegistryServiceOperationFailed, state: SystemUpdating) =>
-      state.sender ! failure
-      goto(SystemRunning) using state.prev
-    case Event(_, state: SystemUpdating) =>
-      stash()
-      stay()
+  /*
+   * UPDATING is a transitional state
+   */
+  when(AgentUpdating) {
+    case Event(result: UpdateAgentTaskComplete, state: AgentUpdating) =>
+      goto(AgentRunning) using AgentRunning(state.op.agentId, result.registration, result.metadata)
   }
 
   onTransition {
-    case _ -> SystemRetiring => nextStateData match {
-      case state: SystemRetiring =>
-        services ! state.retire
-      case _ =>
-    }
+    case _ -> AgentRetiring =>
+      val state = nextStateData.asInstanceOf[AgentRetiring]
+      val refs = checks.filterNot {
+        case (_, checkActor) => retiredChecks.contains(checkActor.actor)
+      }.map {
+        case (checkId, checkActor) =>
+          retiredChecks.put(checkActor.actor, (checkId, state.commit.lsn))
+          checkActor.actor
+      }.toSet
+      context.actorOf(RetireAgentTask.props(state.op, state.sender, state.current, state.commit, refs, services))
   }
 
   /*
@@ -268,57 +318,29 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
    * we tell the registry manager to mark us as retired, then upon confirmation we
    * write a tombstone entry and retire all checks.  once the tombstone has been
    * written and all checks are terminated, we transition to RETIRED.
-   *
-   * If registry manager fails to mark as as retired, then we return failure to the
-   * client and transition back to RUNNING.
    */
-  when(SystemRetiring) {
+  when(AgentRetiring) {
 
-    /* we have marked agent as retired */
-    case Event(result: RetireRegistrationResult, state: SystemRetiring) =>
-      state.sender ! RetireAgentResult(state.op, result.op.metadata)
-      services ! PutTombstone(state.retire.agentId, state.retire.metadata.generation, state.retire.metadata.expires.get)
-      stay()
-
-    /* we have written the tombstone */
-    case Event(result: PutTombstoneResult, state: SystemRetiring) =>
-      checks.foreach {
-        case (checkRef,checkActor) if !retiredChecks.contains(checkActor.actor) =>
-          checkActor.actor ! RetireCheck(lsn)
-          retiredChecks.put(checkActor.actor, (checkRef,lsn))
-        case _ => // do nothing
-      }
+    /* terminate all running checks */
+    case Event(result: RetireAgentTaskComplete, state: AgentRetiring) =>
+      checks.foreach { case (_,checkActor) => checkActor.actor ! PoisonPill }
       stay()
 
     /* check actor has terminated */
-    case Event(Terminated(actorRef), state: SystemRetiring) =>
-      val (checkRef,lsn) = retiredChecks(actorRef)
+    case Event(Terminated(actorRef), state: AgentRetiring) =>
+      val (checkRef,_) = retiredChecks(actorRef)
       checks = checks - checkRef
       retiredChecks.remove(actorRef)
       if (zombieChecks.contains(checkRef))
         zombieChecks.remove(checkRef)
       if (checks.isEmpty) {
-        goto(SystemRetired) using SystemRetired(state.retire.agentId, state.retire.registration, state.retire.metadata)
+        goto(AgentRetired) using AgentRetired(state.op.agentId, state.commit.spec, state.commit.metadata)
       } else stay()
-
-    /* RetireRegistration failed */
-    case Event(failure @ RegistryServiceOperationFailed(op: RetireRegistration, _), state: SystemRetiring) =>
-      state.sender ! failure
-      goto(SystemRunning) using state.prev // go back to RUNNING
-
-    /* PutTombstone failed */
-    case Event(failure @ RegistryServiceOperationFailed(op: PutTombstone, _), state: SystemRetiring) =>
-      throw new IllegalStateException("failed to put tombstone for {} with generation {}".format(op.agentId, op.generation))
-
-    /* we stash any other message while in transitional state */
-    case Event(_, state: SystemRetiring) =>
-      stash()
-      stay()
   }
 
   onTransition {
-    case _ -> SystemRetired => nextStateData match {
-      case state: SystemRetired =>
+    case _ -> AgentRetired => nextStateData match {
+      case state: AgentRetired =>
         unstashAll()
         context.system.scheduler.scheduleOnce(activeRetirement, self, StopAgent)
       case _ =>
@@ -331,21 +353,21 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
    * after a certain period of time, we terminate the actor because it is unlikely
    * that the client will query the agent frequently.
    */
-  when(SystemRetired) {
+  when(AgentRetired) {
 
     /* active retirement period has ended, stop agent */
-    case Event(StopAgent, state: SystemRetired) =>
+    case Event(StopAgent, state: AgentRetired) =>
       stop()
 
     /* register a new generation of the agent */
-    case Event(op: RegisterAgent, state: SystemRetired) =>
+    case Event(op: RegisterAgent, state: AgentRetired) =>
       self.forward(op)
-      goto(SystemIncubating) using SystemWaiting
+      goto(AgentIncubating) using NoData
 
-    case Event(op: DescribeAgent, state: SystemRetired) =>
+    case Event(op: DescribeAgent, state: AgentRetired) =>
       stay() replying DescribeAgentResult(op, state.registration, state.metadata)
 
-    case Event(op: MatchAgent, state: SystemRetired) =>
+    case Event(op: MatchAgent, state: AgentRetired) =>
       stay() replying AgentOperationFailed(op, ApiException(ResourceNotFound))
 
     /* agent doesn't exist anymore, so return resource not found */
@@ -355,19 +377,6 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
     /* agent doesn't exist anymore, so return resource not found */
     case Event(op: CheckOperation, _) =>
       stay() replying CheckOperationFailed(op, ApiException(ResourceNotFound))
-  }
-
-  onTransition {
-    case _ -> SystemFailed => unstashAll()
-  }
-
-  when(SystemFailed) {
-    case Event(op: AgentOperation, state: SystemError) =>
-      stop() replying AgentOperationFailed(op, state.ex)
-    case Event(op: CheckOperation, state: SystemError) =>
-      stop() replying CheckOperationFailed(op, state.ex)
-    /* ignore any other messages */
-    case _: Event => stay()
   }
 
   /**
@@ -389,7 +398,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
   /**
    * apply the spec to the check system, adding and removing checks as necessary
    */
-  def applyCheckRegistration(agentId: AgentId, registration: AgentSpec, lsn: Long): Unit = {
+  def applyAgentRegistration(agentId: AgentId, registration: AgentSpec, lsn: Long): Unit = {
 
     val registrationSet = makeRegistrationSet(registration)
     val checkSet = checks.keySet
@@ -478,28 +487,28 @@ object Agent {
   val placeholderCheckSpec = CheckSpec("io.mandelbrot.core.system.ContainerCheck",
     CheckPolicy(0.seconds, 5.minutes, 5.minutes, 5.minutes, None), Map.empty, Map.empty
   )
-  
+
   case class CheckActor(spec: CheckSpec, factory: CheckBehaviorExtension#DependentProcessorFactory, actor: ActorRef)
 
   sealed trait State
-  case object SystemIncubating extends State
-  case object SystemRegistering extends State
-  case object SystemInitializing extends State
-  case object SystemRunning extends State
-  case object SystemUpdating extends State
-  case object SystemRetiring extends State
-  case object SystemRetired extends State
-  case object SystemFailed extends State
+  case object AgentIncubating extends State
+  case object AgentRegistering extends State
+  case object AgentInitializing extends State
+  case object AgentRecovering extends State
+  case object AgentRunning extends State
+  case object AgentUpdating extends State
+  case object AgentRetiring extends State
+  case object AgentRetired extends State
 
   sealed trait Data
-  case object SystemWaiting extends Data
-  case class SystemInitializing(op: ReviveAgent, sender: ActorRef) extends Data
-  case class SystemRegistering(op: RegisterAgent, sender: ActorRef) extends Data
-  case class SystemRunning(agentId: AgentId, registration: AgentSpec, metadata: AgentMetadata) extends Data
-  case class SystemUpdating(op: UpdateAgent, sender: ActorRef, update: UpdateRegistration, prev: SystemRunning) extends Data
-  case class SystemRetiring(op: RetireAgent, sender: ActorRef, retire: RetireRegistration, prev: SystemRunning) extends Data
-  case class SystemRetired(agentId: AgentId, registration: AgentSpec, metadata: AgentMetadata) extends Data
-  case class SystemError(ex: Throwable) extends Data
+  case object NoData extends Data
+  case class AgentInitializing(op: ReviveAgent, sender: ActorRef) extends Data
+  case class AgentRegistering(op: RegisterAgent, sender: ActorRef) extends Data
+  case class AgentRecovering(commit: CommitRegistration, nextState: State, nextData: Data) extends Data
+  case class AgentRunning(agentId: AgentId, registration: AgentSpec, metadata: AgentMetadata) extends Data
+  case class AgentUpdating(op: UpdateAgent, sender: ActorRef, current: AgentRegistration, commit: AgentRegistration) extends Data
+  case class AgentRetiring(op: RetireAgent, sender: ActorRef, current: AgentRegistration, commit: AgentRegistration) extends Data
+  case class AgentRetired(agentId: AgentId, registration: AgentSpec, metadata: AgentMetadata) extends Data
 
   case object StopAgent
 }

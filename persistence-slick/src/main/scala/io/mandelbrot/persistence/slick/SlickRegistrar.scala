@@ -153,20 +153,20 @@ trait SlickRegistrar extends Actor with ActorLogging {
 
   def receive = {
 
-    case command: CreateRegistration =>
+    case command: PutRegistration =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       db.withSession { implicit session =>
         dal.insert(command.uri, command.registration, timestamp) match {
-          case Success(lsn) => sender() ! CreateRegistrationResult(command, 1)
+          case Success(lsn) => sender() ! PutRegistrationResult(command, 1)
           case Failure(ex) => sender() ! RegistryServiceOperationFailed(command, ex)
         }
       }
 
-    case command: UpdateRegistration =>
+    case command: CommitRegistration =>
       val timestamp = DateTime.now(DateTimeZone.UTC)
       db.withSession { implicit session =>
         dal.update(command.uri, command.registration, timestamp) match {
-          case Success(lsn) => sender() ! UpdateRegistrationResult(command, 1)
+          case Success(lsn) => sender() ! CommitRegistrationResult(command, 1)
           case Failure(ex) => sender() ! RegistryServiceOperationFailed(command, ex)
         }
       }

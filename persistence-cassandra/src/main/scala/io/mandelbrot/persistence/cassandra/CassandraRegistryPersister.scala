@@ -30,26 +30,18 @@ class CassandraRegistryPersister(settings: CassandraRegistryPersisterSettings) e
         case ex: Throwable => sender() ! RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
-    case op: CreateRegistration =>
+    case op: PutRegistration =>
       agentRegistrationDAL.updateAgentRegistration(op.agentId, op.metadata.generation,
         op.lsn, op.registration, op.metadata.joinedOn, op.metadata.lastUpdate, op.metadata.expires).map {
-        _ => CreateRegistrationResult(op, op.metadata)
+        _ => PutRegistrationResult(op, op.metadata)
       }.recover {
         case ex: Throwable => RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
-    case op: UpdateRegistration =>
+    case op: CommitRegistration =>
       agentRegistrationDAL.updateAgentRegistration(op.agentId, op.metadata.generation,
         op.lsn, op.registration, op.metadata.joinedOn, op.metadata.lastUpdate, op.metadata.expires).map{
-        _ => UpdateRegistrationResult(op)
-      }.recover {
-        case ex: Throwable => RegistryServiceOperationFailed(op, ex)
-      }.pipeTo(sender())
-
-    case op: RetireRegistration =>
-      agentRegistrationDAL.updateAgentRegistration(op.agentId, op.metadata.generation,
-        op.lsn, op.registration, op.metadata.joinedOn, op.metadata.lastUpdate, op.metadata.expires).map {
-        _ => RetireRegistrationResult(op)
+        _ => CommitRegistrationResult(op)
       }.recover {
         case ex: Throwable => RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
