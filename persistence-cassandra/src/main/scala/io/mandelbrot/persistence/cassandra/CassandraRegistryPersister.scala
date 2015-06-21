@@ -9,7 +9,7 @@ import io.mandelbrot.core.model.{RegistrationsPage, AgentId}
 import io.mandelbrot.core.{NotImplemented, ApiException}
 
 import io.mandelbrot.core.registry._
-import io.mandelbrot.persistence.cassandra.dal.{AgentTombstoneDAL, AgentRegistrationDAL}
+import io.mandelbrot.persistence.cassandra.dal.{AgentGroupDAL, AgentTombstoneDAL, AgentRegistrationDAL}
 import io.mandelbrot.persistence.cassandra.task.GetAgentRegistrationHistoryTask
 
 import scala.util.hashing.MurmurHash3
@@ -22,6 +22,7 @@ class CassandraRegistryPersister(settings: CassandraRegistryPersisterSettings) e
 
   val session = Cassandra(context.system).getSession
   val agentRegistrationDAL = new AgentRegistrationDAL(settings, session, context.dispatcher)
+  val agentGroupDAL = new AgentGroupDAL(settings, session, context.dispatcher)
   val agentTombstoneDAL = new AgentTombstoneDAL(settings, session, context.dispatcher)
 
   def receive = {
@@ -66,6 +67,20 @@ class CassandraRegistryPersister(settings: CassandraRegistryPersisterSettings) e
       val partition = calculatePartition(op.agentId)
       agentTombstoneDAL.deleteTombstone(partition, op.expires, op.agentId, op.generation).map {
         _ => DeleteTombstoneResult(op)
+      }.recover {
+        case ex: Throwable => RegistryServiceOperationFailed(op, ex)
+      }.pipeTo(sender())
+
+    case op: AddAgentToGroup =>
+      agentGroupDAL.addToGroup(op.groupName, op.metadata).map {
+        _ => AddAgentToGroupResult(op)
+      }.recover {
+        case ex: Throwable => RegistryServiceOperationFailed(op, ex)
+      }.pipeTo(sender())
+
+    case op: RemoveAgentFromGroup =>
+      agentGroupDAL.removeFromGroup(op.groupName, op.agentId).map {
+        _ => RemoveAgentFromGroupResult(op)
       }.recover {
         case ex: Throwable => RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
