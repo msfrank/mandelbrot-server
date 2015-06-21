@@ -22,7 +22,7 @@ package io.mandelbrot.core.http.json
 import spray.json._
 
 import io.mandelbrot.core.model._
-import io.mandelbrot.core.system._
+import io.mandelbrot.core.check._
 import io.mandelbrot.core.parser.CheckMatcherParser
 
 /**

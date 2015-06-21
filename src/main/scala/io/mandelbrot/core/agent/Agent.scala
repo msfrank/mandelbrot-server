@@ -24,17 +24,17 @@ import io.mandelbrot.core._
 import io.mandelbrot.core.metrics.MetricsBus
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.system._
+import io.mandelbrot.core.check._
 import org.joda.time.{DateTime, DateTimeZone}
 
 import scala.collection.mutable
 import scala.concurrent.duration._
 
 /**
- * the Agent manages a collection of Checks underneath a URI.  the Agent
+ * the Agent manages a collection of Checks underneath a CheckId.  the Agent
  * is responsible for adding and removing checks when the registration changes, as well
  * as updating checks when policy changes.  lastly, the Agent acts as an endpoint
- * for commands and queries operating on sets of checks in the system.
+ * for all commands and queries operating on checks contained in the agent.
  */
 class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with Stash {
   import Agent._
@@ -428,7 +428,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
   }
 
   /**
-   * apply the spec to the check system, adding and removing checks as necessary
+   * apply the spec to the agent, adding and removing checks as necessary
    */
   def applyAgentRegistration(agentId: AgentId, registration: AgentSpec, lsn: Long): Unit = {
 
@@ -516,7 +516,7 @@ object Agent {
   def props(services: ActorRef) = Props(classOf[Agent], services)
 
   val placeholderCheck = new ContainerCheck()
-  val placeholderCheckSpec = CheckSpec("io.mandelbrot.core.system.ContainerCheck",
+  val placeholderCheckSpec = CheckSpec("io.mandelbrot.core.check.ContainerCheck",
     CheckPolicy(0.seconds, 5.minutes, 5.minutes, 5.minutes, None), Map.empty, Map.empty
   )
 

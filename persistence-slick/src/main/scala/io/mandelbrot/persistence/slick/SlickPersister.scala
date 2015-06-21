@@ -9,7 +9,7 @@ import org.joda.time.DateTime
 import java.io.File
 import java.util.UUID
 
-import io.mandelbrot.core.system._
+import io.mandelbrot.core.check._
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.{ResourceNotFound, ApiException, ServerConfig}
 import io.mandelbrot.persistence.slick.H2Persister.H2PersisterSettings

@@ -40,7 +40,7 @@ import io.mandelbrot.core._
 import io.mandelbrot.core.entity._
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.system._
+import io.mandelbrot.core.check._
 
 /**
  * ApiService contains the REST API logic.
@@ -83,7 +83,7 @@ trait ApiService extends HttpService {
     } ~
     pathPrefix("agents" / AgentIdMatcher) { case agentId: AgentId =>
       pathEndOrSingleSlash {
-        /* retrieve the spec for the specified check system */
+        /* retrieve the spec for the specified agent */
         get {
           complete {
             serviceProxy.ask(GetRegistration(agentId)).map {
@@ -94,7 +94,7 @@ trait ApiService extends HttpService {
             }
           }
         } ~
-        /* update the spec for the specified check system */
+        /* update the spec for the specified agent */
         put {
           entity(as[AgentSpec]) { case agentRegistration: AgentSpec =>
             complete {
@@ -109,7 +109,7 @@ trait ApiService extends HttpService {
             }
           }
         } ~
-        /* unregister the check system */
+        /* unregister the agent */
         delete {
           complete {
             serviceProxy.ask(RetireAgent(agentId)).map {

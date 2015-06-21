@@ -1,4 +1,4 @@
-package io.mandelbrot.core.system
+package io.mandelbrot.core.check
 
 import akka.actor.{Actor, ActorRef}
 import akka.event.LoggingAdapter

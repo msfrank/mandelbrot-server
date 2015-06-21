@@ -5,7 +5,7 @@ import akka.testkit.{ImplicitSender, TestKit}
 import io.mandelbrot.core.ConfigConversions._
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.registry.{CommitRegistration, CommitRegistrationResult}
-import io.mandelbrot.core.system.{GetCheckStatus, GetCheckStatusResult}
+import io.mandelbrot.core.check.{GetCheckStatus, GetCheckStatusResult}
 import io.mandelbrot.core.{AkkaConfig, MandelbrotConfig, ServiceProxy}
 import org.joda.time.{DateTime, DateTimeZone}
 import org.scalatest.{BeforeAndAfterAll, ShouldMatchers, WordSpecLike}
@@ -35,7 +35,7 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
       val agentId = AgentId("test.1")
       val policy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
-      val check = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, Map.empty, Map.empty)
+      val check = CheckSpec("io.mandelbrot.core.check.ScalarCheck", policy, Map.empty, Map.empty)
       val checks = Map(CheckId("load") -> check)
       val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
       val registration = AgentSpec(agentId, "mandelbrot", Map.empty, checks, metrics, Set.empty)
@@ -51,7 +51,7 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
       val agentId = AgentId("test.2")
       val policy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
-      val check = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, Map.empty, Map.empty)
+      val check = CheckSpec("io.mandelbrot.core.check.ScalarCheck", policy, Map.empty, Map.empty)
       val checks = Map(CheckId("load") -> check)
       val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
       val registration = AgentSpec(agentId, "mandelbrot", Map.empty, checks, metrics, Set.empty)
@@ -75,7 +75,7 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
       val agentId = AgentId("test.3")
       val policy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
-      val check1 = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, Map.empty, Map.empty)
+      val check1 = CheckSpec("io.mandelbrot.core.check.ScalarCheck", policy, Map.empty, Map.empty)
       val checks1 = Map(CheckId("check1") -> check1)
       val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
       val registration1 = AgentSpec(agentId, "mandelbrot", Map.empty, checks1, metrics, Set.empty)
@@ -85,7 +85,7 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       agent ! RegisterAgent(agentId, registration1)
       val registerAgentResult = expectMsgClass(classOf[RegisterAgentResult])
 
-      val check2 = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, Map.empty, Map.empty)
+      val check2 = CheckSpec("io.mandelbrot.core.check.ScalarCheck", policy, Map.empty, Map.empty)
       val checks2 = Map(CheckId("check2") -> check2)
       val registration2 = AgentSpec(agentId, "mandelbrot", Map.empty, checks2, metrics, Set.empty)
 
@@ -101,7 +101,7 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
       val agentId = AgentId("test.4")
       val policy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
-      val check1 = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, Map.empty, Map.empty)
+      val check1 = CheckSpec("io.mandelbrot.core.check.ScalarCheck", policy, Map.empty, Map.empty)
       val checks1 = Map(CheckId("check1") -> check1)
       val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
       val registration1 = AgentSpec(agentId, "mandelbrot", Map.empty, checks1, metrics, Set.empty)

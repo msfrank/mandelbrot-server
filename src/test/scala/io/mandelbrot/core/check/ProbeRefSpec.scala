@@ -1,4 +1,4 @@
-package io.mandelbrot.core.system
+package io.mandelbrot.core.check
 
 import org.scalatest.WordSpec
 import org.scalatest.ShouldMatchers

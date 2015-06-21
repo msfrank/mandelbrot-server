@@ -17,7 +17,7 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.system
+package io.mandelbrot.core.check
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
@@ -51,7 +51,7 @@ class AggregateCheckSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
     "transition to CheckSynthetic/CheckHealthy when all children have notified of healthy status" in {
       val checkRef = CheckRef("foo.local:check")
-      val checkType = "io.mandelbrot.core.system.AggregateCheck"
+      val checkType = "io.mandelbrot.core.check.AggregateCheck"
       val factory = CheckBehavior.extensions(checkType).configure(Map.empty)
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val children = Set(child1, child2, child3)
@@ -92,7 +92,7 @@ class AggregateCheckSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
     "transition to CheckSynthetic/CheckDegraded when one child has notified of degraded status" in {
       val checkRef = CheckRef("foo.local:check")
-      val checkType = "io.mandelbrot.core.system.AggregateCheck"
+      val checkType = "io.mandelbrot.core.check.AggregateCheck"
       val factory = CheckBehavior.extensions(checkType).configure(Map.empty)
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val children = Set(child1, child2, child3)
@@ -132,7 +132,7 @@ class AggregateCheckSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
     "transition to CheckSynthetic/CheckFailed when one child has notified of failed status" in {
       val checkRef = CheckRef("foo.local:check")
-      val checkType = "io.mandelbrot.core.system.AggregateCheck"
+      val checkType = "io.mandelbrot.core.check.AggregateCheck"
       val factory = CheckBehavior.extensions(checkType).configure(Map.empty)
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val children = Set(child1, child2, child3)
@@ -172,7 +172,7 @@ class AggregateCheckSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
     "notify NotificationService when the alert timeout expires" in {
       val checkRef = CheckRef("foo.local:check")
-      val checkType = "io.mandelbrot.core.system.AggregateCheck"
+      val checkType = "io.mandelbrot.core.check.AggregateCheck"
       val factory = CheckBehavior.extensions(checkType).configure(Map.empty)
       val policy = CheckPolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)
       val children = Set(child1, child2, child3)

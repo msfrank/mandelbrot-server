@@ -1,4 +1,4 @@
-package io.mandelbrot.core.system
+package io.mandelbrot.core.check
 
 import akka.actor.{ActorLogging, Props, Actor, ActorRef}
 import io.mandelbrot.core.agent.AgentOperation

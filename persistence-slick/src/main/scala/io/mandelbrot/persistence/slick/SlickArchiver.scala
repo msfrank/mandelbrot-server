@@ -28,7 +28,7 @@ import java.io.File
 import java.util.UUID
 
 import io.mandelbrot.core.ServerConfig
-import io.mandelbrot.core.system._
+import io.mandelbrot.core.check._
 import io.mandelbrot.core.history._
 import io.mandelbrot.core.notification._
 import io.mandelbrot.persistence.slick.H2Archiver.H2ArchiverSettings

@@ -1,4 +1,4 @@
-package io.mandelbrot.core.system
+package io.mandelbrot.core.check
 
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.util.{Failure, Try}

@@ -1,4 +1,4 @@
-package io.mandelbrot.core.system
+package io.mandelbrot.core.check
 
 import java.util.ServiceLoader
 import org.slf4j.LoggerFactory

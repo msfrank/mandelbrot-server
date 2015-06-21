@@ -1,4 +1,4 @@
-package io.mandelbrot.core.system
+package io.mandelbrot.core.check
 
 import akka.actor.{PoisonPill, ActorSystem, Terminated}
 import akka.testkit.{TestProbe, ImplicitSender, TestActorRef, TestKit}
@@ -30,7 +30,7 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "have an initial state" in {
       val checkRef = CheckRef("foo.local:check")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val checkType = "io.mandelbrot.core.system.TestBehavior"
+      val checkType = "io.mandelbrot.core.check.TestBehavior"
       val factory = CheckBehavior.extensions(checkType).configure(Map.empty)
       val services = system.actorOf(TestServiceProxy.props())
       val metricsBus = new MetricsBus()
@@ -50,7 +50,7 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "initialize and transition to running behavior" in {
       val checkRef = CheckRef("foo.local:check")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val checkType = "io.mandelbrot.core.system.TestBehavior"
+      val checkType = "io.mandelbrot.core.check.TestBehavior"
       val factory = CheckBehavior.extensions(checkType).configure(Map.empty)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
@@ -79,7 +79,7 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "update behavior" in {
       val checkRef = CheckRef("foo.local:check")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val checkType = "io.mandelbrot.core.system.TestBehavior"
+      val checkType = "io.mandelbrot.core.check.TestBehavior"
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
@@ -123,7 +123,7 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
       val policy = CheckPolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
-      val checkType1 = "io.mandelbrot.core.system.TestBehavior"
+      val checkType1 = "io.mandelbrot.core.check.TestBehavior"
       val factory1 = CheckBehavior.extensions(checkType1).configure(Map.empty)
 
       val check = TestActorRef(new Check(checkRef, blackhole, services, metricsBus))
@@ -136,7 +136,7 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
       stateService.reply(UpdateCheckStatusResult(updateCheckStatus1))
 
-      val checkType2 = "io.mandelbrot.core.system.TestChangeBehavior"
+      val checkType2 = "io.mandelbrot.core.check.TestChangeBehavior"
       val factory2 = CheckBehavior.extensions(checkType2).configure(Map.empty)
       check ! ChangeCheck(checkType2, policy, factory2, children, 1)
 
@@ -155,7 +155,7 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "transition to retired behavior" in {
       val checkRef = CheckRef("foo.local:check")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val checkType = "io.mandelbrot.core.system.TestBehavior"
+      val checkType = "io.mandelbrot.core.check.TestBehavior"
       val factory = CheckBehavior.extensions(checkType).configure(Map.empty)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))

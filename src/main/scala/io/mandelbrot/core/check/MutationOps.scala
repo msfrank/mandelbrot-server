@@ -1,4 +1,4 @@
-package io.mandelbrot.core.system
+package io.mandelbrot.core.check
 
 import akka.event.LoggingAdapter
 import org.joda.time.{DateTimeZone, DateTime}

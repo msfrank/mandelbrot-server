@@ -43,7 +43,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService 
   val properties = Map.empty[String,String]
   val metadata = Map.empty[String,String]
   val checkId = CheckId("load")
-  val checkSpec = CheckSpec("io.mandelbrot.core.system.ScalarCheck", policy, properties, metadata)
+  val checkSpec = CheckSpec("io.mandelbrot.core.check.ScalarCheck", policy, properties, metadata)
   val checks = Map(checkId -> checkSpec)
   val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
 
@@ -62,14 +62,14 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService 
 
   "route /v2/agents" should {
 
-    "register a system" in withServiceProxy {
+    "register a check" in withServiceProxy {
       Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
     }
 
-    "fail to register a system if the system already exists" in withServiceProxy {
+    "fail to register a check if the check already exists" in withServiceProxy {
       Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
@@ -120,7 +120,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService 
 
   "route /v2/agents/(agentId)" should {
 
-    "update a system" in withServiceProxy {
+    "update a check" in withServiceProxy {
       Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
@@ -130,13 +130,13 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService 
       }
     }
 
-    "fail to update a system if the system doesn't exist" in withServiceProxy {
+    "fail to update a check if the check doesn't exist" in withServiceProxy {
       Put("/v2/agents/" + agent1.toString, registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
 
-    "get the registration for a system" in withServiceProxy {
+    "get the registration for a check" in withServiceProxy {
       Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
@@ -147,13 +147,13 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService 
       }
     }
 
-    "fail to get the registration for a system if the system doesn't exist" in withServiceProxy {
+    "fail to get the registration for a check if the check doesn't exist" in withServiceProxy {
       Get("/v2/agents/" + registration1.agentId.toString) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
 
-    "delete a system" in withServiceProxy {
+    "delete a check" in withServiceProxy {
       Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
@@ -162,7 +162,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService 
       }
     }
 
-    "fail to delete a system if the system doesn't exist" in withServiceProxy {
+    "fail to delete a check if the check doesn't exist" in withServiceProxy {
       Delete("/v2/agents/" + registration1.agentId.toString) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
       }

@@ -24,7 +24,7 @@ import spray.json._
 
 import io.mandelbrot.core.metrics._
 import io.mandelbrot.core.model._
-import io.mandelbrot.core.system._
+import io.mandelbrot.core.check._
 
 /**
  *
@@ -74,9 +74,9 @@ trait RegistryProtocol extends DefaultJsonProtocol with ConstantsProtocol with R
   /* convert GroupsPage class */
   implicit val GroupsPageFormat = jsonFormat3(GroupsPage)
 
-  /* registry operations */
+  /* register agent command */
   implicit val RegisterAgentFormat = jsonFormat2(RegisterAgent)
 
-  /* check system operations */
+  /* update agent command */
   implicit val UpdateAgentFormat = jsonFormat2(UpdateAgent)
 }

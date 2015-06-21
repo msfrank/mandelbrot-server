@@ -28,7 +28,7 @@ import io.mandelbrot.core.model.{AgentId, NotificationEvent}
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.state._
-import io.mandelbrot.core.system._
+import io.mandelbrot.core.check._
 
 import scala.util.hashing.MurmurHash3
 

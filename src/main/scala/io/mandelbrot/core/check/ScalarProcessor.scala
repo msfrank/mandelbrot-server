@@ -17,7 +17,7 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.system
+package io.mandelbrot.core.check
 
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.util.{Success, Try}
