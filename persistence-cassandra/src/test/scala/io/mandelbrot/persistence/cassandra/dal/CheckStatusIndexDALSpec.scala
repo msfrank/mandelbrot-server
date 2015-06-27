@@ -38,6 +38,8 @@ class CheckStatusIndexDALSpec(_system: ActorSystem) extends TestKit(_system) wit
 
   "A CheckStatusIndexDAL" should {
 
+    val generation = 1L
+
     var _dal: CheckStatusIndexDAL = null
 
     def withSessionAndDAL(testCode: (Session,CheckStatusIndexDAL) => Any) = {
@@ -51,55 +53,55 @@ class CheckStatusIndexDALSpec(_system: ActorSystem) extends TestKit(_system) wit
     "put an epoch" in withSessionAndDAL { (session, dal) =>
       val checkRef = CheckRef("test.1:check")
       val timestamp = DateTime.now()
-      Await.result(dal.putEpoch(checkRef, timestamp.getMillis), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, timestamp.getMillis), 5.seconds)
     }
 
     "get the first epoch" in withSessionAndDAL { (session, dal) =>
       val checkRef = CheckRef("test.2:check")
       val epoch1 = DateTime.now()
-      Await.result(dal.putEpoch(checkRef, epoch1.getMillis), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, epoch1.getMillis), 5.seconds)
       val epoch2 = epoch1.plusDays(1)
-      Await.result(dal.putEpoch(checkRef, epoch2.getMillis), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, epoch2.getMillis), 5.seconds)
       val epoch3 = epoch2.plusDays(1)
-      Await.result(dal.putEpoch(checkRef, epoch3.getMillis), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, epoch3.getMillis), 5.seconds)
       val epoch4 = epoch3.plusDays(1)
-      Await.result(dal.putEpoch(checkRef, epoch4.getMillis), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, epoch4.getMillis), 5.seconds)
       val epoch5 = epoch4.plusDays(1)
-      Await.result(dal.putEpoch(checkRef, epoch5.getMillis), 5.seconds)
-      val getFirstEpoch = Await.result(dal.getFirstEpoch(checkRef), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, epoch5.getMillis), 5.seconds)
+      val getFirstEpoch = Await.result(dal.getFirstEpoch(checkRef, generation), 5.seconds)
       getFirstEpoch shouldEqual epoch1.getMillis
     }
 
     "get the last epoch" in withSessionAndDAL { (session, dal) =>
       val checkRef = CheckRef("test.3:check")
       val epoch1 = DateTime.now()
-      Await.result(dal.putEpoch(checkRef, epoch1.getMillis), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, epoch1.getMillis), 5.seconds)
       val epoch2 = epoch1.plusDays(1)
-      Await.result(dal.putEpoch(checkRef, epoch2.getMillis), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, epoch2.getMillis), 5.seconds)
       val epoch3 = epoch2.plusDays(1)
-      Await.result(dal.putEpoch(checkRef, epoch3.getMillis), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, epoch3.getMillis), 5.seconds)
       val epoch4 = epoch3.plusDays(1)
-      Await.result(dal.putEpoch(checkRef, epoch4.getMillis), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, epoch4.getMillis), 5.seconds)
       val epoch5 = epoch4.plusDays(1)
-      Await.result(dal.putEpoch(checkRef, epoch5.getMillis), 5.seconds)
-      val getLastEpoch = Await.result(dal.getLastEpoch(checkRef), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, epoch5.getMillis), 5.seconds)
+      val getLastEpoch = Await.result(dal.getLastEpoch(checkRef, generation), 5.seconds)
       getLastEpoch shouldEqual epoch5.getMillis
     }
 
     "get list of epochs ascending" in withSessionAndDAL { (session, dal) =>
       val checkRef = CheckRef("test.4:check")
       val epoch1 = DateTime.now()
-      Await.result(dal.putEpoch(checkRef, epoch1.getMillis), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, epoch1.getMillis), 5.seconds)
       val epoch2 = epoch1.plusDays(1)
-      Await.result(dal.putEpoch(checkRef, epoch2.getMillis), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, epoch2.getMillis), 5.seconds)
       val epoch3 = epoch2.plusDays(1)
-      Await.result(dal.putEpoch(checkRef, epoch3.getMillis), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, epoch3.getMillis), 5.seconds)
       val epoch4 = epoch3.plusDays(1)
-      Await.result(dal.putEpoch(checkRef, epoch4.getMillis), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, epoch4.getMillis), 5.seconds)
       val epoch5 = epoch4.plusDays(1)
-      Await.result(dal.putEpoch(checkRef, epoch5.getMillis), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, epoch5.getMillis), 5.seconds)
       val listEpochsInclusiveAscending = Await.result(dal.listEpochsInclusiveAscending(checkRef,
-        EpochUtils.SMALLEST_TIMESTAMP, EpochUtils.LARGEST_TIMESTAMP, limit = 100), 5.seconds)
+        generation, EpochUtils.SMALLEST_TIMESTAMP, EpochUtils.LARGEST_TIMESTAMP, limit = 100), 5.seconds)
       listEpochsInclusiveAscending.epochs shouldEqual Vector(
           epoch1.getMillis, epoch2.getMillis, epoch3.getMillis, epoch4.getMillis, epoch5.getMillis
       )
@@ -108,18 +110,18 @@ class CheckStatusIndexDALSpec(_system: ActorSystem) extends TestKit(_system) wit
     "get list of epochs descending" in withSessionAndDAL { (session, dal) =>
       val checkRef = CheckRef("test.5:check")
       val epoch1 = DateTime.now()
-      Await.result(dal.putEpoch(checkRef, epoch1.getMillis), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, epoch1.getMillis), 5.seconds)
       val epoch2 = epoch1.plusDays(1)
-      Await.result(dal.putEpoch(checkRef, epoch2.getMillis), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, epoch2.getMillis), 5.seconds)
       val epoch3 = epoch2.plusDays(1)
-      Await.result(dal.putEpoch(checkRef, epoch3.getMillis), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, epoch3.getMillis), 5.seconds)
       val epoch4 = epoch3.plusDays(1)
-      Await.result(dal.putEpoch(checkRef, epoch4.getMillis), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, epoch4.getMillis), 5.seconds)
       val epoch5 = epoch4.plusDays(1)
-      Await.result(dal.putEpoch(checkRef, epoch5.getMillis), 5.seconds)
-      val listEpochsInclusiveAscending = Await.result(dal.listEpochsInclusiveDescending(checkRef,
-        EpochUtils.SMALLEST_TIMESTAMP, EpochUtils.LARGEST_TIMESTAMP, limit = 100), 5.seconds)
-      listEpochsInclusiveAscending.epochs shouldEqual Vector(
+      Await.result(dal.putEpoch(checkRef, generation, epoch5.getMillis), 5.seconds)
+      val listEpochsInclusiveDescending = Await.result(dal.listEpochsInclusiveDescending(checkRef,
+        generation, EpochUtils.SMALLEST_TIMESTAMP, EpochUtils.LARGEST_TIMESTAMP, limit = 100), 5.seconds)
+      listEpochsInclusiveDescending.epochs shouldEqual Vector(
           epoch5.getMillis, epoch4.getMillis, epoch3.getMillis, epoch2.getMillis, epoch1.getMillis
       )
     }
@@ -127,11 +129,11 @@ class CheckStatusIndexDALSpec(_system: ActorSystem) extends TestKit(_system) wit
     "delete index for a check" in withSessionAndDAL { (session, dal) =>
       val checkRef = CheckRef("test:5")
       val timestamp = DateTime.now()
-      Await.result(dal.putEpoch(checkRef, timestamp.getMillis), 5.seconds)
-      val getFirstEpoch = Await.result(dal.getFirstEpoch(checkRef), 5.seconds)
-      Await.result(dal.deleteIndex(checkRef), 5.seconds)
+      Await.result(dal.putEpoch(checkRef, generation, timestamp.getMillis), 5.seconds)
+      val getFirstEpoch = Await.result(dal.getFirstEpoch(checkRef, generation), 5.seconds)
+      Await.result(dal.deleteIndex(checkRef, generation), 5.seconds)
       val ex = the[ApiException] thrownBy {
-        Await.result(dal.getFirstEpoch(checkRef), 5.seconds)
+        Await.result(dal.getFirstEpoch(checkRef, generation), 5.seconds)
       }
       ex.failure shouldEqual ResourceNotFound
    }

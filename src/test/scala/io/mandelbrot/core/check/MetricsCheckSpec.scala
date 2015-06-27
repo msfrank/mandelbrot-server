@@ -45,6 +45,7 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
     TestKit.shutdownActorSystem(system)
   }
 
+  val generation = 1L
   val blackhole = system.actorOf(Blackhole.props())
   val parser = new MetricsEvaluationParser()
 
@@ -60,26 +61,27 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val check = system.actorOf(Check.props(checkRef, blackhole,  services, metricsBus))
+      val check = system.actorOf(Check.props(checkRef, generation, blackhole,  services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
 
-      val initializeCheckStatus = stateService.expectMsgClass(classOf[InitializeCheckStatus])
-      val status = CheckStatus(DateTime.now(), CheckInitializing, None, CheckUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeCheckStatusResult(initializeCheckStatus, Some(status)))
+      val initializeCheckStatus = stateService.expectMsgClass(classOf[GetStatus])
+      val status = CheckStatus(generation, DateTime.now(), CheckInitializing, None, CheckUnknown,
+        Map.empty, None, None, None, None, false)
+      stateService.reply(GetStatusResult(initializeCheckStatus, Some(status)))
 
       // check sets its lifecycle to joining
-      val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus1))
+      val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus1))
       updateCheckStatus1.status.lifecycle shouldEqual CheckJoining
 
       val timestamp = DateTime.now()
       check ! ProcessCheckEvaluation(checkRef, CheckEvaluation(timestamp, None, None, Some(Map(source.metricName -> BigDecimal(5)))))
-      val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
+      val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateStatus])
       updateCheckStatus2.status.health shouldEqual CheckHealthy
       updateCheckStatus2.status.correlation shouldEqual None
       updateCheckStatus2.status.acknowledged shouldEqual None
       updateCheckStatus2.status.squelched shouldEqual false
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus2))
+      stateService.reply(UpdateStatusResult(updateCheckStatus2))
 
       expectMsgClass(classOf[ProcessCheckEvaluationResult])
     }
@@ -94,26 +96,27 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val check = system.actorOf(Check.props(checkRef, blackhole, services, metricsBus))
+      val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
 
-      val initializeCheckStatus = stateService.expectMsgClass(classOf[InitializeCheckStatus])
-      val status = CheckStatus(DateTime.now(), CheckInitializing, None, CheckUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeCheckStatusResult(initializeCheckStatus, Some(status)))
+      val initializeCheckStatus = stateService.expectMsgClass(classOf[GetStatus])
+      val status = CheckStatus(generation, DateTime.now(), CheckInitializing, None, CheckUnknown,
+        Map.empty, None, None, None, None, false)
+      stateService.reply(GetStatusResult(initializeCheckStatus, Some(status)))
 
       // check sets its lifecycle to joining
-      val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus1))
+      val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus1))
       updateCheckStatus1.status.lifecycle should be(CheckJoining)
 
       val timestamp = DateTime.now()
       check ! ProcessCheckEvaluation(checkRef, CheckEvaluation(timestamp, None, None, Some(Map(source.metricName -> BigDecimal(15)))))
-      val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
+      val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateStatus])
       updateCheckStatus2.status.health shouldEqual CheckFailed
       updateCheckStatus2.status.correlation shouldEqual Some(_: UUID)
       updateCheckStatus2.status.acknowledged shouldEqual None
       updateCheckStatus2.status.squelched shouldEqual false
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus2))
+      stateService.reply(UpdateStatusResult(updateCheckStatus2))
 
       expectMsgClass(classOf[ProcessCheckEvaluationResult])
     }
@@ -128,20 +131,21 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val check = system.actorOf(Check.props(checkRef, blackhole, services, metricsBus))
+      val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
 
-      val initializeCheckStatus = stateService.expectMsgClass(classOf[InitializeCheckStatus])
-      val status = CheckStatus(DateTime.now(), CheckInitializing, None, CheckUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeCheckStatusResult(initializeCheckStatus, Some(status)))
+      val initializeCheckStatus = stateService.expectMsgClass(classOf[GetStatus])
+      val status = CheckStatus(generation, DateTime.now(), CheckInitializing, None, CheckUnknown,
+        Map.empty, None, None, None, None, false)
+      stateService.reply(GetStatusResult(initializeCheckStatus, Some(status)))
 
       // check sets its lifecycle to joining
-      val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus1))
+      val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus1))
       updateCheckStatus1.status.lifecycle shouldEqual CheckJoining
 
       // expiry timer should fire within 5 seconds
-      val updateCheckStatus2 = stateService.expectMsgClass(5.seconds, classOf[UpdateCheckStatus])
+      val updateCheckStatus2 = stateService.expectMsgClass(5.seconds, classOf[UpdateStatus])
       updateCheckStatus2.checkRef shouldEqual checkRef
       updateCheckStatus2.status.health shouldEqual CheckUnknown
       updateCheckStatus2.status.correlation shouldEqual Some(_: UUID)
@@ -160,28 +164,29 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val check = system.actorOf(Check.props(checkRef, blackhole, services, metricsBus))
+      val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
 
-      val initializeCheckStatus = stateService.expectMsgClass(classOf[InitializeCheckStatus])
-      val status = CheckStatus(DateTime.now(), CheckInitializing, None, CheckUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeCheckStatusResult(initializeCheckStatus, Some(status)))
+      val initializeCheckStatus = stateService.expectMsgClass(classOf[GetStatus])
+      val status = CheckStatus(generation, DateTime.now(), CheckInitializing, None, CheckUnknown,
+        Map.empty, None, None, None, None, false)
+      stateService.reply(GetStatusResult(initializeCheckStatus, Some(status)))
 
       // check sets its lifecycle to joining
-      val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus1))
+      val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus1))
       updateCheckStatus1.status.lifecycle shouldEqual CheckJoining
 
       val timestamp = DateTime.now()
       check ! ProcessCheckEvaluation(checkRef, CheckEvaluation(timestamp, None, None, Some(Map(source.metricName -> BigDecimal(5)))))
-      val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus2))
+      val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus2))
       updateCheckStatus2.status.lifecycle shouldEqual CheckKnown
       updateCheckStatus2.status.health shouldEqual CheckHealthy
       expectMsgClass(classOf[ProcessCheckEvaluationResult])
 
       // expiry timer should fire within 5 seconds
-      val updateCheckStatus3 = stateService.expectMsgClass(5.seconds, classOf[UpdateCheckStatus])
+      val updateCheckStatus3 = stateService.expectMsgClass(5.seconds, classOf[UpdateStatus])
       updateCheckStatus3.checkRef shouldEqual checkRef
       updateCheckStatus3.status.lifecycle shouldEqual CheckKnown
       updateCheckStatus3.status.health shouldEqual CheckUnknown
@@ -202,29 +207,30 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref), notificationService = Some(notificationService.ref)))
       val metricsBus = new MetricsBus()
 
-      val check = system.actorOf(Check.props(checkRef, blackhole, services, metricsBus))
+      val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
 
-      val initializeCheckStatus = stateService.expectMsgClass(classOf[InitializeCheckStatus])
-      val status = CheckStatus(DateTime.now(), CheckInitializing, None, CheckUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeCheckStatusResult(initializeCheckStatus, Some(status)))
+      val initializeCheckStatus = stateService.expectMsgClass(classOf[GetStatus])
+      val status = CheckStatus(generation, DateTime.now(), CheckInitializing, None, CheckUnknown,
+        Map.empty, None, None, None, None, false)
+      stateService.reply(GetStatusResult(initializeCheckStatus, Some(status)))
 
       // check sets its lifecycle to joining
-      val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus1))
+      val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus1))
       updateCheckStatus1.status.lifecycle shouldEqual CheckJoining
 
       val timestamp = DateTime.now()
       check ! ProcessCheckEvaluation(checkRef, CheckEvaluation(timestamp, None, None, Some(Map(source.metricName -> BigDecimal(15)))))
-      val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus2))
+      val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus2))
       notificationService.expectMsgClass(classOf[NotifyLifecycleChanges])
       notificationService.expectMsgClass(classOf[NotifyHealthChanges])
       expectMsgClass(classOf[ProcessCheckEvaluationResult])
 
       // expiry timer should fire within 5 seconds
-      val updateCheckStatus3 = stateService.expectMsgClass(5.seconds, classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus3))
+      val updateCheckStatus3 = stateService.expectMsgClass(5.seconds, classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus3))
       val notification = notificationService.expectMsgClass(classOf[NotifyHealthAlerts])
       notification.checkRef shouldEqual checkRef
       notification.health shouldEqual CheckFailed

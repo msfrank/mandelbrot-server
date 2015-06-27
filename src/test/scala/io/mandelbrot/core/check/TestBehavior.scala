@@ -40,8 +40,9 @@ class TestProcessorChange(val properties: Map[String,String]) extends BehaviorPr
 
   def configure(status: CheckStatus, children: Set[CheckRef]): ConfigureEffect = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
-    val status = CheckStatus(timestamp, CheckKnown, None, CheckHealthy, Map.empty, Some(timestamp), Some(timestamp), None, None, false)
-    ConfigureEffect(status, Vector.empty, children, Set.empty)
+    val _status = CheckStatus(status.generation, timestamp, CheckKnown, None, CheckHealthy,
+      Map.empty, Some(timestamp), Some(timestamp), None, None, false)
+    ConfigureEffect(_status, Vector.empty, children, Set.empty)
   }
 
   def processEvaluation(check: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())

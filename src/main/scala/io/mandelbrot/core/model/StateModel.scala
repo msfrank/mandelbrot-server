@@ -12,7 +12,8 @@ case class CheckEvaluation(timestamp: DateTime,
                            metrics: Option[Map[String,BigDecimal]]) extends StateModel
 
 /* the complete status of a check */
-case class CheckStatus(timestamp: DateTime,
+case class CheckStatus(generation: Long,
+                       timestamp: DateTime,
                        lifecycle: CheckLifecycle,
                        summary: Option[String],
                        health: CheckHealth,
@@ -23,7 +24,8 @@ case class CheckStatus(timestamp: DateTime,
                        acknowledged: Option[UUID],
                        squelched: Boolean) extends StateModel
 
-case class CheckCondition(timestamp: DateTime,
+case class CheckCondition(generation: Long,
+                          timestamp: DateTime,
                           lifecycle: CheckLifecycle,
                           summary: Option[String],
                           health: CheckHealth,
@@ -33,10 +35,10 @@ case class CheckCondition(timestamp: DateTime,
 
 case class CheckConditionPage(history: Vector[CheckCondition], last: Option[String], exhausted: Boolean) extends StateModel
 
-case class CheckNotifications(timestamp: DateTime, notifications: Vector[CheckNotification]) extends StateModel
+case class CheckNotifications(generation: Long, timestamp: DateTime, notifications: Vector[CheckNotification]) extends StateModel
 
 case class CheckNotificationsPage(history: Vector[CheckNotifications], last: Option[String], exhausted: Boolean) extends StateModel
 
-case class CheckMetrics(timestamp: DateTime, metrics: Map[String,BigDecimal]) extends StateModel
+case class CheckMetrics(generation: Long, timestamp: DateTime, metrics: Map[String,BigDecimal]) extends StateModel
 
 case class CheckMetricsPage(history: Vector[CheckMetrics], last: Option[String], exhausted: Boolean) extends StateModel

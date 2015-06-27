@@ -3,7 +3,7 @@ package io.mandelbrot.core.check
 import akka.actor.{Actor, ActorRef}
 import akka.event.LoggingAdapter
 import io.mandelbrot.core.agent.RetireCheck
-import io.mandelbrot.core.state.UpdateCheckStatus
+import io.mandelbrot.core.state.UpdateStatus
 import org.joda.time.DateTime
 import scala.util.{Failure, Success}
 
@@ -16,6 +16,7 @@ trait ProcessingOps extends Actor with MutationOps {
 
   implicit def log: LoggingAdapter
 
+  val generation: Long
   val services: ActorRef
 
   var checkType: String
@@ -24,7 +25,7 @@ trait ProcessingOps extends Actor with MutationOps {
   var children: Set[CheckRef]
   var lastCommitted: Option[DateTime]
 
-  private var inflight: Option[(Mutation,UpdateCheckStatus)] = None
+  private var inflight: Option[(Mutation,UpdateStatus)] = None
   private var queued: Vector[QueuedMessage] = Vector.empty
 
   /**
@@ -36,7 +37,7 @@ trait ProcessingOps extends Actor with MutationOps {
    * if the message queue is empty then immediately start processing the message,
    * otherwise append the message to the queue.
    */
-  def enqueue(message: QueuedMessage): Option[UpdateCheckStatus] = {
+  def enqueue(message: QueuedMessage): Option[UpdateStatus] = {
     queued = queued :+ message
     log.debug("enqueued:\n\n    {}\n", message)
     if (inflight.isEmpty) process() else None
@@ -47,7 +48,7 @@ trait ProcessingOps extends Actor with MutationOps {
    * then return the mutation, otherwise loop until a mutation is generated or the queue
    * is exhausted.
    */
-  def process(): Option[UpdateCheckStatus] = {
+  def process(): Option[UpdateStatus] = {
     // consume queued messages until we find one to process
     while (queued.nonEmpty) {
       // mutation will contain Some(result) from message processing, or None
@@ -80,7 +81,7 @@ trait ProcessingOps extends Actor with MutationOps {
         case None =>
           queued = queued.tail
         case Some(mutation: Mutation) =>
-          val op = UpdateCheckStatus(checkRef, mutation.status, mutation.notifications, lastCommitted)
+          val op = UpdateStatus(checkRef, mutation.status, mutation.notifications, commitEpoch = true)
           services ! op
           inflight = Some(mutation -> op)
           log.debug("processed:\n\n    {}\n", mutation)
@@ -94,7 +95,7 @@ trait ProcessingOps extends Actor with MutationOps {
   /**
    * The in-flight message has been persisted, so allow the check to process it.
    */
-  def commit(): Option[UpdateCheckStatus] = {
+  def commit(): Option[UpdateStatus] = {
     // apply the mutation to the check
     inflight.map(_._1) match {
 
@@ -127,7 +128,7 @@ trait ProcessingOps extends Actor with MutationOps {
    * don't actually retry, we just drop the in-flight message and start processing the
    * next one.
    */
-  def recover(): Option[UpdateCheckStatus] = process()
+  def recover(): Option[UpdateStatus] = process()
 
   /**
    * send notifications if they match the current policy

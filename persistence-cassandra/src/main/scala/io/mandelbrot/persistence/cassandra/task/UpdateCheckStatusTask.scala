@@ -4,7 +4,7 @@ import akka.actor.Status.Failure
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.pattern.pipe
 
-import io.mandelbrot.core.state.{StateServiceOperationFailed, UpdateCheckStatus, UpdateCheckStatusResult}
+import io.mandelbrot.core.state.{StateServiceOperationFailed, UpdateStatus, UpdateStatusResult}
 import io.mandelbrot.persistence.cassandra.dal.{CheckStatusIndexDAL, CheckStatusDAL}
 import io.mandelbrot.persistence.cassandra.EpochUtils
 
@@ -13,7 +13,7 @@ import io.mandelbrot.persistence.cassandra.EpochUtils
  * index if necessary.  If writing to the index or the status tables fails,
  * then give up and pass the exception back to the caller.
  */
-class UpdateCheckStatusTask(op: UpdateCheckStatus,
+class UpdateCheckStatusTask(op: UpdateStatus,
                             caller: ActorRef,
                             checkStatusIndexDAL: CheckStatusIndexDAL,
                             checkStatusDAL: CheckStatusDAL) extends Actor with ActorLogging {
@@ -23,7 +23,7 @@ class UpdateCheckStatusTask(op: UpdateCheckStatus,
   val epoch = EpochUtils.timestamp2epoch(op.status.timestamp)
 
   override def preStart(): Unit = {
-      checkStatusIndexDAL.putEpoch(op.checkRef, epoch)
+      checkStatusIndexDAL.putEpoch(op.checkRef, op.status.generation, epoch)
         .map(_ => PutEpoch)
         .pipeTo(self)
   }
@@ -31,12 +31,12 @@ class UpdateCheckStatusTask(op: UpdateCheckStatus,
   def receive = {
 
     case PutEpoch =>
-      checkStatusDAL.updateCheckStatus(op.checkRef, epoch, op.status, op.notifications)
+      checkStatusDAL.updateCheckStatus(op.checkRef, op.status.generation, epoch, op.status, op.notifications)
         .map(_ => PutStatus)
         .pipeTo(self)
 
     case PutStatus =>
-      caller ! UpdateCheckStatusResult(op)
+      caller ! UpdateStatusResult(op)
 
     case Failure(ex: Throwable) =>
       caller ! StateServiceOperationFailed(op, ex)
@@ -45,7 +45,7 @@ class UpdateCheckStatusTask(op: UpdateCheckStatus,
 }
 
 object UpdateCheckStatusTask {
-  def props(op: UpdateCheckStatus,
+  def props(op: UpdateStatus,
             caller: ActorRef,
             checkStatusIndexDAL: CheckStatusIndexDAL,
             checkStatusDAL: CheckStatusDAL) = {

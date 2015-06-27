@@ -13,17 +13,20 @@ import io.mandelbrot.persistence.cassandra.EpochUtils
  * Given a CheckRef, find the latest status.  Throw ResourceNotFound
  * if the CheckRef doesn't exist.
  */
-class InitializeCheckStatusTask(op: InitializeCheckStatus,
+class InitializeCheckStatusTask(op: GetStatus,
                                 caller: ActorRef,
                                 checkStatusIndexDAL: CheckStatusIndexDAL,
                                 checkStatusDAL: CheckStatusDAL) extends Actor with ActorLogging {
   import InitializeCheckStatusTask.EmptyEpoch
   import context.dispatcher
 
+  // bound the amount of epochs we will search in one request
+  val maxEpochs = 30
+
   var epochs: List[Long] = List.empty
 
   override def preStart(): Unit = {
-    checkStatusIndexDAL.getLastEpoch(op.checkRef).map {
+    checkStatusIndexDAL.getLastEpoch(op.checkRef, op.generation).map {
       case epoch: Long => EpochList(List(epoch))
     }.recover {
       case ApiException(ResourceNotFound) => EpochList(List.empty)
@@ -33,13 +36,13 @@ class InitializeCheckStatusTask(op: InitializeCheckStatus,
   def receive = {
 
     case EpochList(Nil) =>
-      caller ! InitializeCheckStatusResult(op, None)
+      caller ! GetStatusResult(op, None)
       context.stop(self)
 
     case epochList: EpochList =>
       val epoch = epochList.epochs.head
       epochs = epochList.epochs.tail
-      checkStatusDAL.getLastCheckStatus(op.checkRef, epoch).recover {
+      checkStatusDAL.getLastCheckStatus(op.checkRef, op.generation, epoch).recover {
         case ApiException(ResourceNotFound) => EmptyEpoch(epoch)
       }.pipeTo(self)
 
@@ -47,16 +50,16 @@ class InitializeCheckStatusTask(op: InitializeCheckStatus,
       if (epochs.nonEmpty) {
         val epoch = epochs.head
         epochs = epochs.tail
-        checkStatusDAL.getLastCheckStatus(op.checkRef, epoch).recover {
+        checkStatusDAL.getLastCheckStatus(op.checkRef, op.generation, epoch).recover {
           case ApiException(ResourceNotFound) => EmptyEpoch(epoch)
         }.pipeTo(self)
       } else {
-        checkStatusIndexDAL.listEpochsInclusiveDescending(op.checkRef, EpochUtils.SMALLEST_TIMESTAMP,
-          EpochUtils.epoch2timestamp(emptyEpoch.epoch - 1), limit = 7).pipeTo(self)
+        checkStatusIndexDAL.listEpochsInclusiveDescending(op.checkRef, op.generation,
+          EpochUtils.SMALLEST_TIMESTAMP, EpochUtils.epoch2timestamp(emptyEpoch.epoch - 1), maxEpochs).pipeTo(self)
       }
 
     case checkStatus: CheckStatus =>
-      caller ! InitializeCheckStatusResult(op, Some(checkStatus))
+      caller ! GetStatusResult(op, Some(checkStatus))
       context.stop(self)
 
     case Failure(ex: Throwable) =>
@@ -66,7 +69,7 @@ class InitializeCheckStatusTask(op: InitializeCheckStatus,
 }
 
 object InitializeCheckStatusTask {
-  def props(op: InitializeCheckStatus,
+  def props(op: GetStatus,
             caller: ActorRef,
             checkStatusIndexDAL: CheckStatusIndexDAL,
             checkStatusDAL: CheckStatusDAL) = {

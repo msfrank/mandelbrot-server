@@ -32,16 +32,16 @@ trait StateProtocol extends DefaultJsonProtocol with ConstantsProtocol with Noti
   implicit val CheckEvaluationFormat = jsonFormat4(CheckEvaluation)
 
   /* convert CheckStatus class */
-  implicit val CheckStatusFormat = jsonFormat10(CheckStatus)
+  implicit val CheckStatusFormat = jsonFormat11(CheckStatus)
 
   /* convert CheckCondition class */
-  implicit val CheckConditionFormat = jsonFormat7(CheckCondition)
+  implicit val CheckConditionFormat = jsonFormat8(CheckCondition)
 
   /* convert CheckNotifications class */
-  implicit val CheckNotificationsFormat = jsonFormat2(CheckNotifications)
+  implicit val CheckNotificationsFormat = jsonFormat3(CheckNotifications)
 
   /* convert CheckMetrics class */
-  implicit val CheckMetricsFormat = jsonFormat2(CheckMetrics)
+  implicit val CheckMetricsFormat = jsonFormat3(CheckMetrics)
 
   /* convert CheckCondition class */
   implicit val CheckConditionPageFormat = jsonFormat3(CheckConditionPage)

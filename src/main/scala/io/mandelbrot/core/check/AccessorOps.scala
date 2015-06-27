@@ -34,6 +34,7 @@ trait AccessorOps {
   val checkRef: CheckRef
   val parent: ActorRef
 
+  def generation: Long
   def children: Set[CheckRef]
   def policy: CheckPolicy
   def lifecycle: CheckLifecycle
@@ -45,7 +46,9 @@ trait AccessorOps {
   def acknowledgementId: Option[UUID]
   def squelch: Boolean
 
-  def getCheckStatus(timestamp: DateTime) = CheckStatus(timestamp, lifecycle, summary, health, Map.empty, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+  def getCheckStatus(timestamp: DateTime) = CheckStatus(generation, timestamp, lifecycle, summary, health,
+    Map.empty, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+
   def getCheckStatus: CheckStatus = getCheckStatus(DateTime.now(DateTimeZone.UTC))
 }
 

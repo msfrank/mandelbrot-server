@@ -2,63 +2,54 @@ package io.mandelbrot.core.state
 
 import akka.actor._
 import com.typesafe.config.Config
-import io.mandelbrot.core.{state, ResourceNotFound, ApiException, NotImplemented}
-import org.joda.time.format.ISODateTimeFormat
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.collection.JavaConversions._
 import java.util
 
 import io.mandelbrot.core.model._
+import io.mandelbrot.core.{ResourceNotFound, ApiException}
 
 class TestStatePersister(settings: TestStatePersisterSettings) extends Actor with ActorLogging {
 
-  val state = new util.HashMap[CheckRef,util.TreeMap[DateTime,UpdateCheckStatus]]()
+  val checkStatus = new util.HashMap[CheckRefGeneration,util.TreeMap[DateTime,UpdateStatus]]()
 
   def receive = {
 
-    case op: InitializeCheckStatus =>
-      state.get(op.checkRef) match {
+    case op: GetStatus =>
+      val checkRefGeneration = CheckRefGeneration(op.checkRef, op.generation)
+      checkStatus.get(checkRefGeneration) match {
         case null =>
-          sender() ! InitializeCheckStatusResult(op, None)
+          sender() ! GetStatusResult(op, None)
         case history if history.lastEntry() == null =>
-          sender() ! InitializeCheckStatusResult(op, None)
+          sender() ! GetStatusResult(op, None)
         case history =>
           val lastEntry = history.lastEntry()
           val status = Some(lastEntry.getValue.status)
-          sender() ! InitializeCheckStatusResult(op, status)
+          sender() ! GetStatusResult(op, status)
       }
 
-    case op: UpdateCheckStatus =>
-      state.get(op.checkRef) match {
+    case op: UpdateStatus =>
+      val checkRefGeneration = CheckRefGeneration(op.checkRef, op.status.generation)
+      checkStatus.get(checkRefGeneration) match {
         case null =>
-          val history = new util.TreeMap[DateTime,UpdateCheckStatus]()
+          val history = new util.TreeMap[DateTime,UpdateStatus]()
           history.put(op.status.timestamp, op)
-          state.put(op.checkRef, history)
-          sender() ! UpdateCheckStatusResult(op)
+          checkStatus.put(checkRefGeneration, history)
+          sender() ! UpdateStatusResult(op)
         case history =>
           history.put(op.status.timestamp, op)
-          sender() ! UpdateCheckStatusResult(op)
+          sender() ! UpdateStatusResult(op)
       }
 
-    case op: DeleteCheckStatus =>
-      op.until match {
-        case None =>
-          state.remove(op.checkRef)
-          sender() ! DeleteCheckStatusResult(op)
-        case Some(until) =>
-          state.get(op.checkRef) match {
-            case null =>
-              sender() ! DeleteCheckStatusResult(op)
-            case history =>
-              history.headMap(until).map(_._1).foreach(history.remove)
-              sender() ! DeleteCheckStatusResult(op)
-          }
-      }
+    case op: DeleteStatus =>
+      val checkRefGeneration = CheckRefGeneration(op.checkRef, op.generation)
+      checkStatus.remove(checkRefGeneration)
+      sender() ! DeleteStatusResult(op)
 
     /* return condition history */
     case op: GetConditionHistory =>
       try {
-        val history = getHistory(op.checkRef, op.from, op.to, op.last).map(status2condition)
+        val history = getHistory(op.checkRef, op.generation, op.from, op.to, op.last).map(status2condition)
         val page = if (history.length > op.limit) {
           val subset = history.take(op.limit)
           val last = subset.lastOption.map(_.timestamp.getMillis.toString)
@@ -74,7 +65,7 @@ class TestStatePersister(settings: TestStatePersisterSettings) extends Actor wit
     /* return notifications history */
     case op: GetNotificationsHistory =>
       try {
-        val history = getHistory(op.checkRef, op.from, op.to, op.last).map(status2notifications)
+        val history = getHistory(op.checkRef, op.generation, op.from, op.to, op.last).map(status2notifications)
         val page = if (history.length > op.limit) {
           val subset = history.take(op.limit)
           val last = subset.lastOption.map(_.timestamp.getMillis.toString)
@@ -90,7 +81,7 @@ class TestStatePersister(settings: TestStatePersisterSettings) extends Actor wit
     /* return metrics history */
     case op: GetMetricsHistory =>
       try {
-        val history = getHistory(op.checkRef, op.from, op.to, op.last).map(status2metrics)
+        val history = getHistory(op.checkRef, op.generation, op.from, op.to, op.last).map(status2metrics)
         val page = if (history.length > op.limit) {
           val subset = history.take(op.limit)
           val last = subset.lastOption.map(_.timestamp.getMillis.toString)
@@ -107,8 +98,13 @@ class TestStatePersister(settings: TestStatePersisterSettings) extends Actor wit
   /**
    * return the history entries matching the specified parameters.
    */
-  def getHistory(checkRef: CheckRef, from: Option[DateTime], to: Option[DateTime], last: Option[String]): Vector[UpdateCheckStatus] = {
-    state.get(checkRef) match {
+  def getHistory(checkRef: CheckRef,
+                 generation: Long,
+                 from: Option[DateTime],
+                 to: Option[DateTime],
+                 last: Option[String]): Vector[UpdateStatus] = {
+    val checkRefGeneration = CheckRefGeneration(checkRef, generation)
+    checkStatus.get(checkRefGeneration) match {
       // if there is no check, then raise ResourceNotFound
       case null =>
         throw ApiException(ResourceNotFound)
@@ -130,29 +126,38 @@ class TestStatePersister(settings: TestStatePersisterSettings) extends Actor wit
   /**
    * convert the specified raw status into a Condition.
    */
-  def status2condition(updateCheckStatus: UpdateCheckStatus): CheckCondition = {
+  def status2condition(updateCheckStatus: UpdateStatus): CheckCondition = {
     val status = updateCheckStatus.status
-    CheckCondition(status.timestamp, status.lifecycle, status.summary, status.health,
-      status.correlation, status.acknowledged, status.squelched)
+    CheckCondition(status.generation, status.timestamp, status.lifecycle, status.summary,
+      status.health, status.correlation, status.acknowledged, status.squelched)
   }
 
   /**
    * convert the specified raw status into a Notification set.
    */
-  def status2notifications(updateCheckStatus: UpdateCheckStatus): CheckNotifications = {
-    CheckNotifications(updateCheckStatus.status.timestamp, updateCheckStatus.notifications)
+  def status2notifications(updateCheckStatus: UpdateStatus): CheckNotifications = {
+    CheckNotifications(updateCheckStatus.status.generation,
+      updateCheckStatus.status.timestamp, updateCheckStatus.notifications)
   }
 
   /**
    * convert the specified raw status into a Metrics set.
    */
-  def status2metrics(updateCheckStatus: UpdateCheckStatus): CheckMetrics = {
-    CheckMetrics(updateCheckStatus.status.timestamp, updateCheckStatus.status.metrics)
+  def status2metrics(updateCheckStatus: UpdateStatus): CheckMetrics = {
+    CheckMetrics(updateCheckStatus.status.generation,
+      updateCheckStatus.status.timestamp, updateCheckStatus.status.metrics)
   }
 }
 
 object TestStatePersister {
   def props(settings: TestStatePersisterSettings) = Props(classOf[TestStatePersister], settings)
+}
+
+case class CheckRefGeneration(checkRef: CheckRef, generation: Long) extends Ordered[CheckRefGeneration] {
+  import scala.math.Ordered.orderingToOrdered
+  def compare(other: CheckRefGeneration): Int = {
+    (checkRef.toString, generation).compare((other.checkRef.toString, other.generation))
+  }
 }
 
 case class TestStatePersisterSettings()

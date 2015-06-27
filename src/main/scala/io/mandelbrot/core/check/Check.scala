@@ -38,6 +38,7 @@ import io.mandelbrot.core.util.Timer
  * declared by an agent or proxy, there is a corresponding Check actor.
  */
 class Check(val checkRef: CheckRef,
+            val generation: Long,
             val parent: ActorRef,
             val services: ActorRef,
             val metricsBus: MetricsBus) extends LoggingFSM[Check.State,Check.Data] with Stash with ProcessingOps {
@@ -54,7 +55,6 @@ class Check(val checkRef: CheckRef,
   var factory: ProcessorFactory = null
   var policy: CheckPolicy = null
   var children: Set[CheckRef] = null
-  var checkGeneration: Long = 0L
   var lastCommitted: Option[DateTime] = None
   val commitTimer = new Timer(context, self, CheckCommitTimeout)
   val expiryTimer = new Timer(context, self, CheckExpiryTimeout)
@@ -71,7 +71,7 @@ class Check(val checkRef: CheckRef,
     case Event(change: ChangeCheck, NoData) =>
       val proposed = change.factory.implement()
       val params = proposed.initialize()
-      val op = InitializeCheckStatus(checkRef, now())
+      val op = GetStatus(checkRef, generation)
       goto(Initializing) using Initializing(change, proposed, op)
 
     /* stash any other messages for processing later */
@@ -95,7 +95,7 @@ class Check(val checkRef: CheckRef,
   when(Initializing) {
 
     /* ignore result if it doesn't match the in-flight request */
-    case Event(result: InitializeCheckStatusResult, state: Initializing) if result.op != state.inflight =>
+    case Event(result: GetStatusResult, state: Initializing) if result.op != state.inflight =>
       stay()
 
     /* ignore failure if it doesn't match the in-flight request */
@@ -103,23 +103,23 @@ class Check(val checkRef: CheckRef,
       stay()
 
     /* configure processor using initial state */
-    case Event(result: InitializeCheckStatusResult, state: Initializing) =>
+    case Event(result: GetStatusResult, state: Initializing) =>
       commitTimer.stop()
       val effect = state.proposed.configure(result.status.getOrElse(getCheckStatus), state.change.children)
       lastCommitted = result.status.map(_.timestamp)
-      val op = UpdateCheckStatus(checkRef, effect.status, effect.notifications, lastCommitted)
+      val op = UpdateStatus(checkRef, effect.status, effect.notifications, commitEpoch = true)
       goto(Configuring) using Configuring(state.change, state.proposed, op)
 
     /* timed out waiting for initialization from state service */
     case Event(CheckCommitTimeout, state: Initializing) =>
-      log.debug("gen {}: timeout while receiving initial state", checkGeneration)
+      log.debug("timeout while receiving initial state")
       services ! state.inflight
       commitTimer.restart(commitTimeout)
       stay()
 
     /* received an unhandled exception, so bail out */
     case Event(StateServiceOperationFailed(op, failure), state: Initializing) =>
-      log.debug("gen {}: failure receiving initial state: {}", checkGeneration, failure)
+      log.debug("failure receiving initial state: {}", failure)
       commitTimer.stop()
       throw failure
 
@@ -144,7 +144,7 @@ class Check(val checkRef: CheckRef,
   when(Configuring) {
 
     /* ignore result if it doesn't match the in-flight request */
-    case Event(result: UpdateCheckStatusResult, state: Configuring) if result.op != state.inflight =>
+    case Event(result: UpdateStatusResult, state: Configuring) if result.op != state.inflight =>
       stay()
 
     /* ignore failure if it doesn't match the in-flight request */
@@ -152,7 +152,7 @@ class Check(val checkRef: CheckRef,
       stay()
 
     /* apply status processor using initial state */
-    case Event(result: UpdateCheckStatusResult, state: Configuring) =>
+    case Event(result: UpdateStatusResult, state: Configuring) =>
       commitTimer.stop()
       val status = state.inflight.status
       processor = state.proposed
@@ -166,14 +166,14 @@ class Check(val checkRef: CheckRef,
 
     /* timed out waiting for initialization from state service */
     case Event(CheckCommitTimeout, state: Configuring) =>
-      log.debug("gen {}: timeout while updating configured state", checkGeneration)
+      log.debug("timeout while updating configured state")
       services ! state.inflight
       commitTimer.restart(commitTimeout)
       stay()
 
     /* received an unhandled exception, so bail out */
     case Event(StateServiceOperationFailed(op, failure), state: Configuring) =>
-      log.debug("gen {}: failure updating configured state: {}", checkGeneration, failure)
+      log.debug("failure updating configured state: {}", failure)
       commitTimer.stop()
       throw failure
 
@@ -198,7 +198,7 @@ class Check(val checkRef: CheckRef,
 
     /* query state service for condition history */
     case Event(query: GetCheckCondition, NoData) =>
-      services.ask(GetConditionHistory(checkRef, query.from, query.to, query.limit,
+      services.ask(GetConditionHistory(checkRef, generation, query.from, query.to, query.limit,
         query.fromInclusive, query.toExclusive, query.descending, query.last))(queryTimeout).map {
         case result: GetConditionHistoryResult =>
           GetCheckConditionResult(query, result.page)
@@ -209,7 +209,7 @@ class Check(val checkRef: CheckRef,
 
     /* */
     case Event(query: GetCheckNotifications, NoData) =>
-      services.ask(GetNotificationsHistory(checkRef, query.from, query.to, query.limit,
+      services.ask(GetNotificationsHistory(checkRef, generation, query.from, query.to, query.limit,
         query.fromInclusive, query.toExclusive, query.descending, query.last))(queryTimeout).map {
         case result: GetNotificationsHistoryResult =>
           GetCheckNotificationsResult(query, result.page)
@@ -220,7 +220,7 @@ class Check(val checkRef: CheckRef,
 
     /* */
     case Event(query: GetCheckMetrics, NoData) =>
-      services.ask(GetMetricsHistory(checkRef, query.from, query.to, query.limit,
+      services.ask(GetMetricsHistory(checkRef, generation, query.from, query.to, query.limit,
         query.fromInclusive, query.toExclusive, query.descending, query.last))(queryTimeout).map {
         case result: GetMetricsHistoryResult =>
           GetCheckMetricsResult(query, result.page)
@@ -272,7 +272,7 @@ class Check(val checkRef: CheckRef,
       stay()
 
     /* check state has been committed, now we can apply the mutation */
-    case Event(result: UpdateCheckStatusResult, NoData) =>
+    case Event(result: UpdateStatusResult, NoData) =>
       commit()
       stay()
 
@@ -298,7 +298,7 @@ class Check(val checkRef: CheckRef,
       stay()
 
     /* check state has been committed, now we can apply the mutation */
-    case Event(result: UpdateCheckStatusResult, state: Changing) =>
+    case Event(result: UpdateStatusResult, state: Changing) =>
       commit()
       if (idle) goto(Incubating) using NoData else stay()
 
@@ -337,7 +337,7 @@ class Check(val checkRef: CheckRef,
       stay()
 
     /* check state has been committed, stop the actor */
-    case Event(result: UpdateCheckStatusResult, NoData) =>
+    case Event(result: UpdateStatusResult, NoData) =>
       commit()
       log.debug("{} is retired", result.op.checkRef)
       stay()
@@ -372,10 +372,11 @@ class Check(val checkRef: CheckRef,
 
 object Check {
   def props(checkRef: CheckRef,
+            generation: Long,
             parent: ActorRef,
             services: ActorRef,
             metricsBus: MetricsBus) = {
-    Props(classOf[Check], checkRef, parent, services, metricsBus)
+    Props(classOf[Check], checkRef, generation, parent, services, metricsBus)
   }
 
 
@@ -389,8 +390,8 @@ object Check {
   case object Retired extends State
 
   sealed trait Data
-  case class Initializing(change: ChangeCheck, proposed: BehaviorProcessor, inflight: InitializeCheckStatus) extends Data
-  case class Configuring(change: ChangeCheck, proposed: BehaviorProcessor, inflight: UpdateCheckStatus) extends Data
+  case class Initializing(change: ChangeCheck, proposed: BehaviorProcessor, inflight: GetStatus) extends Data
+  case class Configuring(change: ChangeCheck, proposed: BehaviorProcessor, inflight: UpdateStatus) extends Data
   case class Changing(pending: ChangeCheck) extends Data
   case class Retiring(lsn: Long) extends Data
   case class Retired(lsn: Long) extends Data

@@ -42,6 +42,7 @@ class AggregateCheckSpec(_system: ActorSystem) extends TestKit(_system) with Imp
     TestKit.shutdownActorSystem(system)
   }
 
+  val generation = 1L
   val child1 = CheckRef("foo.local:check.child1")
   val child2 = CheckRef("foo.local:check.child2")
   val child3 = CheckRef("foo.local:check.child3")
@@ -59,34 +60,38 @@ class AggregateCheckSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val check = system.actorOf(Check.props(checkRef, blackhole, services, metricsBus))
+      val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, children, 0)
 
-      val initializeCheckStatus = stateService.expectMsgClass(classOf[InitializeCheckStatus])
-      val status = CheckStatus(DateTime.now(), CheckInitializing, None, CheckUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeCheckStatusResult(initializeCheckStatus, Some(status)))
+      val initializeCheckStatus = stateService.expectMsgClass(classOf[GetStatus])
+      val status = CheckStatus(generation, DateTime.now(), CheckInitializing, None, CheckUnknown,
+        Map.empty, None, None, None, None, false)
+      stateService.reply(GetStatusResult(initializeCheckStatus, Some(status)))
 
       // check sets its lifecycle to synthetic
-      val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus1))
+      val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus1))
       updateCheckStatus1.status.lifecycle shouldEqual CheckSynthetic
       updateCheckStatus1.status.health shouldEqual CheckUnknown
 
       val timestamp = DateTime.now()
 
-      check ! ChildMutates(child1, CheckStatus(timestamp, CheckKnown, None, CheckHealthy, Map.empty, None, None, None, None, false))
-      val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus2))
+      check ! ChildMutates(child1, CheckStatus(generation, timestamp, CheckKnown, None, CheckHealthy,
+        Map.empty, None, None, None, None, false))
+      val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus2))
       updateCheckStatus2.status.health shouldEqual CheckUnknown
 
-      check ! ChildMutates(child2, CheckStatus(timestamp, CheckKnown, None, CheckHealthy, Map.empty, None, None, None, None, false))
-      val updateCheckStatus3 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus3))
+      check ! ChildMutates(child2, CheckStatus(generation, timestamp, CheckKnown, None, CheckHealthy,
+        Map.empty, None, None, None, None, false))
+      val updateCheckStatus3 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus3))
       updateCheckStatus3.status.health shouldEqual CheckUnknown
 
-      check ! ChildMutates(child3, CheckStatus(timestamp, CheckKnown, None, CheckHealthy, Map.empty, None, None, None, None, false))
-      val updateCheckStatus4 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus4))
+      check ! ChildMutates(child3, CheckStatus(generation, timestamp, CheckKnown, None, CheckHealthy,
+        Map.empty, None, None, None, None, false))
+      val updateCheckStatus4 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus4))
       updateCheckStatus4.status.health shouldEqual CheckHealthy
     }
 
@@ -100,33 +105,37 @@ class AggregateCheckSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val check = system.actorOf(Check.props(checkRef, blackhole, services, metricsBus))
+      val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, children, 0)
 
-      val initializeCheckStatus = stateService.expectMsgClass(classOf[InitializeCheckStatus])
-      val status = CheckStatus(DateTime.now(), CheckInitializing, None, CheckUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeCheckStatusResult(initializeCheckStatus, Some(status)))
+      val initializeCheckStatus = stateService.expectMsgClass(classOf[GetStatus])
+      val status = CheckStatus(generation, DateTime.now(), CheckInitializing, None, CheckUnknown,
+        Map.empty, None, None, None, None, false)
+      stateService.reply(GetStatusResult(initializeCheckStatus, Some(status)))
 
       // check sets its lifecycle to synthetic
-      val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus1))
+      val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus1))
       updateCheckStatus1.status.lifecycle shouldEqual CheckSynthetic
 
       val timestamp = DateTime.now()
 
-      check ! ChildMutates(child1, CheckStatus(timestamp, CheckKnown, None, CheckHealthy, Map.empty, None, None, None, None, false))
-      val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus2))
+      check ! ChildMutates(child1, CheckStatus(generation, timestamp, CheckKnown, None, CheckHealthy,
+        Map.empty, None, None, None, None, false))
+      val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus2))
       updateCheckStatus2.status.health shouldEqual CheckUnknown
 
-      check ! ChildMutates(child2, CheckStatus(timestamp, CheckKnown, None, CheckHealthy, Map.empty, None, None, None, None, false))
-      val updateCheckStatus3 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus3))
+      check ! ChildMutates(child2, CheckStatus(generation, timestamp, CheckKnown, None, CheckHealthy,
+        Map.empty, None, None, None, None, false))
+      val updateCheckStatus3 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus3))
       updateCheckStatus3.status.health shouldEqual CheckUnknown
 
-      check ! ChildMutates(child3, CheckStatus(timestamp, CheckKnown, None, CheckDegraded, Map.empty, None, None, None, None, false))
-      val updateCheckStatus4 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus4))
+      check ! ChildMutates(child3, CheckStatus(generation, timestamp, CheckKnown, None, CheckDegraded,
+        Map.empty, None, None, None, None, false))
+      val updateCheckStatus4 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus4))
       updateCheckStatus4.status.health shouldEqual CheckDegraded
     }
 
@@ -140,33 +149,37 @@ class AggregateCheckSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new MetricsBus()
 
-      val check = system.actorOf(Check.props(checkRef, blackhole, services, metricsBus))
+      val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, children, 0)
 
-      val initializeCheckStatus = stateService.expectMsgClass(classOf[InitializeCheckStatus])
-      val status = CheckStatus(DateTime.now(), CheckInitializing, None, CheckUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeCheckStatusResult(initializeCheckStatus, Some(status)))
+      val initializeCheckStatus = stateService.expectMsgClass(classOf[GetStatus])
+      val status = CheckStatus(generation, DateTime.now(), CheckInitializing, None, CheckUnknown,
+        Map.empty, None, None, None, None, false)
+      stateService.reply(GetStatusResult(initializeCheckStatus, Some(status)))
 
       // check sets its lifecycle to synthetic
-      val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus1))
+      val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus1))
       updateCheckStatus1.status.lifecycle shouldEqual CheckSynthetic
 
       val timestamp = DateTime.now()
 
-      check ! ChildMutates(child1, CheckStatus(timestamp, CheckKnown, None, CheckHealthy, Map.empty, None, None, None, None, false))
-      val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus2))
+      check ! ChildMutates(child1, CheckStatus(generation, timestamp, CheckKnown, None, CheckHealthy,
+        Map.empty, None, None, None, None, false))
+      val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus2))
       updateCheckStatus2.status.health shouldEqual CheckUnknown
 
-      check ! ChildMutates(child2, CheckStatus(timestamp, CheckKnown, None, CheckDegraded, Map.empty, None, None, None, None, false))
-      val updateCheckStatus3 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus3))
+      check ! ChildMutates(child2, CheckStatus(generation, timestamp, CheckKnown, None, CheckDegraded,
+        Map.empty, None, None, None, None, false))
+      val updateCheckStatus3 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus3))
       updateCheckStatus3.status.health shouldEqual CheckUnknown
 
-      check ! ChildMutates(child3, CheckStatus(timestamp, CheckKnown, None, CheckFailed, Map.empty, None, None, None, None, false))
-      val updateCheckStatus4 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus4))
+      check ! ChildMutates(child3, CheckStatus(generation, timestamp, CheckKnown, None, CheckFailed,
+        Map.empty, None, None, None, None, false))
+      val updateCheckStatus4 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus4))
       updateCheckStatus4.status.health shouldEqual CheckFailed
     }
 
@@ -181,39 +194,43 @@ class AggregateCheckSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref), notificationService = Some(notificationService.ref)))
       val metricsBus = new MetricsBus()
 
-      val check = system.actorOf(Check.props(checkRef, blackhole, services, metricsBus))
+      val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, children, 0)
 
-      val initializeCheckStatus = stateService.expectMsgClass(classOf[InitializeCheckStatus])
-      val status = CheckStatus(DateTime.now(), CheckInitializing, None, CheckUnknown, Map.empty, None, None, None, None, false)
-      stateService.reply(InitializeCheckStatusResult(initializeCheckStatus, Some(status)))
+      val initializeCheckStatus = stateService.expectMsgClass(classOf[GetStatus])
+      val status = CheckStatus(generation, DateTime.now(), CheckInitializing, None, CheckUnknown,
+        Map.empty, None, None, None, None, false)
+      stateService.reply(GetStatusResult(initializeCheckStatus, Some(status)))
 
       // check sets its lifecycle to synthetic
-      val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus1))
+      val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus1))
       updateCheckStatus1.status.lifecycle shouldEqual CheckSynthetic
 
       val timestamp = DateTime.now()
 
-      check ! ChildMutates(child1, CheckStatus(timestamp, CheckKnown, None, CheckFailed, Map.empty, None, None, None, None, false))
-      val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus2))
+      check ! ChildMutates(child1, CheckStatus(generation, timestamp, CheckKnown, None, CheckFailed,
+        Map.empty, None, None, None, None, false))
+      val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus2))
       updateCheckStatus2.status.health shouldEqual CheckUnknown
 
-      check ! ChildMutates(child2, CheckStatus(timestamp, CheckKnown, None, CheckFailed, Map.empty, None, None, None, None, false))
-      val updateCheckStatus3 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus3))
+      check ! ChildMutates(child2, CheckStatus(generation, timestamp, CheckKnown, None, CheckFailed,
+        Map.empty, None, None, None, None, false))
+      val updateCheckStatus3 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus3))
       updateCheckStatus3.status.health shouldEqual CheckUnknown
 
-      check ! ChildMutates(child3, CheckStatus(timestamp, CheckKnown, None, CheckFailed, Map.empty, None, None, None, None, false))
-      val updateCheckStatus4 = stateService.expectMsgClass(classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus4))
+      check ! ChildMutates(child3, CheckStatus(generation, timestamp, CheckKnown, None, CheckFailed,
+        Map.empty, None, None, None, None, false))
+      val updateCheckStatus4 = stateService.expectMsgClass(classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus4))
       updateCheckStatus4.status.health shouldEqual CheckFailed
       notificationService.expectMsgClass(classOf[NotifyHealthChanges])
 
       // alert timer should fire within 5 seconds
-      val updateCheckStatus5 = stateService.expectMsgClass(5.seconds, classOf[UpdateCheckStatus])
-      stateService.reply(UpdateCheckStatusResult(updateCheckStatus5))
+      val updateCheckStatus5 = stateService.expectMsgClass(5.seconds, classOf[UpdateStatus])
+      stateService.reply(UpdateStatusResult(updateCheckStatus5))
       val notification = notificationService.expectMsgClass(classOf[NotifyHealthAlerts])
       notification.checkRef shouldEqual checkRef
       notification.health shouldEqual CheckFailed

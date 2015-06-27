@@ -23,17 +23,17 @@ class LastCheckNotificationsTask(op: GetNotificationsHistory,
   import context.dispatcher
 
   override def preStart(): Unit = {
-    val initialize = InitializeCheckStatus(op.checkRef, DateTime.now(DateTimeZone.UTC))
+    val initialize = GetStatus(op.checkRef, op.generation)
     context.actorOf(InitializeCheckStatusTask.props(initialize, self, checkStatusIndexDAL, checkStatusDAL))
   }
 
   def receive = {
 
     /* use the timestamp from the status to look up the latest notifications */
-    case InitializeCheckStatusResult(_, Some(status)) =>
+    case GetStatusResult(_, Some(status)) =>
       val epoch = EpochUtils.timestamp2epoch(status.timestamp)
-      checkStatusDAL.getCheckNotifications(op.checkRef, epoch, status.timestamp)
-        .recover { case ApiException(ResourceNotFound) => CheckNotifications(status.timestamp, Vector.empty) }
+      checkStatusDAL.getCheckNotifications(op.checkRef, op.generation, epoch, status.timestamp)
+        .recover { case ApiException(ResourceNotFound) => CheckNotifications(op.generation, status.timestamp, Vector.empty) }
         .pipeTo(self)
 
     /* return the newest notifications */
@@ -42,23 +42,13 @@ class LastCheckNotificationsTask(op: GetNotificationsHistory,
       context.stop(self)
 
     /* there was no status data, so return ResourceNotFound */
-    case InitializeCheckStatusResult(_, None) =>
+    case GetStatusResult(_, None) =>
       caller ! StateServiceOperationFailed(op, ApiException(ResourceNotFound))
       context.stop(self)
 
     /* we received an unexpected error, let supervisor strategy handle it */
     case Failure(ex: Throwable) =>
       throw ex
-  }
-
-  /**
-   * if we receive an exception, then stop the task and return InternalError
-   * to the caller.
-   */
-  override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 1) {
-    case ex: Throwable =>
-      caller ! StateServiceOperationFailed(op, ApiException(InternalError, ex))
-      Stop
   }
 }
 

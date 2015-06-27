@@ -20,6 +20,7 @@ trait MutationOps extends AccessorOps {
   val expiryTimer: Timer
   val alertTimer: Timer
 
+  def generation: Long
   def children: Set[CheckRef]
   def policy: CheckPolicy
 

@@ -62,8 +62,8 @@ trait BehaviorProcessor {
         val acknowledgement = UUID.randomUUID()
         val timestamp = DateTime.now(DateTimeZone.UTC)
         val status = check.getCheckStatus(timestamp).copy(acknowledged = Some(acknowledgement))
-        val condition = CheckCondition(timestamp, status.lifecycle, status.summary, status.health,
-          status.correlation, status.acknowledged, status.squelched)
+        val condition = CheckCondition(check.generation, timestamp, status.lifecycle, status.summary,
+          status.health, status.correlation, status.acknowledged, status.squelched)
         val notifications = Vector(NotifyAcknowledged(check.checkRef, timestamp, correlation, acknowledgement))
         Success(CommandEffect(AcknowledgeCheckResult(command, condition), status, notifications))
     }
@@ -79,8 +79,8 @@ trait BehaviorProcessor {
         val timestamp = DateTime.now(DateTimeZone.UTC)
         val correlation = check.correlationId.get
         val status = check.getCheckStatus(timestamp).copy(acknowledged = None)
-        val condition = CheckCondition(timestamp, status.lifecycle, status.summary, status.health,
-          status.correlation, status.acknowledged, status.squelched)
+        val condition = CheckCondition(check.generation, timestamp, status.lifecycle, status.summary,
+          status.health, status.correlation, status.acknowledged, status.squelched)
         val notifications = Vector(NotifyUnacknowledged(check.checkRef, timestamp, correlation, acknowledgement))
         Success(CommandEffect(UnacknowledgeCheckResult(command, condition), status, notifications))
     }
@@ -91,8 +91,8 @@ trait BehaviorProcessor {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val squelch = command.squelch
       val status = check.getCheckStatus(timestamp).copy(squelched = squelch)
-      val condition = CheckCondition(timestamp, status.lifecycle, status.summary, status.health,
-        status.correlation, status.acknowledged, status.squelched)
+      val condition = CheckCondition(check.generation, timestamp, status.lifecycle, status.summary,
+        status.health, status.correlation, status.acknowledged, status.squelched)
       val notifications = if (command.squelch) Vector(NotifySquelched(check.checkRef, timestamp)) else Vector(NotifyUnsquelched(check.checkRef, timestamp))
       Success(CommandEffect(SetCheckSquelchResult(command, condition), status, notifications))
     }

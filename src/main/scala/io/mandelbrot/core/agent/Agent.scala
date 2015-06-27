@@ -480,9 +480,9 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       val checkRef = CheckRef(agentId, checkId)
       val actor = checkId.parentOption match {
         case Some(parent) =>
-          context.actorOf(Check.props(checkRef, checks(parent).actor, services, metricsBus))
+          context.actorOf(Check.props(checkRef, generation, checks(parent).actor, services, metricsBus))
         case _ =>
-          context.actorOf(Check.props(checkRef, self, services, metricsBus))
+          context.actorOf(Check.props(checkRef, generation, self, services, metricsBus))
       }
       log.debug("check {} joins {}", checkId, agentId)
       context.watch(actor)

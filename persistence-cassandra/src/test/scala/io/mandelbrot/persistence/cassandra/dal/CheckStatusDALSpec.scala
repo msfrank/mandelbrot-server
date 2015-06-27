@@ -40,6 +40,8 @@ class CheckStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
   "A CheckStatusDAL" should {
 
+    val generation = 1L
+
     var _dal: CheckStatusDAL = null
 
     def withSessionAndDAL(testCode: (Session,CheckStatusDAL) => Any) = {
@@ -56,11 +58,12 @@ class CheckStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val epoch = EpochUtils.timestamp2epoch(timestamp)
       val correlation = UUID.randomUUID()
       val acknowledged = UUID.randomUUID()
-      val status = CheckStatus(timestamp, CheckKnown, Some("known"), CheckHealthy, Map("metric"->BigDecimal(0.1)),
-        Some(timestamp), Some(timestamp), Some(correlation), Some(acknowledged), squelched = false)
+      val status = CheckStatus(generation, timestamp, CheckKnown, Some("known"), CheckHealthy,
+        Map("metric"->BigDecimal(0.1)), Some(timestamp), Some(timestamp), Some(correlation),
+        Some(acknowledged), squelched = false)
       val notifications = Vector.empty[CheckNotification]
-      Await.result(dal.updateCheckStatus(checkRef, epoch, status, notifications), 5.seconds)
-      val getCheckStatusResult = Await.result(dal.getCheckStatus(checkRef, epoch, timestamp), 5.seconds)
+      Await.result(dal.updateCheckStatus(checkRef, generation, epoch, status, notifications), 5.seconds)
+      val getCheckStatusResult = Await.result(dal.getCheckStatus(checkRef, generation, epoch, timestamp), 5.seconds)
       getCheckStatusResult.timestamp shouldEqual timestamp
       getCheckStatusResult.lifecycle shouldEqual CheckKnown
       getCheckStatusResult.summary shouldEqual Some("known")
@@ -79,11 +82,12 @@ class CheckStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val epoch = EpochUtils.timestamp2epoch(timestamp)
       val correlation = UUID.randomUUID()
       val acknowledged = UUID.randomUUID()
-      val status = CheckStatus(timestamp, CheckKnown, Some("known"), CheckHealthy, Map("metric"->BigDecimal(0.1)),
-        Some(timestamp), Some(timestamp), Some(correlation), Some(acknowledged), squelched = false)
+      val status = CheckStatus(generation, timestamp, CheckKnown, Some("known"), CheckHealthy,
+        Map("metric"->BigDecimal(0.1)), Some(timestamp), Some(timestamp), Some(correlation),
+        Some(acknowledged), squelched = false)
       val notifications = Vector.empty[CheckNotification]
-      Await.result(dal.updateCheckStatus(checkRef, epoch, status, notifications), 5.seconds)
-      val getCheckConditionResult = Await.result(dal.getCheckCondition(checkRef, epoch, timestamp), 5.seconds)
+      Await.result(dal.updateCheckStatus(checkRef, generation, epoch, status, notifications), 5.seconds)
+      val getCheckConditionResult = Await.result(dal.getCheckCondition(checkRef, generation, epoch, timestamp), 5.seconds)
       getCheckConditionResult.timestamp shouldEqual timestamp
       getCheckConditionResult.lifecycle shouldEqual CheckKnown
       getCheckConditionResult.summary shouldEqual Some("known")
@@ -99,12 +103,13 @@ class CheckStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val epoch = EpochUtils.timestamp2epoch(timestamp)
       val correlation = UUID.randomUUID()
       val acknowledged = UUID.randomUUID()
-      val status = CheckStatus(timestamp, CheckKnown, Some("known"), CheckFailed, Map("metric"->BigDecimal(0.1)),
-        Some(timestamp), Some(timestamp), Some(correlation), Some(acknowledged), squelched = false)
+      val status = CheckStatus(generation, timestamp, CheckKnown, Some("known"), CheckFailed,
+        Map("metric"->BigDecimal(0.1)), Some(timestamp), Some(timestamp), Some(correlation),
+        Some(acknowledged), squelched = false)
       val notifications = Vector(NotifyHealthAlerts(checkRef, timestamp, CheckFailed, correlation, Some(acknowledged)))
-      Await.result(dal.updateCheckStatus(checkRef, epoch, status, notifications), 5.seconds)
-      val getCheckNotificationsResult = Await.result(dal.getCheckNotifications(checkRef, epoch, timestamp), 5.seconds)
-      getCheckNotificationsResult shouldEqual CheckNotifications(timestamp, notifications)
+      Await.result(dal.updateCheckStatus(checkRef, generation, epoch, status, notifications), 5.seconds)
+      val getCheckNotificationsResult = Await.result(dal.getCheckNotifications(checkRef, generation, epoch, timestamp), 5.seconds)
+      getCheckNotificationsResult shouldEqual CheckNotifications(generation, timestamp, notifications)
     }
 
     "get check metrics" in withSessionAndDAL { (session, dal) =>
@@ -113,12 +118,13 @@ class CheckStatusDALSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       val epoch = EpochUtils.timestamp2epoch(timestamp)
       val correlation = UUID.randomUUID()
       val acknowledged = UUID.randomUUID()
-      val status = CheckStatus(timestamp, CheckKnown, Some("known"), CheckHealthy, Map("metric"->BigDecimal(0.1)),
-        Some(timestamp), Some(timestamp), Some(correlation), Some(acknowledged), squelched = false)
+      val status = CheckStatus(generation, timestamp, CheckKnown, Some("known"), CheckHealthy,
+        Map("metric"->BigDecimal(0.1)), Some(timestamp), Some(timestamp), Some(correlation),
+        Some(acknowledged), squelched = false)
       val notifications = Vector.empty[CheckNotification]
-      Await.result(dal.updateCheckStatus(checkRef, epoch, status, notifications), 5.seconds)
-      val getCheckMetricsResult = Await.result(dal.getCheckMetrics(checkRef, epoch, timestamp), 5.seconds)
-      getCheckMetricsResult shouldEqual CheckMetrics(timestamp, status.metrics)
+      Await.result(dal.updateCheckStatus(checkRef, generation, epoch, status, notifications), 5.seconds)
+      val getCheckMetricsResult = Await.result(dal.getCheckMetrics(checkRef, generation, epoch, timestamp), 5.seconds)
+      getCheckMetricsResult shouldEqual CheckMetrics(generation, timestamp, status.metrics)
     }
   }
 }

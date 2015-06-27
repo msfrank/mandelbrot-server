@@ -96,7 +96,8 @@ class MetricsProcessor(settings: MetricsCheckSettings) extends BehaviorProcessor
       acknowledgementId = None
     }
 
-    val status = CheckStatus(timestamp, lifecycle, None, health, metrics, lastUpdate, lastChange, correlationId, acknowledgementId, check.squelch)
+    val status = CheckStatus(check.generation, timestamp, lifecycle, None, health, metrics,
+      lastUpdate, lastChange, correlationId, acknowledgementId, check.squelch)
     var notifications = Vector.empty[CheckNotification]
 
     // append lifecycle notification

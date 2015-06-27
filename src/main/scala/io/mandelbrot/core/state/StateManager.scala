@@ -37,15 +37,15 @@ class StateManager(settings: StateSettings) extends Actor with ActorLogging {
   def receive = {
 
     /* retrieve the current status for the specified check */
-    case op: InitializeCheckStatus =>
+    case op: GetStatus =>
       persister forward op
 
     /* append status to the specified check */
-    case op: UpdateCheckStatus =>
+    case op: UpdateStatus =>
       persister forward op
 
     /* delete state for the specified check */
-    case op: DeleteCheckStatus =>
+    case op: DeleteStatus =>
       persister forward op
 
     /* retrieve condition history */
@@ -78,19 +78,20 @@ sealed trait StateServiceQuery extends ServiceQuery with StateServiceOperation
 sealed trait StateServiceResult
 case class StateServiceOperationFailed(op: StateServiceOperation, failure: Throwable) extends ServiceOperationFailed
 
-case class InitializeCheckStatus(checkRef: CheckRef, timestamp: DateTime) extends StateServiceCommand
-case class InitializeCheckStatusResult(op: InitializeCheckStatus, status: Option[CheckStatus]) extends StateServiceResult
+case class GetStatus(checkRef: CheckRef, generation: Long) extends StateServiceCommand
+case class GetStatusResult(op: GetStatus, status: Option[CheckStatus]) extends StateServiceResult
 
-case class UpdateCheckStatus(checkRef: CheckRef,
-                             status: CheckStatus,
-                             notifications: Vector[CheckNotification],
-                             lastTimestamp: Option[DateTime]) extends StateServiceCommand
-case class UpdateCheckStatusResult(op: UpdateCheckStatus) extends StateServiceResult
+case class UpdateStatus(checkRef: CheckRef,
+                        status: CheckStatus,
+                        notifications: Vector[CheckNotification],
+                        commitEpoch: Boolean = false) extends StateServiceCommand
+case class UpdateStatusResult(op: UpdateStatus) extends StateServiceResult
 
-case class DeleteCheckStatus(checkRef: CheckRef, until: Option[DateTime]) extends StateServiceCommand
-case class DeleteCheckStatusResult(op: DeleteCheckStatus) extends StateServiceResult
+case class DeleteStatus(checkRef: CheckRef, generation: Long) extends StateServiceCommand
+case class DeleteStatusResult(op: DeleteStatus) extends StateServiceResult
 
 case class GetConditionHistory(checkRef: CheckRef,
+                               generation: Long,
                                from: Option[DateTime],
                                to: Option[DateTime],
                                limit: Int,
@@ -101,6 +102,7 @@ case class GetConditionHistory(checkRef: CheckRef,
 case class GetConditionHistoryResult(op: GetConditionHistory, page: CheckConditionPage) extends StateServiceResult
 
 case class GetNotificationsHistory(checkRef: CheckRef,
+                                   generation: Long,
                                    from: Option[DateTime],
                                    to: Option[DateTime],
                                    limit: Int,
@@ -111,6 +113,7 @@ case class GetNotificationsHistory(checkRef: CheckRef,
 case class GetNotificationsHistoryResult(op: GetNotificationsHistory, page: CheckNotificationsPage) extends StateServiceResult
 
 case class GetMetricsHistory(checkRef: CheckRef,
+                             generation: Long,
                              from: Option[DateTime],
                              to: Option[DateTime],
                              limit: Int,

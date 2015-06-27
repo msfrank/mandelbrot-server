@@ -23,15 +23,15 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
 
   def receive = {
 
-    case op: InitializeCheckStatus =>
+    case op: GetStatus =>
       val props = InitializeCheckStatusTask.props(op, sender(), checkStatusIndexDAL, checkStatusDAL)
       context.actorOf(props)
 
-    case op: UpdateCheckStatus =>
+    case op: UpdateStatus =>
       val props = UpdateCheckStatusTask.props(op, sender(), checkStatusIndexDAL, checkStatusDAL)
       context.actorOf(props)
 
-    case op: DeleteCheckStatus =>
+    case op: DeleteStatus =>
       val props = DeleteCheckStatusTask.props(op, sender(), checkStatusIndexDAL, checkStatusDAL)
       context.actorOf(props)
 

@@ -38,9 +38,10 @@ class GetCheckMetricsTask(op: GetMetricsHistory,
   var metrics: Vector[CheckMetrics] = Vector.empty
 
   override def preStart(): Unit = {
-    val from = last.getOrElse(op.from.getOrElse(EpochUtils.SMALLEST_TIMESTAMP)).toDateMidnight.toDateTime(DateTimeZone.UTC)
+    val from = last.getOrElse(op.from.getOrElse(EpochUtils.SMALLEST_TIMESTAMP))
+      .toDateMidnight.toDateTime(DateTimeZone.UTC)
     val to = op.to.getOrElse(EpochUtils.LARGEST_TIMESTAMP)
-    checkStatusIndexDAL.listEpochsInclusiveAscending(op.checkRef, from, to, maxEpochs).pipeTo(self)
+    checkStatusIndexDAL.listEpochsInclusiveAscending(op.checkRef, op.generation, from, to, maxEpochs).pipeTo(self)
   }
 
   def receive = {
@@ -61,8 +62,8 @@ class GetCheckMetricsTask(op: GetMetricsHistory,
       val epoch = epochs.head
       val from = last.orElse(op.from).map(_.plus(1L))
       val limit = op.limit - metrics.length
-      checkStatusDAL.getCheckMetricsHistory(op.checkRef, epoch, from, op.to, limit,
-        !op.fromInclusive, !op.toExclusive, op.descending).pipeTo(self)
+      checkStatusDAL.getCheckMetricsHistory(op.checkRef, op.generation, epoch,
+        from, op.to, limit, !op.fromInclusive, !op.toExclusive, op.descending).pipeTo(self)
 
     /* we have exhausted the current epoch */
     case history: CheckMetricsHistory if history.metrics.isEmpty =>
@@ -72,8 +73,8 @@ class GetCheckMetricsTask(op: GetMetricsHistory,
       if (epochs.nonEmpty) {
         val from = last.orElse(op.from).map(_.plus(1L))
         val limit = op.limit - metrics.length
-        checkStatusDAL.getCheckMetricsHistory(op.checkRef, epochs.head, from, op.to, limit,
-          !op.fromInclusive, !op.toExclusive, op.descending).pipeTo(self)
+        checkStatusDAL.getCheckMetricsHistory(op.checkRef, op.generation, epochs.head,
+          from, op.to, limit, !op.fromInclusive, !op.toExclusive, op.descending).pipeTo(self)
       } else if (epochsFound < maxEpochs) {
         // we are confident we have read from all epochs, so this query is exhausted
         caller ! GetMetricsHistoryResult(op, CheckMetricsPage(metrics, last = None, exhausted = true))
@@ -102,8 +103,8 @@ class GetCheckMetricsTask(op: GetMetricsHistory,
         val epoch = epochs.head
         val from = Some(metrics.last.timestamp.plus(1L))
         val limit = op.limit - metrics.length
-        checkStatusDAL.getCheckMetricsHistory(op.checkRef, epoch, from, op.to, limit,
-          !op.fromInclusive, !op.toExclusive, op.descending).pipeTo(self)
+        checkStatusDAL.getCheckMetricsHistory(op.checkRef, op.generation, epoch,
+          from, op.to, limit, !op.fromInclusive, !op.toExclusive, op.descending).pipeTo(self)
       } else {
         // we have reached the request limit, so return what we've got
         metrics = metrics ++ history.metrics.take(nleft)

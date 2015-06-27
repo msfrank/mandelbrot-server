@@ -77,7 +77,8 @@ class AggregateProcessor(settings: AggregateCheckSettings) extends BehaviorProce
       acknowledgementId = check.acknowledgementId
     }
 
-    val status = CheckStatus(timestamp, check.lifecycle, None, health, Map.empty, lastUpdate, lastChange, correlationId, acknowledgementId, check.squelch)
+    val status = CheckStatus(check.generation, timestamp, check.lifecycle, None, health, Map.empty,
+      lastUpdate, lastChange, correlationId, acknowledgementId, check.squelch)
     var notifications = Vector.empty[CheckNotification]
 
     // append health notification

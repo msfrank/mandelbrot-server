@@ -26,6 +26,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     s"""
        |CREATE TABLE IF NOT EXISTS $tableName (
        |  check_ref text,
+       |  generation bigint,
        |  epoch bigint,
        |  timestamp timestamp,
        |  last_update timestamp,
@@ -33,29 +34,30 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
        |  condition text,
        |  notifications text,
        |  metrics text,
-       |  PRIMARY KEY ((check_ref, epoch), timestamp)
+       |  PRIMARY KEY ((check_ref, generation, epoch), timestamp)
        |)
      """.stripMargin)
 
   private val preparedUpdateCheckStatus = session.prepare(
     s"""
-       |INSERT INTO $tableName (check_ref, epoch, timestamp, last_update, last_change, condition, notifications, metrics)
-       |VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       |INSERT INTO $tableName (check_ref, generation, epoch, timestamp, last_update, last_change, condition, notifications, metrics)
+       |VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      """.stripMargin)
 
-  def updateCheckStatus(checkRef: CheckRef, epoch: Long, checkStatus: CheckStatus, notifications: Vector[CheckNotification]): Future[Unit] = {
+  def updateCheckStatus(checkRef: CheckRef, generation: Long, epoch: Long, checkStatus: CheckStatus, notifications: Vector[CheckNotification]): Future[Unit] = {
     val _checkRef = checkRef.toString
+    val _generation: java.lang.Long = generation
     val _epoch: java.lang.Long = epoch
     val timestamp = checkStatus.timestamp.toDate
     val lastUpdate = checkStatus.lastUpdate.map(_.toDate).orNull
     val lastChange = checkStatus.lastChange.map(_.toDate).orNull
-    val condition = CheckCondition(checkStatus.timestamp, checkStatus.lifecycle, checkStatus.summary,
+    val condition = CheckCondition(generation, checkStatus.timestamp, checkStatus.lifecycle, checkStatus.summary,
       checkStatus.health, checkStatus.correlation, checkStatus.acknowledged, checkStatus.squelched)
     val _condition = checkCondition2string(condition)
-    val _notifications = if (notifications.nonEmpty) checkNotifications2string(CheckNotifications(checkStatus.timestamp, notifications)) else null
-    val _metrics = if (checkStatus.metrics.nonEmpty) checkMetrics2string(CheckMetrics(checkStatus.timestamp, checkStatus.metrics)) else null
+    val _notifications = if (notifications.nonEmpty) checkNotifications2string(CheckNotifications(generation, checkStatus.timestamp, notifications)) else null
+    val _metrics = if (checkStatus.metrics.nonEmpty) checkMetrics2string(CheckMetrics(generation, checkStatus.timestamp, checkStatus.metrics)) else null
     val statement = new BoundStatement(preparedUpdateCheckStatus)
-    statement.bind(_checkRef, _epoch, timestamp, lastUpdate, lastChange, _condition, _notifications, _metrics)
+    statement.bind(_checkRef, _generation, _epoch, timestamp, lastUpdate, lastChange, _condition, _notifications, _metrics)
     executeAsync(statement).map { _ => Unit }
   }
 
@@ -63,16 +65,17 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     s"""
        |SELECT timestamp
        |FROM $tableName
-       |WHERE check_ref = ? AND epoch = ? AND timestamp > ?
+       |WHERE check_ref = ? AND generation = ? AND epoch = ? AND timestamp > ?
        |LIMIT 1
      """.stripMargin)
 
-  def checkIfEpochExhausted(checkRef: CheckRef, epoch: Long, timestamp: DateTime): Future[Boolean] = {
+  def checkIfEpochExhausted(checkRef: CheckRef, generation: Long, epoch: Long, timestamp: DateTime): Future[Boolean] = {
     val _checkRef = checkRef.toString
+    val _generation: java.lang.Long = generation
     val _epoch: java.lang.Long = epoch
     val _timestamp = timestamp.toDate
     val statement = new BoundStatement(preparedCheckIfEpochExhausted)
-    statement.bind(_checkRef, _epoch, _timestamp)
+    statement.bind(_checkRef, _generation, _epoch, _timestamp)
     executeAsync(statement).map {
       case resultSet => resultSet.isFullyFetched && resultSet.isExhausted
     }
@@ -82,15 +85,16 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     s"""
        |SELECT timestamp, last_update, last_change, condition, metrics
        |FROM $tableName
-       |WHERE check_ref = ? AND epoch = ? AND timestamp = ?
+       |WHERE check_ref = ? AND generation = ? AND epoch = ? AND timestamp = ?
      """.stripMargin)
 
-  def getCheckStatus(checkRef: CheckRef, epoch: Long, timestamp: DateTime): Future[CheckStatus] = {
+  def getCheckStatus(checkRef: CheckRef, generation: Long, epoch: Long, timestamp: DateTime): Future[CheckStatus] = {
     val _checkRef = checkRef.toString
+    val _generation: java.lang.Long = generation
     val _epoch: java.lang.Long = epoch
     val _timestamp = timestamp.toDate
     val statement = new BoundStatement(preparedGetCheckStatus)
-    statement.bind(_checkRef, _epoch, _timestamp)
+    statement.bind(_checkRef, _generation, _epoch, _timestamp)
     executeAsync(statement).map {
       case resultSet =>
         val row = resultSet.one()
@@ -103,7 +107,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
             .map(string2checkMetrics)
             .map(_.metrics)
             .getOrElse(Map.empty[String,BigDecimal])
-          CheckStatus(timestamp, condition.lifecycle, condition.summary, condition.health, metrics,
+          CheckStatus(generation, timestamp, condition.lifecycle, condition.summary, condition.health, metrics,
             lastUpdate, lastChange, condition.correlation, condition.acknowledged, condition.squelched)
         }
     }
@@ -133,15 +137,19 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     s"""
        |SELECT condition
        |FROM $tableName
-       |WHERE check_ref = ? AND epoch = ? AND timestamp = ?
+       |WHERE check_ref = ? AND generation = ? AND epoch = ? AND timestamp = ?
      """.stripMargin)
 
-  def getCheckCondition(checkRef: CheckRef, epoch: Long, timestamp: DateTime): Future[CheckCondition] = {
+  def getCheckCondition(checkRef: CheckRef,
+                        generation: Long,
+                        epoch: Long,
+                        timestamp: DateTime): Future[CheckCondition] = {
     val _checkRef = checkRef.toString
+    val _generation: java.lang.Long = generation
     val _epoch: java.lang.Long = epoch
     val _timestamp = timestamp.toDate
     val statement = new BoundStatement(preparedGetCheckCondition)
-    statement.bind(_checkRef, _epoch, _timestamp)
+    statement.bind(_checkRef, _generation, _epoch, _timestamp)
     executeAsync(statement).map {
       case resultSet =>
         val row = resultSet.one()
@@ -153,22 +161,24 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     s"""
        |SELECT condition
        |FROM $tableName
-       |WHERE check_ref = ? AND epoch = ? AND timestamp >= ? AND timestamp < ?
+       |WHERE check_ref = ? AND generation = ? AND epoch = ? AND timestamp >= ? AND timestamp < ?
        |LIMIT ?
      """.stripMargin)
 
   def getCheckConditionHistory(checkRef: CheckRef,
+                               generation: Long,
                                epoch: Long,
                                from: Option[DateTime],
                                to: Option[DateTime],
                                limit: Int): Future[CheckConditionHistory] = {
     val _checkRef = checkRef.toString
+    val _generation: java.lang.Long = generation
     val _epoch: java.lang.Long = epoch
     val start = from.map(_.toDate).getOrElse(EpochUtils.SMALLEST_DATE)
     val end = to.map(_.toDate).getOrElse(EpochUtils.LARGEST_DATE)
     val _limit: java.lang.Integer = limit
     val statement = new BoundStatement(preparedGetCheckConditionHistory)
-    statement.bind(_checkRef, _epoch, start, end, _limit)
+    statement.bind(_checkRef, _generation, _epoch, start, end, _limit)
     statement.setFetchSize(limit)
     executeAsync(statement).map { resultSet =>
       val conditions = resultSet.all()
@@ -182,6 +192,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
    *
    */
   def getCheckConditionHistory(checkRef: CheckRef,
+                               generation: Long,
                                epoch: Long,
                                from: Option[DateTime],
                                to: Option[DateTime],
@@ -195,6 +206,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     val select = QueryBuilder.select("condition")
       .from(tableName)
       .where(QueryBuilder.eq("check_ref", checkRef.toString))
+        .and(QueryBuilder.eq("generation", generation: java.lang.Long))
         .and(QueryBuilder.eq("epoch", epoch))
         .and(start)
         .and(end)
@@ -213,22 +225,26 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     s"""
        |SELECT notifications
        |FROM $tableName
-       |WHERE check_ref = ? AND epoch = ? AND timestamp = ?
+       |WHERE check_ref = ? AND generation = ? AND epoch = ? AND timestamp = ?
      """.stripMargin)
 
-  def getCheckNotifications(checkRef: CheckRef, epoch: Long, timestamp: DateTime): Future[CheckNotifications] = {
+  def getCheckNotifications(checkRef: CheckRef,
+                            generation: Long,
+                            epoch: Long,
+                            timestamp: DateTime): Future[CheckNotifications] = {
     val _checkRef = checkRef.toString
+    val _generation: java.lang.Long = generation
     val _epoch: java.lang.Long = epoch
     val _timestamp = timestamp.toDate
     val statement = new BoundStatement(preparedGetCheckNotifications)
-    statement.bind(_checkRef, _epoch, _timestamp)
+    statement.bind(_checkRef, _generation, _epoch, _timestamp)
     executeAsync(statement).map {
       case resultSet =>
         val row = resultSet.one()
         if (row == null) throw ApiException(ResourceNotFound) else {
           Option(row.getString(0))
             .map(string2checkNotifications)
-            .getOrElse(CheckNotifications(timestamp, Vector.empty))
+            .getOrElse(CheckNotifications(generation, timestamp, Vector.empty))
         }
     }
   }
@@ -237,22 +253,24 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     s"""
        |SELECT notifications
        |FROM $tableName
-       |WHERE check_ref = ? AND epoch = ? AND timestamp >= ? AND timestamp < ?
+       |WHERE check_ref = ? AND generation = ? AND epoch = ? AND timestamp >= ? AND timestamp < ?
        |LIMIT ?
      """.stripMargin)
 
   def getCheckNotificationsHistory(checkRef: CheckRef,
+                                   generation: Long,
                                    epoch: Long,
                                    from: Option[DateTime],
                                    to: Option[DateTime],
                                    limit: Int): Future[CheckNotificationsHistory] = {
     val _checkRef = checkRef.toString
+    val _generation: java.lang.Long = generation
     val _epoch: java.lang.Long = epoch
     val start = from.map(_.toDate).getOrElse(EpochUtils.SMALLEST_DATE)
     val end = to.map(_.toDate).getOrElse(EpochUtils.LARGEST_DATE)
     val _limit: java.lang.Integer = limit
     val statement = new BoundStatement(preparedGetCheckNotificationsHistory)
-    statement.bind(_checkRef, _epoch, start, end, _limit)
+    statement.bind(_checkRef, _generation, _epoch, start, end, _limit)
     statement.setFetchSize(limit)
     executeAsync(statement).map { resultSet =>
       val notifications = resultSet.all()
@@ -267,6 +285,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
    *
    */
   def getCheckNotificationsHistory(checkRef: CheckRef,
+                                   generation: Long,
                                    epoch: Long,
                                    from: Option[DateTime],
                                    to: Option[DateTime],
@@ -280,6 +299,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     val select = QueryBuilder.select("notifications")
       .from(tableName)
       .where(QueryBuilder.eq("check_ref", checkRef.toString))
+        .and(QueryBuilder.eq("generation", generation: java.lang.Long))
         .and(QueryBuilder.eq("epoch", epoch))
         .and(start)
         .and(end)
@@ -298,22 +318,26 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     s"""
        |SELECT metrics
        |FROM $tableName
-       |WHERE check_ref = ? AND epoch = ? AND timestamp = ?
+       |WHERE check_ref = ? AND generation = ? AND epoch = ? AND timestamp = ?
      """.stripMargin)
 
-  def getCheckMetrics(checkRef: CheckRef, epoch: Long, timestamp: DateTime): Future[CheckMetrics] = {
+  def getCheckMetrics(checkRef: CheckRef,
+                      generation: Long,
+                      epoch: Long,
+                      timestamp: DateTime): Future[CheckMetrics] = {
     val _checkRef = checkRef.toString
+    val _generation: java.lang.Long = generation
     val _epoch: java.lang.Long = epoch
     val _timestamp = timestamp.toDate
     val statement = new BoundStatement(preparedGetCheckMetrics)
-    statement.bind(_checkRef, _epoch, _timestamp)
+    statement.bind(_checkRef, _generation, _epoch, _timestamp)
     executeAsync(statement).map {
       case resultSet =>
         val row = resultSet.one()
         if (row == null) throw ApiException(ResourceNotFound) else {
           Option(row.getString(0))
             .map(string2checkMetrics)
-            .getOrElse(CheckMetrics(timestamp, Map.empty))
+            .getOrElse(CheckMetrics(generation, timestamp, Map.empty))
         }
     }
   }
@@ -322,22 +346,24 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     s"""
        |SELECT metrics
        |FROM $tableName
-       |WHERE check_ref = ? AND epoch = ? AND timestamp >= ? AND timestamp < ?
+       |WHERE check_ref = ? AND generation = ? AND epoch = ? AND timestamp >= ? AND timestamp < ?
        |LIMIT ?
      """.stripMargin)
 
   def getCheckMetricsHistory(checkRef: CheckRef,
+                             generation: Long,
                              epoch: Long,
                              from: Option[DateTime],
                              to: Option[DateTime],
                              limit: Int): Future[CheckMetricsHistory] = {
     val _checkRef = checkRef.toString
+    val _generation: java.lang.Long = generation
     val _epoch: java.lang.Long = epoch
     val start = from.map(_.toDate).getOrElse(EpochUtils.SMALLEST_DATE)
     val end = to.map(_.toDate).getOrElse(EpochUtils.LARGEST_DATE)
     val _limit: java.lang.Integer = limit
     val statement = new BoundStatement(preparedGetCheckMetricsHistory)
-    statement.bind(_checkRef, _epoch, start, end, _limit)
+    statement.bind(_checkRef, _generation, _epoch, start, end, _limit)
     statement.setFetchSize(limit)
     executeAsync(statement).map { resultSet =>
       val metrics = resultSet.all()
@@ -352,6 +378,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
    *
    */
   def getCheckMetricsHistory(checkRef: CheckRef,
+                             generation: Long,
                              epoch: Long,
                              from: Option[DateTime],
                              to: Option[DateTime],
@@ -365,6 +392,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     val select = QueryBuilder.select("metrics")
       .from(tableName)
       .where(QueryBuilder.eq("check_ref", checkRef.toString))
+        .and(QueryBuilder.eq("generation", generation: java.lang.Long))
         .and(QueryBuilder.eq("epoch", epoch))
         .and(start)
         .and(end)
@@ -383,16 +411,17 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     s"""
        |SELECT timestamp, last_update, last_change, condition, metrics
        |FROM $tableName
-       |WHERE check_ref = ? AND epoch = ?
+       |WHERE check_ref = ? AND generation = ? AND epoch = ?
        |ORDER BY timestamp ASC
        |LIMIT 1
      """.stripMargin)
 
-  def getFirstCheckStatus(checkRef: CheckRef, epoch: Long): Future[CheckStatus] = {
+  def getFirstCheckStatus(checkRef: CheckRef, generation: Long, epoch: Long): Future[CheckStatus] = {
     val _checkRef = checkRef.toString
+    val _generation: java.lang.Long = generation
     val _epoch: java.lang.Long = epoch
     val statement = new BoundStatement(preparedGetFirstCheckStatus)
-    statement.bind(_checkRef, _epoch)
+    statement.bind(_checkRef, _generation, _epoch)
     executeAsync(statement).map {
       case resultSet =>
         val row = resultSet.one()
@@ -405,7 +434,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
             .map(string2checkMetrics)
             .map(_.metrics)
             .getOrElse(Map.empty[String,BigDecimal])
-          CheckStatus(timestamp, condition.lifecycle, condition.summary, condition.health, metrics,
+          CheckStatus(generation, timestamp, condition.lifecycle, condition.summary, condition.health, metrics,
             lastUpdate, lastChange, condition.correlation, condition.acknowledged, condition.squelched)
         }
     }
@@ -415,16 +444,17 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     s"""
        |SELECT timestamp, last_update, last_change, condition, metrics
        |FROM $tableName
-       |WHERE check_ref = ? AND epoch = ?
+       |WHERE check_ref = ? AND generation = ? AND epoch = ?
        |ORDER BY timestamp DESC
        |LIMIT 1
      """.stripMargin)
 
-  def getLastCheckStatus(checkRef: CheckRef, epoch: Long): Future[CheckStatus] = {
+  def getLastCheckStatus(checkRef: CheckRef, generation: Long, epoch: Long): Future[CheckStatus] = {
     val _checkRef = checkRef.toString
+    val _generation: java.lang.Long = generation
     val _epoch: java.lang.Long = epoch
     val statement = new BoundStatement(preparedGetLastCheckStatus)
-    statement.bind(_checkRef, _epoch)
+    statement.bind(_checkRef, _generation, _epoch)
     executeAsync(statement).map {
       case resultSet =>
         val row = resultSet.one()
@@ -437,7 +467,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
             .map(string2checkMetrics)
             .map(_.metrics)
             .getOrElse(Map.empty[String,BigDecimal])
-          CheckStatus(timestamp, condition.lifecycle, condition.summary, condition.health, metrics,
+          CheckStatus(generation, timestamp, condition.lifecycle, condition.summary, condition.health, metrics,
             lastUpdate, lastChange, condition.correlation, condition.acknowledged, condition.squelched)
         }
     }
@@ -445,14 +475,16 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
 
   private val preparedDeleteCheckStatus = session.prepare(
     s"""
-       |DELETE FROM $tableName WHERE check_ref = ? AND epoch = ?
+       |DELETE FROM $tableName
+       |WHERE check_ref = ? AND generation = ? AND epoch = ?
      """.stripMargin)
 
-  def deleteCheckStatus(checkRef: CheckRef, epoch: Long): Future[Unit] = {
+  def deleteCheckStatus(checkRef: CheckRef, generation: Long, epoch: Long): Future[Unit] = {
     val _checkRef = checkRef.toString
+    val _generation: java.lang.Long = generation
     val _epoch: java.lang.Long = epoch
     val statement = new BoundStatement(preparedDeleteCheckStatus)
-    statement.bind(_checkRef, _epoch)
+    statement.bind(_checkRef, _generation, _epoch)
     executeAsync(statement).map { _ => Unit }
   }
 

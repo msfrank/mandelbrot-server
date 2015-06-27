@@ -76,7 +76,8 @@ class ScalarProcessor extends BehaviorProcessor {
           correlationId = Some(UUID.randomUUID())
       }
 
-      val status = CheckStatus(timestamp, lifecycle, summary, health, metrics, lastUpdate, lastChange, correlationId, acknowledgementId, check.squelch)
+      val status = CheckStatus(check.generation, timestamp, lifecycle, summary, health, metrics,
+        lastUpdate, lastChange, correlationId, acknowledgementId, check.squelch)
 
       var notifications = Vector.empty[CheckNotification]
       // append lifecycle notification
