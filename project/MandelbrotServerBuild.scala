@@ -18,7 +18,7 @@ object MandelbrotServerBuild extends Build {
   val sprayJsonVersion = "1.3.1"
   val luceneVersion = "4.7.1"
   val slickVersion = "2.0.3"
-  val datastaxVersion = "2.1.4"
+  val datastaxVersion = "2.1.6"
   val scalatestVersion = "2.2.5"
 
   val commonScalacOptions = Seq("-feature", "-deprecation")
