@@ -2,8 +2,8 @@ package io.mandelbrot.persistence.cassandra.dal
 
 import java.util
 
+import com.datastax.driver.core.{BatchStatement, BoundStatement, Session}
 import com.datastax.driver.core.querybuilder.{QueryBuilder, Clause}
-import com.datastax.driver.core.{BoundStatement, Session}
 import spray.json._
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.{Future, ExecutionContext}
@@ -19,8 +19,7 @@ class AgentRegistrationDAL(settings: CassandraRegistryPersisterSettings,
                            val session: Session,
                            implicit val ec: ExecutionContext) extends AbstractDriver {
 
-
-  val tableName: String = "agent_status"
+  val tableName: String = "agent_registration"
 
   session.execute(
     s"""
@@ -122,6 +121,20 @@ class AgentRegistrationDAL(settings: CassandraRegistryPersisterSettings,
     }
   }
 
+  private val preparedListAgentRegistrationGenerationLsns = session.prepare(
+    s"""
+       |SELECT lsn
+       |FROM $tableName
+       |WHERE agent_id = ? AND generation = ?
+       |LIMIT ?
+     """.stripMargin)
+
+  def listAgentRegistrationGenerationLsns(agentId: AgentId, generation: Long, limit: Int): Future[List[Long]] = {
+    val statement = new BoundStatement(preparedListAgentRegistrationGenerationLsns)
+    statement.bind(agentId.toString, generation: java.lang.Long, limit: java.lang.Integer)
+    executeAsync(statement).map { resultSet => resultSet.all().map { _.getLong(0) }.toList }
+  }
+
   private val generationLsnColumns: java.util.List[String] = util.Arrays.asList("generation", "lsn")
   private val largestGenerationLsn = util.Arrays.asList(Long.MaxValue, Long.MaxValue).asInstanceOf[util.List[Object]]
   private val smallestGenerationLsn = util.Arrays.asList(0L, 0L).asInstanceOf[util.List[Object]]
@@ -206,6 +219,20 @@ class AgentRegistrationDAL(settings: CassandraRegistryPersisterSettings,
     val _lsn: java.lang.Long = lsn
     statement.bind(agentId.toString, _generation, _lsn)
     executeAsync(statement).map { _ => Unit }
+  }
+
+  def deleteAgentRegistration(agentId: AgentId, generation: Long, lsns: List[Long]): Future[Unit] = {
+    // we actually want to use an unlogged batch here :)  see:
+    // http://christopher-batey.blogspot.com/2015/02/cassandra-anti-pattern-misuse-of.html
+    val batch = new BatchStatement(BatchStatement.Type.UNLOGGED)
+    val _generation: java.lang.Long = generation
+    lsns.foreach { lsn =>
+      val statement = new BoundStatement(preparedDeleteAgentRegistrationAtLsn)
+      val _lsn: java.lang.Long = lsn
+      statement.bind(agentId.toString, _generation, _lsn)
+      batch.add(statement)
+    }
+    executeAsync(batch).map { _ => Unit }
   }
 
   private val preparedDeleteAgentRegistration = session.prepare(

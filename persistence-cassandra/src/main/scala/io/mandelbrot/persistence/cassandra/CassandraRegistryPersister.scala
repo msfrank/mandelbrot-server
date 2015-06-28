@@ -10,7 +10,7 @@ import io.mandelbrot.core.{NotImplemented, ApiException}
 
 import io.mandelbrot.core.registry._
 import io.mandelbrot.persistence.cassandra.dal.{AgentGroupDAL, AgentTombstoneDAL, AgentRegistrationDAL}
-import io.mandelbrot.persistence.cassandra.task.{DescribeGroupTask, GetAgentRegistrationHistoryTask}
+import io.mandelbrot.persistence.cassandra.task.{DeleteAgentRegistrationTask, DescribeGroupTask, GetAgentRegistrationHistoryTask}
 
 import scala.util.hashing.MurmurHash3
 
@@ -53,7 +53,8 @@ class CassandraRegistryPersister(settings: CassandraRegistryPersisterSettings) e
       }.pipeTo(sender())
 
     case op: DeleteRegistration =>
-      sender() ! RegistryServiceOperationFailed(op, ApiException(NotImplemented))
+      val props = DeleteAgentRegistrationTask.props(op, sender(), agentRegistrationDAL)
+      context.actorOf(props)
 
     case op: PutTombstone =>
       val partition = calculatePartition(op.agentId)

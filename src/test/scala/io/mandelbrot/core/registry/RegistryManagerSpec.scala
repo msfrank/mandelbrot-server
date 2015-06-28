@@ -171,7 +171,7 @@ class RegistryManagerSpec(_system: ActorSystem) extends TestKit(_system) with Im
         val createRegistrationResult = expectMsgClass(classOf[PutRegistrationResult])
         createRegistrationResult.metadata shouldEqual metadata
 
-        registryService ! DeleteRegistration(agent1, generation = metadata.generation)
+        registryService ! DeleteRegistration(agent1, metadata.generation)
         val deleteRegistrationResult = expectMsgClass(classOf[DeleteRegistrationResult])
 
         registryService ! GetRegistration(agent1)
