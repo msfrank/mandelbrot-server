@@ -5,7 +5,6 @@ import akka.testkit.{ImplicitSender, TestKit}
 import org.joda.time.{DateTimeZone, DateTime}
 import org.scalatest.{ShouldMatchers, BeforeAndAfterAll, WordSpecLike}
 import org.scalatest.LoneElement._
-import org.scalatest.Inside._
 import scala.concurrent.duration._
 
 import io.mandelbrot.core.model._

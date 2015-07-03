@@ -114,7 +114,7 @@ case class DeleteRegistration(agentId: AgentId, generation: Long) extends Regist
 case class DeleteRegistrationResult(op: DeleteRegistration)
 
 case class ListTombstones(olderThan: DateTime, limit: Int) extends RegistryServiceQuery
-case class ListTombstonesResult(op: ListTombstones, tombstones: Vector[AgentTombstone])
+case class ListTombstonesResult(op: ListTombstones, tombstones: Vector[Tombstone])
 
 case class PutTombstone(agentId: AgentId, generation: Long, expires: DateTime) extends RegistryServiceCommand
 case class PutTombstoneResult(op: PutTombstone)

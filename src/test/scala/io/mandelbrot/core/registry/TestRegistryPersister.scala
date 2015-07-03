@@ -2,6 +2,7 @@ package io.mandelbrot.core.registry
 
 import akka.actor._
 import com.typesafe.config.Config
+import org.joda.time.DateTime
 import scala.collection.JavaConversions._
 import java.util
 
@@ -13,7 +14,7 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
 
   val groups = new util.TreeMap[String,util.TreeMap[String,AgentMetadata]]()
   val registrations = new util.TreeMap[AgentId, util.TreeMap[GenerationLsn,RegistrationEvent]]()
-  val tombstones = new util.TreeSet[AgentTombstone]()
+  val tombstones = new util.TreeMap[DateTime,util.HashSet[Tombstone]]()
 
   def receive = {
 
@@ -80,15 +81,21 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
       sender() ! DeleteRegistrationResult(op)
 
     case op: ListTombstones =>
-      val expired = tombstones.headSet(AgentTombstone(op.olderThan, new AgentId(Vector.empty), 0)).take(op.limit).toVector
+      val expired = tombstones.headMap(op.olderThan, false).flatMap(_._2.toVector).take(op.limit).toVector
       sender() ! ListTombstonesResult(op, expired)
 
     case op: PutTombstone =>
-      tombstones.add(AgentTombstone(op.expires, op.agentId, op.generation))
+      val tombstoneSet = tombstones.getOrDefault(op.expires, new util.HashSet[Tombstone])
+      tombstoneSet.add(Tombstone(op.expires, op.agentId, op.generation))
+      tombstones.put(op.expires, tombstoneSet)
       sender() ! PutTombstoneResult(op)
 
     case op: DeleteTombstone =>
-      tombstones.remove(AgentTombstone(op.expires, op.agentId, op.generation))
+      Option(tombstones.get(op.expires)).foreach { tombstoneSet =>
+        tombstoneSet.remove(Tombstone(op.expires, op.agentId, op.generation))
+        if (tombstoneSet.isEmpty)
+          tombstones.remove(op.expires)
+      }
       sender() ! DeleteTombstoneResult(op)
 
     case op: AddAgentToGroup =>

@@ -24,7 +24,7 @@ trait Hierarchical[T <: Resource] {
  * A resource locator
  */
 class Resource(val segments: Vector[String]) extends ResourceModel {
-  if (segments.length == 0) throw new IllegalArgumentException("empty resource is not allowed")
+  if (segments.isEmpty) throw new IllegalArgumentException("empty resource is not allowed")
   segments.foreach {
     case segment =>
       if (segment.length == 0) throw new IllegalArgumentException("empty segment is not allowed")
