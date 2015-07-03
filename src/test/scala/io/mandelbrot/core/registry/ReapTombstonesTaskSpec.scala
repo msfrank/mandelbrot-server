@@ -65,16 +65,14 @@ class ReapTombstonesTaskSpec(_system: ActorSystem) extends TestKit(_system) with
 
       val olderThan = DateTime.now(DateTimeZone.UTC).plus(5000)
       serviceProxy ! ListTombstones(olderThan = DateTime.now(DateTimeZone.UTC), limit = 100)
-      println("listing tombstones older than " + olderThan.toString())
       val listTombstonesResult = expectMsgClass(classOf[ListTombstonesResult])
-      println("found tombstones " + listTombstonesResult.tombstones.toString)
       val tombstone = listTombstonesResult.tombstones.loneElement
       tombstone.agentId shouldEqual agentId
       tombstone.generation shouldEqual 1
 
       val timeout = 5.seconds
       val task = system.actorOf(ReapTombstonesTask.props(olderThan, timeout, 100, serviceProxy, self))
-      val reaperComplete = expectMsgClass(timeout + 2.seconds, classOf[ReaperComplete])
+      val reaperComplete = expectMsgClass(timeout + 10.seconds, classOf[ReaperComplete])
       reaperComplete.seen shouldEqual 1
       reaperComplete.deleted shouldEqual 1
     }

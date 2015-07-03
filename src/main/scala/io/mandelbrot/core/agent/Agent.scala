@@ -42,15 +42,16 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
 
   // config
   val settings = ServerConfig(context.system).settings
-  val retirementPeriod = 1.days     // FIXME: define this in agent registration
   val activeRetirement = 5.minutes  // FIXME: define this in ServerConfig
   val updatingTimeout = 5.seconds   // FIXME: define this in ServerConfig
   val retiringTimeout = 5.seconds   // FIXME: define this in ServerConfig
+  val deleteTimeout = 30.seconds    // FIXME: define this in ServerConfig
 
   // state
   var checks: Map[CheckId,CheckActor] = Map.empty
   val retiredChecks = new mutable.HashMap[ActorRef,(CheckId,Long)]
   val zombieChecks = new mutable.HashSet[CheckId]
+  val pendingDeletes = new mutable.HashMap[ActorRef,Long]()
   val metricsBus = new MetricsBus()
   var generation: Long = 0
   var lsn: Long = 0
@@ -264,6 +265,15 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       val commit = AgentRegistration(state.registration, metadata, lsn + 1, committed = false)
       goto(AgentRetiring) using AgentRetiring(op, sender(), current, commit)
 
+    /* delete agent data for the specified generation */
+    case Event(op: DeleteAgent, state: AgentRunning) =>
+      if (!pendingDeletes.values.toSet.contains(op.generation)) {
+        val task = context.actorOf(DeleteAgentTask.props(op, sender(), deleteTimeout, services))
+        context.watch(task)
+        pendingDeletes += (task -> op.generation)
+      } else sender() ! AgentOperationFailed(op, ApiException(Conflict))
+      stay()
+
     /* ignore check status from top level checks */
     case Event(status: CheckStatus, state: AgentRunning) =>
       stay()
@@ -284,7 +294,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       stay()
 
     /* clean up retired checks, reanimate zombie checks */
-    case Event(Terminated(actorRef), state: AgentRunning) =>
+    case Event(Terminated(actorRef), state: AgentRunning) if retiredChecks.contains(actorRef) =>
       val (checkRef,lsn) = retiredChecks(actorRef)
       checks = checks - checkRef
       retiredChecks.remove(actorRef)
@@ -293,6 +303,11 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
         applyAgentRegistration(state.agentId, state.registration, lsn)
       } else
         log.debug("check {} has been terminated", checkRef)
+      stay()
+
+    /* remove task from pending deletes */
+    case Event(Terminated(actorRef), state: AgentRunning) if pendingDeletes.contains(actorRef) =>
+      pendingDeletes -= actorRef
       stay()
   }
 
@@ -402,6 +417,15 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
     case Event(op: MatchAgent, state: AgentRetired) =>
       stay() replying AgentOperationFailed(op, ApiException(ResourceNotFound))
 
+    /* delete agent data for the specified generation */
+    case Event(op: DeleteAgent, state: AgentRetired) =>
+      if (!pendingDeletes.values.toSet.contains(op.generation)) {
+        val task = context.actorOf(DeleteAgentTask.props(op, sender(), deleteTimeout, services))
+        context.watch(task)
+        pendingDeletes += (task -> op.generation)
+      } else sender() ! AgentOperationFailed(op, ApiException(Conflict))
+      stay()
+
     /* agent doesn't exist anymore, so return resource not found */
     case Event(op: AgentOperation, _) =>
       stay() replying AgentOperationFailed(op, ApiException(ResourceNotFound))
@@ -409,6 +433,11 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
     /* agent doesn't exist anymore, so return resource not found */
     case Event(op: CheckOperation, _) =>
       stay() replying CheckOperationFailed(op, ApiException(ResourceNotFound))
+
+    /* remove task from pending deletes */
+    case Event(Terminated(actorRef), state: AgentRunning) if pendingDeletes.contains(actorRef) =>
+      pendingDeletes -= actorRef
+      stay()
   }
 
   /**
