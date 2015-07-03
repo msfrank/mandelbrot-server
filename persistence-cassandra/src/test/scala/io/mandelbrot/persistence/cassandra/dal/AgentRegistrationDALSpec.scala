@@ -53,12 +53,13 @@ class AgentRegistrationDALSpec(_system: ActorSystem) extends TestKit(_system) wi
     "put a registration" in withSessionAndDAL { (session, dal) =>
       val agentId = AgentId("test.foo")
       val timestamp = DateTime.now(DateTimeZone.UTC)
+      val agentPolicy = AgentPolicy(5.seconds)
 
-      val registration1 = AgentSpec(agentId, "mandelbrot", Map("foo" -> "bar"), Map.empty, Map.empty, Set.empty)
+      val registration1 = AgentSpec(agentId, "mandelbrot", agentPolicy, Map("foo" -> "bar"), Map.empty, Map.empty, Set.empty)
       val metadata1 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, None)
       Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 1, registration1, timestamp, timestamp, None, committed = true), 5.seconds)
 
-      val registration2 = AgentSpec(agentId, "mandelbrot", Map("foo" -> "baz"), Map.empty, Map.empty, Set.empty)
+      val registration2 = AgentSpec(agentId, "mandelbrot", agentPolicy, Map("foo" -> "baz"), Map.empty, Map.empty, Set.empty)
       val metadata2 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, None)
       Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 2, registration2, timestamp, timestamp, None, committed = true), 5.seconds)
 
@@ -75,16 +76,17 @@ class AgentRegistrationDALSpec(_system: ActorSystem) extends TestKit(_system) wi
     "get a registration at a specific point in time" in withSessionAndDAL { (session, dal) =>
       val agentId = AgentId("test.foo")
       val timestamp = DateTime.now(DateTimeZone.UTC)
+      val agentPolicy = AgentPolicy(5.seconds)
 
-      val registration1 = AgentSpec(agentId, "mandelbrot", Map("foo" -> "bar"), Map.empty, Map.empty, Set.empty)
+      val registration1 = AgentSpec(agentId, "mandelbrot", agentPolicy, Map("foo" -> "bar"), Map.empty, Map.empty, Set.empty)
       val metadata1 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, None)
       Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 1, registration1, timestamp, timestamp, None, committed = true), 5.seconds)
 
-      val registration2 = AgentSpec(agentId, "mandelbrot", Map("foo" -> "baz"), Map.empty, Map.empty, Set.empty)
+      val registration2 = AgentSpec(agentId, "mandelbrot", agentPolicy, Map("foo" -> "baz"), Map.empty, Map.empty, Set.empty)
       val metadata2 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, None)
       Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 2, registration2, timestamp, timestamp, None, committed = true), 5.seconds)
 
-      val registration3 = AgentSpec(agentId, "mandelbrot", Map("foo" -> "qux"), Map.empty, Map.empty, Set.empty)
+      val registration3 = AgentSpec(agentId, "mandelbrot", agentPolicy, Map("foo" -> "qux"), Map.empty, Map.empty, Set.empty)
       val metadata3 = AgentMetadata(agentId, generation = 1, timestamp, timestamp, None)
       Await.result(dal.updateAgentRegistration(agentId, generation = 1, lsn = 3, registration3, timestamp, timestamp, None, committed = true), 5.seconds)
 

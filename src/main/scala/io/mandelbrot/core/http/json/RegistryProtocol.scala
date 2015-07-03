@@ -40,8 +40,11 @@ trait RegistryProtocol extends DefaultJsonProtocol with ConstantsProtocol with R
   /* convert CheckSpec class */
   implicit val CheckSpecFormat = jsonFormat4(CheckSpec)
 
+  /* convert AgentPolicy class */
+  implicit val AgentPolicyFormat = jsonFormat1(AgentPolicy)
+
   /* convert AgentSpec class */
-  implicit val AgentRegistrationFormat = jsonFormat6(AgentSpec)
+  implicit val AgentSpecFormat = jsonFormat7(AgentSpec)
 
   /* convert AgentMetadata class */
   implicit val AgentMetadataFormat = jsonFormat5(AgentMetadata)

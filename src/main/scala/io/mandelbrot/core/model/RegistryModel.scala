@@ -5,9 +5,13 @@ import scala.concurrent.duration.FiniteDuration
 
 sealed trait RegistryModel
 
+/* tunable parameters which apply to the agent */
+case class AgentPolicy(retirementPeriod: FiniteDuration) extends RegistryModel
+
 /* agent specification */
 case class AgentSpec(agentId: AgentId,
                      agentType: String,
+                     policy: AgentPolicy,
                      metadata: Map[String,String],
                      checks: Map[CheckId,CheckSpec],
                      metrics: Map[CheckId,Map[String,MetricSpec]],

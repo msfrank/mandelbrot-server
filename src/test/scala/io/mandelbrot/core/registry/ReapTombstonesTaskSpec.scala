@@ -2,11 +2,15 @@ package io.mandelbrot.core.registry
 
 import akka.actor.{PoisonPill, ActorRef, ActorSystem}
 import akka.testkit.{ImplicitSender, TestKit}
+import io.mandelbrot.core.model.AgentSpec
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 import org.scalatest.{ShouldMatchers, BeforeAndAfterAll, WordSpecLike}
+import org.scalatest.LoneElement._
 
 import io.mandelbrot.core.model._
+import io.mandelbrot.core.agent._
+import io.mandelbrot.core.check._
 import io.mandelbrot.core._
 import io.mandelbrot.core.ConfigConversions._
 
@@ -38,8 +42,41 @@ class ReapTombstonesTaskSpec(_system: ActorSystem) extends TestKit(_system) with
       reaperComplete.deleted shouldEqual 0
     }
 
-    "delete an agent registration that is tombstoned" in {
+    "delete an agent registration that is tombstoned" in withServiceProxy { serviceProxy =>
 
+      val agentId = AgentId("foo")
+      val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 0.seconds, None)
+      val check = CheckSpec("io.mandelbrot.core.check.ScalarCheck", checkPolicy, Map.empty, Map.empty)
+      val checks = Map(CheckId("load") -> check)
+      val metrics = Map.empty[CheckId, Map[String, MetricSpec]]
+      val agentPolicy = AgentPolicy(0.seconds)
+      val registration = AgentSpec(agentId, "mandelbrot", agentPolicy, Map.empty, checks, metrics, Set.empty)
+
+      serviceProxy ! RegisterAgent(agentId, registration)
+      val registerAgentResult = expectMsgClass(classOf[RegisterAgentResult])
+
+      val checkRef = CheckRef(agentId, CheckId("load"))
+      val timestamp = DateTime.now()
+      serviceProxy ! ProcessCheckEvaluation(checkRef, CheckEvaluation(timestamp, Some("healthy"), Some(CheckHealthy), None))
+      expectMsgClass(classOf[ProcessCheckEvaluationResult])
+
+      serviceProxy ! RetireAgent(agentId)
+      expectMsgClass(classOf[RetireAgentResult])
+
+      val olderThan = DateTime.now(DateTimeZone.UTC).plus(5000)
+      serviceProxy ! ListTombstones(olderThan = DateTime.now(DateTimeZone.UTC), limit = 100)
+      println("listing tombstones older than " + olderThan.toString())
+      val listTombstonesResult = expectMsgClass(classOf[ListTombstonesResult])
+      println("found tombstones " + listTombstonesResult.tombstones.toString)
+      val tombstone = listTombstonesResult.tombstones.loneElement
+      tombstone.agentId shouldEqual agentId
+      tombstone.generation shouldEqual 1
+
+      val timeout = 5.seconds
+      val task = system.actorOf(ReapTombstonesTask.props(olderThan, timeout, 100, serviceProxy, self))
+      val reaperComplete = expectMsgClass(timeout + 2.seconds, classOf[ReaperComplete])
+      reaperComplete.seen shouldEqual 1
+      reaperComplete.deleted shouldEqual 1
     }
   }
 }

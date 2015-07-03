@@ -258,7 +258,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
 
     /* retire all running checks */
     case Event(op: RetireAgent, state: AgentRunning) =>
-      val tombstone = DateTime.now(DateTimeZone.UTC).plus(retirementPeriod.toMillis)
+      val tombstone = DateTime.now(DateTimeZone.UTC).plus(state.registration.policy.retirementPeriod.toMillis)
       val metadata = state.metadata.copy(expires = Some(tombstone))
       val current = AgentRegistration(state.registration, state.metadata, lsn, committed = true)
       val commit = AgentRegistration(state.registration, metadata, lsn + 1, committed = false)
