@@ -33,7 +33,8 @@ import io.mandelbrot.core.ServerConfig
  * HttpServer is responsible for listening on the HTTP port, accepting connections,
  * and handing them over to the ApiService for processing.
  */
-class HttpServer(val serviceProxy: ActorRef) extends Actor with ApiService with ActorLogging {
+class HttpServer(val serviceProxy: ActorRef) extends Actor with ActorLogging with V2Api {
+
   import spray.can.Http
 
   implicit val system = context.system

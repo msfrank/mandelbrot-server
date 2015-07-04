@@ -21,7 +21,7 @@ import io.mandelbrot.core.http.json.JsonProtocol._
 import io.mandelbrot.core.{ServerConfig, MandelbrotConfig, ServiceProxy, AkkaConfig}
 import io.mandelbrot.core.ConfigConversions._
 
-class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with ApiService with ShouldMatchers with BeforeAndAfter {
+class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with ShouldMatchers with BeforeAndAfter {
 
   override def testConfig: Config = AkkaConfig ++ MandelbrotConfig
   override def actorRefFactory = system
