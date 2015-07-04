@@ -1,4 +1,4 @@
-package io.mandelbrot.core.http
+package io.mandelbrot.core.http.v2api
 
 /**
  *

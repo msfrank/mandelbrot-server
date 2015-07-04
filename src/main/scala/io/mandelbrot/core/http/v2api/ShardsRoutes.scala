@@ -17,47 +17,34 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.http
+package io.mandelbrot.core.http.v2api
 
 import akka.pattern.ask
 import spray.httpx.SprayJsonSupport._
 
 import io.mandelbrot.core._
 import io.mandelbrot.core.entity._
+import io.mandelbrot.core.http.json._
 
 /**
- * NodesRoutes contains all HTTP routes for interacting with cluster nodes.
+ * ShardsRoutes contains all HTTP routes for interacting with cluster shards.
  */
-trait NodesRoutes extends ApiService {
-  import json.JsonProtocol._
-  import RoutingDirectives._
+trait ShardsRoutes extends ApiService {
+  import JsonProtocol._
 
-  val nodesRoutes = {
-    path("nodes") {
-      /* get the status of all nodes in the cluster */
+  val shardsRoutes = {
+    path("shards") {
+      /* get the status of all shards in the cluster */
       get {
         complete {
-          serviceProxy.ask(GetClusterStatus()).map {
-            case result: GetClusterStatusResult =>
+          serviceProxy.ask(GetShardMapStatus()).map {
+            case result: GetShardMapStatusResult =>
               result.status
             case failure: ServiceOperationFailed =>
               throw failure.failure
           }
         }
       }
-    } ~
-      pathPrefix("nodes" / ClusterAddress) { case address =>
-        /* get the status of the specified node */
-        get {
-          complete {
-            serviceProxy.ask(GetNodeStatus(Some(address))).map {
-              case result: GetNodeStatusResult =>
-                result.status
-              case failure: ServiceOperationFailed =>
-                throw failure.failure
-            }
-          }
-        }
-      }
+    }
   }
 }

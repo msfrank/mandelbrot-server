@@ -17,27 +17,28 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.http
+package io.mandelbrot.core.http.v2api
 
 import akka.pattern.ask
-import spray.http._
 import spray.http.HttpHeaders.Location
+import spray.http._
 import spray.httpx.SprayJsonSupport._
 import spray.json._
 
 import io.mandelbrot.core._
-import io.mandelbrot.core.http.json.JsonBody
 import io.mandelbrot.core.agent._
+import io.mandelbrot.core.check._
+import io.mandelbrot.core.http._
+import io.mandelbrot.core.http.json._
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.check._
 
 /**
  * AgentsRoutes contains all HTTP routes for interacting with agents.
  */
 trait AgentsRoutes extends ApiService {
-  import json.JsonProtocol._
   import RoutingDirectives._
+  import JsonProtocol._
 
   /**
    * Spray routes for managing agents

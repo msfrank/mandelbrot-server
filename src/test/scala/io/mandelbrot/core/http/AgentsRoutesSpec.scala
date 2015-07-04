@@ -6,6 +6,7 @@ import akka.event.{Logging, LoggingAdapter}
 import akka.util.Timeout
 import com.typesafe.config.Config
 import io.mandelbrot.core.agent.RegisterAgent
+import io.mandelbrot.core.http.v2api.V2Api
 import org.joda.time.{DateTimeZone, DateTime}
 import org.scalatest.{BeforeAndAfter, WordSpec, ShouldMatchers}
 import org.scalatest._

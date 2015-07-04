@@ -22,11 +22,13 @@ package io.mandelbrot.core.http
 import akka.actor.{ActorRef, Props, Actor, ActorLogging}
 import akka.io.IO
 import akka.util.Timeout
+import spray.can.Http
 import spray.io.{ServerSSLEngineProvider, PipelineContext}
 import javax.net.ssl.{SSLEngine, TrustManagerFactory, KeyManagerFactory, SSLContext}
 import java.security.KeyStore
 import java.io.FileInputStream
 
+import io.mandelbrot.core.http.v2api.V2Api
 import io.mandelbrot.core.ServerConfig
 
 /**
@@ -34,8 +36,6 @@ import io.mandelbrot.core.ServerConfig
  * and handing them over to the ApiService for processing.
  */
 class HttpServer(val serviceProxy: ActorRef) extends Actor with ActorLogging with V2Api {
-
-  import spray.can.Http
 
   implicit val system = context.system
   implicit val dispatcher = context.dispatcher
