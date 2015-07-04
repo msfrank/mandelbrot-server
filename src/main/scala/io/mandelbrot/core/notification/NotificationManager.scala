@@ -33,7 +33,7 @@ import io.mandelbrot.core.model._
  * from Checks and routes them to the appropriate Notifier instances, depending on
  * current maintenance windows and notification rules.
  */
-class NotificationManager(settings: NotificationSettings) extends Actor with ActorLogging {
+class NotificationManager(settings: NotificationSettings, clusterEnabled: Boolean) extends Actor with ActorLogging {
   import NotificationManager._
   import context.dispatcher
 
@@ -79,7 +79,9 @@ class NotificationManager(settings: NotificationSettings) extends Actor with Act
 }
 
 object NotificationManager {
-  def props(settings: NotificationSettings) = Props(classOf[NotificationManager], settings)
+  def props(settings: NotificationSettings, clusterEnabled: Boolean) = {
+    Props(classOf[NotificationManager], settings, clusterEnabled)
+  }
 
   sealed trait Event
   case class MaintenanceWindowRegisters(command: RegisterMaintenanceWindow, window: MaintenanceWindow) extends Event

@@ -29,7 +29,7 @@ import io.mandelbrot.core.model._
 /**
  *
  */
-class StateManager(settings: StateSettings) extends Actor with ActorLogging {
+class StateManager(settings: StateSettings, clusterEnabled: Boolean) extends Actor with ActorLogging {
 
   // config
   val persister: ActorRef = context.actorOf(settings.props, "persister")
@@ -66,7 +66,9 @@ class StateManager(settings: StateSettings) extends Actor with ActorLogging {
 }
 
 object StateManager {
-  def props(settings: StateSettings) = Props(classOf[StateManager], settings)
+  def props(settings: StateSettings, clusterEnabled: Boolean) = {
+    Props(classOf[StateManager], settings, clusterEnabled)
+  }
 }
 
 /**

@@ -58,10 +58,14 @@ class ServiceProxy extends Actor with ActorLogging {
     case key => ReviveAgent(AgentId(key))
   }
 
-  val registryService = context.actorOf(RegistryManager.props(settings.registry), "registry-service")
-  val notificationService = context.actorOf(NotificationManager.props(settings.notification), "notification-service")
-  val stateService = context.actorOf(StateManager.props(settings.state), "state-service")
-  val entityService = context.actorOf(EntityManager.props(settings.cluster, propsCreator, entityReviver), "entity-service")
+  val registryService = context.actorOf(RegistryManager.props(settings.registry,
+    settings.cluster.enabled), "registry-service")
+  val notificationService = context.actorOf(NotificationManager.props(settings.notification,
+    settings.cluster.enabled), "notification-service")
+  val stateService = context.actorOf(StateManager.props(settings.state,
+    settings.cluster.enabled), "state-service")
+  val entityService = context.actorOf(EntityManager.props(settings.cluster,
+    propsCreator, entityReviver), "entity-service")
 
   def receive = {
 

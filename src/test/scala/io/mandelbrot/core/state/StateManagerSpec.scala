@@ -23,7 +23,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
   val settings = ServerConfig(system).settings
 
   def withStateService(testCode: (ActorRef) => Any) {
-    val stateService = system.actorOf(StateManager.props(settings.state))
+    val stateService = system.actorOf(StateManager.props(settings.state, settings.cluster.enabled))
     testCode(stateService)
     stateService ! PoisonPill
   }

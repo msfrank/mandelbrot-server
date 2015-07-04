@@ -23,7 +23,7 @@ class RegistryManagerSpec(_system: ActorSystem) extends TestKit(_system) with Im
   val settings = ServerConfig(system).settings
 
   def withRegistryService(testCode: (ActorRef) => Any) {
-    val registryService = system.actorOf(RegistryManager.props(settings.registry))
+    val registryService = system.actorOf(RegistryManager.props(settings.registry, settings.cluster.enabled))
     testCode(registryService)
     registryService ! PoisonPill
   }

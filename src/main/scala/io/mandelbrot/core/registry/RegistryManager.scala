@@ -29,7 +29,7 @@ import io.mandelbrot.core.model._
 /**
  *
  */
-class RegistryManager(settings: RegistrySettings) extends Actor with ActorLogging {
+class RegistryManager(settings: RegistrySettings, clusterEnabled: Boolean) extends Actor with ActorLogging {
 
   // state
   val registrar: ActorRef = context.actorOf(settings.props, "registrar")
@@ -64,8 +64,9 @@ class RegistryManager(settings: RegistrySettings) extends Actor with ActorLoggin
 }
 
 object RegistryManager {
-  def props(settings: RegistrySettings) = Props(classOf[RegistryManager], settings)
-  def settings(config: Config): Option[Any] = None
+  def props(settings: RegistrySettings, clusterEnabled: Boolean) = {
+    Props(classOf[RegistryManager], settings, clusterEnabled)
+  }
 
   val MinGeneration = 0L
   val MaxGeneration = Long.MaxValue
