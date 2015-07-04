@@ -53,7 +53,7 @@ class ReapTombstonesTaskSpec(_system: ActorSystem) extends TestKit(_system) with
       val registration = AgentSpec(agentId, "mandelbrot", agentPolicy, Map.empty, checks, metrics, Set.empty)
 
       serviceProxy ! RegisterAgent(agentId, registration)
-      val registerAgentResult = expectMsgClass(classOf[RegisterAgentResult])
+      val registerAgentResult = expectMsgClass(10.seconds, classOf[RegisterAgentResult])
 
       val checkRef = CheckRef(agentId, CheckId("load"))
       val timestamp = DateTime.now()

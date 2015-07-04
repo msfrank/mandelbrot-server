@@ -33,6 +33,13 @@ case class PolicyDefaults(joiningTimeout: Option[FiniteDuration],
 
 case class RegistrySettings(policyMin: PolicyDefaults,
                             policyMax: PolicyDefaults,
+                            reaperInterval: FiniteDuration,
+                            reaperTimeout: FiniteDuration,
+                            maxDeletesInFlight: Int,
+                            clusterRole: Option[String],
+                            maxHandOverRetries: Int,
+                            maxTakeOverRetries: Int,
+                            retryInterval: FiniteDuration,
                             props: Props)
 
 object RegistrySettings {
@@ -67,6 +74,16 @@ object RegistrySettings {
       }
       PolicyDefaults(joiningTimeoutMax, checkTimeoutMax, alertTimeoutMax, leavingTimeoutMax)
     }
+    val reaperInterval = FiniteDuration(config.getDuration("reaper-interval",
+      TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+    val reaperTimeout = FiniteDuration(config.getDuration("reaper-timeout",
+      TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
+    val maxDeletesInFlight = config.getInt("max-deletes-in-flight")
+    val clusterRole: Option[String] = if (config.hasPath("reaper-cluster-role")) Some(config.getString("reaper-cluster-role")) else None
+    val maxHandOverRetries = config.getInt("reaper-handover-retries")
+    val maxTakeOverRetries = config.getInt("reaper-takeover-retries")
+    val retryInterval = FiniteDuration(config.getDuration("reaper-retry-interval",
+      TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     val plugin = config.getString("plugin")
     val pluginSettings = if (config.hasPath("plugin-settings")) config.getConfig("plugin-settings") else ConfigFactory.empty()
     val props = RegistryPersister.extensions.get(plugin) match {
@@ -75,7 +92,9 @@ object RegistrySettings {
       case Some(extension) =>
         extension.props(extension.configure(pluginSettings))
     }
-    RegistrySettings(policyMin, policyMax, props)
+    RegistrySettings(policyMin, policyMax, reaperInterval, reaperTimeout,
+      maxDeletesInFlight, clusterRole, maxHandOverRetries, maxTakeOverRetries,
+      retryInterval, props)
   }
 }
 

@@ -20,6 +20,7 @@
 package io.mandelbrot.core.registry
 
 import akka.actor._
+import akka.contrib.pattern.ClusterSingletonManager
 import com.typesafe.config.Config
 import org.joda.time.DateTime
 
@@ -33,6 +34,15 @@ class RegistryManager(settings: RegistrySettings, clusterEnabled: Boolean) exten
 
   // state
   val registrar: ActorRef = context.actorOf(settings.props, "registrar")
+  val cleaner: ActorRef = if (clusterEnabled) {
+    val role = settings.clusterRole
+    val maxHandOverRetries = settings.maxHandOverRetries
+    val maxTakeOverRetries = settings.maxTakeOverRetries
+    val retryInterval = settings.retryInterval
+    val props = ClusterSingletonManager.props(RegistryCleaner.props(settings, context.parent),
+      "singleton", PoisonPill, role, maxHandOverRetries, maxTakeOverRetries, retryInterval)
+    context.actorOf(props, "registry-cleaner")
+  } else context.actorOf(RegistryCleaner.props(settings, context.parent), "registry-cleaner")
 
   def receive = {
 

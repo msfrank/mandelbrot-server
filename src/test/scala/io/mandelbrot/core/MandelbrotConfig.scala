@@ -46,6 +46,12 @@ object MandelbrotConfig extends ComposableConfig {
       |    min-check-timeout = 1 minute
       |    min-alert-timeout = 1 minute
       |    min-leaving-timeout = 1 minute
+      |    reaper-interval = 1 minute
+      |    reaper-timeout = 45 seconds
+      |    reaper-handover-retries = 10
+      |    reaper-takeover-retries = 5
+      |    reaper-retry-interval = 1 second
+      |    max-deletes-in-flight = 100
       |    plugin = "io.mandelbrot.core.registry.TestRegistryPersisterExtension"
       |    plugin-settings { }
       |  }
