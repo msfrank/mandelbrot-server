@@ -33,7 +33,7 @@ import io.mandelbrot.core.registry._
 import io.mandelbrot.core.check._
 
 /**
- * ApiService contains the REST API logic.
+ * AgentsRoutes contains all HTTP routes for interacting with agents.
  */
 trait AgentsRoutes extends ApiService {
   import json.JsonProtocol._

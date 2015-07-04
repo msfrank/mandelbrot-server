@@ -26,7 +26,7 @@ import io.mandelbrot.core._
 import io.mandelbrot.core.entity._
 
 /**
- * ApiService contains the REST API logic.
+ * ShardsRoutes contains all HTTP routes for interacting with cluster shards.
  */
 trait ShardsRoutes extends ApiService {
   import json.JsonProtocol._

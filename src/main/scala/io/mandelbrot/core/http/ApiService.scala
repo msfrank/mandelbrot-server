@@ -20,30 +20,20 @@
 package io.mandelbrot.core.http
 
 import akka.actor.{ActorRef, ActorSystem}
-import akka.pattern.ask
 import akka.util.Timeout
 import akka.event.LoggingAdapter
-import io.mandelbrot.core.agent._
-import io.mandelbrot.core.http.json.JsonBody
 import spray.routing.{HttpService, ExceptionHandler}
 import spray.http._
-import spray.http.HttpHeaders.Location
-import spray.httpx.SprayJsonSupport._
 import spray.json._
 import spray.util.LoggingContext
-import org.joda.time.format.ISODateTimeFormat
 import scala.concurrent.ExecutionContext
-import java.net.URI
 import java.io.{PrintStream, ByteArrayOutputStream}
 
 import io.mandelbrot.core._
-import io.mandelbrot.core.entity._
-import io.mandelbrot.core.model._
-import io.mandelbrot.core.registry._
-import io.mandelbrot.core.check._
+import io.mandelbrot.core.http.json.JsonBody
 
 /**
- * ApiService contains the REST API logic.
+ * ApiService contains the shared REST API logic.
  */
 trait ApiService extends HttpService {
   import scala.language.postfixOps
