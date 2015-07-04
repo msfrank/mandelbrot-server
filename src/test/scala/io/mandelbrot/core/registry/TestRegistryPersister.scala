@@ -113,20 +113,36 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
         groups.put(op.groupName, group)
       sender() ! RemoveAgentFromGroupResult(op)
 
+    case op: ListGroups =>
+      val page = op.last match {
+        case Some(from) =>
+          val groupNames = groups.tailMap(from, false).keys.toVector
+          log.debug("groups.tailMap: {}", groupNames)
+          val last = if (groupNames.length > op.limit) Some(groupNames(op.limit - 1)) else None
+          GroupsPage(groupNames.take(op.limit), last, exhausted = last.isEmpty)
+        case None =>
+          val groupNames = groups.keys.toVector
+          log.debug("groups.keys: {}", groupNames)
+          val last = if (groupNames.length > op.limit) Some(groupNames(op.limit - 1)) else None
+          GroupsPage(groupNames.take(op.limit), last, exhausted = last.isEmpty)
+      }
+      sender() ! ListGroupsResult(op, page)
+
     case op: DescribeGroup =>
       groups.get(op.groupName) match {
         case null =>
           sender() ! RegistryServiceOperationFailed(op, ApiException(ResourceNotFound))
         case group if op.last.isDefined =>
-          val members = group.tailMap(op.last.get, false)
-          val metadata = members.take(op.limit).values.toVector
-          val last = if (members.size() > metadata.length) Some(metadata.last.agentId.toString) else None
-          val page = MetadataPage(metadata, last, exhausted = last.isEmpty)
+          val members = group.tailMap(op.last.get, false).values.toVector
+          log.debug("members.tailMap: {}", members)
+          val last = if (members.length > op.limit) Some(members(op.limit - 1).agentId.toString) else None
+          val page = MetadataPage(members.take(op.limit), last, exhausted = last.isEmpty)
           sender() ! DescribeGroupResult(op, page)
         case group =>
-          val metadata = group.take(op.limit).values.toVector
-          val last = if (group.size() > metadata.length) Some(metadata.last.agentId.toString) else None
-          val page = MetadataPage(metadata, last, exhausted = last.isEmpty)
+          val members = group.values.toVector
+          log.debug("members.values: {}", members)
+          val last = if (members.length > op.limit) Some(members(op.limit - 1).agentId.toString) else None
+          val page = MetadataPage(members.take(op.limit), last, exhausted = last.isEmpty)
           sender() ! DescribeGroupResult(op, page)
       }
   }

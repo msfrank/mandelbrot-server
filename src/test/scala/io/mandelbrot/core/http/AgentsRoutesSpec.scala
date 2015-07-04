@@ -1,23 +1,20 @@
 package io.mandelbrot.core.http
 
 import akka.actor.{PoisonPill, ActorRef}
-import akka.pattern.ask
 import akka.event.{Logging, LoggingAdapter}
 import akka.util.Timeout
 import com.typesafe.config.Config
-import io.mandelbrot.core.agent.RegisterAgent
-import io.mandelbrot.core.http.v2api.V2Api
 import org.joda.time.{DateTimeZone, DateTime}
 import org.scalatest.{BeforeAndAfter, WordSpec, ShouldMatchers}
-import org.scalatest._
 import spray.http.StatusCodes
 import spray.http.HttpHeaders._
 import spray.httpx.SprayJsonSupport._
 import spray.testkit.ScalatestRouteTest
-import scala.concurrent.Await
 import scala.concurrent.duration._
 
 import io.mandelbrot.core.model._
+import io.mandelbrot.core.agent.RegisterAgent
+import io.mandelbrot.core.http.v2api.V2Api
 import io.mandelbrot.core.http.json.JsonProtocol._
 import io.mandelbrot.core.{ServerConfig, MandelbrotConfig, ServiceProxy, AkkaConfig}
 import io.mandelbrot.core.ConfigConversions._
@@ -78,44 +75,6 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
       }
       Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.Conflict
-      }
-    }
-
-    "return a list of systems" ignore withServiceProxy {
-      Await.result(serviceProxy.ask(RegisterAgent(agent1, registration1)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterAgent(agent2, registration2)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterAgent(agent3, registration3)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterAgent(agent4, registration4)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterAgent(agent5, registration5)), 5.seconds)
-
-      Get("/v2/agents") ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        val page = responseAs[MetadataPage]
-        page.metadata.map(_.agentId) shouldEqual Vector(agent1, agent2, agent3, agent4, agent5)
-        page.last shouldEqual None
-      }
-    }
-
-    "page through a list of systems" ignore withServiceProxy {
-      Await.result(serviceProxy.ask(RegisterAgent(agent1, registration1)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterAgent(agent2, registration2)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterAgent(agent3, registration3)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterAgent(agent4, registration4)), 5.seconds)
-      Await.result(serviceProxy.ask(RegisterAgent(agent5, registration5)), 5.seconds)
-
-      val last = Get("/v2/agents?limit=3") ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        val page = responseAs[MetadataPage]
-        page.metadata.map(_.agentId) shouldEqual Vector(agent1, agent2, agent3)
-        page.last shouldEqual Some(agent3.toString)
-        page.last.get.toString
-      }
-
-      Get("/v2/agents?last=%s&limit=3".format(last)) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        val page = responseAs[MetadataPage]
-        page.metadata.map(_.agentId) shouldEqual Vector(agent4, agent5)
-        page.last shouldEqual None
       }
     }
   }

@@ -17,23 +17,23 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.http
+package io.mandelbrot.core.http.v2api
 
-import akka.actor.{AddressFromURIString, Address}
-import spray.http.{HttpHeader, HttpHeaders}
-import spray.http.Uri.Path
-import spray.routing.PathMatcher1
-import spray.routing.PathMatcher.{Unmatched, Matched}
-import spray.util.SSLSessionInfo
-import org.joda.time.{DateTimeZone, DateTime}
+import akka.actor.{Address, AddressFromURIString}
+import io.mandelbrot.core.model.{AgentId, CheckId}
+import io.mandelbrot.core.{ApiException, BadRequest}
 import org.joda.time.format.ISODateTimeFormat
+import org.joda.time.{DateTime, DateTimeZone}
 import shapeless.HNil
-
-import io.mandelbrot.core.model.{CheckId, AgentId}
-import io.mandelbrot.core.{BadRequest, ApiException}
+import spray.http.Uri.Path
+import spray.http.{HttpHeader, HttpHeaders}
+import spray.routing.PathMatcher.{Matched, Unmatched}
+import spray.routing.PathMatcher1
+import spray.util.SSLSessionInfo
 
 /**
- *
+ * RoutingDirectives contains spray directives for simplifying the parsing
+ * of routes, and the implicit conversions necessary to pull them into scope.
  */
 object RoutingDirectives {
   import shapeless._
