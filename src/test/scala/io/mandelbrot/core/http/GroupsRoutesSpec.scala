@@ -137,7 +137,6 @@ class GroupsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
       val last1 = Get(s"/v2/groups/$groupName?limit=2") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val page = responseAs[MetadataPage]
-        log.info("response: {}", page)
         members = members ++ page.metadata
         page.exhausted shouldEqual false
         page.last.nonEmpty shouldEqual true
@@ -147,7 +146,6 @@ class GroupsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
       val last2 = Get(s"/v2/groups/$groupName?last=$last1&limit=2") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val page = responseAs[MetadataPage]
-        log.info("response: {}", page)
         members = members ++ page.metadata
         page.exhausted shouldEqual false
         page.last.nonEmpty shouldEqual true
@@ -157,7 +155,6 @@ class GroupsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
       Get(s"/v2/groups/$groupName?last=$last2&limit=2") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val page = responseAs[MetadataPage]
-        log.info("response: {}", page)
         members = members ++ page.metadata
         page.exhausted shouldEqual true
         page.last shouldEqual None

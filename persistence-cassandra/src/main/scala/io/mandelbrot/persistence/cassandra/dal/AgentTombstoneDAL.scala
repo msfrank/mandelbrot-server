@@ -77,7 +77,7 @@ class AgentTombstoneDAL(settings: CassandraRegistryPersisterSettings,
     val _limit: java.lang.Integer = limit
     executeAsync(new BoundStatement(preparedListExpiredTombstones).bind(_partition, _olderThan, _limit)).map { resultSet =>
       resultSet.all().map { row =>
-        val expires = new DateTime(row.getLong(0), DateTimeZone.UTC)
+        val expires = new DateTime(row.getDate(0), DateTimeZone.UTC)
         val agentId = AgentId(row.getString(1))
         val generation = row.getLong(2)
         AgentTombstone(partition, agentId, generation, expires)
