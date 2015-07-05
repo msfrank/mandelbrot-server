@@ -142,6 +142,3 @@ case class RemoveAgentFromGroupResult(op: RemoveAgentFromGroup)
 case class DescribeGroup(groupName: String, limit: Int, last: Option[String]) extends RegistryServiceQuery
 case class DescribeGroupResult(op: DescribeGroup, page: MetadataPage)
 
-case class ListGroups(limit: Int, last: Option[String]) extends RegistryServiceQuery
-case class ListGroupsResult(op: ListGroups, page: GroupsPage)
-

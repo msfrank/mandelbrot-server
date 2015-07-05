@@ -34,23 +34,6 @@ trait GroupsRoutes extends ApiService {
   import JsonProtocol._
 
   val groupsRoutes = {
-    path("groups") {
-      /* page through groups */
-      get {
-        pagingParams { paging =>
-        complete {
-          val limit = paging.limit.getOrElse(settings.pageLimit)
-          log.info("list groups {}", paging)
-          serviceProxy.ask(ListGroups(limit, paging.last)).map {
-            case result: ListGroupsResult =>
-              log.info("result: {}", result)
-              result.page
-            case failure: ServiceOperationFailed =>
-              throw failure.failure
-          }
-        }}
-      }
-    } ~
     pathPrefix("groups" / Segment) { case groupName =>
       /* page through agents in the specified group */
       get {

@@ -27,6 +27,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
 
   override val settings: HttpSettings = ServerConfig(system).settings.http
   override implicit val timeout: Timeout = settings.requestTimeout
+  implicit val routeTestTimeout = RouteTestTimeout(timeout.duration)
 
   var _serviceProxy: ActorRef = ActorRef.noSender
   override def serviceProxy = _serviceProxy

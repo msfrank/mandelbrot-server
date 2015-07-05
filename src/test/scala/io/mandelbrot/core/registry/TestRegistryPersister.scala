@@ -113,19 +113,6 @@ class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Act
         groups.put(op.groupName, group)
       sender() ! RemoveAgentFromGroupResult(op)
 
-    case op: ListGroups =>
-      val page = op.last match {
-        case Some(from) =>
-          val groupNames = groups.tailMap(from, false).keys.toVector
-          val last = if (groupNames.length > op.limit) Some(groupNames(op.limit - 1)) else None
-          GroupsPage(groupNames.take(op.limit), last, exhausted = last.isEmpty)
-        case None =>
-          val groupNames = groups.keys.toVector
-          val last = if (groupNames.length > op.limit) Some(groupNames(op.limit - 1)) else None
-          GroupsPage(groupNames.take(op.limit), last, exhausted = last.isEmpty)
-      }
-      sender() ! ListGroupsResult(op, page)
-
     case op: DescribeGroup =>
       groups.get(op.groupName) match {
         case null =>

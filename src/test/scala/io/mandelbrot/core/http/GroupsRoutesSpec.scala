@@ -28,6 +28,7 @@ class GroupsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
 
   override val settings: HttpSettings = ServerConfig(system).settings.http
   override implicit val timeout: Timeout = settings.requestTimeout
+  implicit val routeTestTimeout = RouteTestTimeout(timeout.duration)
 
   var _serviceProxy: ActorRef = ActorRef.noSender
   override def serviceProxy = _serviceProxy
@@ -44,65 +45,6 @@ class GroupsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
   val metadata3 = AgentMetadata(AgentId("agent3"), 1, now, now, None)
   val metadata4 = AgentMetadata(AgentId("agent4"), 1, now, now, None)
   val metadata5 = AgentMetadata(AgentId("agent5"), 1, now, now, None)
-
-  "route /v2/groups" should {
-
-    "return a list of groups" in withServiceProxy {
-      Await.result(serviceProxy.ask(AddAgentToGroup(metadata1, "foo")), 5.seconds)
-      Await.result(serviceProxy.ask(AddAgentToGroup(metadata2, "bar")), 5.seconds)
-      Await.result(serviceProxy.ask(AddAgentToGroup(metadata3, "baz")), 5.seconds)
-      Await.result(serviceProxy.ask(AddAgentToGroup(metadata4, "qux")), 5.seconds)
-      Await.result(serviceProxy.ask(AddAgentToGroup(metadata5, "norf")), 5.seconds)
-
-      Get("/v2/groups") ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        val page = responseAs[GroupsPage]
-        page.groups.length shouldEqual 5
-        page.groups.toSet shouldEqual Set("foo", "bar", "baz", "qux", "norf")
-        page.last shouldEqual None
-        page.exhausted shouldEqual true
-      }
-    }
-
-    "page through a list of groups" in withServiceProxy {
-      Await.result(serviceProxy.ask(AddAgentToGroup(metadata1, "foo")), 5.seconds)
-      Await.result(serviceProxy.ask(AddAgentToGroup(metadata2, "bar")), 5.seconds)
-      Await.result(serviceProxy.ask(AddAgentToGroup(metadata3, "baz")), 5.seconds)
-      Await.result(serviceProxy.ask(AddAgentToGroup(metadata4, "qux")), 5.seconds)
-      Await.result(serviceProxy.ask(AddAgentToGroup(metadata5, "norf")), 5.seconds)
-
-      var groups: Vector[String] = Vector.empty
-
-      val last1 = Get("/v2/groups?limit=2") ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        val page = responseAs[GroupsPage]
-        groups = groups ++ page.groups
-        page.exhausted shouldEqual false
-        page.last.nonEmpty shouldEqual true
-        page.last.get.toString
-      }
-
-      val last2 = Get(s"/v2/groups?last=$last1&limit=2") ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        val page = responseAs[GroupsPage]
-        groups = groups ++ page.groups
-        page.exhausted shouldEqual false
-        page.last.nonEmpty shouldEqual true
-        page.last.get.toString
-      }
-
-      Get(s"/v2/groups?last=$last2&limit=2") ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        val page = responseAs[GroupsPage]
-        groups = groups ++ page.groups
-        page.exhausted shouldEqual true
-        page.last shouldEqual None
-      }
-
-      groups.length shouldEqual 5
-      groups.toSet shouldEqual Set("foo", "bar", "baz", "qux", "norf")
-    }
-  }
 
   "route /v2/groups/(groupName)" should {
 

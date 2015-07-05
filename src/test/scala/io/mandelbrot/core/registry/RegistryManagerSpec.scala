@@ -319,31 +319,6 @@ class RegistryManagerSpec(_system: ActorSystem) extends TestKit(_system) with Im
       }
     }
 
-    "servicing a ListGroups request" should {
-
-      val metadata1 = AgentMetadata(agent1, 1, joinedOn = joinedOn, lastUpdate = joinedOn, None)
-      val metadata2 = AgentMetadata(agent2, 1, joinedOn = joinedOn, lastUpdate = joinedOn, None)
-      val metadata3 = AgentMetadata(agent3, 1, joinedOn = joinedOn, lastUpdate = joinedOn, None)
-      val metadata4 = AgentMetadata(agent4, 1, joinedOn = joinedOn, lastUpdate = joinedOn, None)
-      val metadata5 = AgentMetadata(agent5, 1, joinedOn = joinedOn, lastUpdate = joinedOn, None)
-      val groupName = "foobar"
-
-      "return a list of groups" in withRegistryService { registryService =>
-        val groups = Set(metadata1, metadata2, metadata3, metadata4, metadata5)
-        groups.foreach { metadata =>
-          registryService ! AddAgentToGroup(metadata, groupName + "-" + metadata.agentId.toString)
-          expectMsgClass(classOf[AddAgentToGroupResult])
-        }
-
-        registryService ! ListGroups(limit = 100, None)
-        val listGroupsResult = expectMsgClass(classOf[ListGroupsResult])
-        listGroupsResult.page.groups.length shouldEqual 5
-        listGroupsResult.page.groups.toSet shouldEqual groups.map(m => s"$groupName-${m.agentId}")
-        listGroupsResult.page.last shouldEqual None
-        listGroupsResult.page.exhausted shouldEqual true
-      }
-    }
-
     "servicing a DescribeGroup request" should {
 
       val metadata1 = AgentMetadata(agent1, 1, joinedOn = joinedOn, lastUpdate = joinedOn, None)

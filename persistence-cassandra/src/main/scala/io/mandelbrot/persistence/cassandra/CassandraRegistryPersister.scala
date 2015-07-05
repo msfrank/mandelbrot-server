@@ -94,9 +94,6 @@ class CassandraRegistryPersister(settings: CassandraRegistryPersisterSettings) e
         case ex: Throwable => RegistryServiceOperationFailed(op, ex)
       }.pipeTo(sender())
 
-    case op: ListGroups =>
-      sender() ! RegistryServiceOperationFailed(op, ApiException(NotImplemented))
-
     case op: DescribeGroup =>
       val props = DescribeGroupTask.props(op, sender(), agentGroupDAL)
       context.actorOf(props)
