@@ -146,8 +146,8 @@ class ShardManager(services: ActorRef,
     // start buffering messages in preparation to own shard
     case op: PrepareShard =>
       shardMap.get(op.shardId) match {
-        case entry: AssignedShardEntry =>
-          sender() ! ShardBalancerOperationFailed(op, ApiException(BadRequest))
+        //case entry: AssignedShardEntry if entry.address.equals(selfAddress) =>
+        //  sender() ! ShardBalancerOperationFailed(op, ApiException(BadRequest))
         case entry: ShardEntry if taskTimeouts.containsKey(op.shardId) =>
           sender() ! ShardBalancerOperationFailed(op, ApiException(RetryLater))
         case entry: ShardEntry =>

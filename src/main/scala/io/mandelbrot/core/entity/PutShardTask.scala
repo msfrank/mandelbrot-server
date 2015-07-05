@@ -50,10 +50,21 @@ class PutShardTask(op: PutShard,
 
     case result: PrepareShardResult =>
       // write new shard owner
-      log.debug("shard {} now assigned to {}", result.op.shardId, sender().path)
-      services ! CreateShard(shardId, address)
+      op.prev match {
+        case Some(prev) =>
+          log.debug("shard {} now assigned to {} (was {}", result.op.shardId, sender().path, prev)
+          services ! UpdateShard(shardId, address, prev)
+        case None =>
+          log.debug("shard {} now assigned to {}", result.op.shardId, sender().path)
+          services ! CreateShard(shardId, address)
+      }
 
     case result: CreateShardResult =>
+      // tell targetNode to recover shard
+      log.debug("notifying {} to recover shard {}", path, result.op.shardId)
+      context.actorSelection(path) ! RecoverShard(shardId)
+
+    case result: UpdateShardResult =>
       // tell targetNode to recover shard
       log.debug("notifying {} to recover shard {}", path, result.op.shardId)
       context.actorSelection(path) ! RecoverShard(shardId)
@@ -88,6 +99,6 @@ object PutShardTask {
   case object TaskTimeout
 }
 
-case class PutShard(shardId: Int, address: Address, path: ActorPath)
+case class PutShard(shardId: Int, address: Address, path: ActorPath, prev: Option[Address])
 case class PutShardComplete(op: PutShard)
 case class PutShardFailed(op: PutShard, ex: Throwable)

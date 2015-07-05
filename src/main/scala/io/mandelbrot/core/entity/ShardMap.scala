@@ -41,7 +41,7 @@ class ShardMap(totalShards: Int) {
 
   // initialize the shard map with missing entries
   private val entries = new Array[MapEntry](totalShards)
-  0.until(entries.length).foreach { shardId =>
+  entries.indices.foreach { shardId =>
     entries(shardId) = new MapEntry(MissingShardEntry(shardId))
   }
 
@@ -132,17 +132,24 @@ class ShardMap(totalShards: Int) {
   }
 
   /**
-   * return the set of all shards which have no associated Address.
+   * return the set of all shards which are preparing to move to a different Address.
    */
   def preparing: Vector[PreparingShardEntry] = {
     entries.filter(_.shard.isInstanceOf[PreparingShardEntry]).map(_.shard.asInstanceOf[PreparingShardEntry]).toVector
   }
 
   /**
-   * return the set of all shards which have no associated Address.
+   * return the set of all shards which are moving to a different Address.
    */
   def migrating: Vector[MigratingShardEntry] = {
     entries.filter(_.shard.isInstanceOf[MigratingShardEntry]).map(_.shard.asInstanceOf[MigratingShardEntry]).toVector
+  }
+
+  /**
+   * return the set of all shards which have a current address.
+   */
+  def defined: Vector[DefinedShardEntry] = {
+    entries.filter(_.shard.isInstanceOf[DefinedShardEntry]).map(_.shard.asInstanceOf[DefinedShardEntry]).toVector
   }
 
   /**
@@ -170,7 +177,7 @@ class ShardMap(totalShards: Int) {
   /**
    * returns the number of shards which have an address (assigned, preparing, or migrating).
    */
-  def numAssigned: Int = entries.length - _numMissing
+  def numDefined: Int = entries.length - _numMissing
 
   def isEmpty: Boolean = _numMissing == entries.length
 
@@ -196,15 +203,20 @@ abstract class ShardEntry(_address: Option[Address]) {
   def isDefined = _address.isDefined
 }
 
-case class AssignedShardEntry(shardId: Int, address: Address) extends ShardEntry(Some(address)) {
+trait DefinedShardEntry {
+  val shardId: Int
+  val address: Address
+}
+
+case class AssignedShardEntry(shardId: Int, address: Address) extends ShardEntry(Some(address)) with DefinedShardEntry {
   override def toString = "Shard(%d assigned to %s)".format(shardId, address)
 }
 
-case class PreparingShardEntry(shardId: Int, address: Address) extends ShardEntry(Some(address)) {
+case class PreparingShardEntry(shardId: Int, address: Address) extends ShardEntry(Some(address)) with DefinedShardEntry {
   override def toString = "Shard(%d preparing for %s)".format(shardId, address)
 }
 
-case class MigratingShardEntry(shardId: Int, address: Address) extends ShardEntry(Some(address)) {
+case class MigratingShardEntry(shardId: Int, address: Address) extends ShardEntry(Some(address)) with DefinedShardEntry {
   override def toString = "Shard(%d migrating to %s)".format(shardId, address)
 }
 
