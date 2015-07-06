@@ -54,7 +54,7 @@ class ClusterBalancer(settings: ClusterSettings, services: ActorRef, nodePath: I
       }.map { member =>
         member.address -> (RootActorPath(member.address) / nodePath)
       }.toMap
-      val props = BalancerTask.props(services, self, nodes, settings.totalShards)
+      val props = BalanceShardsTask.props(services, self, nodes, settings.totalShards)
       val balancer = context.actorOf(props, "balancer-%d".format(state.version))
       goto(Running) using Running(balancer, state.version + 1)
 
@@ -73,7 +73,7 @@ class ClusterBalancer(settings: ClusterSettings, services: ActorRef, nodePath: I
       }.map { member =>
         member.address -> (RootActorPath(member.address) / nodePath)
       }.toMap
-      val props = BalancerTask.props(services, self, nodes, settings.totalShards)
+      val props = BalanceShardsTask.props(services, self, nodes, settings.totalShards)
       val balancer = context.actorOf(props, "balancer-%d".format(state.version))
       context.watch(balancer)
       goto(Running) using Running(balancer, state.version + 1)

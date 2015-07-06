@@ -24,18 +24,18 @@ import io.mandelbrot.core.{RetryLater, ApiException}
 import scala.concurrent.duration._
 import scala.collection.mutable
 
-import BalancerTask.{State, Data}
+import BalanceShardsTask.{State, Data}
 
 /**
- * The BalancerTask is responsible for keeping the shard map healthy.  this consists
+ * The BalanceShardsTask is responsible for keeping the shard map healthy.  this consists
  * of multiple interrelated tasks:
  *   1) ensure that all shards are assigned to an address.
  *   2) ensure that shards are equally balanced across the cluster when members join the cluster.
  *   3) ensure that shards are equally balanced across the cluster when members leave the cluster.
  *   4) ensure that shards are redistributed when members get too hot or cold.
  */
-class BalancerTask(services: ActorRef, monitor: ActorRef, nodes: Map[Address,ActorPath], totalShards: Int) extends LoggingFSM[State,Data] {
-  import BalancerTask._
+class BalanceShardsTask(services: ActorRef, monitor: ActorRef, nodes: Map[Address,ActorPath], totalShards: Int) extends LoggingFSM[State,Data] {
+  import BalanceShardsTask._
 
   // config
   val timeout = 5.seconds
@@ -183,9 +183,9 @@ class BalancerTask(services: ActorRef, monitor: ActorRef, nodes: Map[Address,Act
   initialize()
 }
 
-object BalancerTask {
+object BalanceShardsTask {
   def props(services: ActorRef, monitor: ActorRef, nodes: Map[Address,ActorPath], totalShards: Int) = {
-    Props(classOf[BalancerTask], services, monitor, nodes, totalShards)
+    Props(classOf[BalanceShardsTask], services, monitor, nodes, totalShards)
   }
 
   val ordering = Ordering.by[(Address,Int),Int](_._2).reverse

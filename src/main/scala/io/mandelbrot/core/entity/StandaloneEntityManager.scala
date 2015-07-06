@@ -39,7 +39,7 @@ class StandaloneEntityManager(settings: ClusterSettings,
   log.info("initializing standalone mode")
 
   override def preStart(): Unit = {
-    context.actorOf(BalancerTask.props(context.parent, self,
+    context.actorOf(BalanceShardsTask.props(context.parent, self,
       Map(ShardManager.StandaloneAddress -> shardManager.path), settings.totalShards),
       "shard-balancer")
   }

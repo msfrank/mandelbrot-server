@@ -38,7 +38,7 @@ import io.mandelbrot.core._
  * must maintain a cached copy of the shard map.  if a StaleShard message is
  * received, then the ShardManager must invalidate the current mapping and query
  * the coordinator for the up-to-date mapping.  The ShardManager also interacts
- * with the BalancerTask to acquire and release shards as needed to keep shards
+ * with the BalanceShardsTask to acquire and release shards as needed to keep shards
  * balanced across the cluster.
  */
 class ShardManager(services: ActorRef,

@@ -2,18 +2,18 @@ package io.mandelbrot.core.entity
 
 import akka.testkit.{TestProbe, ImplicitSender}
 
-class BalancerTaskSpecMultiJvmNode1 extends BalancerTaskSpec
-class BalancerTaskSpecMultiJvmNode2 extends BalancerTaskSpec
-class BalancerTaskSpecMultiJvmNode3 extends BalancerTaskSpec
-class BalancerTaskSpecMultiJvmNode4 extends BalancerTaskSpec
-class BalancerTaskSpecMultiJvmNode5 extends BalancerTaskSpec
+class BalanceShardsTaskSpecMultiJvmNode1 extends BalanceShardsTaskSpec
+class BalanceShardsTaskSpecMultiJvmNode2 extends BalanceShardsTaskSpec
+class BalanceShardsTaskSpecMultiJvmNode3 extends BalanceShardsTaskSpec
+class BalanceShardsTaskSpecMultiJvmNode4 extends BalanceShardsTaskSpec
+class BalanceShardsTaskSpecMultiJvmNode5 extends BalanceShardsTaskSpec
 
-class BalancerTaskSpec extends MultiNodeSpec(RemoteMultiNodeConfig) with ImplicitSender {
+class BalanceShardsTaskSpec extends MultiNodeSpec(RemoteMultiNodeConfig) with ImplicitSender {
   import ClusterMultiNodeConfig._
 
   def initialParticipants = roles.size
 
-  "A BalancerTask" should {
+  "A BalanceShardsTask" should {
 
     "perform no operations if shard map is balanced" in {
 
@@ -45,7 +45,7 @@ class BalancerTaskSpec extends MultiNodeSpec(RemoteMultiNodeConfig) with Implici
           node(node5).address -> node(node5) / entityManager.path.elements
         )
         val monitor = TestProbe()
-        system.actorOf(BalancerTask.props(coordinator, monitor.ref, nodes, totalShards), "balancer_1")
+        system.actorOf(BalanceShardsTask.props(coordinator, monitor.ref, nodes, totalShards), "balancer_1")
         val result = monitor.expectMsgClass(classOf[BalancerComplete])
 
         shards.get(0) shouldEqual AssignedShardEntry(0, node(node1).address)
@@ -88,7 +88,7 @@ class BalancerTaskSpec extends MultiNodeSpec(RemoteMultiNodeConfig) with Implici
         )
 
         val monitor = TestProbe()
-        system.actorOf(BalancerTask.props(coordinator, monitor.ref, nodes, totalShards), "balancer_2")
+        system.actorOf(BalanceShardsTask.props(coordinator, monitor.ref, nodes, totalShards), "balancer_2")
         val result = monitor.expectMsgClass(classOf[BalancerComplete])
 
         shards.get(0) shouldEqual AssignedShardEntry(0, node(node1).address)
@@ -131,7 +131,7 @@ class BalancerTaskSpec extends MultiNodeSpec(RemoteMultiNodeConfig) with Implici
         )
 
         val monitor = TestProbe()
-        system.actorOf(BalancerTask.props(coordinator, monitor.ref, nodes, totalShards), "balancer_3")
+        system.actorOf(BalanceShardsTask.props(coordinator, monitor.ref, nodes, totalShards), "balancer_3")
         val result = monitor.expectMsgClass(classOf[BalancerComplete])
 
         shards.get(0) shouldEqual AssignedShardEntry(0, node(node1).address)
