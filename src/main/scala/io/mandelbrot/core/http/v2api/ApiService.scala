@@ -29,7 +29,7 @@ import io.mandelbrot.core.http.HttpSettings
 import io.mandelbrot.core.http.json.JsonBody
 import spray.http._
 import spray.json._
-import spray.routing.{ExceptionHandler, HttpService}
+import spray.routing._
 import spray.util.LoggingContext
 
 import scala.concurrent.ExecutionContext
@@ -74,7 +74,30 @@ trait ApiService extends HttpService {
       ctx.complete(HttpResponse(StatusCodes.InternalServerError, JsonBody(throwableToJson(ex))))
   }
 
-  def throwableToJson(t: ApiException): JsValue = {
+  /**
+   *
+   */
+  implicit val rejectionHandler = RejectionHandler {
+    case MalformedRequestContentRejection(message, cause) :: _ =>
+      complete(HttpResponse(StatusCodes.BadRequest, JsonBody(rejectionToJson(message, cause))))
+  }
+
+  def rejectionToJson(message: String, cause: Option[Throwable]): JsValue = cause match {
+    case Some(t) if settings.debugExceptions =>
+      val os = new ByteArrayOutputStream()
+      val ps = new PrintStream(os)
+      t.printStackTrace(ps)
+      val stackTrace = os.toString
+      ps.close()
+      JsObject(Map("description" -> JsString(message), "stackTrace" -> JsString(stackTrace)))
+    case _ =>
+      JsObject(Map("description" -> JsString(message)))
+  }
+
+  /**
+   *
+   */
+  def throwableToJson(t: Throwable): JsValue = {
     if (settings.debugExceptions) {
       val os = new ByteArrayOutputStream()
       val ps = new PrintStream(os)
