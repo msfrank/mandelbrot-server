@@ -74,7 +74,6 @@ object MandelbrotConfig extends ComposableConfig {
       |    contacts {}
       |    groups {}
       |    notifiers {}
-      |    notification-rules-file = conf/notification.rules
       |  }
       |  shutdown-timeout = 30 seconds
       |}

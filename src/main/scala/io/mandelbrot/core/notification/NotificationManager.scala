@@ -49,16 +49,16 @@ class NotificationManager(settings: NotificationSettings, clusterEnabled: Boolea
   def receive = {
 
     case query: ListNotificationRules =>
-      sender() ! ListNotificationRulesResult(query, settings.rules.rules)
+      sender() ! NotificationServiceOperationFailed(query, ApiException(NotImplemented))
 
     case notification: CheckNotification =>
       if (!isSuppressed(notification)) {
-        settings.rules.evaluate(notification, notifiers)
+        settings.rules.foreach(_.evaluate(notification, notifiers))
       }
 
     case notification: NotificationEvent =>
       if (!isSuppressed(notification)) {
-        settings.rules.evaluate(notification, notifiers)
+        settings.rules.foreach(_.evaluate(notification, notifiers))
       }
 
   }

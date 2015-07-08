@@ -42,7 +42,7 @@ case class NotifierSettings(plugin: String, props: Props)
 case class NotificationSettings(contacts: Map[String,Contact],
                                 groups: Map[String,ContactGroup],
                                 notifiers: Map[String,NotifierSettings],
-                                rules: NotificationRules,
+                                rules: Option[NotificationRules],
                                 cleanerInitialDelay: FiniteDuration,
                                 cleanerInterval: FiniteDuration,
                                 staleWindowOverlap: FiniteDuration,
@@ -123,8 +123,10 @@ object NotificationSettings {
     }.toMap
 
     // parse notification rules
-    val rulesFile = new File(config.getString("notification-rules-file"))
-    val rules = NotificationRules.parse(rulesFile, contacts, groups)
+    val rules = if (config.hasPath("notification-rules-file")) {
+      val rulesFile = new File(config.getString("notification-rules-file"))
+      Some(NotificationRules.parse(rulesFile, contacts, groups))
+    } else None
 
     // parse window cleaner configuration
     val cleanerInitialDelay = FiniteDuration(config.getDuration("cleaner-initial-delay", TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
