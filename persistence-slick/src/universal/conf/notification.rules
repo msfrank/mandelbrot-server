@@ -1,0 +1,21 @@
+#
+# notification rules file
+#
+
+# send all check notifications to contact 'michael.frank'
+#when check(*): notify("michael.frank")
+
+# send all check notifications to contact group 'sysadmins'
+when check(*): notify(@sysadmins)
+
+# send notification if expression does _not_ match
+#unless check(foo.local): drop()
+
+# ignore 'check-updates' notifications
+#when kind(check-updates): drop()
+
+# use boolean logic
+# when check(load) or check(cpu): drop()
+
+# send notification to only the notifier(s) specified after the '->'
+#when check(*):             notify() -> "debug"

@@ -1,3 +1,4 @@
+import com.typesafe.sbt.packager.archetypes.JavaAppPackaging
 import sbt._
 import Keys._
 import com.typesafe.sbt.SbtMultiJvm
@@ -6,6 +7,7 @@ import sbtassembly.AssemblyPlugin.assemblySettings
 import sbtassembly.AssemblyKeys._
 import sbtassembly.PathList
 import sbtassembly.MergeStrategy
+import com.typesafe.sbt.SbtNativePackager.autoImport._
 
 object MandelbrotServerBuild extends Build {
 
@@ -66,6 +68,7 @@ object MandelbrotServerBuild extends Build {
     )
 
   lazy val cassandraServer = (project in file("persistence-cassandra"))
+    .enablePlugins(JavaAppPackaging)
     .settings(assemblySettings: _*)
     .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
     .settings(
@@ -106,6 +109,7 @@ object MandelbrotServerBuild extends Build {
   ).dependsOn(mandelbrotCore % "compile->compile;test->test")
 
 //  lazy val slickServer = (project in file("persistence-slick"))
+//    .enablePlugins(JavaAppPackaging)
 //    .settings(assemblySettings: _*)
 //    .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
 //    .settings(
