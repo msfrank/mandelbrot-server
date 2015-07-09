@@ -109,15 +109,27 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
 
     /* the agent already exists */
     case Event(result: GetRegistrationResult, state: AgentRegistering) =>
-      val timestamp = DateTime.now(DateTimeZone.UTC)
-      val metadata = result.metadata.copy(generation = result.metadata.generation + 1, lastUpdate = timestamp)
-      services ! PutRegistration(state.op.agentId, state.op.registration, metadata, result.lsn + 1)
-      stay()
+      if (result.metadata.expires.isDefined) {
+        validateAgentRegistration(state.op.registration) match {
+          case Right(registration) =>
+            context.actorOf(RegisterAgentTask.props(state.op, state.sender,
+              result.metadata.generation + 1, result.lsn + 1, services))
+            stay()
+          case Left(ex) =>
+            stop() replying AgentOperationFailed(state.op, ApiException(BadRequest, ex))
+        }
+      } else throw new IllegalStateException(s"agent ${state.op.agentId} exists with" +
+        s"generation ${result.metadata.generation} and lsn ${result.lsn}")
 
     /* the agent doesn't exist */
     case Event(RegistryServiceOperationFailed(_: GetRegistration, ApiException(ResourceNotFound)), state: AgentRegistering) =>
-      context.actorOf(RegisterAgentTask.props(state.op, state.sender, generation + 1, lsn + 1, services))
-      stay()
+      validateAgentRegistration(state.op.registration) match {
+        case Right(registration) =>
+          context.actorOf(RegisterAgentTask.props(state.op, state.sender, generation + 1, lsn + 1, services))
+          stay()
+        case Left(ex) =>
+          stop() replying AgentOperationFailed(state.op, ApiException(BadRequest, ex))
+      }
 
     /* we successfully registered the agent */
     case Event(result: RegisterAgentTaskComplete, state: AgentRegistering) =>
@@ -167,9 +179,14 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
 
     /* the agent exists and is active */
     case Event(result: GetRegistrationResult, state: AgentInitializing) =>
-      generation = result.metadata.generation
-      lsn = result.lsn
-      goto(AgentRunning) using AgentRunning(state.op.agentId, result.registration, result.metadata)
+      validateAgentRegistration(result.registration) match {
+        case Right(registration) =>
+          generation = result.metadata.generation
+          lsn = result.lsn
+          goto(AgentRunning) using AgentRunning(state.op.agentId, result.registration, result.metadata)
+        case Left(ex) =>
+          throw new IllegalStateException(s"agent ${state.op.agentId} failed to validate", ex.getCause)
+      }
 
     /* any unhandled failure */
     case Event(failure: RegistryServiceOperationFailed, state: AgentInitializing) =>
@@ -250,12 +267,17 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
 
     /* apply updated agent registration */
     case Event(op: UpdateAgent, state: AgentRunning) =>
-      val timestamp = DateTime.now(DateTimeZone.UTC)
-      val metadata = state.metadata.copy(lastUpdate = timestamp)
-      val current = AgentRegistration(state.registration, state.metadata, lsn, committed = true)
-      val commit = AgentRegistration(op.registration, metadata, lsn + 1, committed = false)
-      val nextData = AgentRunning(state.agentId, op.registration, metadata)
-      goto(AgentUpdating) using AgentUpdating(op, sender(), current, commit)
+      validateAgentRegistration(op.registration) match {
+        case Right(registration) =>
+          val timestamp = DateTime.now(DateTimeZone.UTC)
+          val metadata = state.metadata.copy(lastUpdate = timestamp)
+          val current = AgentRegistration(state.registration, state.metadata, lsn, committed = true)
+          val commit = AgentRegistration(registration, metadata, lsn + 1, committed = false)
+          val nextData = AgentRunning(state.agentId, registration, metadata)
+          goto(AgentUpdating) using AgentUpdating(op, sender(), current, commit)
+        case Left(ex) =>
+          stay() replying AgentOperationFailed(op, ex)
+      }
 
     /* retire all running checks */
     case Event(op: RetireAgent, state: AgentRunning) =>
@@ -454,6 +476,19 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       }
     }
     registrationSet
+  }
+
+  /**
+   * returns Unit if the specified registration is valid according to system
+   * policy, otherwise throws an Exception.
+   */
+  def validateAgentRegistration(registration: AgentSpec): Either[ApiException,AgentSpec] = {
+    registration.checks.values.foreach {
+      case checkSpec =>
+        if (!CheckBehavior.extensions.contains(checkSpec.checkType))
+          return Left(ApiException(BadRequest, new NoSuchElementException(s"invalid checkType ${checkSpec.checkType}")))
+    }
+    Right(registration)
   }
 
   /**
