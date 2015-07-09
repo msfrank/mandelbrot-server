@@ -1,5 +1,7 @@
 package io.mandelbrot.persistence.cassandra.dal
 
+import java.util.Date
+
 import com.datastax.driver.core.{BoundStatement, Session}
 import com.datastax.driver.core.querybuilder.{Clause, QueryBuilder}
 import spray.json._
@@ -251,7 +253,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
 
   private val preparedGetCheckNotificationsHistory = session.prepare(
     s"""
-       |SELECT notifications
+       |SELECT notifications, timestamp
        |FROM $tableName
        |WHERE check_ref = ? AND generation = ? AND epoch = ? AND timestamp >= ? AND timestamp < ?
        |LIMIT ?
@@ -273,10 +275,11 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     statement.bind(_checkRef, _generation, _epoch, start, end, _limit)
     statement.setFetchSize(limit)
     executeAsync(statement).map { resultSet =>
-      val notifications = resultSet.all()
-        .flatMap(row => Option(row.getString(0)))
-        .map(string2checkNotifications)
-        .toVector
+      val notifications = resultSet.all().map { row =>
+        Option(row.getString(0))
+          .map(string2checkNotifications)
+          .getOrElse(CheckNotifications(generation, date2JodaDateTime(row.getDate(1)), Vector.empty))
+      }.toVector
       CheckNotificationsHistory(notifications)
     }
   }
@@ -296,7 +299,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     val start = startClause(from, fromExclusive)
     val end = endClause(to, toInclusive)
     val ordering = if (descending) QueryBuilder.desc("timestamp") else QueryBuilder.asc("timestamp")
-    val select = QueryBuilder.select("notifications")
+    val select = QueryBuilder.select("notifications", "timestamp")
       .from(tableName)
       .where(QueryBuilder.eq("check_ref", checkRef.toString))
         .and(QueryBuilder.eq("generation", generation: java.lang.Long))
@@ -307,9 +310,11 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
       .limit(limit)
     select.setFetchSize(limit)
     executeAsync(select).map { resultSet =>
-      val notifications = resultSet.all()
-        .map(row => string2checkNotifications(row.getString(0)))
-        .toVector
+      val notifications = resultSet.all().map { row =>
+        Option(row.getString(0))
+          .map(string2checkNotifications)
+          .getOrElse(CheckNotifications(generation, date2JodaDateTime(row.getDate(1)), Vector.empty))
+      }.toVector
       CheckNotificationsHistory(notifications)
     }
   }
@@ -344,7 +349,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
 
   private val preparedGetCheckMetricsHistory = session.prepare(
     s"""
-       |SELECT metrics
+       |SELECT metrics, timestamp
        |FROM $tableName
        |WHERE check_ref = ? AND generation = ? AND epoch = ? AND timestamp >= ? AND timestamp < ?
        |LIMIT ?
@@ -366,10 +371,11 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     statement.bind(_checkRef, _generation, _epoch, start, end, _limit)
     statement.setFetchSize(limit)
     executeAsync(statement).map { resultSet =>
-      val metrics = resultSet.all()
-        .flatMap(row => Option(row.getString(0)))
-        .map(string2checkMetrics)
-        .toVector
+      val metrics = resultSet.all().map { row =>
+        Option(row.getString(0))
+          .map(string2checkMetrics)
+          .getOrElse(CheckMetrics(generation, date2JodaDateTime(row.getDate(1)), Map.empty))
+      }.toVector
       CheckMetricsHistory(metrics)
     }
   }
@@ -389,7 +395,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     val start = startClause(from, fromExclusive)
     val end = endClause(to, toInclusive)
     val ordering = if (descending) QueryBuilder.desc("timestamp") else QueryBuilder.asc("timestamp")
-    val select = QueryBuilder.select("metrics")
+    val select = QueryBuilder.select("metrics", "timestamp")
       .from(tableName)
       .where(QueryBuilder.eq("check_ref", checkRef.toString))
         .and(QueryBuilder.eq("generation", generation: java.lang.Long))
@@ -400,9 +406,11 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
       .limit(limit)
     select.setFetchSize(limit)
     executeAsync(select).map { resultSet =>
-      val metrics = resultSet.all()
-        .map(row => string2checkMetrics(row.getString(0)))
-        .toVector
+      val metrics = resultSet.all().map { row =>
+        Option(row.getString(0))
+          .map(string2checkMetrics)
+          .getOrElse(CheckMetrics(generation, date2JodaDateTime(row.getDate(1)), Map.empty))
+      }.toVector
       CheckMetricsHistory(metrics)
     }
   }
@@ -503,6 +511,8 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
   def string2checkMetrics(string: String): CheckMetrics = string.parseJson.convertTo[CheckMetrics]
 
   def checkMetrics2string(metrics: CheckMetrics): String = metrics.toJson.prettyPrint
+
+  def date2JodaDateTime(date: Date): DateTime = new DateTime(date, DateTimeZone.UTC)
 }
 
 case class CheckConditionHistory(conditions: Vector[CheckCondition])
