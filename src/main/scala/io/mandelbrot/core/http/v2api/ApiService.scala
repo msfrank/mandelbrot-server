@@ -75,14 +75,26 @@ trait ApiService extends HttpService {
   }
 
   /**
-   *
+   * catch unhandled rejections and convert them to HTTP responses.  any rejection
+   * that is not explicitly handled results in a generic 500 Internal Server Error.
    */
   implicit val rejectionHandler = RejectionHandler {
     case MalformedRequestContentRejection(message, cause) :: _ =>
       complete(HttpResponse(StatusCodes.BadRequest, JsonBody(rejectionToJson(message, cause))))
+    case MissingQueryParamRejection(parameterName) :: _ =>
+      complete(HttpResponse(StatusCodes.BadRequest, JsonBody(rejectionToJson(s"missing required parameter $parameterName"))))
+    case MalformedQueryParamRejection(_, message, cause) :: _ =>
+      complete(HttpResponse(StatusCodes.BadRequest, JsonBody(rejectionToJson(message, cause))))
+    case unknown =>
+      log.error(s"caught unexpected rejection: $unknown")
+      val entity = JsonBody(JsObject(Map("description" -> JsString("internal server error"))))
+      complete(HttpResponse(StatusCodes.InternalServerError, entity))
   }
 
-  def rejectionToJson(message: String, cause: Option[Throwable]): JsValue = cause match {
+  /**
+   * convert the rejection described by message and cause into a Json entity.
+   */
+  def rejectionToJson(message: String, cause: Option[Throwable] = None): JsValue = cause match {
     case Some(t) if settings.debugExceptions =>
       val os = new ByteArrayOutputStream()
       val ps = new PrintStream(os)
@@ -95,7 +107,7 @@ trait ApiService extends HttpService {
   }
 
   /**
-   *
+   * convert the specified exception into a Json entity.
    */
   def throwableToJson(t: Throwable): JsValue = {
     if (settings.debugExceptions) {
