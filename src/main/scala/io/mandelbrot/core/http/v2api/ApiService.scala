@@ -29,6 +29,7 @@ import io.mandelbrot.core.http.HttpSettings
 import io.mandelbrot.core.http.json.JsonBody
 import spray.http._
 import spray.json._
+import spray.routing.AuthenticationFailedRejection.{CredentialsRejected, CredentialsMissing}
 import spray.routing._
 import spray.util.LoggingContext
 
@@ -79,16 +80,68 @@ trait ApiService extends HttpService {
    * that is not explicitly handled results in a generic 500 Internal Server Error.
    */
   implicit val rejectionHandler = RejectionHandler {
+
+    case MethodRejection(_) :: _ ⇒
+      complete(StatusCodes.MethodNotAllowed, JsonBody(rejectionToJson("HTTP method not allowed")))
+
     case MalformedRequestContentRejection(message, cause) :: _ =>
-      complete(HttpResponse(StatusCodes.BadRequest, JsonBody(rejectionToJson(message, cause))))
-    case MissingQueryParamRejection(parameterName) :: _ =>
-      complete(HttpResponse(StatusCodes.BadRequest, JsonBody(rejectionToJson(s"missing required parameter $parameterName"))))
+      complete(StatusCodes.BadRequest, JsonBody(rejectionToJson(message, cause)))
+
     case MalformedQueryParamRejection(_, message, cause) :: _ =>
-      complete(HttpResponse(StatusCodes.BadRequest, JsonBody(rejectionToJson(message, cause))))
+      complete(StatusCodes.BadRequest, JsonBody(rejectionToJson(message, cause)))
+
+    case MalformedFormFieldRejection(name, message, _) :: _ =>
+      complete(StatusCodes.BadRequest, JsonBody(rejectionToJson(s"form field '$name' was malformed: $message")))
+
+    case MalformedHeaderRejection(name, message, _) :: _ =>
+      complete(StatusCodes.BadRequest, JsonBody(rejectionToJson(s"HTTP header '$name' was malformed: $message")))
+
+    case MissingQueryParamRejection(param) :: _ =>
+      complete(StatusCodes.BadRequest, JsonBody(rejectionToJson(s"missing required parameter $param")))
+
+    case MissingCookieRejection(name) :: _ =>
+      complete(StatusCodes.BadRequest, JsonBody(rejectionToJson(s"missing required cookie '$name'")))
+
+    case MissingFormFieldRejection(name) :: _ =>
+      complete(StatusCodes.BadRequest, JsonBody(rejectionToJson(s"missing required form field '$name'")))
+
+    case MissingHeaderRejection(name) :: _ =>
+      complete(StatusCodes.BadRequest, JsonBody(rejectionToJson(s"missing required HTTP header '$name'")))
+
+    case CorruptRequestEncodingRejection(message) :: _ =>
+      complete(StatusCodes.BadRequest, JsonBody(rejectionToJson(message)))
+
+    case SchemeRejection(_) :: _ ⇒
+      complete(StatusCodes.BadRequest, JsonBody(rejectionToJson("URI scheme not allowed")))
+
+    case RequestEntityExpectedRejection :: _ ⇒
+      complete(StatusCodes.BadRequest, JsonBody(rejectionToJson("expected request entity")))
+
+    case ValidationRejection(message, cause) :: _ =>
+      complete(StatusCodes.BadRequest, JsonBody(rejectionToJson(message, cause)))
+
+    case UnacceptedResponseContentTypeRejection(_) :: _ ⇒
+      complete(StatusCodes.NotAcceptable, JsonBody(rejectionToJson("response content type not available")))
+
+    case UnacceptedResponseEncodingRejection(_) :: _ ⇒
+      complete(StatusCodes.NotAcceptable, JsonBody(rejectionToJson("response content encoding not available")))
+
+    case UnsupportedRequestContentTypeRejection(_) :: _ ⇒
+      complete(StatusCodes.UnsupportedMediaType, JsonBody(rejectionToJson("request content type is not supported")))
+
+    case UnsupportedRequestEncodingRejection(_) :: _ ⇒
+      complete(StatusCodes.BadRequest, JsonBody(rejectionToJson("request content encoding is not supported")))
+
+    case AuthenticationFailedRejection(CredentialsMissing, _) :: _ =>
+      complete(StatusCodes.Unauthorized, JsonBody(rejectionToJson("missing credentials")))
+
+    case AuthenticationFailedRejection(CredentialsRejected, _) :: _ =>
+      complete(StatusCodes.Unauthorized, JsonBody(rejectionToJson("client is not authenticated")))
+
     case unknown =>
       log.error(s"caught unexpected rejection: $unknown")
       val entity = JsonBody(JsObject(Map("description" -> JsString("internal server error"))))
-      complete(HttpResponse(StatusCodes.InternalServerError, entity))
+      complete(StatusCodes.InternalServerError, entity)
   }
 
   /**
