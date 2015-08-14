@@ -105,31 +105,3 @@ object CheckRef {
   def unapply(checkRef: CheckRef): Option[(AgentId,CheckId)] = Some((checkRef.agentId, checkRef.checkId))
 }
 
-/**
- * A MetricSource uniquely identifies a metric within a Agent.
- */
-class MetricSource(val checkId: CheckId, val metricName: String) extends Ordered[MetricSource] with ResourceModel {
-
-  def compare(that: MetricSource): Int = toString.compareTo(that.toString)
-
-  override def hashCode() = toString.hashCode
-  override def toString = checkId.toString + ":" + metricName
-  override def equals(other: Any): Boolean = other match {
-    case other: MetricSource => checkId.equals(other.checkId) && metricName.equals(other.metricName)
-    case _ => false
-  }
-}
-
-object MetricSource {
-  def apply(checkId: CheckId, metricName: String): MetricSource = new MetricSource(checkId, metricName)
-
-  def apply(string: String): MetricSource = {
-    val index = string.indexOf(':')
-    if (index == -1) throw new IllegalArgumentException()
-    val (checkId,metricName) = string.splitAt(index)
-    new MetricSource(CheckId(checkId), metricName.tail)
-  }
-
-  def unapply(source: MetricSource): Option[(CheckId, String)] = Some((source.checkId, source.metricName))
-}
-

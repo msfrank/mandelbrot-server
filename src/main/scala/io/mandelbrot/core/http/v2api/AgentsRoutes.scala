@@ -93,7 +93,7 @@ trait AgentsRoutes extends ApiService {
           complete {
             serviceProxy.ask(RetireAgent(agentId)).map {
               case result: RetireAgentResult =>
-                HttpResponse(StatusCodes.OK)
+                result.metadata
               case failure: ServiceOperationFailed =>
                 throw failure.failure
             }

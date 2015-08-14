@@ -30,14 +30,15 @@ import io.mandelbrot.core.model._
  */
 class ScalarProcessor extends BehaviorProcessor {
 
-  def initialize(): InitializeEffect = InitializeEffect(None)
+  def initialize(check: AccessorOps): InitializeEffect = InitializeEffect(Map.empty)
 
-  def configure(status: CheckStatus, children: Set[CheckRef]): ConfigureEffect = {
+  def configure(check: AccessorOps, results: Map[CheckId,Vector[CheckStatus]], children: Set[CheckRef]): ConfigureEffect = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
+    val status = check.getCheckStatus
     val initial = if (status.lifecycle == CheckInitializing) {
       status.copy(lifecycle = CheckJoining, health = CheckUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
     } else status
-    ConfigureEffect(initial, Vector.empty, Set.empty, Set.empty)
+    ConfigureEffect(initial, Vector.empty, Set.empty)
   }
 
   /*

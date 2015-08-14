@@ -31,13 +31,34 @@ import io.mandelbrot.core.{BadRequest, Conflict, ResourceNotFound, ApiException}
  */
 trait BehaviorProcessor {
 
-  def initialize(): InitializeEffect
+  /**
+   * return the initializers needed to rebuild local state.
+   */
+  def initialize(check: AccessorOps): InitializeEffect
 
-  def configure(status: CheckStatus, children: Set[CheckRef]): ConfigureEffect
+  /**
+   *
+   */
+  def configure(check: AccessorOps, results: Map[CheckId,Vector[CheckStatus]], children: Set[CheckRef]): ConfigureEffect
 
+  /**
+   *
+   */
   def processEvaluation(check: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect]
+
+  /**
+   *
+   */
   def processChild(check: AccessorOps, child: CheckRef, status: CheckStatus): Option[EventEffect]
+
+  /**
+   *
+   */
   def processAlertTimeout(check: AccessorOps): Option[EventEffect]
+
+  /**
+   *
+   */
   def processExpiryTimeout(check: AccessorOps): Option[EventEffect]
 
   /**
@@ -120,11 +141,10 @@ trait BehaviorProcessor {
 }
 
 sealed trait CheckEffect
-case class InitializeEffect(from: Option[DateTime]) extends CheckEffect
+case class InitializeEffect(initializers: Map[CheckId,CheckInitializer]) extends CheckEffect
 case class ConfigureEffect(status: CheckStatus,
                            notifications: Vector[CheckNotification],
-                           children: Set[CheckRef],
-                           metrics: Set[MetricSource]) extends CheckEffect
+                           children: Set[CheckRef]) extends CheckEffect
 case class CommandEffect(result: CheckResult,
                          status: CheckStatus,
                          notifications: Vector[CheckNotification]) extends CheckEffect

@@ -32,14 +32,15 @@ case class ContainerCheckSettings()
  */
 class ContainerProcessor(settings: ContainerCheckSettings) extends BehaviorProcessor {
 
-  def initialize(): InitializeEffect = InitializeEffect(None)
+  def initialize(check: AccessorOps): InitializeEffect = InitializeEffect(Map.empty)
 
-  def configure(status: CheckStatus, children: Set[CheckRef]): ConfigureEffect = {
+  def configure(check: AccessorOps, results: Map[CheckId,Vector[CheckStatus]], children: Set[CheckRef]): ConfigureEffect = {
     val initial = {
       val timestamp = DateTime.now(DateTimeZone.UTC)
+      val status = check.getCheckStatus(timestamp)
       status.copy(lifecycle = CheckSynthetic, health = CheckUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
     }
-    ConfigureEffect(initial, Vector.empty, children, Set.empty)
+    ConfigureEffect(initial, Vector.empty, Set.empty)
   }
 
   def processEvaluation(check: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(ApiException(BadRequest))

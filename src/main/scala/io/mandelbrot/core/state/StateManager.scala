@@ -92,6 +92,17 @@ case class UpdateStatusResult(op: UpdateStatus) extends StateServiceResult
 case class DeleteStatus(checkRef: CheckRef, generation: Long) extends StateServiceCommand
 case class DeleteStatusResult(op: DeleteStatus) extends StateServiceResult
 
+case class GetStatusHistory(checkRef: CheckRef,
+                            generation: Long,
+                            from: Option[DateTime],
+                            to: Option[DateTime],
+                            limit: Int,
+                            fromInclusive: Boolean = false,
+                            toExclusive: Boolean = false,
+                            descending: Boolean = false,
+                            last: Option[String] = None) extends StateServiceQuery
+case class GetStatusHistoryResult(op: GetStatusHistory, page: CheckStatusPage) extends StateServiceResult
+
 case class GetConditionHistory(checkRef: CheckRef,
                                generation: Long,
                                from: Option[DateTime],

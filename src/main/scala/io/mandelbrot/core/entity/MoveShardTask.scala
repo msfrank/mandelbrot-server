@@ -3,7 +3,13 @@ package io.mandelbrot.core.entity
 import akka.actor._
 import scala.concurrent.duration.FiniteDuration
 
-class MoveShardTask extends Actor with ActorLogging {
+/**
+ *
+ */
+class MoveShardTask(op: MoveShard,
+                    services: ActorRef,
+                    monitor: ActorRef,
+                    timeout: FiniteDuration) extends Actor with ActorLogging {
 
   def receive = {
     case _ =>
@@ -11,8 +17,8 @@ class MoveShardTask extends Actor with ActorLogging {
 }
 
 object MoveShardTask {
-  def props(op: MoveShard, coordinator: ActorRef, monitor: ActorRef, timeout: FiniteDuration) = {
-    Props(classOf[MoveShardTask], op, coordinator, monitor, timeout)
+  def props(op: MoveShard, services: ActorRef, monitor: ActorRef, timeout: FiniteDuration) = {
+    Props(classOf[MoveShardTask], op, services, monitor, timeout)
   }
 }
 

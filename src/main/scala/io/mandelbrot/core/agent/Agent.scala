@@ -564,7 +564,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       }
     }
 
-    // configure all added and updated checks
+    // signal added and updated checks to gather initializer data and update check state
     (checksAdded.keySet ++ checksUpdated.keySet).foreach { case checkId =>
       val CheckActor(checkSpec, factory, actor) = checks(checkId)
       val directChildren = registrationSet.filter { _.parentOption match {
@@ -609,7 +609,6 @@ object Agent {
   case object StopAgent
 }
 
-case class ChangeCheck(checkType: String, policy: CheckPolicy, factory: ProcessorFactory, children: Set[CheckRef], lsn: Long)
 case class RetireCheck(lsn: Long)
 
 /**

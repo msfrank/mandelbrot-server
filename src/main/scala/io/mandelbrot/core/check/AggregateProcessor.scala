@@ -38,15 +38,16 @@ class AggregateProcessor(settings: AggregateCheckSettings) extends BehaviorProce
   val evaluation = settings.evaluation
   var childrenStatus: Map[CheckRef,Option[CheckStatus]] = Map.empty
 
-  def initialize(): InitializeEffect = InitializeEffect(None)
+  def initialize(check: AccessorOps): InitializeEffect = InitializeEffect(Map.empty)
 
-  def configure(status: CheckStatus, children: Set[CheckRef]): ConfigureEffect = {
+  def configure(check: AccessorOps, results: Map[CheckId,Vector[CheckStatus]], children: Set[CheckRef]): ConfigureEffect = {
     childrenStatus = children.map(child => child -> None).toMap
+    val status = check.getCheckStatus
     val initial = if (status.lifecycle == CheckInitializing) {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       status.copy(lifecycle = CheckSynthetic, health = CheckUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
     } else status
-    ConfigureEffect(initial, Vector.empty, childrenStatus.keySet, Set.empty)
+    ConfigureEffect(initial, Vector.empty, Set.empty)
   }
 
   /* ignore check evaluations from client */

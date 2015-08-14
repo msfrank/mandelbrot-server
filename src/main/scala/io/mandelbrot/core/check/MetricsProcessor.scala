@@ -19,6 +19,7 @@
 
 package io.mandelbrot.core.check
 
+import io.mandelbrot.core.parser.TimeseriesEvaluationParser
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.util.{Success, Try}
 import java.util.UUID
@@ -26,7 +27,7 @@ import java.util.UUID
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.metrics._
 
-case class MetricsCheckSettings(evaluation: MetricsEvaluation)
+case class MetricsCheckSettings(evaluation: TimeseriesEvaluation)
 
 /**
  * Implements metrics check behavior.
@@ -34,20 +35,37 @@ case class MetricsCheckSettings(evaluation: MetricsEvaluation)
 class MetricsProcessor(settings: MetricsCheckSettings) extends BehaviorProcessor {
 
   val evaluation = settings.evaluation
-  val metricsStore = new MetricsStore(settings.evaluation)
+  val timeseriesStore = new TimeseriesStore()
 
-  def initialize(): InitializeEffect = InitializeEffect(None)
+  // size the store
+  timeseriesStore.resize(settings.evaluation)
 
-  def configure(status: CheckStatus, children: Set[CheckRef]): ConfigureEffect = {
+  /**
+   *
+   */
+  def initialize(check: AccessorOps): InitializeEffect = {
+    val initializers: Map[CheckId,CheckInitializer] = timeseriesStore.windows().map {
+      case (source,window) => source.checkId -> CheckInitializer(from = Some(new DateTime(0)),
+        to = Some(new DateTime(java.lang.Long.MAX_VALUE)), limit = window.size, fromInclusive = true,
+        toExclusive = false, descending = true)
+    }
+    InitializeEffect(initializers)
+  }
+
+  /**
+   *
+   */
+  def configure(check: AccessorOps, results: Map[CheckId,Vector[CheckStatus]], children: Set[CheckRef]): ConfigureEffect = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
+    val status = check.getCheckStatus
     val initial = if (status.lifecycle == CheckInitializing) {
       status.copy(lifecycle = CheckJoining, health = CheckUnknown, summary = Some(evaluation.toString),
         lastUpdate = Some(timestamp), lastChange = Some(timestamp))
     } else status
-    ConfigureEffect(initial, Vector.empty, Set.empty, evaluation.sources)
+    ConfigureEffect(initial, Vector.empty, Set.empty)
   }
 
-  /*
+  /**
    * if we receive a metrics message while joining or known, then update check state
    * and send notifications.  if the previous lifecycle was joining, then we move to
    * known.  if we transition from non-healthy to healthy, then we clear the correlation
@@ -67,13 +85,12 @@ class MetricsProcessor(settings: MetricsCheckSettings) extends BehaviorProcessor
     var acknowledgementId = check.acknowledgementId
 
     // push new metrics into the store
-    metrics.foreach { case (metricName, metricValue) =>
-      val source = MetricSource(check.checkRef.checkId, metricName)
-      metricsStore.append(source, metricValue)
-    }
+    timeseriesStore.append(check.checkRef.checkId, CheckStatus(check.generation,
+      timestamp, lifecycle, command.evaluation.summary, health, metrics, lastUpdate,
+      lastChange, correlationId, acknowledgementId, check.squelch))
 
     // evaluate the store
-    health = evaluation.evaluate(metricsStore) match {
+    health = evaluation.evaluate(timeseriesStore) match {
       case Some(result) => if (result) CheckFailed else CheckHealthy
       case None => CheckUnknown
     }
@@ -166,7 +183,7 @@ class MetricsCheck extends CheckBehaviorExtension {
   def configure(properties: Map[String,String]) = {
     if (!properties.contains("evaluation"))
       throw new IllegalArgumentException("missing evaluation")
-    val evaluation = MetricsEvaluationParser.parseMetricsEvaluation(properties("evaluation"))
+    val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation(properties("evaluation"))
     new MetricsProcessorFactory(MetricsCheckSettings(evaluation))
   }
 }

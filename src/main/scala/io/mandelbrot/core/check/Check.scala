@@ -22,7 +22,6 @@ package io.mandelbrot.core.check
 import akka.actor._
 import akka.pattern.ask
 import akka.pattern.pipe
-import io.mandelbrot.core.agent.{RetireCheck, ChangeCheck}
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 import java.util.UUID
@@ -30,6 +29,7 @@ import java.util.UUID
 import io.mandelbrot.core._
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.state._
+import io.mandelbrot.core.agent.RetireCheck
 import io.mandelbrot.core.metrics.MetricsBus
 import io.mandelbrot.core.util.Timer
 
@@ -63,16 +63,18 @@ class Check(val checkRef: CheckRef,
   startWith(Incubating, NoData)
 
   /*
-   *
+   * The Check always starts in INCUBATING state.  it waits for the first message, which is
+   * always ChangeCheck.  ChangeCheck contains all registration data needed to configure the
+   * check for the first time.
    */
   when(Incubating) {
 
     /* initialize the check using parameters from the proposed processor */
     case Event(change: ChangeCheck, NoData) =>
       val proposed = change.factory.implement()
-      val params = proposed.initialize()
-      val op = GetStatus(checkRef, generation)
-      goto(Initializing) using Initializing(change, proposed, op)
+      val initializers = proposed.initialize(this).initializers
+      context.actorOf(InitializeCheckTask.props(checkRef, generation, initializers, self, services))
+      goto(Initializing) using Initializing(change, proposed)
 
     /* stash any other messages for processing later */
     case Event(_, NoData) =>
@@ -82,46 +84,32 @@ class Check(val checkRef: CheckRef,
 
   onTransition {
     case _ -> Initializing =>
-      nextStateData match {
-        case state: Initializing => services ! state.inflight
-        case _ =>
-      }
       commitTimer.restart(commitTimeout)
   }
 
   /*
-   *
+   * INITIALIZING is a transitional state.  in INCUBATING state we notified our configurator
+   * of the state we require (the initializers); now we wait for the configurator to perform
+   * the queries on our behalf and give us the results in the InitializeCheck message.  once
+   * we receive the InitializeCheck message, we transition to Configuring.  If we time out
+   * while waiting for the message, or we receive a failure message, then we throw an exception.
    */
   when(Initializing) {
 
-    /* ignore result if it doesn't match the in-flight request */
-    case Event(result: GetStatusResult, state: Initializing) if result.op != state.inflight =>
-      stay()
-
-    /* ignore failure if it doesn't match the in-flight request */
-    case Event(result: StateServiceOperationFailed, state: Initializing) if result.op != state.inflight =>
-      stay()
-
     /* configure processor using initial state */
-    case Event(result: GetStatusResult, state: Initializing) =>
+    case Event(initialize: InitializeCheckTaskComplete, state: Initializing) =>
       commitTimer.stop()
-      val effect = state.proposed.configure(result.status.getOrElse(getCheckStatus), state.change.children)
-      lastCommitted = result.status.map(_.timestamp)
+      val effect = state.proposed.configure(this, initialize.results, state.change.children)
       val op = UpdateStatus(checkRef, effect.status, effect.notifications, commitEpoch = true)
       goto(Configuring) using Configuring(state.change, state.proposed, op)
 
     /* timed out waiting for initialization from state service */
     case Event(CheckCommitTimeout, state: Initializing) =>
-      log.debug("timeout while receiving initial state")
-      services ! state.inflight
-      commitTimer.restart(commitTimeout)
-      stay()
+      throw new Exception("timeout while receiving initial state")
 
-    /* received an unhandled exception, so bail out */
-    case Event(StateServiceOperationFailed(op, failure), state: Initializing) =>
-      log.debug("failure receiving initial state: {}", failure)
-      commitTimer.stop()
-      throw failure
+    /* initialization failed, let supervision handle it */
+    case Event(InitializeCheckTaskFailed(ex), state: Initializing) =>
+      throw ex
 
     /* stash any other messages for processing later */
     case Event(_, state: Initializing) =>
@@ -390,7 +378,7 @@ object Check {
   case object Retired extends State
 
   sealed trait Data
-  case class Initializing(change: ChangeCheck, proposed: BehaviorProcessor, inflight: GetStatus) extends Data
+  case class Initializing(change: ChangeCheck, proposed: BehaviorProcessor) extends Data
   case class Configuring(change: ChangeCheck, proposed: BehaviorProcessor, inflight: UpdateStatus) extends Data
   case class Changing(pending: ChangeCheck) extends Data
   case class Retiring(lsn: Long) extends Data
@@ -399,6 +387,10 @@ object Check {
 
 }
 
+/* */
+case class ChangeCheck(checkType: String, policy: CheckPolicy, factory: ProcessorFactory, children: Set[CheckRef], lsn: Long)
+
+/* */
 sealed trait CheckEvent
 case class ChildMutates(checkRef: CheckRef, status: CheckStatus) extends CheckEvent
 case object CheckCommitTimeout extends CheckEvent
