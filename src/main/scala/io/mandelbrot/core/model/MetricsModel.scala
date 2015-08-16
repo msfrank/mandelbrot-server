@@ -4,32 +4,39 @@ import io.mandelbrot.core.util.CircularBuffer
 
 sealed trait MetricsModel
 
-sealed class TimeseriesSource(val checkId: CheckId) extends MetricsModel {
-  override def hashCode() = toString.hashCode
-  override def equals(other: Any): Boolean = other match {
-    case other: TimeseriesSource => toString.equals(other.toString)
-    case _ => false
+abstract class TimeseriesSource(val segments: Vector[String], val id: String) extends Ordered[TimeseriesSource] with MetricsModel {
+  def compare(that: TimeseriesSource): Int = {
+    segments.zipAll(that.segments, null, null).foreach {
+      case (thisSegment, thatSegment) if thatSegment == null => return 1
+      case (thisSegment, thatSegment) if thisSegment == null => return -1
+      case (thisSegment, thatSegment) =>
+        val comparison = thisSegment.compareTo(thatSegment)
+        if (comparison != 0) return comparison
+    }
+    id.compareTo(that.id)
   }
 }
 
 /**
  * A MetricSource uniquely identifies a metric within a Agent.
  */
-class MetricSource(override val checkId: CheckId, val metricName: String) extends TimeseriesSource(checkId) with Ordered[MetricSource] {
-  def compare(that: MetricSource): Int = toString.compareTo(that.toString)
+class MetricSource(val checkId: CheckId, val metricName: String) extends TimeseriesSource(checkId.segments, metricName) {
+  override def equals(other: Any): Boolean = other match {
+    case other: MetricSource => checkId.equals(other.checkId) && metricName.equals(other.metricName)
+    case _ => false
+  }
   override def toString = checkId.toString + ":" + metricName
+  override def hashCode() = toString.hashCode
 }
 
 object MetricSource {
   def apply(checkId: CheckId, metricName: String): MetricSource = new MetricSource(checkId, metricName)
-
   def apply(string: String): MetricSource = {
     val index = string.indexOf(':')
     if (index == -1) throw new IllegalArgumentException()
     val (checkId,metricName) = string.splitAt(index)
     new MetricSource(CheckId(checkId), metricName.tail)
   }
-
   def unapply(source: MetricSource): Option[(CheckId, String)] = Some((source.checkId, source.metricName))
 }
 

@@ -56,15 +56,6 @@ trait RegistryProtocol extends DefaultJsonProtocol with ConstantsProtocol with R
   /* convert AgentMetadata class */
   implicit val AgentMetadataFormat = jsonFormat5(AgentMetadata)
 
-  /* convert AggregateEvaluation class */
-  implicit object AggregateEvaluationFormat extends RootJsonFormat[AggregateEvaluation] {
-    def write(evaluation: AggregateEvaluation) = JsString(evaluation.toString)
-    def read(value: JsValue) = value match {
-      case JsString(string) => EvaluateWorst
-      case _ => throw new DeserializationException("expected AggregateEvaluation")
-    }
-  }
-
   /* convert MetricsEvaluation class */
   implicit object TimeseriesEvaluationFormat extends RootJsonFormat[TimeseriesEvaluation] {
     val parser = new TimeseriesEvaluationParser()

@@ -44,41 +44,42 @@ class TimeseriesMetricView(window: TimeseriesWindow, metricName: String) extends
  */
 class TimeseriesStore {
 
-  private val timeseries = new java.util.TreeMap[TimeseriesSource, TimeseriesWindow]
+  private val probes = new java.util.TreeMap[MetricSource, TimeseriesWindow]
+  private val checks = new java.util.TreeMap[MetricSource, TimeseriesWindow]
 
   /**
    *
    */
   def append(checkId: CheckId, checkStatus: CheckStatus): Unit = {
-    timeseries.tailMap(new TimeseriesSource(checkId))
-      .filter { case (source: TimeseriesSource, _) => source.checkId.equals(checkId) }
+    probes.tailMap(new MetricSource(checkId, ""))
+      .filter { case (source: MetricSource, _) => source.checkId.equals(checkId) }
       .foreach {
-        case (source: TimeseriesSource, window: TimeseriesWindow) => window.append(checkStatus)
+        case (source: MetricSource, window: TimeseriesWindow) => window.append(checkStatus)
       }
   }
 
-  def window(source: TimeseriesSource): TimeseriesWindow = timeseries(source)
+  def window(source: MetricSource): TimeseriesWindow = probes(source)
 
-  def windowOption(source: TimeseriesSource): Option[TimeseriesWindow] = Option(timeseries.get(source))
+  def windowOption(source: MetricSource): Option[TimeseriesWindow] = Option(probes.get(source))
 
-  def apply(source: TimeseriesSource, index: Int): CheckStatus = timeseries(source)(index)
+  def apply(source: MetricSource, index: Int): CheckStatus = probes(source)(index)
 
-  def get(source: TimeseriesSource, index: Int): Option[CheckStatus] = Option(timeseries.get(source)).flatMap(_.get(index))
+  def get(source: MetricSource, index: Int): Option[CheckStatus] = Option(probes.get(source)).flatMap(_.get(index))
 
-  def head(source: TimeseriesSource): CheckStatus = timeseries(source).head
+  def head(source: MetricSource): CheckStatus = probes(source).head
 
-  def headOption(source: TimeseriesSource): Option[CheckStatus] = Option(timeseries.get(source)).flatMap(_.headOption)
+  def headOption(source: MetricSource): Option[CheckStatus] = Option(probes.get(source)).flatMap(_.headOption)
 
-  def sources(): Set[TimeseriesSource] = timeseries.keySet().toSet
+  def sources(): Set[MetricSource] = probes.keySet().toSet
 
-  def windows(): Map[TimeseriesSource,TimeseriesWindow] = timeseries.toMap
+  def windows(): Map[MetricSource,TimeseriesWindow] = probes.toMap
 
   def resize(evaluation: TimeseriesEvaluation): Unit = {
-    evaluation.sizing.foreach { case (source,size) =>
-      timeseries.get(source) match {
-        case null => timeseries(source) = new TimeseriesWindow(size)
+    evaluation.sizing.foreach { case (source: MetricSource, size: Int) =>
+      probes.get(source) match {
+        case null => probes(source) = new TimeseriesWindow(size)
         case window: TimeseriesWindow if size == window.size => // do nothing
-        case window: TimeseriesWindow => timeseries(source).resize(size)
+        case window: TimeseriesWindow => probes(source).resize(size)
       }
     }
   }
