@@ -27,13 +27,16 @@ class InitializeCheckTask(checkRef: CheckRef,
   var inflight: Set[CheckId] = initializers.keySet
   val results = new mutable.HashMap[CheckId,Vector[CheckStatus]]
 
-  override def preStart(): Unit = {
+  override def preStart(): Unit = if (initializers.nonEmpty) {
     initializers.foreach {
       case (checkId, query) =>
         val op = GetStatusHistory(CheckRef(checkRef.agentId, checkId), generation, query.from, query.to,
           query.limit, query.fromInclusive, query.toExclusive, query.descending)
         services.ask(op)(queryTimeout).pipeTo(self)
     }
+  } else {
+    caller ! InitializeCheckTaskComplete(Map.empty)
+    context.stop(self)
   }
 
   def receive = {

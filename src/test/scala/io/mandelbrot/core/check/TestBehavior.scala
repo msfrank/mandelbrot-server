@@ -9,10 +9,13 @@ case class TestProcessorSettings(properties: Map[String,String])
 
 class TestProcessor(val properties: Map[String,String]) extends BehaviorProcessor {
 
-  def initialize(check: AccessorOps): InitializeEffect = InitializeEffect(Map.empty)
+  def initialize(check: AccessorOps): InitializeEffect = {
+    val initializer = CheckInitializer(from = None, to = None, limit = 1, fromInclusive = false, toExclusive = false, descending = true)
+    InitializeEffect(Map(check.checkRef.checkId -> initializer))
+  }
 
   def configure(check: AccessorOps, results: Map[CheckId,Vector[CheckStatus]], children: Set[CheckRef]): ConfigureEffect = {
-    ConfigureEffect(check.getCheckStatus, Vector.empty, children)
+    ConfigureEffect(results(check.checkRef.checkId).head, Vector.empty, children)
   }
 
   def processEvaluation(check: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
@@ -36,13 +39,13 @@ class TestBehavior extends CheckBehaviorExtension {
 
 class TestProcessorChange(val properties: Map[String,String]) extends BehaviorProcessor {
 
-  def initialize(check: AccessorOps): InitializeEffect = InitializeEffect(Map.empty)
+  def initialize(check: AccessorOps): InitializeEffect = {
+    val initializer = CheckInitializer(from = None, to = None, limit = 1, fromInclusive = false, toExclusive = false, descending = true)
+    InitializeEffect(Map(check.checkRef.checkId -> initializer))
+  }
 
   def configure(check: AccessorOps, results: Map[CheckId,Vector[CheckStatus]], children: Set[CheckRef]): ConfigureEffect = {
-    val timestamp = DateTime.now(DateTimeZone.UTC)
-    val _status = CheckStatus(check.generation, timestamp, CheckKnown, None, CheckHealthy,
-      Map.empty, Some(timestamp), Some(timestamp), None, None, false)
-    ConfigureEffect(_status, Vector.empty, children)
+    ConfigureEffect(results(check.checkRef.checkId).head, Vector.empty, children)
   }
 
   def processEvaluation(check: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())

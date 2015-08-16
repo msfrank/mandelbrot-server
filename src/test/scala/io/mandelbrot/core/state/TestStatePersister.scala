@@ -47,6 +47,22 @@ class TestStatePersister(settings: TestStatePersisterSettings) extends Actor wit
       sender() ! DeleteStatusResult(op)
 
     /* return condition history */
+    case op: GetStatusHistory =>
+      try {
+        val history = getHistory(op.checkRef, op.generation, op.from, op.to, op.last).map(_.status)
+        val page = if (history.length > op.limit) {
+          val subset = history.take(op.limit)
+          val last = subset.lastOption.map(_.timestamp.getMillis.toString)
+          CheckStatusPage(subset, last, exhausted = false)
+        } else {
+          CheckStatusPage(history, last = None, exhausted = true)
+        }
+        sender() ! GetStatusHistoryResult(op, page)
+      } catch {
+        case ex: Throwable => sender() ! StateServiceOperationFailed(op, ex)
+      }
+
+    /* return condition history */
     case op: GetConditionHistory =>
       try {
         val history = getHistory(op.checkRef, op.generation, op.from, op.to, op.last).map(status2condition)
