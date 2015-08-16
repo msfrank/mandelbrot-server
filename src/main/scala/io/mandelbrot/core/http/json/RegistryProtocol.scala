@@ -32,17 +32,23 @@ import io.mandelbrot.core.check._
  */
 trait RegistryProtocol extends DefaultJsonProtocol with ConstantsProtocol with ResourceProtocol with MetricsProtocol {
 
+  /* convert AgentPolicy class */
+  implicit val AgentPolicyFormat = jsonFormat1(AgentPolicy)
+
+  /* convert CheckPolicy class */
+  implicit val ProbePolicyFormat = jsonFormat1(ProbePolicy)
+
   /* convert CheckPolicy class */
   implicit val CheckPolicyFormat = jsonFormat5(CheckPolicy)
 
   /* convert MetricSpec class */
-  implicit val MetricSpecFormat = jsonFormat5(MetricSpec)
+  implicit val MetricSpecFormat = jsonFormat2(MetricSpec)
 
   /* convert CheckSpec class */
   implicit val CheckSpecFormat = jsonFormat4(CheckSpec)
 
-  /* convert AgentPolicy class */
-  implicit val AgentPolicyFormat = jsonFormat1(AgentPolicy)
+  /* convert CheckSpec class */
+  implicit val ProbeSpecFormat = jsonFormat4(ProbeSpec)
 
   /* convert AgentSpec class */
   implicit val AgentSpecFormat = jsonFormat7(AgentSpec)

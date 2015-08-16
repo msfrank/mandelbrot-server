@@ -9,10 +9,10 @@ case class TestProcessorSettings(properties: Map[String,String])
 
 class TestProcessor(val properties: Map[String,String]) extends BehaviorProcessor {
 
-  def initialize(): InitializeEffect = InitializeEffect(None)
+  def initialize(check: AccessorOps): InitializeEffect = InitializeEffect(Map.empty)
 
-  def configure(status: CheckStatus, children: Set[CheckRef]): ConfigureEffect = {
-    ConfigureEffect(status, Vector.empty, children, Set.empty)
+  def configure(check: AccessorOps, results: Map[CheckId,Vector[CheckStatus]], children: Set[CheckRef]): ConfigureEffect = {
+    ConfigureEffect(check.getCheckStatus, Vector.empty, children)
   }
 
   def processEvaluation(check: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
@@ -36,13 +36,13 @@ class TestBehavior extends CheckBehaviorExtension {
 
 class TestProcessorChange(val properties: Map[String,String]) extends BehaviorProcessor {
 
-  def initialize(): InitializeEffect = InitializeEffect(None)
+  def initialize(check: AccessorOps): InitializeEffect = InitializeEffect(Map.empty)
 
-  def configure(status: CheckStatus, children: Set[CheckRef]): ConfigureEffect = {
+  def configure(check: AccessorOps, results: Map[CheckId,Vector[CheckStatus]], children: Set[CheckRef]): ConfigureEffect = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
-    val _status = CheckStatus(status.generation, timestamp, CheckKnown, None, CheckHealthy,
+    val _status = CheckStatus(check.generation, timestamp, CheckKnown, None, CheckHealthy,
       Map.empty, Some(timestamp), Some(timestamp), None, None, false)
-    ConfigureEffect(_status, Vector.empty, children, Set.empty)
+    ConfigureEffect(_status, Vector.empty, children)
   }
 
   def processEvaluation(check: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())

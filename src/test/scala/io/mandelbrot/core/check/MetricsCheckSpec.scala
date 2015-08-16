@@ -23,7 +23,7 @@ import java.util.UUID
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
-import io.mandelbrot.core.agent.ChangeCheck
+import io.mandelbrot.core.parser.TimeseriesEvaluationParser
 import org.joda.time.DateTime
 import org.scalatest.ShouldMatchers
 import org.scalatest.{WordSpecLike, BeforeAndAfterAll}
@@ -47,7 +47,7 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
 
   val generation = 1L
   val blackhole = system.actorOf(Blackhole.props())
-  val parser = new MetricsEvaluationParser()
+  val parser = new TimeseriesEvaluationParser()
 
   "A Check with metrics behavior" should {
 
@@ -156,7 +156,7 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
     "notify StateService when the check timeout expires" in {
       val checkRef = CheckRef("foo.local:foo.check")
       val source = MetricSource(checkRef.checkId, "value")
-      val evaluation = parser.parseMetricsEvaluation("when foo.check:value > 10")
+      val evaluation = parser.parseTimeseriesEvaluation("when foo.check:value > 10")
       val policy = CheckPolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
       val checkType = "io.mandelbrot.core.check.MetricsCheck"
       val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "when foo.check:value > 10"))

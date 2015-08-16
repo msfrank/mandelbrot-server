@@ -28,45 +28,46 @@ class RegistryManagerSpec(_system: ActorSystem) extends TestKit(_system) with Im
     registryService ! PoisonPill
   }
 
+  val probePolicy = ProbePolicy(1.minute)
   val checkPolicy = CheckPolicy(joiningTimeout = 1.minute, checkTimeout = 1.minute,
     alertTimeout = 1.minute, leavingTimeout = 1.minute, notifications = None)
   val agentPolicy = AgentPolicy(5.seconds)
 
   val agent1 = AgentId("test.registry.manager.1")
+  val probes1 = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
   val checks1 = Map(CheckId("check1") -> CheckSpec("check.type.test", checkPolicy, Map.empty, Map.empty))
-  val metrics1 = Map(CheckId("check1") -> Map("metric1" -> MetricSpec(GaugeSource, Units, None, None, None)))
-  val registration1 = AgentSpec(agent1, "mandelbrot", agentPolicy, Map.empty, checks1, metrics1, Set.empty)
+  val registration1 = AgentSpec(agent1, "mandelbrot", agentPolicy, probes1, checks1)
 
   val agent2 = AgentId("test.registry.manager.2")
+  val probes2 = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
   val checks2 = Map(CheckId("check2") -> CheckSpec("check.type.test", checkPolicy, Map.empty, Map.empty))
-  val metrics2 = Map(CheckId("check2") -> Map("metric2" -> MetricSpec(GaugeSource, Units, None, None, None)))
-  val registration2 = AgentSpec(agent2, "mandelbrot", agentPolicy, Map.empty, checks2, metrics2, Set.empty)
+  val registration2 = AgentSpec(agent2, "mandelbrot", agentPolicy, probes2, checks2)
 
   val agent3 = AgentId("test.registry.manager.3")
+  val probes3 = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
   val checks3 = Map(CheckId("check3") -> CheckSpec("check.type.test", checkPolicy, Map.empty, Map.empty))
-  val metrics3 = Map(CheckId("check3") -> Map("metric3" -> MetricSpec(GaugeSource, Units, None, None, None)))
-  val registration3 = AgentSpec(agent3, "mandelbrot", agentPolicy, Map.empty, checks3, metrics3, Set.empty)
+  val registration3 = AgentSpec(agent3, "mandelbrot", agentPolicy, probes3, checks3)
 
   val agent4 = AgentId("test.registry.manager.4")
+  val probes4 = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
   val checks4 = Map(CheckId("check4") -> CheckSpec("check.type.test", checkPolicy, Map.empty, Map.empty))
-  val metrics4 = Map(CheckId("check4") -> Map("metric4" -> MetricSpec(GaugeSource, Units, None, None, None)))
-  val registration4 = AgentSpec(agent4, "mandelbrot", agentPolicy, Map.empty, checks4, metrics4, Set.empty)
+  val registration4 = AgentSpec(agent4, "mandelbrot", agentPolicy, probes4, checks4)
 
   val agent5 = AgentId("test.registry.manager.5")
+  val probes5 = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
   val checks5 = Map(CheckId("check5") -> CheckSpec("check.type.test", checkPolicy, Map.empty, Map.empty))
-  val metrics5 = Map(CheckId("check5") -> Map("metric5" -> MetricSpec(GaugeSource, Units, None, None, None)))
-  val registration5 = AgentSpec(agent5, "mandelbrot", agentPolicy, Map.empty, checks5, metrics5, Set.empty)
+  val registration5 = AgentSpec(agent5, "mandelbrot", agentPolicy, probes5, checks5)
 
   val joinedOn = new DateTime(0, DateTimeZone.UTC)
-  val registrationHistory1 = AgentSpec(agent1, "mandelbrot", agentPolicy, Map("history" -> "1"), checks1, metrics1, Set.empty)
+  val registrationHistory1 = AgentSpec(agent1, "mandelbrot", agentPolicy, probes1, checks1, metadata = Map("history" -> "1"))
   val metadataHistory1 = AgentMetadata(agent1, 1, joinedOn, joinedOn, None)
-  val registrationHistory2 = AgentSpec(agent1, "mandelbrot", agentPolicy, Map("history" -> "2"), checks1, metrics1, Set.empty)
+  val registrationHistory2 = AgentSpec(agent1, "mandelbrot", agentPolicy, probes1, checks1, metadata = Map("history" -> "2"))
   val metadataHistory2 = AgentMetadata(agent1, 1, joinedOn, joinedOn.plusMinutes(1), None)
-  val registrationHistory3 = AgentSpec(agent1, "mandelbrot", agentPolicy, Map("history" -> "3"), checks1, metrics1, Set.empty)
+  val registrationHistory3 = AgentSpec(agent1, "mandelbrot", agentPolicy, probes1, checks1, metadata = Map("history" -> "3"))
   val metadataHistory3 = AgentMetadata(agent1, 1, joinedOn, joinedOn.plusMinutes(1), None)
-  val registrationHistory4 = AgentSpec(agent1, "mandelbrot", agentPolicy, Map("history" -> "4"), checks1, metrics1, Set.empty)
+  val registrationHistory4 = AgentSpec(agent1, "mandelbrot", agentPolicy, probes1, checks1, metadata = Map("history" -> "4"))
   val metadataHistory4 = AgentMetadata(agent1, 1, joinedOn, joinedOn.plusMinutes(1), None)
-  val registrationHistory5 = AgentSpec(agent1, "mandelbrot", agentPolicy, Map("history" -> "5"), checks1, metrics1, Set.empty)
+  val registrationHistory5 = AgentSpec(agent1, "mandelbrot", agentPolicy, probes1, checks1, metadata = Map("history" -> "5"))
   val metadataHistory5 = AgentMetadata(agent1, 1, joinedOn, joinedOn.plusMinutes(1), None)
 
   def withTestData(testCode: (ActorRef) => Any): Unit = {

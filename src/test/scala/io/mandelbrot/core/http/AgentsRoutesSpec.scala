@@ -38,11 +38,11 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
     _serviceProxy ! PoisonPill
   }
 
+  val probePolicy = ProbePolicy(1.minute)
+  val probes = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
   val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
-  val properties = Map.empty[String,String]
-  val metadata = Map.empty[String,String]
   val checkId = CheckId("load")
-  val checkSpec = CheckSpec("io.mandelbrot.core.check.ScalarCheck", checkPolicy, properties, metadata)
+  val checkSpec = CheckSpec("io.mandelbrot.core.check.ScalarCheck", checkPolicy, Map.empty)
   val checks = Map(checkId -> checkSpec)
   val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
   val agentPolicy = AgentPolicy(5.seconds)
@@ -52,11 +52,11 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
   val agent3 = AgentId("test.3")
   val agent4 = AgentId("test.4")
   val agent5 = AgentId("test.5")
-  val registration1 = AgentSpec(agent1, "mandelbrot", agentPolicy, Map.empty, checks, metrics, Set.empty)
-  val registration2 = AgentSpec(agent2, "mandelbrot", agentPolicy, Map.empty, checks, metrics, Set.empty)
-  val registration3 = AgentSpec(agent3, "mandelbrot", agentPolicy, Map.empty, checks, metrics, Set.empty)
-  val registration4 = AgentSpec(agent4, "mandelbrot", agentPolicy, Map.empty, checks, metrics, Set.empty)
-  val registration5 = AgentSpec(agent5, "mandelbrot", agentPolicy, Map.empty, checks, metrics, Set.empty)
+  val registration1 = AgentSpec(agent1, "mandelbrot", agentPolicy, probes, checks)
+  val registration2 = AgentSpec(agent2, "mandelbrot", agentPolicy, probes, checks)
+  val registration3 = AgentSpec(agent3, "mandelbrot", agentPolicy, probes, checks)
+  val registration4 = AgentSpec(agent4, "mandelbrot", agentPolicy, probes, checks)
+  val registration5 = AgentSpec(agent5, "mandelbrot", agentPolicy, probes, checks)
 
   val evaluation = CheckEvaluation(DateTime.now(DateTimeZone.UTC), Some("evaluates healthy"), Some(CheckHealthy), None)
 

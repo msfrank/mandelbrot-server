@@ -45,12 +45,13 @@ class ReapTombstonesTaskSpec(_system: ActorSystem) extends TestKit(_system) with
     "delete an agent registration that is tombstoned" in withServiceProxy { serviceProxy =>
 
       val agentId = AgentId("foo")
+      val probePolicy = ProbePolicy(1.minute)
+      val probes = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
       val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 0.seconds, None)
       val check = CheckSpec("io.mandelbrot.core.check.ScalarCheck", checkPolicy, Map.empty, Map.empty)
       val checks = Map(CheckId("load") -> check)
-      val metrics = Map.empty[CheckId, Map[String, MetricSpec]]
       val agentPolicy = AgentPolicy(0.seconds)
-      val registration = AgentSpec(agentId, "mandelbrot", agentPolicy, Map.empty, checks, metrics, Set.empty)
+      val registration = AgentSpec(agentId, "mandelbrot", agentPolicy, probes, checks)
 
       serviceProxy ! RegisterAgent(agentId, registration)
       val registerAgentResult = expectMsgClass(10.seconds, classOf[RegisterAgentResult])

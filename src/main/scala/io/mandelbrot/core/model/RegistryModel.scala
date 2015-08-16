@@ -12,10 +12,10 @@ case class AgentPolicy(retentionPeriod: FiniteDuration) extends RegistryModel
 case class AgentSpec(agentId: AgentId,
                      agentType: String,
                      policy: AgentPolicy,
-                     metadata: Map[String,String],
+                     probes: Map[String,ProbeSpec],
                      checks: Map[CheckId,CheckSpec],
-                     metrics: Map[CheckId,Map[String,MetricSpec]],
-                     groups: Set[String]) extends RegistryModel
+                     groups: Set[String] = Set.empty,
+                     metadata: Map[String,String] = Map.empty) extends RegistryModel
 
 /* tunable parameters which apply to all check types */
 case class CheckPolicy(joiningTimeout: FiniteDuration,
@@ -28,14 +28,19 @@ case class CheckPolicy(joiningTimeout: FiniteDuration,
 case class CheckSpec(checkType: String,
                      policy: CheckPolicy,
                      properties: Map[String,String],
-                     metadata: Map[String,String]) extends RegistryModel
+                     metadata: Map[String,String] = Map.empty) extends RegistryModel
+
+/* */
+case class ProbePolicy(samplingPeriod: FiniteDuration)
+
+/* probe specification */
+case class ProbeSpec(policy: ProbePolicy,
+                     metrics: Map[String,MetricSpec],
+                     constants: Map[String,BigDecimal] = Map.empty,
+                     metadata: Map[String,String] = Map.empty) extends RegistryModel
 
 /* metric specification */
-case class MetricSpec(sourceType: SourceType,
-                      metricUnit: MetricUnit,
-                      step: Option[FiniteDuration],
-                      heartbeat: Option[FiniteDuration],
-                      cf: Option[ConsolidationFunction]) extends RegistryModel
+case class MetricSpec(sourceType: SourceType, metricUnit: MetricUnit) extends RegistryModel
 
 /* metadata about an agent */
 case class AgentMetadata(agentId: AgentId,
