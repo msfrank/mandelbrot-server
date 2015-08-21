@@ -58,7 +58,7 @@ class ReapTombstonesTaskSpec(_system: ActorSystem) extends TestKit(_system) with
 
       val checkRef = CheckRef(agentId, CheckId("load"))
       val timestamp = DateTime.now()
-      serviceProxy ! ProcessCheckEvaluation(checkRef, CheckEvaluation(timestamp, Some("healthy"), Some(CheckHealthy), None))
+      serviceProxy ! ProcessCheckEvaluation(checkRef, CheckEvaluation(timestamp, Map.empty))
       expectMsgClass(10.seconds, classOf[ProcessCheckEvaluationResult])
 
       serviceProxy ! RetireAgent(agentId)

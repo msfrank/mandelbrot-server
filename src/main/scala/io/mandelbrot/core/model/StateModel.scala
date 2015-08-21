@@ -7,9 +7,8 @@ sealed trait StateModel
 
 /* check status submitted by the agent */
 case class CheckEvaluation(timestamp: DateTime,
-                           summary: Option[String],
-                           health: Option[CheckHealth],
-                           metrics: Option[Map[String,BigDecimal]]) extends StateModel
+                           metrics: Map[String,BigDecimal],
+                           summary: Option[String] = None) extends StateModel
 
 /* the complete status of a check */
 case class CheckStatus(generation: Long,

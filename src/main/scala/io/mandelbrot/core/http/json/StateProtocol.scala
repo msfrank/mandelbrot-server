@@ -29,7 +29,7 @@ import io.mandelbrot.core.model._
 trait StateProtocol extends DefaultJsonProtocol with ConstantsProtocol with NotificationProtocol {
 
   /* convert CheckEvaluation class */
-  implicit val CheckEvaluationFormat = jsonFormat4(CheckEvaluation)
+  implicit val CheckEvaluationFormat = jsonFormat3(CheckEvaluation)
 
   /* convert CheckStatus class */
   implicit val CheckStatusFormat = jsonFormat11(CheckStatus)

@@ -76,7 +76,7 @@ class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with Im
       updateCheckStatus1.status.lifecycle shouldEqual CheckJoining
 
       val timestamp = DateTime.now()
-      check ! ProcessCheckEvaluation(checkRef, CheckEvaluation(timestamp, None, None, Some(Map(source.metricName -> BigDecimal(5)))))
+      check ! ProcessCheckEvaluation(checkRef, CheckEvaluation(timestamp, Map(source.metricName -> BigDecimal(5))))
       val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateStatus])
       updateCheckStatus2.status.health shouldEqual CheckHealthy
       updateCheckStatus2.status.correlation shouldEqual None
@@ -112,7 +112,7 @@ class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with Im
       updateCheckStatus1.status.lifecycle should be(CheckJoining)
 
       val timestamp = DateTime.now()
-      check ! ProcessCheckEvaluation(checkRef, CheckEvaluation(timestamp, None, None, Some(Map(source.metricName -> BigDecimal(15)))))
+      check ! ProcessCheckEvaluation(checkRef, CheckEvaluation(timestamp, Map(source.metricName -> BigDecimal(15))))
       val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateStatus])
       updateCheckStatus2.status.health shouldEqual CheckFailed
       updateCheckStatus2.status.correlation shouldEqual Some(_: UUID)
@@ -182,7 +182,7 @@ class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with Im
       updateCheckStatus1.status.lifecycle shouldEqual CheckJoining
 
       val timestamp = DateTime.now()
-      check ! ProcessCheckEvaluation(checkRef, CheckEvaluation(timestamp, None, None, Some(Map(source.metricName -> BigDecimal(5)))))
+      check ! ProcessCheckEvaluation(checkRef, CheckEvaluation(timestamp, Map(source.metricName -> BigDecimal(5))))
       val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateStatus])
       stateService.reply(UpdateStatusResult(updateCheckStatus2))
       updateCheckStatus2.status.lifecycle shouldEqual CheckKnown
@@ -226,7 +226,7 @@ class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with Im
       updateCheckStatus1.status.lifecycle shouldEqual CheckJoining
 
       val timestamp = DateTime.now()
-      check ! ProcessCheckEvaluation(checkRef, CheckEvaluation(timestamp, None, None, Some(Map(source.metricName -> BigDecimal(15)))))
+      check ! ProcessCheckEvaluation(checkRef, CheckEvaluation(timestamp, Map(source.metricName -> BigDecimal(15))))
       val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateStatus])
       stateService.reply(UpdateStatusResult(updateCheckStatus2))
       notificationService.expectMsgClass(classOf[NotifyLifecycleChanges])

@@ -58,8 +58,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
   val registration4 = AgentSpec(agent4, "mandelbrot", agentPolicy, probes, checks)
   val registration5 = AgentSpec(agent5, "mandelbrot", agentPolicy, probes, checks)
 
-  val evaluation = CheckEvaluation(DateTime.now(DateTimeZone.UTC), Some("evaluates healthy"),
-    Some(CheckHealthy), Some(Map("load1" -> BigDecimal(0.0))))
+  val evaluation = CheckEvaluation(DateTime.now(DateTimeZone.UTC), Map("load1" -> BigDecimal(0.0)))
 
   "route /v2/agents" should {
 

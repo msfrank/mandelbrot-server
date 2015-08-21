@@ -76,7 +76,7 @@ class TimeseriesProcessor(settings: TimeseriesCheckSettings) extends BehaviorPro
   def processEvaluation(check: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val lastUpdate = Some(timestamp)
-    val metrics = command.evaluation.metrics.getOrElse(Map.empty)
+    val metrics = command.evaluation.metrics
 
     var lifecycle = check.lifecycle
     var health = check.health
