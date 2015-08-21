@@ -3,6 +3,7 @@ package io.mandelbrot.core.check
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.pattern.ask
 import akka.pattern.pipe
+import io.mandelbrot.core.{ResourceNotFound, ApiException}
 import org.joda.time.DateTime
 import scala.concurrent.duration._
 import scala.collection.mutable
@@ -21,37 +22,53 @@ class InitializeCheckTask(checkRef: CheckRef,
   import context.dispatcher
 
   // config
-  val queryTimeout = 5.seconds
+  val queryTimeout = 1.second
 
   // state
   var inflight: Set[CheckId] = initializers.keySet
   val results = new mutable.HashMap[CheckId,Vector[CheckStatus]]
 
-  override def preStart(): Unit = if (initializers.nonEmpty) {
-    initializers.foreach {
-      case (checkId, query) =>
-        val op = GetStatusHistory(CheckRef(checkRef.agentId, checkId), generation, query.from, query.to,
-          query.limit, query.fromInclusive, query.toExclusive, query.descending)
-        services.ask(op)(queryTimeout).pipeTo(self)
+  override def preStart(): Unit = {
+    log.debug("initializing check {}", checkRef)
+    if (initializers.nonEmpty) {
+      initializers.foreach {
+        case (checkId, query) =>
+          val op = GetStatusHistory(CheckRef(checkRef.agentId, checkId), generation, query.from, query.to,
+            query.limit, query.fromInclusive, query.toExclusive, query.descending)
+          log.debug("sending query {}", op)
+          services.ask(op)(queryTimeout).pipeTo(self)
+      }
+    } else {
+      caller ! InitializeCheckTaskComplete(Map.empty)
+      context.stop(self)
     }
-  } else {
-    caller ! InitializeCheckTaskComplete(Map.empty)
-    context.stop(self)
   }
 
   def receive = {
 
     case result: GetStatusHistoryResult =>
+      log.debug("received history for {}: {}", result.op.checkRef, result.page)
       val history = results.getOrElse(result.op.checkRef.checkId, Vector.empty[CheckStatus])
       results.put(result.op.checkRef.checkId, history ++ result.page.history)
       if (!result.page.exhausted) {
-        services.ask(result.op.copy(last = result.page.last))(queryTimeout)
+        val op = result.op.copy(last = result.page.last)
+        log.debug("sending query {}", op)
+        services.ask(op)(queryTimeout).pipeTo(self)
       } else {
         inflight = inflight - result.op.checkRef.checkId
         if (inflight.isEmpty) {
           caller ! InitializeCheckTaskComplete(results.toMap)
           context.stop(self)
         }
+      }
+
+    case StateServiceOperationFailed(op: GetStatusHistory, ApiException(ResourceNotFound)) =>
+      log.debug("no history found for {}", op.checkRef)
+      results.put(op.checkRef.checkId, Vector.empty)
+      inflight = inflight - op.checkRef.checkId
+      if (inflight.isEmpty) {
+        caller ! InitializeCheckTaskComplete(results.toMap)
+        context.stop(self)
       }
 
     case StateServiceOperationFailed(op, failure) =>

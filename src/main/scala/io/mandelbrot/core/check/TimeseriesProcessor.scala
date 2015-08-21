@@ -27,12 +27,12 @@ import java.util.UUID
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.metrics._
 
-case class MetricsCheckSettings(evaluation: TimeseriesEvaluation)
+case class TimeseriesCheckSettings(evaluation: TimeseriesEvaluation)
 
 /**
  * Implements metrics check behavior.
  */
-class MetricsProcessor(settings: MetricsCheckSettings) extends BehaviorProcessor {
+class TimeseriesProcessor(settings: TimeseriesCheckSettings) extends BehaviorProcessor {
 
   val evaluation = settings.evaluation
   val timeseriesStore = new TimeseriesStore()
@@ -175,15 +175,15 @@ class MetricsProcessor(settings: MetricsCheckSettings) extends BehaviorProcessor
   }
 }
 
-class MetricsCheck extends CheckBehaviorExtension {
-  type Settings = MetricsCheckSettings
-  class MetricsProcessorFactory(val settings: MetricsCheckSettings) extends DependentProcessorFactory {
-    def implement() = new MetricsProcessor(settings)
+class TimeseriesCheck extends CheckBehaviorExtension {
+  type Settings = TimeseriesCheckSettings
+  class TimeseriesProcessorFactory(val settings: TimeseriesCheckSettings) extends DependentProcessorFactory {
+    def implement() = new TimeseriesProcessor(settings)
   }
   def configure(properties: Map[String,String]) = {
     if (!properties.contains("evaluation"))
       throw new IllegalArgumentException("missing evaluation")
     val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation(properties("evaluation"))
-    new MetricsProcessorFactory(MetricsCheckSettings(evaluation))
+    new TimeseriesProcessorFactory(TimeseriesCheckSettings(evaluation))
   }
 }

@@ -42,7 +42,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
   val probes = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
   val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
   val checkId = CheckId("load")
-  val checkSpec = CheckSpec("io.mandelbrot.core.check.ScalarCheck", checkPolicy, Map.empty)
+  val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("evaluation" -> "when load:load1 > 1"))
   val checks = Map(checkId -> checkSpec)
   val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
   val agentPolicy = AgentPolicy(5.seconds)
@@ -58,7 +58,8 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
   val registration4 = AgentSpec(agent4, "mandelbrot", agentPolicy, probes, checks)
   val registration5 = AgentSpec(agent5, "mandelbrot", agentPolicy, probes, checks)
 
-  val evaluation = CheckEvaluation(DateTime.now(DateTimeZone.UTC), Some("evaluates healthy"), Some(CheckHealthy), None)
+  val evaluation = CheckEvaluation(DateTime.now(DateTimeZone.UTC), Some("evaluates healthy"),
+    Some(CheckHealthy), Some(Map("load1" -> BigDecimal(0.0))))
 
   "route /v2/agents" should {
 
@@ -165,8 +166,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
       Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val checkStatus = responseAs[CheckStatus]
-        checkStatus.health shouldEqual evaluation.health.get
-        checkStatus.summary shouldEqual evaluation.summary
+        checkStatus.health shouldEqual CheckHealthy
       }
     }
 
@@ -192,8 +192,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
         val page = responseAs[CheckConditionPage]
         page.history.length shouldEqual 1
         val condition = page.history.head
-        condition.health shouldEqual evaluation.health.get
-        condition.summary shouldEqual evaluation.summary
+        condition.health shouldEqual CheckHealthy
       }
     }
 

@@ -37,8 +37,8 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val probePolicy = ProbePolicy(1.minute)
       val probes = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
       val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
-      val check = CheckSpec("io.mandelbrot.core.check.ScalarCheck", checkPolicy, Map.empty, Map.empty)
-      val checks = Map(CheckId("load") -> check)
+      val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("evaluation" -> "when load:load1 > 1"))
+      val checks = Map(CheckId("load") -> checkSpec)
       val agentPolicy = AgentPolicy(5.seconds)
       val registration = AgentSpec(agentId, "mandelbrot", agentPolicy, probes, checks)
 
@@ -55,8 +55,8 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val probePolicy = ProbePolicy(1.minute)
       val probes = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
       val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
-      val check = CheckSpec("io.mandelbrot.core.check.ScalarCheck", checkPolicy, Map.empty, Map.empty)
-      val checks = Map(CheckId("load") -> check)
+      val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("evaluation" -> "when load:load1 > 1"))
+      val checks = Map(CheckId("load") -> checkSpec)
       val agentPolicy = AgentPolicy(5.seconds)
       val registration = AgentSpec(agentId, "mandelbrot", agentPolicy, probes, checks)
       val timestamp = DateTime.now(DateTimeZone.UTC)
@@ -81,8 +81,8 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val probePolicy = ProbePolicy(1.minute)
       val probes = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
       val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
-      val check1 = CheckSpec("io.mandelbrot.core.check.ScalarCheck", checkPolicy, Map.empty, Map.empty)
-      val checks1 = Map(CheckId("check1") -> check1)
+      val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("evaluation" -> "when load:load1 > 1"))
+      val checks1 = Map(CheckId("check1") -> checkSpec)
       val agentPolicy = AgentPolicy(5.seconds)
       val registration1 = AgentSpec(agentId, "mandelbrot", agentPolicy, probes, checks1)
 
@@ -91,8 +91,7 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       agent ! RegisterAgent(agentId, registration1)
       val registerAgentResult = expectMsgClass(classOf[RegisterAgentResult])
 
-      val check2 = CheckSpec("io.mandelbrot.core.check.ScalarCheck", checkPolicy, Map.empty, Map.empty)
-      val checks2 = Map(CheckId("check2") -> check2)
+      val checks2 = Map(CheckId("check2") -> checkSpec)
       val registration2 = AgentSpec(agentId, "mandelbrot", agentPolicy, probes, checks2)
 
       agent ! UpdateAgent(agentId, registration2)
@@ -109,10 +108,10 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val probePolicy = ProbePolicy(1.minute)
       val probes = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
       val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
-      val check1 = CheckSpec("io.mandelbrot.core.check.ScalarCheck", checkPolicy, Map.empty, Map.empty)
-      val checks1 = Map(CheckId("check1") -> check1)
+      val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("evaluation" -> "when load:load1 > 1"))
+      val checks = Map(CheckId("check1") -> checkSpec)
       val agentPolicy = AgentPolicy(5.seconds)
-      val registration1 = AgentSpec(agentId, "mandelbrot", agentPolicy, probes, checks1)
+      val registration1 = AgentSpec(agentId, "mandelbrot", agentPolicy, probes, checks)
 
       val agent = system.actorOf(Agent.props(services))
 

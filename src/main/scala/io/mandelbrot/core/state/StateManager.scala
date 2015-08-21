@@ -48,20 +48,24 @@ class StateManager(settings: StateSettings, clusterEnabled: Boolean) extends Act
     case op: DeleteStatus =>
       persister forward op
 
+    /* retrieve status history */
+    case op: GetStatusHistory =>
+      persister forward op
+
     /* retrieve condition history */
     case op: GetConditionHistory =>
-      log.debug("get condition history: {}", op)
       persister forward op
 
     /* retrieve notifications history */
     case op: GetNotificationsHistory =>
-      log.debug("get notifications history: {}", op)
       persister forward op
 
     /* retrieve metrics history */
     case op: GetMetricsHistory =>
-      log.debug("get metrics history: {}", op)
       persister forward op
+
+    case unhandled =>
+      log.error("dropping unhandled message {}", unhandled)
   }
 }
 

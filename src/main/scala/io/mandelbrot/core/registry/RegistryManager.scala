@@ -61,6 +61,9 @@ class RegistryManager(settings: RegistrySettings, clusterEnabled: Boolean) exten
 
     case op: RegistryServiceCommand =>
       registrar forward op
+
+    case unhandled =>
+      log.error("dropping unhandled message {}", unhandled)
   }
 
   /**

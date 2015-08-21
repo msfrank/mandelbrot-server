@@ -1,3 +1,2 @@
 io.mandelbrot.core.check.ContainerCheck
-io.mandelbrot.core.check.MetricsCheck
-io.mandelbrot.core.check.ScalarCheck
+io.mandelbrot.core.check.TimeseriesCheck

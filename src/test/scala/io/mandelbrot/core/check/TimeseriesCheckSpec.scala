@@ -36,9 +36,9 @@ import io.mandelbrot.core.state._
 import io.mandelbrot.core.{AkkaConfig, Blackhole}
 import io.mandelbrot.core.ConfigConversions._
 
-class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
+class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
 
-  def this() = this(ActorSystem("MetricsCheckSpec", AkkaConfig))
+  def this() = this(ActorSystem("TimeseriesCheckSpec", AkkaConfig))
 
   // shutdown the actor system
   override def afterAll() {
@@ -55,7 +55,7 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val checkRef = CheckRef("foo.local:foo.check")
       val source = MetricSource(checkRef.checkId, "value")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val checkType = "io.mandelbrot.core.check.MetricsCheck"
+      val checkType = "io.mandelbrot.core.check.TimeseriesCheck"
       val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "when foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
@@ -64,10 +64,11 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val check = system.actorOf(Check.props(checkRef, generation, blackhole,  services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
 
-      val initializeCheckStatus = stateService.expectMsgClass(classOf[GetStatus])
-      val status = CheckStatus(generation, DateTime.now(), CheckInitializing, None, CheckUnknown,
+      val getStatusHistory = stateService.expectMsgClass(classOf[GetStatusHistory])
+      val status = CheckStatus(generation, DateTime.now(), CheckKnown, None, CheckHealthy,
         Map.empty, None, None, None, None, false)
-      stateService.reply(GetStatusResult(initializeCheckStatus, Some(status)))
+      val page = CheckStatusPage(Vector(status), None, exhausted = true)
+      stateService.reply(GetStatusHistoryResult(getStatusHistory, page))
 
       // check sets its lifecycle to joining
       val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
@@ -90,7 +91,7 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val checkRef = CheckRef("foo.local:foo.check")
       val source = MetricSource(checkRef.checkId, "value")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
-      val checkType = "io.mandelbrot.core.check.MetricsCheck"
+      val checkType = "io.mandelbrot.core.check.TimeseriesCheck"
       val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "when foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
@@ -99,10 +100,11 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
 
-      val initializeCheckStatus = stateService.expectMsgClass(classOf[GetStatus])
-      val status = CheckStatus(generation, DateTime.now(), CheckInitializing, None, CheckUnknown,
+      val getStatusHistory = stateService.expectMsgClass(classOf[GetStatusHistory])
+      val status = CheckStatus(generation, DateTime.now(), CheckKnown, None, CheckHealthy,
         Map.empty, None, None, None, None, false)
-      stateService.reply(GetStatusResult(initializeCheckStatus, Some(status)))
+      val page = CheckStatusPage(Vector(status), None, exhausted = true)
+      stateService.reply(GetStatusHistoryResult(getStatusHistory, page))
 
       // check sets its lifecycle to joining
       val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
@@ -125,7 +127,7 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val checkRef = CheckRef("foo.local:foo.check")
       val source = MetricSource(checkRef.checkId, "value")
       val policy = CheckPolicy(2.seconds, 1.minute, 1.minute, 1.minute, None)
-      val checkType = "io.mandelbrot.core.check.MetricsCheck"
+      val checkType = "io.mandelbrot.core.check.TimeseriesCheck"
       val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "when foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
@@ -134,10 +136,11 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
 
-      val initializeCheckStatus = stateService.expectMsgClass(classOf[GetStatus])
-      val status = CheckStatus(generation, DateTime.now(), CheckInitializing, None, CheckUnknown,
+      val getStatusHistory = stateService.expectMsgClass(classOf[GetStatusHistory])
+      val status = CheckStatus(generation, DateTime.now(), CheckKnown, None, CheckHealthy,
         Map.empty, None, None, None, None, false)
-      stateService.reply(GetStatusResult(initializeCheckStatus, Some(status)))
+      val page = CheckStatusPage(Vector(status), None, exhausted = true)
+      stateService.reply(GetStatusHistoryResult(getStatusHistory, page))
 
       // check sets its lifecycle to joining
       val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
@@ -158,7 +161,7 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val source = MetricSource(checkRef.checkId, "value")
       val evaluation = parser.parseTimeseriesEvaluation("when foo.check:value > 10")
       val policy = CheckPolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
-      val checkType = "io.mandelbrot.core.check.MetricsCheck"
+      val checkType = "io.mandelbrot.core.check.TimeseriesCheck"
       val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "when foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
@@ -167,10 +170,11 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
 
-      val initializeCheckStatus = stateService.expectMsgClass(classOf[GetStatus])
-      val status = CheckStatus(generation, DateTime.now(), CheckInitializing, None, CheckUnknown,
+      val getStatusHistory = stateService.expectMsgClass(classOf[GetStatusHistory])
+      val status = CheckStatus(generation, DateTime.now(), CheckKnown, None, CheckHealthy,
         Map.empty, None, None, None, None, false)
-      stateService.reply(GetStatusResult(initializeCheckStatus, Some(status)))
+      val page = CheckStatusPage(Vector(status), None, exhausted = true)
+      stateService.reply(GetStatusHistoryResult(getStatusHistory, page))
 
       // check sets its lifecycle to joining
       val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
@@ -200,7 +204,7 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val checkRef = CheckRef("foo.local:foo.check")
       val source = MetricSource(checkRef.checkId, "value")
       val policy = CheckPolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)
-      val checkType = "io.mandelbrot.core.check.MetricsCheck"
+      val checkType = "io.mandelbrot.core.check.TimeseriesCheck"
       val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "when foo.check:value > 10"))
       val notificationService = new TestProbe(_system)
       val stateService = new TestProbe(_system)
@@ -210,10 +214,11 @@ class MetricsCheckSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
 
-      val initializeCheckStatus = stateService.expectMsgClass(classOf[GetStatus])
-      val status = CheckStatus(generation, DateTime.now(), CheckInitializing, None, CheckUnknown,
+      val getStatusHistory = stateService.expectMsgClass(classOf[GetStatusHistory])
+      val status = CheckStatus(generation, DateTime.now(), CheckKnown, None, CheckHealthy,
         Map.empty, None, None, None, None, false)
-      stateService.reply(GetStatusResult(initializeCheckStatus, Some(status)))
+      val page = CheckStatusPage(Vector(status), None, exhausted = true)
+      stateService.reply(GetStatusHistoryResult(getStatusHistory, page))
 
       // check sets its lifecycle to joining
       val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])

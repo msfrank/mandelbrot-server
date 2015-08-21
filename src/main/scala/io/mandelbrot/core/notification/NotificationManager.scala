@@ -61,6 +61,8 @@ class NotificationManager(settings: NotificationSettings, clusterEnabled: Boolea
         settings.rules.foreach(_.evaluate(notification, notifiers))
       }
 
+    case unhandled =>
+      log.error("dropping unhandled message {}", unhandled)
   }
 
   /**
