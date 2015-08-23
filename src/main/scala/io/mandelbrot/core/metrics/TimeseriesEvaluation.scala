@@ -29,6 +29,7 @@ import io.mandelbrot.core.model._
 class TimeseriesEvaluation(val expression: EvaluationExpression, input: String) {
   val sources: Set[TimeseriesSource] = expression.sources
   val sizing: Map[TimeseriesSource,Int] = expression.sources.map(_ -> 1).toMap
+  val observes: Set[ProbeId] = expression.observes
   def evaluate(timeseries: TimeseriesStore): Option[Boolean] = expression.evaluate(timeseries)
   override def toString = input
 }
@@ -95,6 +96,7 @@ case class MeanFunction(comparison: NumericValueComparison) extends NumericWindo
 sealed trait EvaluationExpression {
   def evaluate(timeseries: TimeseriesStore): Option[Boolean]
   def sources: Set[TimeseriesSource]
+  def observes: Set[ProbeId]
 }
 
 case class EvaluateMetric(source: MetricSource, function: NumericWindowFunction) extends EvaluationExpression {
@@ -103,6 +105,7 @@ case class EvaluateMetric(source: MetricSource, function: NumericWindowFunction)
     function.apply(metricView)
   }
   val sources = Set(source).toSet[TimeseriesSource]
+  val observes = Set(source.probeId)
 }
 
 case class LogicalAnd(children: Vector[EvaluationExpression]) extends EvaluationExpression {
@@ -117,6 +120,7 @@ case class LogicalAnd(children: Vector[EvaluationExpression]) extends Evaluation
     Some(true)
   }
   val sources = children.flatMap(_.sources).toSet
+  val observes = children.flatMap(_.observes).toSet
 }
 
 case class LogicalOr(children: Vector[EvaluationExpression]) extends EvaluationExpression {
@@ -131,6 +135,7 @@ case class LogicalOr(children: Vector[EvaluationExpression]) extends EvaluationE
     Some(false)
   }
   val sources = children.flatMap(_.sources).toSet
+  val observes = children.flatMap(_.observes).toSet
 }
 
 case class LogicalNot(child: EvaluationExpression) extends EvaluationExpression {
@@ -139,20 +144,24 @@ case class LogicalNot(child: EvaluationExpression) extends EvaluationExpression 
     case Some(result) => Some(!result)
   }
   val sources = child.sources
+  val observes = child.observes
 }
 
 case object AlwaysTrue extends EvaluationExpression {
   def evaluate(timeseries: TimeseriesStore): Option[Boolean] = Some(true)
   val sources = Set.empty[TimeseriesSource]
+  val observes = Set.empty[ProbeId]
 }
 
 case object AlwaysFalse extends EvaluationExpression {
   def evaluate(timeseries: TimeseriesStore): Option[Boolean] = Some(false)
   val sources = Set.empty[TimeseriesSource]
+  val observes = Set.empty[ProbeId]
 }
 
 case object AlwaysUnknown extends EvaluationExpression {
   def evaluate(timeseries: TimeseriesStore): Option[Boolean] = None
   val sources = Set.empty[TimeseriesSource]
+  val observes = Set.empty[ProbeId]
 }
 

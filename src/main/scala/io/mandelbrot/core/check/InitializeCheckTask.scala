@@ -16,7 +16,7 @@ import io.mandelbrot.core.state._
  */
 class InitializeCheckTask(checkRef: CheckRef,
                           generation: Long,
-                          initializers: Map[CheckId,CheckInitializer],
+                          initializers: Map[TimeseriesSource,CheckInitializer],
                           caller: ActorRef,
                           services: ActorRef) extends Actor with ActorLogging {
   import context.dispatcher
@@ -25,20 +25,26 @@ class InitializeCheckTask(checkRef: CheckRef,
   val queryTimeout = 1.second
 
   // state
-  var inflight: Set[CheckId] = initializers.keySet
-  val results = new mutable.HashMap[CheckId,Vector[CheckStatus]]
+  val observations = new mutable.HashMap[ProbeId,Vector[ProbeObservation]]
+  var inflight = 0
 
   override def preStart(): Unit = {
     log.debug("initializing check {}", checkRef)
-    if (initializers.nonEmpty) {
-      initializers.foreach {
-        case (checkId, query) =>
-          val op = GetStatusHistory(CheckRef(checkRef.agentId, checkId), generation, query.from, query.to,
-            query.limit, query.fromInclusive, query.toExclusive, query.descending)
-          log.debug("sending query {}", op)
-          services.ask(op)(queryTimeout).pipeTo(self)
-      }
-    } else {
+    initializers.foreach {
+
+      case (source: MetricSource, query) =>
+        val op = GetObservationHistory(ProbeRef(checkRef.agentId, source.probeId), generation,
+          query.from, query.to, query.limit, query.fromInclusive, query.toExclusive, query.descending)
+        log.debug("sending query {}", op)
+        services.ask(op)(queryTimeout).pipeTo(self)
+        inflight = inflight + 1
+
+      case (source, query) =>
+        log.error("ignoring query for unknown source {}", source)
+    }
+
+    // if there are no queries in flight, then we are done
+    if (inflight == 0) {
       caller ! InitializeCheckTaskComplete(Map.empty)
       context.stop(self)
     }
@@ -46,28 +52,28 @@ class InitializeCheckTask(checkRef: CheckRef,
 
   def receive = {
 
-    case result: GetStatusHistoryResult =>
-      log.debug("received history for {}: {}", result.op.checkRef, result.page)
-      val history = results.getOrElse(result.op.checkRef.checkId, Vector.empty[CheckStatus])
-      results.put(result.op.checkRef.checkId, history ++ result.page.history)
+    case result: GetObservationHistoryResult =>
+      log.debug("received history for {}: {}", result.op.probeRef, result.page)
+      val history = observations.getOrElse(result.op.probeRef.probeId, Vector.empty[ProbeObservation])
+      observations.put(result.op.probeRef.probeId, history ++ result.page.history)
       if (!result.page.exhausted) {
         val op = result.op.copy(last = result.page.last)
         log.debug("sending query {}", op)
         services.ask(op)(queryTimeout).pipeTo(self)
       } else {
-        inflight = inflight - result.op.checkRef.checkId
-        if (inflight.isEmpty) {
-          caller ! InitializeCheckTaskComplete(results.toMap)
+        inflight = inflight - 1
+        if (inflight == 0) {
+          caller ! InitializeCheckTaskComplete(observations.toMap)
           context.stop(self)
         }
       }
 
-    case StateServiceOperationFailed(op: GetStatusHistory, ApiException(ResourceNotFound)) =>
-      log.debug("no history found for {}", op.checkRef)
-      results.put(op.checkRef.checkId, Vector.empty)
-      inflight = inflight - op.checkRef.checkId
-      if (inflight.isEmpty) {
-        caller ! InitializeCheckTaskComplete(results.toMap)
+    case StateServiceOperationFailed(op: GetObservationHistory, ApiException(ResourceNotFound)) =>
+      log.debug("no history found for {}", op.probeRef)
+      observations.put(op.probeRef.probeId, Vector.empty)
+      inflight = inflight - 1
+      if (inflight == 0) {
+        caller ! InitializeCheckTaskComplete(observations.toMap)
         context.stop(self)
       }
 
@@ -82,7 +88,7 @@ class InitializeCheckTask(checkRef: CheckRef,
 object InitializeCheckTask {
   def props(checkRef: CheckRef,
             generation: Long,
-            initializers: Map[CheckId,CheckInitializer],
+            initializers: Map[TimeseriesSource,CheckInitializer],
             caller: ActorRef,
             services: ActorRef) = {
     Props(classOf[InitializeCheckTask], checkRef, generation, initializers, caller, services)
@@ -96,5 +102,5 @@ case class CheckInitializer(from: Option[DateTime],
                             toExclusive: Boolean,
                             descending: Boolean)
 
-case class InitializeCheckTaskComplete(results: Map[CheckId,Vector[CheckStatus]])
+case class InitializeCheckTaskComplete(observations: Map[ProbeId,Vector[ProbeObservation]])
 case class InitializeCheckTaskFailed(ex: Throwable)

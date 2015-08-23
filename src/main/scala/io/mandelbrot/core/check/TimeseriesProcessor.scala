@@ -44,18 +44,18 @@ class TimeseriesProcessor(settings: TimeseriesCheckSettings) extends BehaviorPro
    *
    */
   def initialize(check: AccessorOps): InitializeEffect = {
-    val initializers: Map[CheckId,CheckInitializer] = timeseriesStore.windows().map {
-      case (source,window) => source.checkId -> CheckInitializer(from = Some(new DateTime(0)),
+    val initializers: Map[TimeseriesSource,CheckInitializer] = timeseriesStore.windows().map {
+      case (source: MetricSource,window) => source -> CheckInitializer(from = Some(new DateTime(0)),
         to = Some(new DateTime(java.lang.Long.MAX_VALUE)), limit = window.size, fromInclusive = true,
         toExclusive = false, descending = true)
-    }
+    }.toMap
     InitializeEffect(initializers)
   }
 
   /**
    *
    */
-  def configure(check: AccessorOps, results: Map[CheckId,Vector[CheckStatus]], children: Set[CheckRef]): ConfigureEffect = {
+  def configure(check: AccessorOps, observations: Map[ProbeId,Vector[ProbeObservation]], children: Set[CheckRef]): ConfigureEffect = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val status = check.getCheckStatus
     val initial = if (status.lifecycle == CheckInitializing) {
@@ -73,10 +73,9 @@ class TimeseriesProcessor(settings: TimeseriesCheckSettings) extends BehaviorPro
    * we set the correlation if it is different from the current correlation, and we start
    * the alert timer.
    */
-  def processEvaluation(check: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = {
+  def processObservation(check: AccessorOps, probeId: ProbeId, observation: Observation): Option[EventEffect] = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val lastUpdate = Some(timestamp)
-    val metrics = command.evaluation.metrics
 
     var lifecycle = check.lifecycle
     var health = check.health
@@ -85,9 +84,9 @@ class TimeseriesProcessor(settings: TimeseriesCheckSettings) extends BehaviorPro
     var acknowledgementId = check.acknowledgementId
 
     // push new metrics into the store
-    timeseriesStore.append(check.checkRef.checkId, CheckStatus(check.generation,
-      timestamp, lifecycle, command.evaluation.summary, health, metrics, lastUpdate,
-      lastChange, correlationId, acknowledgementId, check.squelch))
+    //timeseriesStore.append(check.checkRef.checkId, CheckStatus(check.generation,
+    //  timestamp, lifecycle, command.evaluation.summary, health, metrics, lastUpdate,
+    //  lastChange, correlationId, acknowledgementId, check.squelch))
 
     // evaluate the store
     health = evaluation.evaluate(timeseriesStore) match {
@@ -113,25 +112,25 @@ class TimeseriesProcessor(settings: TimeseriesCheckSettings) extends BehaviorPro
       acknowledgementId = None
     }
 
-    val status = CheckStatus(check.generation, timestamp, lifecycle, None, health, metrics,
+    val status = CheckStatus(check.generation, timestamp, lifecycle, None, health, Map.empty,
       lastUpdate, lastChange, correlationId, acknowledgementId, check.squelch)
     var notifications = Vector.empty[CheckNotification]
 
     // append lifecycle notification
     if (check.lifecycle != lifecycle)
-      notifications = notifications :+ NotifyLifecycleChanges(check.checkRef, command.evaluation.timestamp, check.lifecycle, lifecycle)
+      notifications = notifications :+ NotifyLifecycleChanges(check.checkRef, observation.timestamp, check.lifecycle, lifecycle)
     // append health notification
     if (health != check.health) {
-      notifications = notifications :+ NotifyHealthChanges(check.checkRef, command.evaluation.timestamp, correlationId, check.health, health)
+      notifications = notifications :+ NotifyHealthChanges(check.checkRef, observation.timestamp, correlationId, check.health, health)
     } else {
-      notifications = notifications :+ NotifyHealthUpdates(check.checkRef, command.evaluation.timestamp, correlationId, health)
+      notifications = notifications :+ NotifyHealthUpdates(check.checkRef, observation.timestamp, correlationId, health)
     }
     // append recovery notification
     if (check.health == CheckHealthy && check.acknowledgementId.isDefined) {
       notifications = notifications :+ NotifyRecovers(check.checkRef, timestamp, check.correlationId.get, check.acknowledgementId.get)
     }
 
-    Success(CommandEffect(ProcessCheckEvaluationResult(command), status, notifications))
+    Some(EventEffect(status, notifications))
   }
 
   /* ignore child messages */
@@ -179,6 +178,7 @@ class TimeseriesCheck extends CheckBehaviorExtension {
   type Settings = TimeseriesCheckSettings
   class TimeseriesProcessorFactory(val settings: TimeseriesCheckSettings) extends DependentProcessorFactory {
     def implement() = new TimeseriesProcessor(settings)
+    def observes() = settings.evaluation.observes
   }
   def configure(properties: Map[String,String]) = {
     if (!properties.contains("evaluation"))

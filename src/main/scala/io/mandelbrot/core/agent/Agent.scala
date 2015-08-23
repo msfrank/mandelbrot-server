@@ -21,7 +21,6 @@ package io.mandelbrot.core.agent
 
 import akka.actor._
 import io.mandelbrot.core._
-import io.mandelbrot.core.metrics.MetricsBus
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.check._
@@ -52,9 +51,12 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
   val retiredChecks = new mutable.HashMap[ActorRef,(CheckId,Long)]
   val zombieChecks = new mutable.HashSet[CheckId]
   val pendingDeletes = new mutable.HashMap[ActorRef,Long]()
-  val metricsBus = new MetricsBus()
+  val observationBus = new ObservationBus()
   var generation: Long = 0
   var lsn: Long = 0
+
+  // the probe manager processes observations and publishes them to the bus
+  val probeManager = context.actorOf(ProbeManager.props(observationBus, services))
 
   override def preStart(): Unit = {
     startWith(AgentIncubating, NoData)
@@ -76,6 +78,11 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
 
     /* stash any agent operations for later */
     case Event(op: AgentOperation, _) =>
+      stash()
+      stay()
+
+    /* stash any probe operations for later */
+    case Event(op: ProbeOperation, _) =>
       stash()
       stay()
 
@@ -147,6 +154,11 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       stash()
       stay()
 
+    /* stash any probe operations for later */
+    case Event(op: ProbeOperation, _) =>
+      stash()
+      stay()
+
     /* stash any check operations for later */
     case Event(op: CheckOperation, _) =>
       stash()
@@ -198,6 +210,11 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       stash()
       stay()
 
+    /* stash any probe operations for later */
+    case Event(op: ProbeOperation, _) =>
+      stash()
+      stay()
+
     /* stash any check operations for later */
     case Event(op: CheckOperation, _) =>
       stash()
@@ -223,6 +240,11 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
 
     /* stash any agent operations for later */
     case Event(op: AgentOperation, _) =>
+      stash()
+      stay()
+
+    /* stash any probe operations for later */
+    case Event(op: ProbeOperation, _) =>
       stash()
       stay()
 
@@ -300,6 +322,11 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
     case Event(status: CheckStatus, state: AgentRunning) =>
       stay()
 
+    /* forward probe operations to the probe manager */
+    case Event(op: ProbeOperation, state: AgentRunning) =>
+      probeManager.forward(op)
+      stay()
+
     /* forward check operations to the specified check */
     case Event(op: CheckOperation, state: AgentRunning) =>
       checks.get(op.checkRef.checkId) match {
@@ -353,6 +380,11 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       stash()
       stay()
 
+    /* stash any probe operations for later */
+    case Event(op: ProbeOperation, _) =>
+      stash()
+      stay()
+
     /* stash any check operations for later */
     case Event(op: CheckOperation, _) =>
       stash()
@@ -398,6 +430,11 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
 
     /* stash any agent operations for later */
     case Event(op: AgentOperation, _) =>
+      stash()
+      stay()
+
+    /* stash any probe operations for later */
+    case Event(op: ProbeOperation, _) =>
       stash()
       stay()
 
@@ -451,6 +488,10 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
     /* agent doesn't exist anymore, so return resource not found */
     case Event(op: AgentOperation, _) =>
       stay() replying AgentOperationFailed(op, ApiException(ResourceNotFound))
+
+    /* agent doesn't exist anymore, so return resource not found */
+    case Event(op: ProbeOperation, _) =>
+      stay() replying ProbeOperationFailed(op, ApiException(ResourceNotFound))
 
     /* agent doesn't exist anymore, so return resource not found */
     case Event(op: CheckOperation, _) =>
@@ -544,9 +585,9 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
       val checkRef = CheckRef(agentId, checkId)
       val actor = checkId.parentOption match {
         case Some(parent) =>
-          context.actorOf(Check.props(checkRef, generation, checks(parent).actor, services, metricsBus))
+          context.actorOf(Check.props(checkRef, generation, checks(parent).actor, services, observationBus))
         case _ =>
-          context.actorOf(Check.props(checkRef, generation, self, services, metricsBus))
+          context.actorOf(Check.props(checkRef, generation, self, services, observationBus))
       }
       log.debug("check {} joins {}", checkId, agentId)
       context.watch(actor)

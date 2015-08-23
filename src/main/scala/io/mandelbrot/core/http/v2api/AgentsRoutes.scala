@@ -100,6 +100,38 @@ trait AgentsRoutes extends ApiService {
           }
         }
       } ~
+      pathPrefix("probes" / ProbeIdMatcher) { case probeId: ProbeId =>
+        pathEndOrSingleSlash {
+          post {
+            /* update the status of the Check */
+            entity(as[Observation]) { case observation: Observation =>
+              complete {
+                serviceProxy.ask(ProcessProbeObservation(ProbeRef(agentId, probeId), observation)).map {
+                  case result: ProcessProbeObservationResult =>
+                    HttpResponse(StatusCodes.OK)
+                  case failure: ServiceOperationFailed =>
+                    throw failure.failure
+                }
+              }
+            }
+          } ~
+          get {
+            timeseriesParams { timeseries =>
+            pagingParams { paging =>
+            complete {
+              val limit = paging.limit.getOrElse(settings.pageLimit)
+              serviceProxy.ask(GetProbeObservations(ProbeRef(agentId, probeId), timeseries.from,
+                timeseries.to, limit, timeseries.fromInclusive, timeseries.toExclusive,
+                timeseries.descending, paging.last)).map {
+                  case result: GetProbeObservationsResult =>
+                    result.page
+                  case failure: ServiceOperationFailed =>
+                    throw failure.failure
+                }
+            }}}
+          }
+        }
+      } ~
       pathPrefix("checks" / CheckIdMatcher) { case checkId: CheckId =>
         pathEndOrSingleSlash {
           get {
@@ -110,19 +142,6 @@ trait AgentsRoutes extends ApiService {
                   result.status
                 case failure: ServiceOperationFailed =>
                   throw failure.failure
-              }
-            }
-          } ~
-          post {
-            /* update the status of the Check */
-            entity(as[CheckEvaluation]) { case evaluation: CheckEvaluation =>
-              complete {
-                serviceProxy.ask(ProcessCheckEvaluation(CheckRef(agentId, checkId), evaluation)).map {
-                  case result: ProcessCheckEvaluationResult =>
-                    HttpResponse(StatusCodes.OK)
-                  case failure: ServiceOperationFailed =>
-                    throw failure.failure
-                }
               }
             }
           }
@@ -155,23 +174,6 @@ trait AgentsRoutes extends ApiService {
                 timeseries.fromInclusive, timeseries.toExclusive, timeseries.descending,
                 paging.last)).map {
                   case result: GetCheckNotificationsResult =>
-                    result.page
-                  case failure: ServiceOperationFailed =>
-                    throw failure.failure
-                }
-            }}}
-          }
-        } ~
-        path("metrics") {
-          get {
-            timeseriesParams { timeseries =>
-            pagingParams { paging =>
-            complete {
-              val limit = paging.limit.getOrElse(settings.pageLimit)
-              serviceProxy.ask(GetCheckMetrics(CheckRef(agentId, checkId), timeseries.from,
-                timeseries.to, limit, timeseries.fromInclusive, timeseries.toExclusive,
-                timeseries.descending, paging.last)).map {
-                  case result: GetCheckMetricsResult =>
                     result.page
                   case failure: ServiceOperationFailed =>
                     throw failure.failure

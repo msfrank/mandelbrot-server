@@ -1,19 +1,18 @@
-package io.mandelbrot.core.metrics
+package io.mandelbrot.core.agent
 
 import akka.actor.ActorRef
-import akka.event.{LookupClassification, EventBus}
-
+import akka.event.{EventBus, LookupClassification}
 import io.mandelbrot.core.model._
 
 /**
  *
  */
-class MetricsBus extends EventBus with LookupClassification {
-  type Event = MetricsSet
-  type Classifier = Vector[String]
+class ObservationBus extends EventBus with LookupClassification {
   type Subscriber = ActorRef
+  type Event = ProcessProbeObservation
+  type Classifier = ProbeId
 
-  override protected def classify(event: Event): Classifier = event.checkRef.checkId.segments
+  override protected def classify(event: Event): Classifier = event.probeRef.probeId
   override protected def publish(event: Event, subscriber: Subscriber): Unit = subscriber ! event
   override protected def compareSubscribers(a: Subscriber, b: Subscriber): Int = a.compareTo(b)
 
@@ -21,5 +20,3 @@ class MetricsBus extends EventBus with LookupClassification {
   // used internally (i.e. the expected number of different classifiers)
   override protected def mapSize(): Int = 32
 }
-
-case class MetricsSet(checkRef: CheckRef, metrics: Map[String,BigDecimal])

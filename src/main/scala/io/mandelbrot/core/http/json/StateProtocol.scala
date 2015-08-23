@@ -28,8 +28,21 @@ import io.mandelbrot.core.model._
  */
 trait StateProtocol extends DefaultJsonProtocol with ConstantsProtocol with NotificationProtocol {
 
-  /* convert CheckEvaluation class */
-  implicit val CheckEvaluationFormat = jsonFormat3(CheckEvaluation)
+  /* convert ScalarMapObservation class */
+  implicit val ScalarMapObservationFormat = jsonFormat2(ScalarMapObservation)
+
+  /* convert subclasses of Observation */
+  implicit object ObservationFormat extends JsonFormat[Observation] {
+    def write(observation: Observation) = observation match {
+      case scalarMapObservation: ScalarMapObservation => scalarMapObservation.toJson
+      case _ => throw new SerializationException("expected Observation")
+    }
+    def read(value: JsValue): Observation = value match {
+      case JsObject(fields) if fields.contains("metrics") =>
+        value.convertTo[ScalarMapObservation]
+      case _ => throw new DeserializationException("expected Observation")
+    }
+  }
 
   /* convert CheckStatus class */
   implicit val CheckStatusFormat = jsonFormat11(CheckStatus)
@@ -41,7 +54,7 @@ trait StateProtocol extends DefaultJsonProtocol with ConstantsProtocol with Noti
   implicit val CheckNotificationsFormat = jsonFormat3(CheckNotifications)
 
   /* convert CheckMetrics class */
-  implicit val CheckMetricsFormat = jsonFormat3(CheckMetrics)
+  implicit val ProbeObservationFormat = jsonFormat2(ProbeObservation)
 
   /* convert CheckCondition class */
   implicit val CheckConditionPageFormat = jsonFormat3(CheckConditionPage)
@@ -50,5 +63,5 @@ trait StateProtocol extends DefaultJsonProtocol with ConstantsProtocol with Noti
   implicit val CheckNotificationsPageFormat = jsonFormat3(CheckNotificationsPage)
 
   /* convert CheckMetrics class */
-  implicit val CheckMetricsPageFormat = jsonFormat3(CheckMetricsPage)
+  implicit val ProbeObservationPageFormat = jsonFormat3(ProbeObservationPage)
 }

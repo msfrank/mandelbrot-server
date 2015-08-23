@@ -23,6 +23,7 @@ import spray.json._
 
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.check._
+import io.mandelbrot.core.agent.GetProbeObservations
 import io.mandelbrot.core.parser.CheckMatcherParser
 
 /**
@@ -40,9 +41,9 @@ trait SystemProtocol extends DefaultJsonProtocol with ConstantsProtocol with Sta
   }
 
   /* check operations */
+  implicit val GetProbeObservationsFormat = jsonFormat8(GetProbeObservations)
   implicit val GetCheckConditionFormat = jsonFormat8(GetCheckCondition)
   implicit val GetCheckNotificationsFormat = jsonFormat8(GetCheckNotifications)
-  implicit val GetCheckMetricsFormat = jsonFormat8(GetCheckMetrics)
   implicit val AcknowledgeCheckFormat = jsonFormat2(AcknowledgeCheck)
   implicit val UnacknowledgeCheckFormat = jsonFormat2(UnacknowledgeCheck)
   implicit val SetCheckSquelchFormat = jsonFormat2(SetCheckSquelch)

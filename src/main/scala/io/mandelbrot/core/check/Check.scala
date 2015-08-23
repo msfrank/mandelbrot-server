@@ -29,8 +29,7 @@ import java.util.UUID
 import io.mandelbrot.core._
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.state._
-import io.mandelbrot.core.agent.RetireCheck
-import io.mandelbrot.core.metrics.MetricsBus
+import io.mandelbrot.core.agent.{ProcessProbeObservation, ObservationBus, RetireCheck}
 import io.mandelbrot.core.util.Timer
 
 /**
@@ -41,7 +40,7 @@ class Check(val checkRef: CheckRef,
             val generation: Long,
             val parent: ActorRef,
             val services: ActorRef,
-            val metricsBus: MetricsBus) extends LoggingFSM[Check.State,Check.Data] with Stash with ProcessingOps {
+            val observationBus: ObservationBus) extends LoggingFSM[Check.State,Check.Data] with Stash with ProcessingOps {
   import Check._
   import context.dispatcher
 
@@ -99,7 +98,7 @@ class Check(val checkRef: CheckRef,
     /* configure processor using initial state */
     case Event(initialize: InitializeCheckTaskComplete, state: Initializing) =>
       commitTimer.stop()
-      val effect = state.proposed.configure(this, initialize.results, state.change.children)
+      val effect = state.proposed.configure(this, initialize.observations, state.change.children)
       val op = UpdateStatus(checkRef, effect.status, effect.notifications, commitEpoch = true)
       goto(Configuring) using Configuring(state.change, state.proposed, op)
 
@@ -119,10 +118,8 @@ class Check(val checkRef: CheckRef,
 
   onTransition {
     case _ -> Configuring =>
-      nextStateData match {
-        case state: Configuring => services ! state.inflight
-        case _ =>
-      }
+      val state = nextStateData.asInstanceOf[Configuring]
+      services ! state.inflight
       commitTimer.restart(commitTimeout)
   }
 
@@ -172,7 +169,10 @@ class Check(val checkRef: CheckRef,
   }
 
   onTransition {
-    case Configuring -> Running => unstashAll()
+    case Configuring -> Running =>
+      val state = stateData.asInstanceOf[Configuring]
+      state.change.factory.observes().foreach(probeId => observationBus.subscribe(self, probeId))
+      unstashAll()
   }
 
   /*
@@ -206,20 +206,9 @@ class Check(val checkRef: CheckRef,
       }.pipeTo(sender())
       stay()
 
-    /* */
-    case Event(query: GetCheckMetrics, NoData) =>
-      services.ask(GetMetricsHistory(checkRef, generation, query.from, query.to, query.limit,
-        query.fromInclusive, query.toExclusive, query.descending, query.last))(queryTimeout).map {
-        case result: GetMetricsHistoryResult =>
-          GetCheckMetricsResult(query, result.page)
-        case failure: StateServiceOperationFailed =>
-          CheckOperationFailed(query, failure.failure)
-      }.pipeTo(sender())
-      stay()
-
     /* process a check evaluation from the client */
-    case Event(command: ProcessCheckEvaluation, NoData) =>
-      enqueue(QueuedCommand(command, sender()))
+    case Event(command: ProcessProbeObservation, NoData) =>
+      enqueue(QueuedObservation(command.probeRef.probeId, command.observation))
       stay()
 
     /* if the check behavior has changed, then transition to a new state */
@@ -347,9 +336,12 @@ class Check(val checkRef: CheckRef,
 
   /**
    * ensure all timers are stopped, so we don't get spurious messages (and the corresponding
-   * log messages in the debug log).
+   * log messages in the debug log), and unsubscribe completely from the observation bus.
    */
   override def postStop(): Unit = {
+    // remove check from all subscriptions
+    observationBus.unsubscribe(self)
+    // stop any timers which might still be running
     alertTimer.stop()
     commitTimer.stop()
     expiryTimer.stop()
@@ -363,7 +355,7 @@ object Check {
             generation: Long,
             parent: ActorRef,
             services: ActorRef,
-            metricsBus: MetricsBus) = {
+            metricsBus: ObservationBus) = {
     Props(classOf[Check], checkRef, generation, parent, services, metricsBus)
   }
 
@@ -426,19 +418,6 @@ case class GetCheckNotifications(checkRef: CheckRef,
                                  descending: Boolean,
                                  last: Option[String]) extends CheckQuery
 case class GetCheckNotificationsResult(op: GetCheckNotifications, page: CheckNotificationsPage) extends CheckResult
-
-case class GetCheckMetrics(checkRef: CheckRef,
-                           from: Option[DateTime],
-                           to: Option[DateTime],
-                           limit: Int,
-                           fromInclusive: Boolean,
-                           toExclusive: Boolean,
-                           descending: Boolean,
-                           last: Option[String]) extends CheckQuery
-case class GetCheckMetricsResult(op: GetCheckMetrics, page: CheckMetricsPage) extends CheckResult
-
-case class ProcessCheckEvaluation(checkRef: CheckRef, evaluation: CheckEvaluation) extends CheckCommand
-case class ProcessCheckEvaluationResult(op: ProcessCheckEvaluation) extends CheckResult
 
 case class SetCheckSquelch(checkRef: CheckRef, squelch: Boolean) extends CheckCommand
 case class SetCheckSquelchResult(op: SetCheckSquelch, condition: CheckCondition) extends CheckResult

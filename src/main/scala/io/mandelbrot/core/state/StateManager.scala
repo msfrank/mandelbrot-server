@@ -48,20 +48,16 @@ class StateManager(settings: StateSettings, clusterEnabled: Boolean) extends Act
     case op: DeleteStatus =>
       persister forward op
 
-    /* retrieve status history */
-    case op: GetStatusHistory =>
+    /* retrieve probe observation history */
+    case op: GetObservationHistory =>
       persister forward op
 
-    /* retrieve condition history */
+    /* retrieve check condition history */
     case op: GetConditionHistory =>
       persister forward op
 
-    /* retrieve notifications history */
+    /* retrieve check notifications history */
     case op: GetNotificationsHistory =>
-      persister forward op
-
-    /* retrieve metrics history */
-    case op: GetMetricsHistory =>
       persister forward op
 
     case unhandled =>
@@ -96,16 +92,16 @@ case class UpdateStatusResult(op: UpdateStatus) extends StateServiceResult
 case class DeleteStatus(checkRef: CheckRef, generation: Long) extends StateServiceCommand
 case class DeleteStatusResult(op: DeleteStatus) extends StateServiceResult
 
-case class GetStatusHistory(checkRef: CheckRef,
-                            generation: Long,
-                            from: Option[DateTime],
-                            to: Option[DateTime],
-                            limit: Int,
-                            fromInclusive: Boolean = false,
-                            toExclusive: Boolean = false,
-                            descending: Boolean = false,
-                            last: Option[String] = None) extends StateServiceQuery
-case class GetStatusHistoryResult(op: GetStatusHistory, page: CheckStatusPage) extends StateServiceResult
+case class GetObservationHistory(probeRef: ProbeRef,
+                                 generation: Long,
+                                 from: Option[DateTime],
+                                 to: Option[DateTime],
+                                 limit: Int,
+                                 fromInclusive: Boolean = false,
+                                 toExclusive: Boolean = false,
+                                 descending: Boolean = false,
+                                 last: Option[String] = None) extends StateServiceQuery
+case class GetObservationHistoryResult(op: GetObservationHistory, page: ProbeObservationPage) extends StateServiceResult
 
 case class GetConditionHistory(checkRef: CheckRef,
                                generation: Long,
@@ -128,14 +124,3 @@ case class GetNotificationsHistory(checkRef: CheckRef,
                                    descending: Boolean = false,
                                    last: Option[String] = None) extends StateServiceQuery
 case class GetNotificationsHistoryResult(op: GetNotificationsHistory, page: CheckNotificationsPage) extends StateServiceResult
-
-case class GetMetricsHistory(checkRef: CheckRef,
-                             generation: Long,
-                             from: Option[DateTime],
-                             to: Option[DateTime],
-                             limit: Int,
-                             fromInclusive: Boolean = false,
-                             toExclusive: Boolean = false,
-                             descending: Boolean = false,
-                             last: Option[String] = None) extends StateServiceQuery
-case class GetMetricsHistoryResult(op: GetMetricsHistory, page: CheckMetricsPage) extends StateServiceResult

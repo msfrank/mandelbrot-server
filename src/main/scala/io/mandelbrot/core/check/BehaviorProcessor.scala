@@ -39,12 +39,12 @@ trait BehaviorProcessor {
   /**
    *
    */
-  def configure(check: AccessorOps, results: Map[CheckId,Vector[CheckStatus]], children: Set[CheckRef]): ConfigureEffect
+  def configure(check: AccessorOps, observations: Map[ProbeId,Vector[ProbeObservation]], children: Set[CheckRef]): ConfigureEffect
 
   /**
    *
    */
-  def processEvaluation(check: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect]
+  def processObservation(check: AccessorOps, probeId: ProbeId, observation: Observation): Option[EventEffect]
 
   /**
    *
@@ -120,7 +120,6 @@ trait BehaviorProcessor {
   }
 
   def processCommand(check: AccessorOps, command: CheckCommand): Try[CommandEffect] = command match {
-    case cmd: ProcessCheckEvaluation => processEvaluation(check, cmd)
     case cmd: AcknowledgeCheck => processAcknowledge(check, cmd)
     case cmd: UnacknowledgeCheck => processUnacknowledge(check, cmd)
     case cmd: SetCheckSquelch => processSetSquelch(check, cmd)
@@ -141,7 +140,7 @@ trait BehaviorProcessor {
 }
 
 sealed trait CheckEffect
-case class InitializeEffect(initializers: Map[CheckId,CheckInitializer]) extends CheckEffect
+case class InitializeEffect(initializers: Map[TimeseriesSource,CheckInitializer]) extends CheckEffect
 case class ConfigureEffect(status: CheckStatus,
                            notifications: Vector[CheckNotification],
                            children: Set[CheckRef]) extends CheckEffect

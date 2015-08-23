@@ -23,6 +23,7 @@ import java.util.UUID
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
+import io.mandelbrot.core.agent.ObservationBus
 import io.mandelbrot.core.parser.TimeseriesEvaluationParser
 import org.joda.time.DateTime
 import org.scalatest.ShouldMatchers
@@ -59,7 +60,7 @@ class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with Im
       val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "when foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
-      val metricsBus = new MetricsBus()
+      val metricsBus = new ObservationBus()
 
       val check = system.actorOf(Check.props(checkRef, generation, blackhole,  services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
@@ -95,7 +96,7 @@ class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with Im
       val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "when foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
-      val metricsBus = new MetricsBus()
+      val metricsBus = new ObservationBus()
 
       val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
@@ -131,7 +132,7 @@ class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with Im
       val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "when foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
-      val metricsBus = new MetricsBus()
+      val metricsBus = new ObservationBus()
 
       val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
@@ -165,7 +166,7 @@ class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with Im
       val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "when foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
-      val metricsBus = new MetricsBus()
+      val metricsBus = new ObservationBus()
 
       val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
@@ -209,7 +210,7 @@ class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with Im
       val notificationService = new TestProbe(_system)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref), notificationService = Some(notificationService.ref)))
-      val metricsBus = new MetricsBus()
+      val metricsBus = new ObservationBus()
 
       val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)

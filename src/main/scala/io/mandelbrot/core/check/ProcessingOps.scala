@@ -54,6 +54,12 @@ trait ProcessingOps extends Actor with MutationOps {
       // mutation will contain Some(result) from message processing, or None
       val maybeMutation: Option[Mutation] = queued.head match {
 
+        // process the ProbeObservation
+        case QueuedObservation(probeId, observation) =>
+          processor.processObservation(this, probeId, observation).map { effect =>
+            EventMutation(effect.status, effect.notifications)
+          }
+
         // process the CheckCommand
         case QueuedCommand(command, caller) =>
           processor.processCommand(this, command) match {
@@ -165,6 +171,7 @@ case class Deletion(status: CheckStatus,
                     lsn: Long) extends Mutation
 
 sealed trait QueuedMessage
+case class QueuedObservation(probeId: ProbeId, observation: Observation) extends QueuedMessage
 case class QueuedEvent(event: CheckEvent, timestamp: DateTime) extends QueuedMessage
 case class QueuedCommand(command: CheckCommand, caller: ActorRef) extends QueuedMessage
 case class QueuedRetire(retire: RetireCheck, timestamp: DateTime) extends QueuedMessage

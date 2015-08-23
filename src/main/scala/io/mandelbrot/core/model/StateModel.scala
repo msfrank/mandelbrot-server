@@ -5,10 +5,17 @@ import java.util.UUID
 
 sealed trait StateModel
 
-/* check status submitted by the agent */
-case class CheckEvaluation(timestamp: DateTime,
-                           metrics: Map[String,BigDecimal],
-                           summary: Option[String] = None) extends StateModel
+sealed trait Observation extends StateModel {
+  val timestamp: DateTime
+}
+
+case class ScalarMapObservation(timestamp: DateTime, metrics: Map[String,BigDecimal]) extends Observation
+
+/* the set of metrics emitted by a check */
+case class ProbeObservation(generation: Long, observation: Observation) extends StateModel
+
+/* a page of check metrics entries */
+case class ProbeObservationPage(history: Vector[ProbeObservation], last: Option[String], exhausted: Boolean) extends StateModel
 
 /* the complete status of a check */
 case class CheckStatus(generation: Long,
@@ -36,9 +43,6 @@ case class CheckCondition(generation: Long,
 /* the set of notifications emitted by a check */
 case class CheckNotifications(generation: Long, timestamp: DateTime, notifications: Vector[CheckNotification]) extends StateModel
 
-/* the set of metrics emitted by a check */
-case class CheckMetrics(generation: Long, timestamp: DateTime, metrics: Map[String,BigDecimal]) extends StateModel
-
 /* a page of check status entries */
 case class CheckStatusPage(history: Vector[CheckStatus], last: Option[String], exhausted: Boolean) extends StateModel
 
@@ -47,6 +51,3 @@ case class CheckConditionPage(history: Vector[CheckCondition], last: Option[Stri
 
 /* a page of check notifications entries */
 case class CheckNotificationsPage(history: Vector[CheckNotifications], last: Option[String], exhausted: Boolean) extends StateModel
-
-/* a page of check metrics entries */
-case class CheckMetricsPage(history: Vector[CheckMetrics], last: Option[String], exhausted: Boolean) extends StateModel

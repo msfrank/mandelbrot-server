@@ -20,7 +20,7 @@
 package io.mandelbrot.core.http.v2api
 
 import akka.actor.{Address, AddressFromURIString}
-import io.mandelbrot.core.model.{AgentId, CheckId}
+import io.mandelbrot.core.model.{ProbeId, AgentId, CheckId}
 import io.mandelbrot.core.{ApiException, BadRequest}
 import org.joda.time.format.ISODateTimeFormat
 import org.joda.time.{DateTime, DateTimeZone}
@@ -118,6 +118,18 @@ object AgentIdMatcher extends PathMatcher1[AgentId] {
   def apply(path: Path) = path match {
     case Path.Segment(segment, tail) =>
       Matched(tail, AgentId(segment) :: HNil)
+    case _ =>
+      Unmatched
+  }
+}
+
+/**
+ *
+ */
+object ProbeIdMatcher extends PathMatcher1[ProbeId] {
+  def apply(path: Path) = path match {
+    case Path.Segment(segment, tail) =>
+      Matched(tail, ProbeId(segment) :: HNil)
     case _ =>
       Unmatched
   }

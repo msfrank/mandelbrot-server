@@ -2,7 +2,7 @@ package io.mandelbrot.core.check
 
 import akka.actor.{PoisonPill, ActorSystem, Terminated}
 import akka.testkit.{TestProbe, ImplicitSender, TestActorRef, TestKit}
-import io.mandelbrot.core.agent.RetireCheck
+import io.mandelbrot.core.agent.{ObservationBus, RetireCheck}
 import org.joda.time.DateTime
 import org.scalatest.ShouldMatchers
 import org.scalatest.{WordSpecLike, BeforeAndAfterAll}
@@ -34,7 +34,7 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val checkType = "io.mandelbrot.core.check.TestBehavior"
       val factory = CheckBehavior.extensions(checkType).configure(Map.empty)
       val services = system.actorOf(TestServiceProxy.props())
-      val metricsBus = new MetricsBus()
+      val metricsBus = new ObservationBus()
       val check = TestActorRef(new Check(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
       val underlying = check.underlyingActor
@@ -55,7 +55,7 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val factory = CheckBehavior.extensions(checkType).configure(Map.empty)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
-      val metricsBus = new MetricsBus()
+      val metricsBus = new ObservationBus()
 
       val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
@@ -85,7 +85,7 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val checkType = "io.mandelbrot.core.check.TestBehavior"
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
-      val metricsBus = new MetricsBus()
+      val metricsBus = new ObservationBus()
 
       val factory1 = CheckBehavior.extensions(checkType).configure(Map("key" -> "value1"))
 
@@ -128,7 +128,7 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val children = Set(child1, child2, child3)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
-      val metricsBus = new MetricsBus()
+      val metricsBus = new ObservationBus()
       val policy = CheckPolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
       val checkType1 = "io.mandelbrot.core.check.TestBehavior"
       val factory1 = CheckBehavior.extensions(checkType1).configure(Map.empty)
@@ -170,7 +170,7 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val factory = CheckBehavior.extensions(checkType).configure(Map.empty)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
-      val metricsBus = new MetricsBus()
+      val metricsBus = new ObservationBus()
 
       val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
       watch(check)

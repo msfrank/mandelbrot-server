@@ -20,24 +20,24 @@ abstract class TimeseriesSource(val segments: Vector[String], val id: String) ex
 /**
  * A MetricSource uniquely identifies a metric within a Agent.
  */
-class MetricSource(val checkId: CheckId, val metricName: String) extends TimeseriesSource(checkId.segments, metricName) {
+class MetricSource(val probeId: ProbeId, val metricName: String) extends TimeseriesSource(probeId.segments, metricName) {
   override def equals(other: Any): Boolean = other match {
-    case other: MetricSource => checkId.equals(other.checkId) && metricName.equals(other.metricName)
+    case other: MetricSource => probeId.equals(other.probeId) && metricName.equals(other.metricName)
     case _ => false
   }
-  override def toString = checkId.toString + ":" + metricName
+  override def toString = probeId.toString + ":" + metricName
   override def hashCode() = toString.hashCode
 }
 
 object MetricSource {
-  def apply(checkId: CheckId, metricName: String): MetricSource = new MetricSource(checkId, metricName)
+  def apply(probeId: ProbeId, metricName: String): MetricSource = new MetricSource(probeId, metricName)
   def apply(string: String): MetricSource = {
     val index = string.indexOf(':')
     if (index == -1) throw new IllegalArgumentException()
-    val (checkId,metricName) = string.splitAt(index)
-    new MetricSource(CheckId(checkId), metricName.tail)
+    val (probeId,metricName) = string.splitAt(index)
+    new MetricSource(ProbeId(probeId), metricName.tail)
   }
-  def unapply(source: MetricSource): Option[(CheckId, String)] = Some((source.checkId, source.metricName))
+  def unapply(source: MetricSource): Option[(ProbeId, String)] = Some((source.probeId, source.metricName))
 }
 
 /**

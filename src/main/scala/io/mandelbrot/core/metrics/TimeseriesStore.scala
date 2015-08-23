@@ -45,7 +45,6 @@ class TimeseriesMetricView(window: TimeseriesWindow, metricName: String) extends
 class TimeseriesStore {
 
   private val probes = new java.util.TreeMap[MetricSource, TimeseriesWindow]
-  private val checks = new java.util.TreeMap[MetricSource, TimeseriesWindow]
 
   /**
    *

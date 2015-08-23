@@ -43,7 +43,7 @@ class ContainerProcessor(settings: ContainerCheckSettings) extends BehaviorProce
     ConfigureEffect(initial, Vector.empty, Set.empty)
   }
 
-  def processEvaluation(check: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(ApiException(BadRequest))
+  def processObservation(check: AccessorOps, probeId: ProbeId, observation: ProbeObservation): Option[EventEffect] = None
 
   def processChild(check: AccessorOps, childRef: CheckRef, childStatus: CheckStatus): Option[EventEffect] = None
 
@@ -56,6 +56,7 @@ class ContainerCheck extends CheckBehaviorExtension {
   type Settings = ContainerCheckSettings
   class ContainerProcessorFactory(val settings: ContainerCheckSettings) extends DependentProcessorFactory {
     def implement() = new ContainerProcessor(settings)
+    val observes = Set.empty[ProbeId]
   }
   def configure(properties: Map[String,String]) = {
     new ContainerProcessorFactory(ContainerCheckSettings())
