@@ -32,7 +32,7 @@ trait StateProtocol extends DefaultJsonProtocol with ConstantsProtocol with Noti
   implicit val ScalarMapObservationFormat = jsonFormat2(ScalarMapObservation)
 
   /* convert subclasses of Observation */
-  implicit object ObservationFormat extends JsonFormat[Observation] {
+  implicit object ObservationFormat extends RootJsonFormat[Observation] {
     def write(observation: Observation) = observation match {
       case scalarMapObservation: ScalarMapObservation => scalarMapObservation.toJson
       case _ => throw new SerializationException("expected Observation")

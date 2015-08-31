@@ -27,9 +27,12 @@ import io.mandelbrot.core.model._
  *
  */
 class TimeseriesEvaluation(val expression: EvaluationExpression, input: String) {
-  val sources: Set[TimeseriesSource] = expression.sources
-  val sizing: Map[TimeseriesSource,Int] = expression.sources.map(_ -> 1).toMap
-  val observes: Set[ProbeId] = expression.observes
+  val sources: Set[ObservationSource] = expression.sources
+  val sizing: Map[ObservationSource,Int] = expression.sizing.foldLeft(Map.empty[ObservationSource,Int]) {
+    case (sizes, (source,size)) =>
+      val max = sizes.getOrElse(source, 0).max(size)
+      sizes + (source -> max)
+  }
   def evaluate(timeseries: TimeseriesStore): Option[Boolean] = expression.evaluate(timeseries)
   override def toString = input
 }
@@ -91,21 +94,65 @@ case class MeanFunction(comparison: NumericValueComparison) extends NumericWindo
 }
 
 /**
+ * A typed, read-only projection of a timeseries window.
+ */
+sealed trait TimeseriesView[T] {
+  def apply(index: Int): T
+  def get(index: Int): Option[T]
+  def head: T
+  def headOption: Option[T]
+  def foldLeft[A](z: A)(op: (T, A) => A): A
+}
+
+/**
+ * A read-only projection of a single metric.
+ */
+class TimeseriesMetricView(source: MetricSource, timeseries: TimeseriesStore, size: Int) extends TimeseriesView[BigDecimal] {
+
+  val window = timeseries.window(source)
+
+  def apply(index: Int): BigDecimal = window(index) match {
+    case observation: ScalarMapObservation => observation.metrics(source.metricName)
+    case other => throw new IllegalStateException()
+  }
+
+  def get(index: Int): Option[BigDecimal] = window.get(index) match {
+    case Some(observation: ScalarMapObservation) => observation.metrics.get(source.metricName)
+    case other => None
+  }
+
+  def head: BigDecimal = window.head match {
+    case observation: ScalarMapObservation => observation.metrics(source.metricName)
+    case other => throw new IllegalStateException()
+  }
+
+  def headOption: Option[BigDecimal] = window.headOption match {
+    case Some(observation: ScalarMapObservation) => observation.metrics.get(source.metricName)
+    case other => None
+  }
+
+  def foldLeft[A](z: A)(op: (BigDecimal, A) => A): A = window.foldLeft(z) {
+    case (observation: ScalarMapObservation, a) => op(observation.metrics(source.metricName), a)
+    case (other, a) => throw new IllegalStateException()
+  }
+}
+
+/**
  *
  */
 sealed trait EvaluationExpression {
   def evaluate(timeseries: TimeseriesStore): Option[Boolean]
-  def sources: Set[TimeseriesSource]
-  def observes: Set[ProbeId]
+  def sources: Set[ObservationSource]
+  def sizing: Set[(ObservationSource,Int)]
 }
 
-case class EvaluateMetric(source: MetricSource, function: NumericWindowFunction) extends EvaluationExpression {
+case class EvaluateMetric(source: MetricSource, function: NumericWindowFunction, size: Int = 1) extends EvaluationExpression {
   def evaluate(timeseries: TimeseriesStore) = {
-    val metricView = new TimeseriesMetricView(timeseries.window(source), source.metricName)
+    val metricView = new TimeseriesMetricView(source, timeseries, size)
     function.apply(metricView)
   }
-  val sources = Set(source).toSet[TimeseriesSource]
-  val observes = Set(source.probeId)
+  def sources = Set(source.toObservationSource)
+  def sizing = Set((source.toObservationSource,size))
 }
 
 case class LogicalAnd(children: Vector[EvaluationExpression]) extends EvaluationExpression {
@@ -119,8 +166,8 @@ case class LogicalAnd(children: Vector[EvaluationExpression]) extends Evaluation
     }
     Some(true)
   }
-  val sources = children.flatMap(_.sources).toSet
-  val observes = children.flatMap(_.observes).toSet
+  def sources = children.flatMap(_.sources).toSet
+  def sizing = children.flatMap(_.sizing).toSet
 }
 
 case class LogicalOr(children: Vector[EvaluationExpression]) extends EvaluationExpression {
@@ -134,8 +181,8 @@ case class LogicalOr(children: Vector[EvaluationExpression]) extends EvaluationE
     }
     Some(false)
   }
-  val sources = children.flatMap(_.sources).toSet
-  val observes = children.flatMap(_.observes).toSet
+  def sources = children.flatMap(_.sources).toSet
+  def sizing = children.flatMap(_.sizing).toSet
 }
 
 case class LogicalNot(child: EvaluationExpression) extends EvaluationExpression {
@@ -143,25 +190,25 @@ case class LogicalNot(child: EvaluationExpression) extends EvaluationExpression 
     case None => None
     case Some(result) => Some(!result)
   }
-  val sources = child.sources
-  val observes = child.observes
+  def sources = child.sources
+  def sizing = child.sizing
 }
 
 case object AlwaysTrue extends EvaluationExpression {
   def evaluate(timeseries: TimeseriesStore): Option[Boolean] = Some(true)
-  val sources = Set.empty[TimeseriesSource]
-  val observes = Set.empty[ProbeId]
+  def sources = Set.empty[ObservationSource]
+  def sizing = Set.empty[(ObservationSource,Int)]
 }
 
 case object AlwaysFalse extends EvaluationExpression {
   def evaluate(timeseries: TimeseriesStore): Option[Boolean] = Some(false)
-  val sources = Set.empty[TimeseriesSource]
-  val observes = Set.empty[ProbeId]
+  def sources = Set.empty[ObservationSource]
+  def sizing = Set.empty[(ObservationSource,Int)]
 }
 
 case object AlwaysUnknown extends EvaluationExpression {
   def evaluate(timeseries: TimeseriesStore): Option[Boolean] = None
-  val sources = Set.empty[TimeseriesSource]
-  val observes = Set.empty[ProbeId]
+  def sources = Set.empty[ObservationSource]
+  def sizing = Set.empty[(ObservationSource,Int)]
 }
 

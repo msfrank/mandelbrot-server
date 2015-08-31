@@ -27,16 +27,4 @@ import spray.json._
  */
 trait MetricsProtocol extends DefaultJsonProtocol {
 
-  /* convert ConsolidationFunction class */
-  implicit object ConsolidationFunctionFormat extends RootJsonFormat[ConsolidationFunction] {
-    def write(function: ConsolidationFunction) = JsString(function.name)
-    def read(value: JsValue) = value match {
-      case JsString("last") => ConsolidateLast
-      case JsString("first") => ConsolidateFirst
-      case JsString("min") => ConsolidateMin
-      case JsString("max") => ConsolidateMax
-      case JsString("mean") => ConsolidateMean
-      case _ => throw new DeserializationException("expected ConsolidationFunction")
-    }
-  }
 }

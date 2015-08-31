@@ -44,8 +44,8 @@ class TimeseriesProcessor(settings: TimeseriesCheckSettings) extends BehaviorPro
    *
    */
   def initialize(check: AccessorOps): InitializeEffect = {
-    val initializers: Map[TimeseriesSource,CheckInitializer] = timeseriesStore.windows().map {
-      case (source: MetricSource,window) => source -> CheckInitializer(from = Some(new DateTime(0)),
+    val initializers: Map[ObservationSource,CheckInitializer] = timeseriesStore.windows().map {
+      case (source: ObservationSource,window) => source -> CheckInitializer(from = Some(new DateTime(0)),
         to = Some(new DateTime(java.lang.Long.MAX_VALUE)), limit = window.size, fromInclusive = true,
         toExclusive = false, descending = true)
     }.toMap
@@ -84,9 +84,7 @@ class TimeseriesProcessor(settings: TimeseriesCheckSettings) extends BehaviorPro
     var acknowledgementId = check.acknowledgementId
 
     // push new metrics into the store
-    //timeseriesStore.append(check.checkRef.checkId, CheckStatus(check.generation,
-    //  timestamp, lifecycle, command.evaluation.summary, health, metrics, lastUpdate,
-    //  lastChange, correlationId, acknowledgementId, check.squelch))
+    timeseriesStore.append(ObservationSource(probeId), observation)
 
     // evaluate the store
     health = evaluation.evaluate(timeseriesStore) match {
@@ -178,7 +176,7 @@ class TimeseriesCheck extends CheckBehaviorExtension {
   type Settings = TimeseriesCheckSettings
   class TimeseriesProcessorFactory(val settings: TimeseriesCheckSettings) extends DependentProcessorFactory {
     def implement() = new TimeseriesProcessor(settings)
-    def observes() = settings.evaluation.observes
+    def observes() = settings.evaluation.sources.filter(_.scheme == "probe").map(source => ProbeId(source.id))
   }
   def configure(properties: Map[String,String]) = {
     if (!properties.contains("evaluation"))

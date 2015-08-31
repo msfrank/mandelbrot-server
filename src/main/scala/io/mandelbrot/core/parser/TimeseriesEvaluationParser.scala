@@ -56,10 +56,14 @@ class TimeseriesEvaluationParser extends JavaTokenParsers {
     case segments: List[String] => new CheckId(segments.toVector)
   }
 
+  def probeId: Parser[ProbeId] = rep1sep(regex("""[^.:]+""".r), literal(".")) ^^ {
+    case segments: List[String] => new ProbeId(segments.toVector)
+  }
+
   def metricName: Parser[String] = regex("[a-zA-Z][a-zA-Z0-9_]*".r)
 
-  def metricSource: Parser[MetricSource] = checkId ~ literal(":") ~ metricName ^^ {
-    case (checkId: CheckId) ~ ":" ~ (metricName: String) => MetricSource(checkId, metricName)
+  def metricSource: Parser[MetricSource] = probeId ~ literal(":") ~ metricName ^^ {
+    case (probeId: ProbeId) ~ ":" ~ (metricName: String) => MetricSource(probeId, metricName)
   }
 
   def headFunction: Parser[EvaluationExpression] = metricSource ~ literal(".") ~ literal("head") ~ valueComparison ^^ {

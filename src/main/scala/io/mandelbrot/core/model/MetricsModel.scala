@@ -4,84 +4,47 @@ import io.mandelbrot.core.util.CircularBuffer
 
 sealed trait MetricsModel
 
-abstract class TimeseriesSource(val segments: Vector[String], val id: String) extends Ordered[TimeseriesSource] with MetricsModel {
-  def compare(that: TimeseriesSource): Int = {
-    segments.zipAll(that.segments, null, null).foreach {
-      case (thisSegment, thatSegment) if thatSegment == null => return 1
-      case (thisSegment, thatSegment) if thisSegment == null => return -1
-      case (thisSegment, thatSegment) =>
-        val comparison = thisSegment.compareTo(thatSegment)
-        if (comparison != 0) return comparison
+class ObservationSource(val scheme: String, val id: String) extends Ordered[ObservationSource] with MetricsModel {
+  def compare(that: ObservationSource): Int = {
+    var result = scheme.compareToIgnoreCase(that.scheme)
+    if (result == 0) {
+      result = id.compareTo(that.id)
     }
-    id.compareTo(that.id)
+    result
   }
+  override def toString = scheme + ":" + id
+}
+
+object ObservationSource {
+  def apply(probeId: ProbeId) = new ObservationSource("probe", probeId.toString)
+  def apply(probeRef: ProbeRef) = new ObservationSource("probe", probeRef.probeId.toString)
+}
+
+/**
+ *
+ */
+sealed trait EvaluationSource {
+  def toObservationSource: ObservationSource
 }
 
 /**
  * A MetricSource uniquely identifies a metric within a Agent.
  */
-class MetricSource(val probeId: ProbeId, val metricName: String) extends TimeseriesSource(probeId.segments, metricName) {
+class MetricSource(val probeId: ProbeId, val metricName: String) extends EvaluationSource with MetricsModel {
+  def toObservationSource = ObservationSource(probeId)
   override def equals(other: Any): Boolean = other match {
     case other: MetricSource => probeId.equals(other.probeId) && metricName.equals(other.metricName)
     case _ => false
   }
-  override def toString = probeId.toString + ":" + metricName
+  override def toString = super.toString + ":" + metricName
   override def hashCode() = toString.hashCode
 }
 
 object MetricSource {
   def apply(probeId: ProbeId, metricName: String): MetricSource = new MetricSource(probeId, metricName)
-  def apply(string: String): MetricSource = {
-    val index = string.indexOf(':')
-    if (index == -1) throw new IllegalArgumentException()
-    val (probeId,metricName) = string.splitAt(index)
-    new MetricSource(ProbeId(probeId), metricName.tail)
+  val MetricSourceMatcher = "probe:([^:]+):(.+)".r
+  def apply(string: String): MetricSource = string match {
+    case MetricSourceMatcher(probeId, metricName) => new MetricSource(ProbeId(probeId), metricName)
   }
   def unapply(source: MetricSource): Option[(ProbeId, String)] = Some((source.probeId, source.metricName))
-}
-
-/**
- *
- */
-class ConsolidationWindow(size: Int) extends CircularBuffer[Option[BigDecimal]](size) with MetricsModel
-
-/**
- *
- */
-sealed trait ConsolidationFunction extends MetricsModel {
-  def name: String
-  def apply(values: Vector[BigDecimal]): Option[BigDecimal]
-}
-
-case object ConsolidateLast extends ConsolidationFunction {
-  val name = "last"
-  def apply(values: Vector[BigDecimal]) = values.lastOption
-}
-
-case object ConsolidateFirst extends ConsolidationFunction {
-  val name = "first"
-  def apply(values: Vector[BigDecimal]) = values.headOption
-}
-
-case object ConsolidateMin extends ConsolidationFunction {
-  val name = "min"
-  def apply(values: Vector[BigDecimal]): Option[BigDecimal] = values.foldLeft[Option[BigDecimal]](None) {
-    case (None, value) => Some(value)
-    case (curr, value) => if (curr.get <= value) curr else Some(value)
-  }
-}
-
-case object ConsolidateMax extends ConsolidationFunction {
-  val name = "max"
-  def apply(values: Vector[BigDecimal]): Option[BigDecimal] = values.foldLeft[Option[BigDecimal]](None) {
-    case (None, value) => Some(value)
-    case (curr, value) => if (curr.get >= value) curr else Some(value)
-  }
-}
-
-case object ConsolidateMean extends ConsolidationFunction {
-  val name = "mean"
-  def apply(values: Vector[BigDecimal]): Option[BigDecimal] = {
-    if (values.isEmpty) None else Some(values.sum / values.length)
-  }
 }

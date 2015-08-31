@@ -34,7 +34,7 @@ class ContainerProcessor(settings: ContainerCheckSettings) extends BehaviorProce
 
   def initialize(check: AccessorOps): InitializeEffect = InitializeEffect(Map.empty)
 
-  def configure(check: AccessorOps, results: Map[CheckId,Vector[CheckStatus]], children: Set[CheckRef]): ConfigureEffect = {
+  def configure(check: AccessorOps, observations: Map[ProbeId, Vector[ProbeObservation]], children: Set[CheckRef]): ConfigureEffect = {
     val initial = {
       val timestamp = DateTime.now(DateTimeZone.UTC)
       val status = check.getCheckStatus(timestamp)
@@ -43,13 +43,15 @@ class ContainerProcessor(settings: ContainerCheckSettings) extends BehaviorProce
     ConfigureEffect(initial, Vector.empty, Set.empty)
   }
 
-  def processObservation(check: AccessorOps, probeId: ProbeId, observation: ProbeObservation): Option[EventEffect] = None
+  def processObservation(check: AccessorOps, probeId: ProbeId, observation: Observation): Option[EventEffect] = None
 
   def processChild(check: AccessorOps, childRef: CheckRef, childStatus: CheckStatus): Option[EventEffect] = None
 
   def processExpiryTimeout(check: AccessorOps): Option[EventEffect] = None
 
   def processAlertTimeout(check: AccessorOps): Option[EventEffect] = None
+
+
 }
 
 class ContainerCheck extends CheckBehaviorExtension {

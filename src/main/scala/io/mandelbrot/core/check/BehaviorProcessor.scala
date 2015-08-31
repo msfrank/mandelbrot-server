@@ -140,7 +140,7 @@ trait BehaviorProcessor {
 }
 
 sealed trait CheckEffect
-case class InitializeEffect(initializers: Map[TimeseriesSource,CheckInitializer]) extends CheckEffect
+case class InitializeEffect(initializers: Map[ObservationSource,CheckInitializer]) extends CheckEffect
 case class ConfigureEffect(status: CheckStatus,
                            notifications: Vector[CheckNotification],
                            children: Set[CheckRef]) extends CheckEffect

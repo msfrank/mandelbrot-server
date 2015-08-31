@@ -16,7 +16,7 @@ import io.mandelbrot.core.state._
  */
 class InitializeCheckTask(checkRef: CheckRef,
                           generation: Long,
-                          initializers: Map[TimeseriesSource,CheckInitializer],
+                          initializers: Map[ObservationSource,CheckInitializer],
                           caller: ActorRef,
                           services: ActorRef) extends Actor with ActorLogging {
   import context.dispatcher
@@ -32,8 +32,8 @@ class InitializeCheckTask(checkRef: CheckRef,
     log.debug("initializing check {}", checkRef)
     initializers.foreach {
 
-      case (source: MetricSource, query) =>
-        val op = GetObservationHistory(ProbeRef(checkRef.agentId, source.probeId), generation,
+      case (source: ObservationSource, query) if source.scheme == "probe" =>
+        val op = GetObservationHistory(ProbeRef(checkRef.agentId, ProbeId(source.id)), generation,
           query.from, query.to, query.limit, query.fromInclusive, query.toExclusive, query.descending)
         log.debug("sending query {}", op)
         services.ask(op)(queryTimeout).pipeTo(self)
@@ -88,7 +88,7 @@ class InitializeCheckTask(checkRef: CheckRef,
 object InitializeCheckTask {
   def props(checkRef: CheckRef,
             generation: Long,
-            initializers: Map[TimeseriesSource,CheckInitializer],
+            initializers: Map[ObservationSource,CheckInitializer],
             caller: ActorRef,
             services: ActorRef) = {
     Props(classOf[InitializeCheckTask], checkRef, generation, initializers, caller, services)
