@@ -86,6 +86,26 @@ case class EachFunction(comparison: NumericValueComparison) extends NumericWindo
   }
 }
 
+case class MinFunction(comparison: NumericValueComparison) extends NumericWindowFunction {
+  def apply(window: TimeseriesView[BigDecimal]): Option[Boolean] = {
+    val maybeMin = window.foldLeft[Option[BigDecimal]](None) {
+      case (value,None) => Some(value)
+      case (value,curr @ Some(_curr)) => if (_curr <= value) curr else Some(value)
+    }
+    maybeMin.map(comparison.compare)
+  }
+}
+
+case class MaxFunction(comparison: NumericValueComparison) extends NumericWindowFunction {
+  def apply(window: TimeseriesView[BigDecimal]): Option[Boolean] = {
+    val maybeMax = window.foldLeft[Option[BigDecimal]](None) {
+      case (value,None) => Some(value)
+      case (value,curr @ Some(_curr)) => if (_curr >= value) curr else Some(value)
+    }
+    maybeMax.map(comparison.compare)
+  }
+}
+
 case class MeanFunction(comparison: NumericValueComparison) extends NumericWindowFunction {
   def apply(window: TimeseriesView[BigDecimal]): Option[Boolean] = {
     val (sum, num) = window.foldLeft((BigDecimal(0), 0)) { case (value, (s, n)) => (s + value, n + 1)}

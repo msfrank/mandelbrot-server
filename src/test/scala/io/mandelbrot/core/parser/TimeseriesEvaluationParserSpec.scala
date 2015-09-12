@@ -8,105 +8,80 @@ import scala.math.BigDecimal
 
 class TimeseriesEvaluationParserSpec extends WordSpec with ShouldMatchers {
 
-  "TimeseriesEvaluationParser" should {
+  "A TimeseriesEvaluationParser" when {
 
-    "parse 'when check:value == 0'" in {
-      val source = MetricSource("check:value")
-      val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("when check:value == 0")
-      println(evaluation.expression)
-      evaluation.expression shouldEqual EvaluateMetric(source, HeadFunction(NumericValueEquals(BigDecimal(0))))
+    "parsing an evaluation mapping a condition over the last data point" should {
+
+      val source = MetricSource("probe:id:value")
+
+      "parse 'probe:id:value == 0'" in {
+        val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("probe:id:value == 0")
+        println(evaluation.expression)
+        evaluation.expression shouldEqual EvaluateMetric(source, HeadFunction(NumericValueEquals(BigDecimal(0))))
+      }
+
+      "parse 'probe:id:value != 0'" in {
+        val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("probe:id:value != 0")
+        println(evaluation.expression)
+        evaluation.expression shouldEqual EvaluateMetric(source, HeadFunction(NumericValueNotEquals(BigDecimal(0))))
+      }
+
+      "parse 'probe:id:value < 0'" in {
+        val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("probe:id:value < 0")
+        println(evaluation.expression)
+        evaluation.expression shouldEqual EvaluateMetric(source, HeadFunction(NumericValueLessThan(BigDecimal(0))))
+      }
+
+      "parse 'probe:id:value > 0'" in {
+        val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("probe:id:value > 0")
+        println(evaluation.expression)
+        evaluation.expression shouldEqual EvaluateMetric(source, HeadFunction(NumericValueGreaterThan(BigDecimal(0))))
+      }
+
     }
 
-    "parse 'when check:value != 0'" in {
-      val source = MetricSource("check:value")
-      val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("when check:value != 0")
-      println(evaluation.expression)
-      evaluation.expression shouldEqual EvaluateMetric(source, HeadFunction(NumericValueNotEquals(BigDecimal(0))))
+    "parsing an evaluation mapping a condition over a timeseries" should {
+
+      val source = MetricSource("probe:check:value")
+
+      "parse 'MIN(probe:check:value) > 0'" in {
+        val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("MIN(probe:check:value) > 0")
+        println(evaluation.expression)
+        evaluation.expression shouldEqual EvaluateMetric(source, MinFunction(NumericValueGreaterThan(BigDecimal(0))))
+      }
+
+      "parse 'MAX(probe:check:value) > 0'" in {
+        val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("MAX(probe:check:value) > 0")
+        println(evaluation.expression)
+        evaluation.expression shouldEqual EvaluateMetric(source, MaxFunction(NumericValueGreaterThan(BigDecimal(0))))
+      }
+
+      "parse 'AVG(probe:check:value) > 0'" in {
+        val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("AVG(probe:check:value) > 0")
+        println(evaluation.expression)
+        evaluation.expression shouldEqual EvaluateMetric(source, MeanFunction(NumericValueGreaterThan(BigDecimal(0))))
+      }
     }
 
-    "parse 'when check:value < 0'" in {
-      val source = MetricSource("check:value")
-      val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("when check:value < 0")
-      println(evaluation.expression)
-      evaluation.expression shouldEqual EvaluateMetric(source, HeadFunction(NumericValueLessThan(BigDecimal(0))))
+    "parsing a metric source with a single segment" should {
+
+      "parse 'probe:id:value'" in {
+        val parser = new TimeseriesEvaluationParser()
+        val source = parser.parseAll(parser.metricSource, "probe:id:value").get
+        println(source)
+        source shouldEqual MetricSource("probe:id:value")
+      }
+
     }
 
-    "parse 'when check:value > 0'" in {
-      val source = MetricSource("check:value")
-      val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("when check:value > 0")
-      println(evaluation.expression)
-      evaluation.expression shouldEqual EvaluateMetric(source, HeadFunction(NumericValueGreaterThan(BigDecimal(0))))
-    }
+    "parsing a metric source with multiple segments" should {
 
-    "parse 'when check:value.head > 0'" in {
-      val source = MetricSource("check:value")
-      val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("when check:value.head > 0")
-      println(evaluation.expression)
-      evaluation.expression shouldEqual EvaluateMetric(source, HeadFunction(NumericValueGreaterThan(BigDecimal(0))))
+      "parse 'probe:nested.probe.id:value'" in {
+        val parser = new TimeseriesEvaluationParser()
+        val source = parser.parseAll(parser.metricSource, "probe:nested.probe.id:value").get
+        println(source)
+        source shouldEqual MetricSource("probe:nested.probe.id:value")
+      }
     }
-
-    "parse 'when check:value.each > 0'" in {
-      val source = MetricSource("check:value")
-      val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("when check:value.each > 0")
-      println(evaluation.expression)
-      evaluation.expression shouldEqual EvaluateMetric(source, EachFunction(NumericValueGreaterThan(BigDecimal(0))))
-    }
-
-    "parse 'when check:value.mean > 0'" in {
-      val source = MetricSource("check:value")
-      val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("when check:value.mean > 0")
-      println(evaluation.expression)
-      evaluation.expression shouldEqual EvaluateMetric(source, MeanFunction(NumericValueGreaterThan(BigDecimal(0))))
-    }
-
-    "parse 'when foo.check:value == 0'" in {
-      val source = MetricSource("foo.check:value")
-      val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("when foo.check:value == 0")
-      println(evaluation.expression)
-      evaluation.expression shouldEqual EvaluateMetric(source, HeadFunction(NumericValueEquals(BigDecimal(0))))
-    }
-
-    "parse 'when foo.check:value != 0'" in {
-      val source = MetricSource("foo.check:value")
-      val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("when foo.check:value != 0")
-      println(evaluation.expression)
-      evaluation.expression shouldEqual EvaluateMetric(source, HeadFunction(NumericValueNotEquals(BigDecimal(0))))
-    }
-
-    "parse 'when foo.check:value < 0'" in {
-      val source = MetricSource("foo.check:value")
-      val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("when foo.check:value < 0")
-      println(evaluation.expression)
-      evaluation.expression shouldEqual EvaluateMetric(source, HeadFunction(NumericValueLessThan(BigDecimal(0))))
-    }
-
-    "parse 'when foo.check:value > 0'" in {
-      val source = MetricSource("foo.check:value")
-      val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("when foo.check:value > 0")
-      println(evaluation.expression)
-      evaluation.expression shouldEqual EvaluateMetric(source, HeadFunction(NumericValueGreaterThan(BigDecimal(0))))
-    }
-
-    "parse 'when foo.check:value.head > 0'" in {
-      val source = MetricSource("foo.check:value")
-      val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("when foo.check:value.head > 0")
-      println(evaluation.expression)
-      evaluation.expression shouldEqual EvaluateMetric(source, HeadFunction(NumericValueGreaterThan(BigDecimal(0))))
-    }
-
-    "parse 'when foo.check:value.each > 0'" in {
-      val source = MetricSource("foo.check:value")
-      val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("when foo.check:value.each > 0")
-      println(evaluation.expression)
-      evaluation.expression shouldEqual EvaluateMetric(source, EachFunction(NumericValueGreaterThan(BigDecimal(0))))
-    }
-
-    "parse 'when foo.check:value.mean > 0'" in {
-      val source = MetricSource("foo.check:value")
-      val evaluation = new TimeseriesEvaluationParser().parseTimeseriesEvaluation("when foo.check:value.mean > 0")
-      println(evaluation.expression)
-      evaluation.expression shouldEqual EvaluateMetric(source, MeanFunction(NumericValueGreaterThan(BigDecimal(0))))
-    }
-
   }
 }

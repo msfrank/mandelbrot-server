@@ -62,27 +62,32 @@ class TimeseriesEvaluationParser extends JavaTokenParsers {
 
   def metricName: Parser[String] = regex("[a-zA-Z][a-zA-Z0-9_]*".r)
 
-  def metricSource: Parser[MetricSource] = probeId ~ literal(":") ~ metricName ^^ {
-    case (probeId: ProbeId) ~ ":" ~ (metricName: String) => MetricSource(probeId, metricName)
+  def metricSource: Parser[MetricSource] = literal("probe") ~ literal(":") ~ probeId ~ literal(":") ~ metricName ^^ {
+    case "probe" ~ ":" ~ (probeId: ProbeId) ~ ":" ~ (metricName: String) => MetricSource(probeId, metricName)
   }
 
-  def headFunction: Parser[EvaluationExpression] = metricSource ~ literal(".") ~ literal("head") ~ valueComparison ^^ {
-    case source ~ "." ~ "head" ~ comparison => EvaluateMetric(source, HeadFunction(comparison))
+  /*
+   * <MINFunction>  ::= 'MIN' '(' <MetricSource> ')' <ValueComparison>
+   * <MAXFunction>  ::= 'MAX' '(' <MetricSource> ')' <ValueComparison>
+   * <AVGFunction>  ::= 'AVG' '(' <MetricSource> ')' <ValueComparison>
+   */
+  def minFunction: Parser[EvaluationExpression] = literal("MIN") ~ literal("(") ~ metricSource ~ literal(")") ~ valueComparison ^^ {
+    case "MIN" ~ "(" ~ source ~ ")" ~ comparison => EvaluateMetric(source, MinFunction(comparison))
   }
 
-  def eachFunction: Parser[EvaluationExpression] = metricSource ~ literal(".") ~ literal("each") ~ valueComparison ^^ {
-    case source ~ "." ~ "each" ~ comparison => EvaluateMetric(source, EachFunction(comparison))
+  def maxFunction: Parser[EvaluationExpression] = literal("MAX") ~ literal("(") ~ metricSource ~ literal(")") ~ valueComparison ^^ {
+    case "MAX" ~ "(" ~ source ~ ")" ~ comparison => EvaluateMetric(source, MaxFunction(comparison))
   }
 
-  def meanFunction: Parser[EvaluationExpression] = metricSource ~ literal(".") ~ literal("mean") ~ valueComparison ^^ {
-    case source ~ "." ~ "mean" ~ comparison => EvaluateMetric(source, MeanFunction(comparison))
+  def meanFunction: Parser[EvaluationExpression] = literal("AVG") ~ literal("(") ~ metricSource ~ literal(")") ~ valueComparison ^^ {
+    case "AVG" ~ "(" ~ source ~ ")" ~ comparison => EvaluateMetric(source, MeanFunction(comparison))
   }
 
   def implicitFunction: Parser[EvaluationExpression] = metricSource ~ valueComparison ^^ {
     case source ~ comparison => EvaluateMetric(source, HeadFunction(comparison))
   }
 
-  def evaluationExpression: Parser[EvaluationExpression] = headFunction | eachFunction | meanFunction | implicitFunction
+  def evaluationExpression: Parser[EvaluationExpression] = minFunction | maxFunction | meanFunction | implicitFunction
 
   /*
    * <Query>        ::= <OrOperator>
@@ -117,22 +122,10 @@ class TimeseriesEvaluationParser extends JavaTokenParsers {
       LogicalOr(and1 +: children)
   }
 
-  val ruleExpression: Parser[EvaluationExpression] = _log(orOperator)("ruleExpression")
-
-  /* */
-  def whenClause: Parser[EvaluationExpression] = _log(literal("when") ~ ruleExpression)("whenClause") ^^ {
-    case "when" ~ expression => expression
-  }
-
-  /* */
-  def unlessClause: Parser[EvaluationExpression] = _log(literal("unless") ~ ruleExpression)("unlessClause") ^^ {
-    case "unless" ~ expression => LogicalNot(expression)
-  }
-
   /* the entry point */
-  def metricsEvaluation: Parser[EvaluationExpression] = _log(whenClause | unlessClause)("metricsEvaluation")
+  val timeseriesEvaluation: Parser[EvaluationExpression] = _log(orOperator)("timeseriesEvaluation")
 
-  def parseTimeseriesEvaluation(input: String): TimeseriesEvaluation = parseAll(metricsEvaluation, input) match {
+  def parseTimeseriesEvaluation(input: String): TimeseriesEvaluation = parseAll(timeseriesEvaluation, input) match {
     case Success(expression: EvaluationExpression, _) => new TimeseriesEvaluation(expression, input)
     case Success(other, _) => throw new Exception("unexpected parse result")
     case failure : NoSuccess => throw new Exception("failed to parse TimeseriesEvaluation: " + failure.msg)
