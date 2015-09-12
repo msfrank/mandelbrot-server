@@ -58,7 +58,7 @@ trait RegistryProtocol extends DefaultJsonProtocol with ConstantsProtocol with R
 
   /* convert MetricsEvaluation class */
   implicit object TimeseriesEvaluationFormat extends RootJsonFormat[TimeseriesEvaluation] {
-    val parser = new TimeseriesEvaluationParser()
+    val parser = TimeseriesEvaluationParser.parser
     def write(evaluation: TimeseriesEvaluation) = JsString(evaluation.toString)
     def read(value: JsValue) = value match {
       case JsString(string) => parser.parseTimeseriesEvaluation(string)

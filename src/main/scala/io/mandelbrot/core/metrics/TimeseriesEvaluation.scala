@@ -166,13 +166,13 @@ sealed trait EvaluationExpression {
   def sizing: Set[(ObservationSource,Int)]
 }
 
-case class EvaluateMetric(source: MetricSource, function: NumericWindowFunction, size: Int = 1) extends EvaluationExpression {
+case class EvaluateMetric(source: MetricSource, function: NumericWindowFunction, options: EvaluationOptions) extends EvaluationExpression {
   def evaluate(timeseries: TimeseriesStore) = {
-    val metricView = new TimeseriesMetricView(source, timeseries, size)
+    val metricView = new TimeseriesMetricView(source, timeseries, options.windowSize)
     function.apply(metricView)
   }
   def sources = Set(source.toObservationSource)
-  def sizing = Set((source.toObservationSource,size))
+  def sizing = Set((source.toObservationSource,options.windowSize))
 }
 
 case class LogicalAnd(children: Vector[EvaluationExpression]) extends EvaluationExpression {
@@ -232,3 +232,7 @@ case object AlwaysUnknown extends EvaluationExpression {
   def sizing = Set.empty[(ObservationSource,Int)]
 }
 
+sealed trait WindowUnit
+case object WindowSamples extends WindowUnit
+
+case class EvaluationOptions(windowSize: Int, windowUnits: WindowUnit)

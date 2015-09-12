@@ -48,7 +48,7 @@ class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with Im
 
   val generation = 1L
   val blackhole = system.actorOf(Blackhole.props())
-  val parser = new TimeseriesEvaluationParser()
+  val parser = TimeseriesEvaluationParser.parser
 
   "A Check with metrics behavior" should {
 

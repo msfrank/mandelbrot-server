@@ -1,5 +1,7 @@
 package io.mandelbrot.core.parser
 
+import java.util
+
 import org.slf4j.LoggerFactory
 import scala.util.parsing.combinator.JavaTokenParsers
 
@@ -9,7 +11,18 @@ import io.mandelbrot.core.metrics._
 /**
  *
  */
-class TimeseriesEvaluationParser extends JavaTokenParsers {
+class TimeseriesEvaluationParser(globalOptions: EvaluationOptions) extends JavaTokenParsers {
+
+  // holds application context each time the parser is run
+  private class Context(defaultOptions: EvaluationOptions) {
+    val optionsStack = new util.ArrayDeque[EvaluationOptions]()
+    def options(explicit: Option[EvaluationOptions] = None): EvaluationOptions = explicit.getOrElse {
+      optionsStack.peek() match {
+        case null => defaultOptions
+        case topOfStack => topOfStack
+      }
+    }
+  }
 
   val logger = LoggerFactory.getLogger(classOf[TimeseriesEvaluationParser])
 
@@ -67,27 +80,48 @@ class TimeseriesEvaluationParser extends JavaTokenParsers {
   }
 
   /*
+   *
+   */
+  def windowUnit: Parser[WindowUnit] = literal("SAMPLES") ^^ {
+    case "SAMPLES" => WindowSamples
+  }
+
+  def evaluationOptions: Parser[EvaluationOptions] = _log(literal("OVER") ~ wholeNumber ~ windowUnit)("evaluationOptions") ^^ {
+    case "OVER" ~ (magnitude: String) ~ (windowUnits: WindowUnit) =>
+      val windowSize = magnitude.toInt
+      if (windowSize < 1)
+        throw new Exception("window size must be greater than 0")
+      EvaluationOptions(windowSize, windowUnits)
+  }
+
+  def options: Parser[Option[EvaluationOptions]] = opt(evaluationOptions)
+
+  /*
    * <MINFunction>  ::= 'MIN' '(' <MetricSource> ')' <ValueComparison>
    * <MAXFunction>  ::= 'MAX' '(' <MetricSource> ')' <ValueComparison>
    * <AVGFunction>  ::= 'AVG' '(' <MetricSource> ')' <ValueComparison>
    */
-  def minFunction: Parser[EvaluationExpression] = literal("MIN") ~ literal("(") ~ metricSource ~ literal(")") ~ valueComparison ^^ {
-    case "MIN" ~ "(" ~ source ~ ")" ~ comparison => EvaluateMetric(source, MinFunction(comparison))
+  def minFunction(implicit context: Context): Parser[EvaluationExpression] = literal("MIN") ~ literal("(") ~ metricSource ~ literal(")") ~ valueComparison ~ options ^^ {
+    case "MIN" ~ "(" ~ source ~ ")" ~ comparison ~ specifiedOptions =>
+      EvaluateMetric(source, MinFunction(comparison), context.options(specifiedOptions))
   }
 
-  def maxFunction: Parser[EvaluationExpression] = literal("MAX") ~ literal("(") ~ metricSource ~ literal(")") ~ valueComparison ^^ {
-    case "MAX" ~ "(" ~ source ~ ")" ~ comparison => EvaluateMetric(source, MaxFunction(comparison))
+  def maxFunction(implicit context: Context): Parser[EvaluationExpression] = literal("MAX") ~ literal("(") ~ metricSource ~ literal(")") ~ valueComparison ~ options ^^ {
+    case "MAX" ~ "(" ~ source ~ ")" ~ comparison ~ specifiedOptions =>
+      EvaluateMetric(source, MaxFunction(comparison), context.options(specifiedOptions))
   }
 
-  def meanFunction: Parser[EvaluationExpression] = literal("AVG") ~ literal("(") ~ metricSource ~ literal(")") ~ valueComparison ^^ {
-    case "AVG" ~ "(" ~ source ~ ")" ~ comparison => EvaluateMetric(source, MeanFunction(comparison))
+  def meanFunction(implicit context: Context): Parser[EvaluationExpression] = literal("AVG") ~ literal("(") ~ metricSource ~ literal(")") ~ valueComparison ~ options ^^ {
+    case "AVG" ~ "(" ~ source ~ ")" ~ comparison ~ specifiedOptions =>
+      EvaluateMetric(source, MeanFunction(comparison), context.options(specifiedOptions))
   }
 
-  def implicitFunction: Parser[EvaluationExpression] = metricSource ~ valueComparison ^^ {
-    case source ~ comparison => EvaluateMetric(source, HeadFunction(comparison))
+  def implicitFunction(implicit context: Context): Parser[EvaluationExpression] = metricSource ~ valueComparison ^^ {
+    case source ~ comparison =>
+      EvaluateMetric(source, HeadFunction(comparison), TimeseriesEvaluationParser.oneSampleOptions)
   }
 
-  def evaluationExpression: Parser[EvaluationExpression] = minFunction | maxFunction | meanFunction | implicitFunction
+  def evaluationExpression(implicit context: Context): Parser[EvaluationExpression] = minFunction | maxFunction | meanFunction | implicitFunction
 
   /*
    * <Query>        ::= <OrOperator>
@@ -97,16 +131,16 @@ class TimeseriesEvaluationParser extends JavaTokenParsers {
    * <Group>        ::= '(' <OrOperator> ')' | <Expression>
    */
 
-  def groupOperator: Parser[EvaluationExpression] = _log((literal("(") ~> orOperator <~ literal(")")) | evaluationExpression)("groupOperator") ^^ {
+  def groupOperator(implicit context: Context): Parser[EvaluationExpression] = _log((literal("(") ~> orOperator <~ literal(")")) | evaluationExpression)("groupOperator") ^^ {
     case group: EvaluationExpression => group
   }
 
-  def notOperator: Parser[EvaluationExpression] = _log(("not" ~ notOperator) | groupOperator)("notOperator") ^^ {
+  def notOperator(implicit context: Context): Parser[EvaluationExpression] = _log(("not" ~ notOperator) | groupOperator)("notOperator") ^^ {
     case "not" ~ (not: EvaluationExpression) => LogicalNot(not)
     case group: EvaluationExpression => group
   }
 
-  def andOperator: Parser[EvaluationExpression] = _log(notOperator ~ rep("and" ~ notOperator))("andOperator") ^^ {
+  def andOperator(implicit context: Context): Parser[EvaluationExpression] = _log(notOperator ~ rep("and" ~ notOperator))("andOperator") ^^ {
     case not1 ~ nots if nots.isEmpty =>
       not1
     case not1 ~ nots =>
@@ -114,7 +148,7 @@ class TimeseriesEvaluationParser extends JavaTokenParsers {
       LogicalAnd(not1 +: children)
   }
 
-  def orOperator: Parser[EvaluationExpression] = _log(andOperator ~ rep("or" ~ andOperator))("orOperator") ^^ {
+  def orOperator(implicit context: Context): Parser[EvaluationExpression] = _log(andOperator ~ rep("or" ~ andOperator))("orOperator") ^^ {
     case and1 ~ ands if ands.isEmpty =>
       and1
     case and1 ~ ands =>
@@ -123,16 +157,23 @@ class TimeseriesEvaluationParser extends JavaTokenParsers {
   }
 
   /* the entry point */
-  val timeseriesEvaluation: Parser[EvaluationExpression] = _log(orOperator)("timeseriesEvaluation")
+  def timeseriesEvaluation(implicit context: Context): Parser[EvaluationExpression] = _log(orOperator)("timeseriesEvaluation")
 
-  def parseTimeseriesEvaluation(input: String): TimeseriesEvaluation = parseAll(timeseriesEvaluation, input) match {
-    case Success(expression: EvaluationExpression, _) => new TimeseriesEvaluation(expression, input)
-    case Success(other, _) => throw new Exception("unexpected parse result")
-    case failure : NoSuccess => throw new Exception("failed to parse TimeseriesEvaluation: " + failure.msg)
+  def parseTimeseriesEvaluation(input: String): TimeseriesEvaluation = {
+    def entryPoint: Parser[EvaluationExpression] = {
+      timeseriesEvaluation(new Context(globalOptions))
+    }
+    parseAll(entryPoint, input) match {
+      case Success(expression: EvaluationExpression, _) => new TimeseriesEvaluation(expression, input)
+      case Success(other, _) => throw new Exception("unexpected parse result")
+      case failure : NoSuccess => throw new Exception("failed to parse TimeseriesEvaluation: " + failure.msg)
+    }
   }
 }
 
 object TimeseriesEvaluationParser {
-  val parser = new TimeseriesEvaluationParser
+  val globalOptions = EvaluationOptions(windowSize = 1, windowUnits = WindowSamples)
+  val oneSampleOptions = EvaluationOptions(windowSize = 1, windowUnits = WindowSamples)
+  val parser = new TimeseriesEvaluationParser(globalOptions)
   def parseTimeseriesEvaluation(input: String): TimeseriesEvaluation = parser.parseTimeseriesEvaluation(input)
 }
