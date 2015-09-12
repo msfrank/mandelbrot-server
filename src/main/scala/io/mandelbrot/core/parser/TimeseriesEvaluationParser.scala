@@ -65,6 +65,9 @@ class TimeseriesEvaluationParser(globalOptions: EvaluationOptions) extends JavaT
 
   def valueComparison: Parser[NumericValueComparison] = equals | notEquals | lessThanEqual | lessThan | greaterThanEqual | greaterThan
 
+  /*
+   *
+   */
   def checkId: Parser[CheckId] = rep1sep(regex("""[^.:]+""".r), literal(".")) ^^ {
     case segments: List[String] => new CheckId(segments.toVector)
   }
@@ -128,31 +131,33 @@ class TimeseriesEvaluationParser(globalOptions: EvaluationOptions) extends JavaT
    * <OrOperator>   ::= <AndOperator> ('OR' <AndOperator>)*
    * <AndOperator>  ::= <NotOperator> ('AND' <NotOperator>)*
    * <NotOperator>  ::= ['NOT'] <NotOperator> | <Group>
-   * <Group>        ::= '(' <OrOperator> ')' | <Expression>
+   * <Group>        ::= '(' <OrOperator> ')' [<EvaluationOptions>] | <Expression>
    */
 
-  def groupOperator(implicit context: Context): Parser[EvaluationExpression] = _log((literal("(") ~> orOperator <~ literal(")")) | evaluationExpression)("groupOperator") ^^ {
+  def groupOperator(implicit context: Context): Parser[EvaluationExpression] = _log((literal("(") ~> orOperator <~ literal(")")) ~ options | evaluationExpression)("groupOperator") ^^ {
+    case (group: EvaluationExpression) => group
+    case (group: EvaluationExpression) ~ Some(options: EvaluationOptions) => group
+    case (group: EvaluationExpression) ~ None => group
+  }
+
+  def notOperator(implicit context: Context): Parser[EvaluationExpression] = _log(("NOT" ~ notOperator) | groupOperator)("notOperator") ^^ {
+    case "NOT" ~ (not: EvaluationExpression) => LogicalNot(not)
     case group: EvaluationExpression => group
   }
 
-  def notOperator(implicit context: Context): Parser[EvaluationExpression] = _log(("not" ~ notOperator) | groupOperator)("notOperator") ^^ {
-    case "not" ~ (not: EvaluationExpression) => LogicalNot(not)
-    case group: EvaluationExpression => group
-  }
-
-  def andOperator(implicit context: Context): Parser[EvaluationExpression] = _log(notOperator ~ rep("and" ~ notOperator))("andOperator") ^^ {
+  def andOperator(implicit context: Context): Parser[EvaluationExpression] = _log(notOperator ~ rep("AND" ~ notOperator))("andOperator") ^^ {
     case not1 ~ nots if nots.isEmpty =>
       not1
     case not1 ~ nots =>
-      val children: Vector[EvaluationExpression] = nots.map { case "and" ~ group => group }.toVector
+      val children: Vector[EvaluationExpression] = nots.map { case "AND" ~ group => group }.toVector
       LogicalAnd(not1 +: children)
   }
 
-  def orOperator(implicit context: Context): Parser[EvaluationExpression] = _log(andOperator ~ rep("or" ~ andOperator))("orOperator") ^^ {
+  def orOperator(implicit context: Context): Parser[EvaluationExpression] = _log(andOperator ~ rep("OR" ~ andOperator))("orOperator") ^^ {
     case and1 ~ ands if ands.isEmpty =>
       and1
     case and1 ~ ands =>
-      val children: Vector[EvaluationExpression] = ands.map { case "or" ~ group => group }.toVector
+      val children: Vector[EvaluationExpression] = ands.map { case "OR" ~ group => group }.toVector
       LogicalOr(and1 +: children)
   }
 

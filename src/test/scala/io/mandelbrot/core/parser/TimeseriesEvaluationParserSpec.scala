@@ -89,6 +89,54 @@ class TimeseriesEvaluationParserSpec extends WordSpec with ShouldMatchers {
       }
     }
 
+    "parsing an evaluation with grouping operators" should {
+
+      val metric1 = MetricSource("probe:check:value1")
+      val metric2 = MetricSource("probe:check:value2")
+
+      "parse 'MIN(probe:check:value1) > 0 OR MIN(probe:check:value2) > 1" in {
+        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("MIN(probe:check:value1) > 0 OR MIN(probe:check:value2) > 1")
+        println(evaluation.expression)
+        evaluation.expression shouldEqual LogicalOr(Vector(
+          EvaluateMetric(metric1, MinFunction(NumericValueGreaterThan(BigDecimal(0))), options),
+          EvaluateMetric(metric2, MinFunction(NumericValueGreaterThan(BigDecimal(1))), options)
+        ))
+      }
+
+      "parse 'MIN(probe:check:value1) > 0 AND MIN(probe:check:value2) > 1" in {
+        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("MIN(probe:check:value1) > 0 AND MIN(probe:check:value2) > 1")
+        println(evaluation.expression)
+        evaluation.expression shouldEqual LogicalAnd(Vector(
+          EvaluateMetric(metric1, MinFunction(NumericValueGreaterThan(BigDecimal(0))), options),
+          EvaluateMetric(metric2, MinFunction(NumericValueGreaterThan(BigDecimal(1))), options)
+        ))
+      }
+
+      "parse 'NOT MIN(probe:check:value1) > 0" in {
+        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("NOT MIN(probe:check:value1) > 0")
+        println(evaluation.expression)
+        evaluation.expression shouldEqual LogicalNot(EvaluateMetric(metric1, MinFunction(NumericValueGreaterThan(BigDecimal(0))), options))
+      }
+
+      "parse 'MIN(probe:check:value1) > 0 AND NOT MIN(probe:check:value1) > 1" in {
+        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("MIN(probe:check:value1) > 0 AND NOT MIN(probe:check:value1) > 1")
+        println(evaluation.expression)
+        evaluation.expression shouldEqual LogicalAnd(Vector(
+          EvaluateMetric(metric1, MinFunction(NumericValueGreaterThan(BigDecimal(0))), options),
+          LogicalNot(EvaluateMetric(metric1, MinFunction(NumericValueGreaterThan(BigDecimal(1))), options))
+        ))
+      }
+
+      "parse '(MIN(probe:check:value1) > 0 OR MIN(probe:check:value2) > 1) OVER 5 SAMPLES" in {
+        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("(MIN(probe:check:value1) > 0 OR MIN(probe:check:value2) > 1) OVER 5 SAMPLES")
+        println(evaluation.expression)
+        evaluation.expression shouldEqual LogicalOr(Vector(
+          EvaluateMetric(metric1, MinFunction(NumericValueGreaterThan(BigDecimal(0))), options),
+          EvaluateMetric(metric2, MinFunction(NumericValueGreaterThan(BigDecimal(1))), options)
+        ))
+      }
+    }
+
     "parsing a metric source with a single segment" should {
 
       "parse 'probe:id:value'" in {
