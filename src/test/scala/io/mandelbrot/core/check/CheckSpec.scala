@@ -60,11 +60,10 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
 
-      val getStatusHistory = stateService.expectMsgClass(classOf[GetStatusHistory])
+      val getStatus = stateService.expectMsgClass(classOf[GetStatus])
       val status = CheckStatus(generation, DateTime.now(), CheckKnown, None, CheckHealthy,
         Map.empty, None, None, None, None, false)
-      val page = CheckStatusPage(Vector(status), None, exhausted = true)
-      stateService.reply(GetStatusHistoryResult(getStatusHistory, page))
+      stateService.reply(GetStatusResult(getStatus, Some(status)))
 
       val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
       stateService.reply(UpdateStatusResult(updateCheckStatus1))
@@ -92,11 +91,10 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val check = TestActorRef(new Check(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType, policy, factory1, Set.empty, 0)
 
-      val getStatusHistory1 = stateService.expectMsgClass(classOf[GetStatusHistory])
+      val getStatus1 = stateService.expectMsgClass(classOf[GetStatus])
       val status1 = CheckStatus(generation, DateTime.now(), CheckKnown, None, CheckHealthy,
         Map.empty, None, None, None, None, false)
-      val page1 = CheckStatusPage(Vector(status1), None, exhausted = true)
-      stateService.reply(GetStatusHistoryResult(getStatusHistory1, page1))
+      stateService.reply(GetStatusResult(getStatus1, Some(status1)))
 
       val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
       stateService.reply(UpdateStatusResult(updateCheckStatus1))
@@ -107,11 +105,10 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val factory2 = CheckBehavior.extensions(checkType).configure(Map("key" -> "value2"))
       check ! ChangeCheck(checkType, policy, factory2, Set.empty, 1)
 
-      val getStatusHistory2 = stateService.expectMsgClass(classOf[GetStatusHistory])
+      val getStatus2 = stateService.expectMsgClass(classOf[GetStatus])
       val status2 = CheckStatus(generation, DateTime.now(), CheckKnown, None, CheckHealthy,
         Map.empty, None, None, None, None, false)
-      val page2 = CheckStatusPage(Vector(status2), None, exhausted = true)
-      stateService.reply(GetStatusHistoryResult(getStatusHistory2, page2))
+      stateService.reply(GetStatusResult(getStatus2, Some(status2)))
 
       val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateStatus])
       stateService.reply(UpdateStatusResult(updateCheckStatus2))
@@ -136,11 +133,10 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val check = TestActorRef(new Check(checkRef, generation, blackhole, services, metricsBus))
       check ! ChangeCheck(checkType1, policy, factory1, children, 0)
 
-      val getStatusHistory1 = stateService.expectMsgClass(classOf[GetStatusHistory])
+      val getStatus1 = stateService.expectMsgClass(classOf[GetStatus])
       val status1 = CheckStatus(generation, DateTime.now(), CheckKnown, None, CheckHealthy,
         Map.empty, None, None, None, None, false)
-      val page1 = CheckStatusPage(Vector(status1), None, exhausted = true)
-      stateService.reply(GetStatusHistoryResult(getStatusHistory1, page1))
+      stateService.reply(GetStatusResult(getStatus1, Some(status1)))
 
       val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
       stateService.reply(UpdateStatusResult(updateCheckStatus1))
@@ -149,11 +145,10 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val factory2 = CheckBehavior.extensions(checkType2).configure(Map.empty)
       check ! ChangeCheck(checkType2, policy, factory2, children, 1)
 
-      val getStatusHistory2 = stateService.expectMsgClass(classOf[GetStatusHistory])
+      val getStatus2 = stateService.expectMsgClass(classOf[GetStatus])
       val status2 = CheckStatus(generation, DateTime.now(), CheckKnown, None, CheckHealthy,
         Map.empty, None, None, None, None, false)
-      val page2 = CheckStatusPage(Vector(status2), None, exhausted = true)
-      stateService.reply(GetStatusHistoryResult(getStatusHistory2, page2))
+      stateService.reply(GetStatusResult(getStatus2, Some(status2)))
 
       val updateCheckStatus2 = stateService.expectMsgClass(classOf[UpdateStatus])
       stateService.reply(UpdateStatusResult(updateCheckStatus2))
@@ -176,11 +171,10 @@ class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       watch(check)
       check ! ChangeCheck(checkType, policy, factory, Set.empty, lsn = 1)
 
-      val getStatusHistory1 = stateService.expectMsgClass(classOf[GetStatusHistory])
+      val getStatus1 = stateService.expectMsgClass(classOf[GetStatus])
       val status1 = CheckStatus(generation, DateTime.now(), CheckKnown, None, CheckHealthy,
         Map.empty, None, None, None, None, false)
-      val page1 = CheckStatusPage(Vector(status1), None, exhausted = true)
-      stateService.reply(GetStatusHistoryResult(getStatusHistory1, page1))
+      stateService.reply(GetStatusResult(getStatus1, Some(status1)))
 
       val updateCheckStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
       stateService.reply(UpdateStatusResult(updateCheckStatus1))

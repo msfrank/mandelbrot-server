@@ -9,16 +9,20 @@ case class TestProcessorSettings(properties: Map[String,String])
 
 class TestProcessor(val properties: Map[String,String]) extends BehaviorProcessor {
 
-  def initialize(check: AccessorOps): InitializeEffect = {
-    val initializer = CheckInitializer(from = None, to = None, limit = 1, fromInclusive = false, toExclusive = false, descending = true)
-    InitializeEffect(Map(check.checkRef.checkId -> initializer))
+  def initialize(checkRef: CheckRef, generation: Long): InitializeEffect = InitializeEffect(Map.empty)
+
+  def configure(checkRef: CheckRef,
+                generation: Long,
+                status: Option[CheckStatus],
+                observations: Map[ProbeId, Vector[ProbeObservation]],
+                children: Set[CheckRef]): ConfigureEffect = {
+    val timestamp = DateTime.now(DateTimeZone.UTC)
+    val status = CheckStatus(generation, timestamp, CheckJoining, None, CheckUnknown, Map.empty, Some(timestamp),
+      Some(timestamp), None, None, squelched = false)
+    ConfigureEffect(status, Vector.empty, children)
   }
 
-  def configure(check: AccessorOps, results: Map[CheckId,Vector[CheckStatus]], children: Set[CheckRef]): ConfigureEffect = {
-    ConfigureEffect(results(check.checkRef.checkId).head, Vector.empty, children)
-  }
-
-  def processEvaluation(check: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
+  def processObservation(check: AccessorOps, probeId: ProbeId, observation: Observation): Option[EventEffect] = None
 
   def processChild(check: AccessorOps, child: CheckRef, status: CheckStatus): Option[EventEffect] = None
 
@@ -31,6 +35,7 @@ class TestBehavior extends CheckBehaviorExtension {
   type Settings = TestProcessorSettings
   class TestProcessorFactory(val settings: TestProcessorSettings) extends DependentProcessorFactory {
     def implement() = new TestProcessor(settings.properties)
+    def observes(): Set[ProbeId] = Set.empty
   }
   def configure(properties: Map[String, String]) = {
     new TestProcessorFactory(TestProcessorSettings(properties))
@@ -39,16 +44,20 @@ class TestBehavior extends CheckBehaviorExtension {
 
 class TestProcessorChange(val properties: Map[String,String]) extends BehaviorProcessor {
 
-  def initialize(check: AccessorOps): InitializeEffect = {
-    val initializer = CheckInitializer(from = None, to = None, limit = 1, fromInclusive = false, toExclusive = false, descending = true)
-    InitializeEffect(Map(check.checkRef.checkId -> initializer))
+  def initialize(checkRef: CheckRef, generation: Long): InitializeEffect = InitializeEffect(Map.empty)
+
+  def configure(checkRef: CheckRef,
+                generation: Long,
+                status: Option[CheckStatus],
+                observations: Map[ProbeId, Vector[ProbeObservation]],
+                children: Set[CheckRef]): ConfigureEffect = {
+    val timestamp = DateTime.now(DateTimeZone.UTC)
+    val status = CheckStatus(generation, timestamp, CheckJoining, None, CheckUnknown, Map.empty, Some(timestamp),
+      Some(timestamp), None, None, squelched = false)
+    ConfigureEffect(status, Vector.empty, children)
   }
 
-  def configure(check: AccessorOps, results: Map[CheckId,Vector[CheckStatus]], children: Set[CheckRef]): ConfigureEffect = {
-    ConfigureEffect(results(check.checkRef.checkId).head, Vector.empty, children)
-  }
-
-  def processEvaluation(check: AccessorOps, command: ProcessCheckEvaluation): Try[CommandEffect] = Failure(new NotImplementedError())
+  def processObservation(check: AccessorOps, probeId: ProbeId, observation: Observation): Option[EventEffect] = None
 
   def processChild(check: AccessorOps, child: CheckRef, status: CheckStatus): Option[EventEffect] = None
 
@@ -61,6 +70,7 @@ class TestChangeBehavior extends CheckBehaviorExtension {
   type Settings = TestProcessorSettings
   class TestProcessorFactory(val settings: TestProcessorSettings) extends DependentProcessorFactory {
     def implement() = new TestProcessorChange(settings.properties)
+    def observes(): Set[ProbeId] = Set.empty
   }
   def configure(properties: Map[String, String]) = {
     new TestProcessorFactory(TestProcessorSettings(properties))

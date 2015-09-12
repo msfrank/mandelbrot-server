@@ -80,8 +80,11 @@ sealed trait StateServiceQuery extends ServiceQuery with StateServiceOperation
 sealed trait StateServiceResult
 case class StateServiceOperationFailed(op: StateServiceOperation, failure: Throwable) extends ServiceOperationFailed
 
-case class GetStatus(checkRef: CheckRef, generation: Long) extends StateServiceCommand
-case class GetStatusResult(op: GetStatus, status: Option[CheckStatus]) extends StateServiceResult
+case class AppendObservation(probeRef: ProbeRef,
+                             generation: Long,
+                             observation: Observation,
+                             commitEpoch: Boolean = false) extends StateServiceCommand
+case class AppendObservationResult(op: AppendObservation) extends StateServiceResult
 
 case class UpdateStatus(checkRef: CheckRef,
                         status: CheckStatus,
@@ -91,6 +94,9 @@ case class UpdateStatusResult(op: UpdateStatus) extends StateServiceResult
 
 case class DeleteStatus(checkRef: CheckRef, generation: Long) extends StateServiceCommand
 case class DeleteStatusResult(op: DeleteStatus) extends StateServiceResult
+
+case class GetStatus(checkRef: CheckRef, generation: Long) extends StateServiceQuery
+case class GetStatusResult(op: GetStatus, status: Option[CheckStatus]) extends StateServiceResult
 
 case class GetObservationHistory(probeRef: ProbeRef,
                                  generation: Long,

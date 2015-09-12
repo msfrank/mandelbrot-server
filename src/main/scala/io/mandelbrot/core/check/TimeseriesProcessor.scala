@@ -43,7 +43,7 @@ class TimeseriesProcessor(settings: TimeseriesCheckSettings) extends BehaviorPro
   /**
    *
    */
-  def initialize(check: AccessorOps): InitializeEffect = {
+  def initialize(checkRef: CheckRef, generation: Long): InitializeEffect = {
     val initializers: Map[ObservationSource,CheckInitializer] = timeseriesStore.windows().map {
       case (source: ObservationSource,window) => source -> CheckInitializer(from = Some(new DateTime(0)),
         to = Some(new DateTime(java.lang.Long.MAX_VALUE)), limit = window.size, fromInclusive = true,
@@ -55,13 +55,21 @@ class TimeseriesProcessor(settings: TimeseriesCheckSettings) extends BehaviorPro
   /**
    *
    */
-  def configure(check: AccessorOps, observations: Map[ProbeId,Vector[ProbeObservation]], children: Set[CheckRef]): ConfigureEffect = {
+  def configure(checkRef: CheckRef,
+                generation: Long,
+                status: Option[CheckStatus],
+                observations: Map[ProbeId,Vector[ProbeObservation]],
+                children: Set[CheckRef]): ConfigureEffect = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
-    val status = check.getCheckStatus
-    val initial = if (status.lifecycle == CheckInitializing) {
-      status.copy(lifecycle = CheckJoining, health = CheckUnknown, summary = Some(evaluation.toString),
-        lastUpdate = Some(timestamp), lastChange = Some(timestamp))
-    } else status
+    val initial = status match {
+      case None =>
+        CheckStatus(generation, timestamp, CheckJoining, None, CheckUnknown, Map.empty, Some(timestamp),
+          Some(timestamp), None, None, squelched = false)
+      case Some(_status) if _status.lifecycle == CheckInitializing =>
+        _status.copy(lifecycle = CheckJoining, health = CheckUnknown, summary = Some(evaluation.toString),
+          lastUpdate = Some(timestamp), lastChange = Some(timestamp))
+      case Some(_status) => _status
+    }
     ConfigureEffect(initial, Vector.empty, Set.empty)
   }
 

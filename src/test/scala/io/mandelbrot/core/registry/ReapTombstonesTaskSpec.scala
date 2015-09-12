@@ -56,10 +56,10 @@ class ReapTombstonesTaskSpec(_system: ActorSystem) extends TestKit(_system) with
       serviceProxy ! RegisterAgent(agentId, registration)
       val registerAgentResult = expectMsgClass(10.seconds, classOf[RegisterAgentResult])
 
-      val checkRef = CheckRef(agentId, CheckId("load"))
+      val probeRef = ProbeRef(agentId, ProbeId("load"))
       val timestamp = DateTime.now()
-      serviceProxy ! ProcessCheckEvaluation(checkRef, CheckEvaluation(timestamp, Map.empty))
-      expectMsgClass(10.seconds, classOf[ProcessCheckEvaluationResult])
+      serviceProxy ! ProcessProbeObservation(probeRef, ScalarMapObservation(timestamp, Map.empty))
+      expectMsgClass(10.seconds, classOf[ProcessProbeObservationResult])
 
       serviceProxy ! RetireAgent(agentId)
       expectMsgClass(classOf[RetireAgentResult])

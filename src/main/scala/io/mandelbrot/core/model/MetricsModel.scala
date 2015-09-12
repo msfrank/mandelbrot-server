@@ -36,7 +36,7 @@ class MetricSource(val probeId: ProbeId, val metricName: String) extends Evaluat
     case other: MetricSource => probeId.equals(other.probeId) && metricName.equals(other.metricName)
     case _ => false
   }
-  override def toString = super.toString + ":" + metricName
+  override def toString = probeId.toString + ":" + metricName
   override def hashCode() = toString.hashCode
 }
 

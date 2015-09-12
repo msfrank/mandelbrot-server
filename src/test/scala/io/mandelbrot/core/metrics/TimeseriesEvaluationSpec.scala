@@ -12,78 +12,77 @@ class TimeseriesEvaluationSpec extends WordSpec with ShouldMatchers {
 
   "TimeseriesEvaluation" should {
 
-    val source = MetricSource(CheckId("foo.source"), "foovalue")
+    val metric = MetricSource(ProbeId("foo.source"), "foovalue")
+    val source = metric.toObservationSource
 
-    def makeCheckStatus(metrics: Map[String,BigDecimal]): CheckStatus = {
-      CheckStatus(0, DateTime.now(DateTimeZone.UTC), CheckKnown, None, CheckHealthy, metrics, None, None, None, None, false)
-    }
+    def makeObservation(timeseries: Map[String,BigDecimal]): Observation = ScalarMapObservation(DateTime.now(DateTimeZone.UTC), timeseries)
 
     "evaluate ==" in {
-      val metrics = new TimeseriesStore()
-      val evaluation = new TimeseriesEvaluation(EvaluateMetric(source, HeadFunction(NumericValueEquals(BigDecimal(10)))), "")
-      metrics.resize(evaluation)
-      metrics.append(source.checkId, makeCheckStatus(Map("foovalue" -> BigDecimal(10))))
-      evaluation.evaluate(metrics) shouldEqual Some(true)
-      metrics.append(source.checkId, makeCheckStatus(Map("foovalue" -> BigDecimal(11))))
-      evaluation.evaluate(metrics) shouldEqual Some(false)
+      val timeseries = new TimeseriesStore()
+      val evaluation = new TimeseriesEvaluation(EvaluateMetric(metric, HeadFunction(NumericValueEquals(BigDecimal(10)))), "")
+      timeseries.resize(evaluation)
+      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(10))))
+      evaluation.evaluate(timeseries) shouldEqual Some(true)
+      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(11))))
+      evaluation.evaluate(timeseries) shouldEqual Some(false)
     }
 
     "evaluate !=" in {
-      val metrics = new TimeseriesStore()
-      val evaluation = new TimeseriesEvaluation(EvaluateMetric(source, HeadFunction(NumericValueNotEquals(BigDecimal(10)))), "")
-      metrics.resize(evaluation)
-      metrics.append(source.checkId, makeCheckStatus(Map("foovalue" -> BigDecimal(10))))
-      evaluation.evaluate(metrics) shouldEqual Some(false)
-      metrics.append(source.checkId, makeCheckStatus(Map("foovalue" -> BigDecimal(11))))
-      evaluation.evaluate(metrics) shouldEqual Some(true)
+      val timeseries = new TimeseriesStore()
+      val evaluation = new TimeseriesEvaluation(EvaluateMetric(metric, HeadFunction(NumericValueNotEquals(BigDecimal(10)))), "")
+      timeseries.resize(evaluation)
+      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(10))))
+      evaluation.evaluate(timeseries) shouldEqual Some(false)
+      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(11))))
+      evaluation.evaluate(timeseries) shouldEqual Some(true)
     }
 
     "evaluate <" in {
-      val metrics = new TimeseriesStore()
-      val evaluation = new TimeseriesEvaluation(EvaluateMetric(source, HeadFunction(NumericValueLessThan(BigDecimal(10)))), "")
-      metrics.resize(evaluation)
-      metrics.append(source.checkId, makeCheckStatus(Map("foovalue" -> BigDecimal(5))))
-      evaluation.evaluate(metrics) shouldEqual Some(true)
-      metrics.append(source.checkId, makeCheckStatus(Map("foovalue" -> BigDecimal(10))))
-      evaluation.evaluate(metrics) shouldEqual Some(false)
-      metrics.append(source.checkId, makeCheckStatus(Map("foovalue" -> BigDecimal(15))))
-      evaluation.evaluate(metrics) shouldEqual Some(false)
+      val timeseries = new TimeseriesStore()
+      val evaluation = new TimeseriesEvaluation(EvaluateMetric(metric, HeadFunction(NumericValueLessThan(BigDecimal(10)))), "")
+      timeseries.resize(evaluation)
+      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(5))))
+      evaluation.evaluate(timeseries) shouldEqual Some(true)
+      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(10))))
+      evaluation.evaluate(timeseries) shouldEqual Some(false)
+      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(15))))
+      evaluation.evaluate(timeseries) shouldEqual Some(false)
     }
 
     "evaluate >" in {
-      val metrics = new TimeseriesStore()
-      val evaluation = new TimeseriesEvaluation(EvaluateMetric(source, HeadFunction(NumericValueGreaterThan(BigDecimal(10)))), "")
-      metrics.resize(evaluation)
-      metrics.append(source.checkId, makeCheckStatus(Map("foovalue" -> BigDecimal(5))))
-      evaluation.evaluate(metrics) shouldEqual Some(false)
-      metrics.append(source.checkId, makeCheckStatus(Map("foovalue" -> BigDecimal(10))))
-      evaluation.evaluate(metrics) shouldEqual Some(false)
-      metrics.append(source.checkId, makeCheckStatus(Map("foovalue" -> BigDecimal(15))))
-      evaluation.evaluate(metrics) shouldEqual Some(true)
+      val timeseries = new TimeseriesStore()
+      val evaluation = new TimeseriesEvaluation(EvaluateMetric(metric, HeadFunction(NumericValueGreaterThan(BigDecimal(10)))), "")
+      timeseries.resize(evaluation)
+      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(5))))
+      evaluation.evaluate(timeseries) shouldEqual Some(false)
+      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(10))))
+      evaluation.evaluate(timeseries) shouldEqual Some(false)
+      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(15))))
+      evaluation.evaluate(timeseries) shouldEqual Some(true)
     }
 
     "evaluate <=" in {
-      val metrics = new TimeseriesStore()
-      val evaluation = new TimeseriesEvaluation(EvaluateMetric(source, HeadFunction(NumericValueLessEqualThan(BigDecimal(10)))), "")
-      metrics.resize(evaluation)
-      metrics.append(source.checkId, makeCheckStatus(Map("foovalue" -> BigDecimal(5))))
-      evaluation.evaluate(metrics) shouldEqual Some(true)
-      metrics.append(source.checkId, makeCheckStatus(Map("foovalue" -> BigDecimal(10))))
-      evaluation.evaluate(metrics) shouldEqual Some(true)
-      metrics.append(source.checkId, makeCheckStatus(Map("foovalue" -> BigDecimal(15))))
-      evaluation.evaluate(metrics) shouldEqual Some(false)
+      val timeseries = new TimeseriesStore()
+      val evaluation = new TimeseriesEvaluation(EvaluateMetric(metric, HeadFunction(NumericValueLessEqualThan(BigDecimal(10)))), "")
+      timeseries.resize(evaluation)
+      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(5))))
+      evaluation.evaluate(timeseries) shouldEqual Some(true)
+      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(10))))
+      evaluation.evaluate(timeseries) shouldEqual Some(true)
+      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(15))))
+      evaluation.evaluate(timeseries) shouldEqual Some(false)
     }
 
     "evaluate >=" in {
-      val metrics = new TimeseriesStore()
-      val evaluation = new TimeseriesEvaluation(EvaluateMetric(source, HeadFunction(NumericValueGreaterEqualThan(BigDecimal(10)))), "")
-      metrics.resize(evaluation)
-      metrics.append(source.checkId, makeCheckStatus(Map("foovalue" -> BigDecimal(5))))
-      evaluation.evaluate(metrics) shouldEqual Some(false)
-      metrics.append(source.checkId, makeCheckStatus(Map("foovalue" -> BigDecimal(10))))
-      evaluation.evaluate(metrics) shouldEqual Some(true)
-      metrics.append(source.checkId, makeCheckStatus(Map("foovalue" -> BigDecimal(15))))
-      evaluation.evaluate(metrics) shouldEqual Some(true)
+      val timeseries = new TimeseriesStore()
+      val evaluation = new TimeseriesEvaluation(EvaluateMetric(metric, HeadFunction(NumericValueGreaterEqualThan(BigDecimal(10)))), "")
+      timeseries.resize(evaluation)
+      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(5))))
+      evaluation.evaluate(timeseries) shouldEqual Some(false)
+      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(10))))
+      evaluation.evaluate(timeseries) shouldEqual Some(true)
+      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(15))))
+      evaluation.evaluate(timeseries) shouldEqual Some(true)
     }
   }
 }

@@ -34,12 +34,16 @@ trait BehaviorProcessor {
   /**
    * return the initializers needed to rebuild local state.
    */
-  def initialize(check: AccessorOps): InitializeEffect
+  def initialize(checkRef: CheckRef, generation: Long): InitializeEffect
 
   /**
    *
    */
-  def configure(check: AccessorOps, observations: Map[ProbeId,Vector[ProbeObservation]], children: Set[CheckRef]): ConfigureEffect
+  def configure(checkRef: CheckRef,
+                generation: Long,
+                status: Option[CheckStatus],
+                observations: Map[ProbeId,Vector[ProbeObservation]],
+                children: Set[CheckRef]): ConfigureEffect
 
   /**
    *

@@ -9,7 +9,7 @@ import io.mandelbrot.core.util.Timer
 
 /**
  * MutationOps trait encapsulates the mutable state of a check.  the actual modification
- * of check state only occurs in the applyStatus method.  MutationOps also implements the
+ * of check state only occurs in the updateStatus method.  MutationOps also implements the
  * AccessorOps trait, which is a read-only view of check state that a BehaviorProcessor
  * can access.
  */
@@ -50,10 +50,24 @@ trait MutationOps extends AccessorOps {
   override def squelch: Boolean = _squelch
 
   /**
+   * modify internal status fields using the specified check status.
+   */
+  def applyStatus(status: CheckStatus): Unit = {
+    _lifecycle = status.lifecycle
+    _health = status.health
+    _summary = status.summary
+    _lastChange = status.lastChange
+    _lastUpdate = status.lastUpdate
+    _correlationId = status.correlation
+    _acknowledgementId = status.acknowledged
+    _squelch = status.squelched
+  }
+
+  /**
    * apply the updated status to the check, and update alert and expiry
    * timers as necessary.
    */
-  def applyStatus(status: CheckStatus): Unit = {
+  def updateStatus(status: CheckStatus): Unit = {
     // we don't alert if lifecycle is not known or synthetic
     if (status.lifecycle != CheckKnown && status.lifecycle != CheckSynthetic) {
       alertTimer.stop()
@@ -86,15 +100,7 @@ trait MutationOps extends AccessorOps {
         expiryTimer.restart(policy.leavingTimeout)
     }
     log.debug("expiry timer => {}", expiryTimer)
-    // modify internal status fields
-    _lifecycle = status.lifecycle
-    _health = status.health
-    _summary = status.summary
-    _lastChange = status.lastChange
-    _lastUpdate = status.lastUpdate
-    _correlationId = status.correlation
-    _acknowledgementId = status.acknowledged
-    _squelch = status.squelched
+    applyStatus(status)
     log.debug("applied:\n\n    {}\n", status)
   }
 

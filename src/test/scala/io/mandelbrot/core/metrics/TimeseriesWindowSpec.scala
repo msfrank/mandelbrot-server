@@ -12,15 +12,15 @@ class TimeseriesWindowSpec extends WordSpec with ShouldMatchers {
   "MetricsWindow" should {
 
     val timestamp = DateTime.now(DateTimeZone.UTC)
-    val status1 = CheckStatus(0, timestamp, CheckKnown, None, CheckHealthy, Map("value" -> BigDecimal(1)), None, None, None, None, false)
-    val status2 = CheckStatus(0, timestamp.plus(1), CheckKnown, None, CheckHealthy, Map("value" -> BigDecimal(2)), None, None, None, None, false)
-    val status3 = CheckStatus(0, timestamp.plus(2), CheckKnown, None, CheckHealthy, Map("value" -> BigDecimal(3)), None, None, None, None, false)
-    val status4 = CheckStatus(0, timestamp.plus(3), CheckKnown, None, CheckHealthy, Map("value" -> BigDecimal(4)), None, None, None, None, false)
-    val status5 = CheckStatus(0, timestamp.plus(4), CheckKnown, None, CheckHealthy, Map("value" -> BigDecimal(5)), None, None, None, None, false)
-    val status6 = CheckStatus(0, timestamp.plus(5), CheckKnown, None, CheckHealthy, Map("value" -> BigDecimal(6)), None, None, None, None, false)
-    val status7 = CheckStatus(0, timestamp.plus(6), CheckKnown, None, CheckHealthy, Map("value" -> BigDecimal(7)), None, None, None, None, false)
-    val status8 = CheckStatus(0, timestamp.plus(7), CheckKnown, None, CheckHealthy, Map("value" -> BigDecimal(8)), None, None, None, None, false)
-    val status9 = CheckStatus(0, timestamp.plus(8), CheckKnown, None, CheckHealthy, Map("value" -> BigDecimal(9)), None, None, None, None, false)
+    val status1 = ScalarMapObservation(timestamp, Map("value" -> BigDecimal(1)))
+    val status2 = ScalarMapObservation(timestamp.plus(1), Map("value" -> BigDecimal(2)))
+    val status3 = ScalarMapObservation(timestamp.plus(2), Map("value" -> BigDecimal(3)))
+    val status4 = ScalarMapObservation(timestamp.plus(3), Map("value" -> BigDecimal(4)))
+    val status5 = ScalarMapObservation(timestamp.plus(4), Map("value" -> BigDecimal(5)))
+    val status6 = ScalarMapObservation(timestamp.plus(5), Map("value" -> BigDecimal(6)))
+    val status7 = ScalarMapObservation(timestamp.plus(6), Map("value" -> BigDecimal(7)))
+    val status8 = ScalarMapObservation(timestamp.plus(7), Map("value" -> BigDecimal(8)))
+    val status9 = ScalarMapObservation(timestamp.plus(8), Map("value" -> BigDecimal(9)))
 
     "maintain invariants for an empty window" in {
       val window = new TimeseriesWindow(5)
@@ -89,7 +89,7 @@ class TimeseriesWindowSpec extends WordSpec with ShouldMatchers {
       window.append(status3)
       window.append(status2)
       window.append(status1)
-      window.foldLeft(0L) { case (v,sum) => v.metrics("value").toLong + sum } shouldEqual 6L
+      window.foldLeft(0L) { case (v: ScalarMapObservation,sum) => v.metrics("value").toLong + sum } shouldEqual 6L
     }
 
     "resize with new size greater than old size" in {

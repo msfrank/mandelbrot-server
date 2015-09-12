@@ -32,13 +32,22 @@ case class ContainerCheckSettings()
  */
 class ContainerProcessor(settings: ContainerCheckSettings) extends BehaviorProcessor {
 
-  def initialize(check: AccessorOps): InitializeEffect = InitializeEffect(Map.empty)
+  def initialize(checkRef: CheckRef, generation: Long): InitializeEffect = InitializeEffect(Map.empty)
 
-  def configure(check: AccessorOps, observations: Map[ProbeId, Vector[ProbeObservation]], children: Set[CheckRef]): ConfigureEffect = {
-    val initial = {
-      val timestamp = DateTime.now(DateTimeZone.UTC)
-      val status = check.getCheckStatus(timestamp)
-      status.copy(lifecycle = CheckSynthetic, health = CheckUnknown, lastUpdate = Some(timestamp), lastChange = Some(timestamp))
+  def configure(checkRef: CheckRef,
+                generation: Long,
+                status: Option[CheckStatus],
+                observations: Map[ProbeId, Vector[ProbeObservation]],
+                children: Set[CheckRef]): ConfigureEffect = {
+    val timestamp = DateTime.now(DateTimeZone.UTC)
+    val initial = status match {
+      case None =>
+        CheckStatus(generation, timestamp, CheckJoining, None, CheckUnknown, Map.empty, Some(timestamp),
+          Some(timestamp), None, None, squelched = false)
+      case Some(_status) if _status.lifecycle == CheckInitializing =>
+        _status.copy(lifecycle = CheckJoining, health = CheckUnknown, summary = None,
+          lastUpdate = Some(timestamp), lastChange = Some(timestamp))
+      case Some(_status) => _status
     }
     ConfigureEffect(initial, Vector.empty, Set.empty)
   }

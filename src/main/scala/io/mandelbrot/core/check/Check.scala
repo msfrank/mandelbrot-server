@@ -71,7 +71,7 @@ class Check(val checkRef: CheckRef,
     /* initialize the check using parameters from the proposed processor */
     case Event(change: ChangeCheck, NoData) =>
       val proposed = change.factory.implement()
-      val initializers = proposed.initialize(this).initializers
+      val initializers = proposed.initialize(checkRef, generation).initializers
       context.actorOf(InitializeCheckTask.props(checkRef, generation, initializers, self, services))
       goto(Initializing) using Initializing(change, proposed)
 
@@ -98,7 +98,8 @@ class Check(val checkRef: CheckRef,
     /* configure processor using initial state */
     case Event(initialize: InitializeCheckTaskComplete, state: Initializing) =>
       commitTimer.stop()
-      val effect = state.proposed.configure(this, initialize.observations, state.change.children)
+      val effect = state.proposed.configure(checkRef, generation, initialize.status,
+        initialize.observations, state.change.children)
       val op = UpdateStatus(checkRef, effect.status, effect.notifications, commitEpoch = true)
       goto(Configuring) using Configuring(state.change, state.proposed, op)
 
@@ -143,7 +144,7 @@ class Check(val checkRef: CheckRef,
       processor = state.proposed
       policy = state.change.policy
       children = state.change.children
-      applyStatus(status)
+      updateStatus(status)
       parent ! ChildMutates(checkRef, status)
       notify(state.inflight.notifications)
       lastCommitted = Some(status.timestamp)
