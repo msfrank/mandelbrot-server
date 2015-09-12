@@ -12,7 +12,8 @@ class TimeseriesEvaluationSpec extends WordSpec with ShouldMatchers {
 
   "TimeseriesEvaluation" should {
 
-    val metric = MetricSource(ProbeId("foo.source"), "foovalue")
+    val metricName = "foovalue"
+    val metric = MetricSource(ProbeId("foo.source"), metricName)
     val source = metric.toObservationSource
 
     def makeObservation(timeseries: Map[String,BigDecimal]): Observation = ScalarMapObservation(DateTime.now(DateTimeZone.UTC), timeseries)
@@ -21,9 +22,9 @@ class TimeseriesEvaluationSpec extends WordSpec with ShouldMatchers {
       val timeseries = new TimeseriesStore()
       val evaluation = new TimeseriesEvaluation(EvaluateMetric(metric, HeadFunction(NumericValueEquals(BigDecimal(10)))), "")
       timeseries.resize(evaluation)
-      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(10))))
+      timeseries.append(source, makeObservation(Map(metricName -> BigDecimal(10))))
       evaluation.evaluate(timeseries) shouldEqual Some(true)
-      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(11))))
+      timeseries.append(source, makeObservation(Map(metricName -> BigDecimal(11))))
       evaluation.evaluate(timeseries) shouldEqual Some(false)
     }
 
@@ -31,9 +32,9 @@ class TimeseriesEvaluationSpec extends WordSpec with ShouldMatchers {
       val timeseries = new TimeseriesStore()
       val evaluation = new TimeseriesEvaluation(EvaluateMetric(metric, HeadFunction(NumericValueNotEquals(BigDecimal(10)))), "")
       timeseries.resize(evaluation)
-      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(10))))
+      timeseries.append(source, makeObservation(Map(metricName -> BigDecimal(10))))
       evaluation.evaluate(timeseries) shouldEqual Some(false)
-      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(11))))
+      timeseries.append(source, makeObservation(Map(metricName -> BigDecimal(11))))
       evaluation.evaluate(timeseries) shouldEqual Some(true)
     }
 
@@ -41,11 +42,11 @@ class TimeseriesEvaluationSpec extends WordSpec with ShouldMatchers {
       val timeseries = new TimeseriesStore()
       val evaluation = new TimeseriesEvaluation(EvaluateMetric(metric, HeadFunction(NumericValueLessThan(BigDecimal(10)))), "")
       timeseries.resize(evaluation)
-      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(5))))
+      timeseries.append(source, makeObservation(Map(metricName -> BigDecimal(5))))
       evaluation.evaluate(timeseries) shouldEqual Some(true)
-      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(10))))
+      timeseries.append(source, makeObservation(Map(metricName -> BigDecimal(10))))
       evaluation.evaluate(timeseries) shouldEqual Some(false)
-      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(15))))
+      timeseries.append(source, makeObservation(Map(metricName -> BigDecimal(15))))
       evaluation.evaluate(timeseries) shouldEqual Some(false)
     }
 
@@ -53,11 +54,11 @@ class TimeseriesEvaluationSpec extends WordSpec with ShouldMatchers {
       val timeseries = new TimeseriesStore()
       val evaluation = new TimeseriesEvaluation(EvaluateMetric(metric, HeadFunction(NumericValueGreaterThan(BigDecimal(10)))), "")
       timeseries.resize(evaluation)
-      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(5))))
+      timeseries.append(source, makeObservation(Map(metricName -> BigDecimal(5))))
       evaluation.evaluate(timeseries) shouldEqual Some(false)
-      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(10))))
+      timeseries.append(source, makeObservation(Map(metricName -> BigDecimal(10))))
       evaluation.evaluate(timeseries) shouldEqual Some(false)
-      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(15))))
+      timeseries.append(source, makeObservation(Map(metricName -> BigDecimal(15))))
       evaluation.evaluate(timeseries) shouldEqual Some(true)
     }
 
@@ -65,11 +66,11 @@ class TimeseriesEvaluationSpec extends WordSpec with ShouldMatchers {
       val timeseries = new TimeseriesStore()
       val evaluation = new TimeseriesEvaluation(EvaluateMetric(metric, HeadFunction(NumericValueLessEqualThan(BigDecimal(10)))), "")
       timeseries.resize(evaluation)
-      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(5))))
+      timeseries.append(source, makeObservation(Map(metricName -> BigDecimal(5))))
       evaluation.evaluate(timeseries) shouldEqual Some(true)
-      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(10))))
+      timeseries.append(source, makeObservation(Map(metricName -> BigDecimal(10))))
       evaluation.evaluate(timeseries) shouldEqual Some(true)
-      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(15))))
+      timeseries.append(source, makeObservation(Map(metricName -> BigDecimal(15))))
       evaluation.evaluate(timeseries) shouldEqual Some(false)
     }
 
@@ -77,11 +78,11 @@ class TimeseriesEvaluationSpec extends WordSpec with ShouldMatchers {
       val timeseries = new TimeseriesStore()
       val evaluation = new TimeseriesEvaluation(EvaluateMetric(metric, HeadFunction(NumericValueGreaterEqualThan(BigDecimal(10)))), "")
       timeseries.resize(evaluation)
-      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(5))))
+      timeseries.append(source, makeObservation(Map(metricName -> BigDecimal(5))))
       evaluation.evaluate(timeseries) shouldEqual Some(false)
-      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(10))))
+      timeseries.append(source, makeObservation(Map(metricName -> BigDecimal(10))))
       evaluation.evaluate(timeseries) shouldEqual Some(true)
-      timeseries.append(source, makeObservation(Map("foovalue" -> BigDecimal(15))))
+      timeseries.append(source, makeObservation(Map(metricName -> BigDecimal(15))))
       evaluation.evaluate(timeseries) shouldEqual Some(true)
     }
   }

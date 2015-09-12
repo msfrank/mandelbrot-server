@@ -39,9 +39,12 @@ class TimeseriesStore {
   def resize(evaluation: TimeseriesEvaluation): Unit = {
     evaluation.sizing.foreach { case (source: ObservationSource, size: Int) =>
       observations.get(source) match {
-        case null => observations(source) = new TimeseriesWindow(size)
-        case window: TimeseriesWindow if size == window.size => // do nothing
-        case window: TimeseriesWindow => observations(source).resize(size)
+        case null =>
+          observations.put(source, new TimeseriesWindow(size))
+        case window: TimeseriesWindow if size == window.size =>
+          // do nothing
+        case window: TimeseriesWindow =>
+          window.resize(size)
       }
     }
   }

@@ -1,7 +1,5 @@
 package io.mandelbrot.core.model
 
-import io.mandelbrot.core.util.CircularBuffer
-
 sealed trait MetricsModel
 
 class ObservationSource(val scheme: String, val id: String) extends Ordered[ObservationSource] with MetricsModel {
@@ -12,7 +10,12 @@ class ObservationSource(val scheme: String, val id: String) extends Ordered[Obse
     }
     result
   }
+  override def equals(other: Any): Boolean = other match {
+    case other: ObservationSource => scheme.equals(other.scheme) && id.equals(other.id)
+    case _ => false
+  }
   override def toString = scheme + ":" + id
+  override def hashCode() = toString.hashCode
 }
 
 object ObservationSource {
