@@ -48,7 +48,7 @@ class ReapTombstonesTaskSpec(_system: ActorSystem) extends TestKit(_system) with
       val probePolicy = ProbePolicy(1.minute)
       val probes = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
       val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 0.seconds, None)
-      val check = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("evaluation" -> "when load:load1 > 1"), Map.empty)
+      val check = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("evaluation" -> "probe:load:load1 > 1"), Map.empty)
       val checks = Map(CheckId("load") -> check)
       val agentPolicy = AgentPolicy(0.seconds)
       val registration = AgentSpec(agentId, "mandelbrot", agentPolicy, probes, checks)

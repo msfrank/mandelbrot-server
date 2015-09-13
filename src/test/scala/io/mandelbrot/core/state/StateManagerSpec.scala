@@ -35,6 +35,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
 
   val timestamp1 = today.toDateTime.plusMinutes(1)
   val metrics1 = ScalarMapObservation(timestamp1, Map("load" -> BigDecimal(1)))
+  val observation1 = ProbeObservation(generation, metrics1)
   val status1 = CheckStatus(generation, timestamp1, CheckKnown, Some("healthy1"), CheckHealthy,
     metrics1.metrics, None, None, None, None, squelched = false)
   val notifications1 = CheckNotifications(generation, timestamp1,
@@ -44,6 +45,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
 
   val timestamp2 = today.toDateTime.plusMinutes(2)
   val metrics2 = ScalarMapObservation(timestamp2, Map("load" -> BigDecimal(2)))
+  val observation2 = ProbeObservation(generation, metrics2)
   val status2 = CheckStatus(generation, timestamp2, CheckKnown, Some("healthy2"), CheckHealthy,
     metrics2.metrics, None, None, None, None, squelched = false)
   val notifications2 = CheckNotifications(generation, timestamp2,
@@ -53,6 +55,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
 
   val timestamp3 = today.toDateTime.plusMinutes(3)
   val metrics3 = ScalarMapObservation(timestamp3, Map("load" -> BigDecimal(3)))
+  val observation3 = ProbeObservation(generation, metrics3)
   val status3 = CheckStatus(generation, timestamp3, CheckKnown, Some("healthy3"), CheckHealthy,
     metrics3.metrics, None, None, None, None, squelched = false)
   val notifications3 = CheckNotifications(generation, timestamp3,
@@ -62,6 +65,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
 
   val timestamp4 = today.toDateTime.plusMinutes(4)
   val metrics4 = ScalarMapObservation(timestamp4, Map("load" -> BigDecimal(4)))
+  val observation4 = ProbeObservation(generation, metrics4)
   val status4 = CheckStatus(generation, timestamp4, CheckKnown, Some("healthy4"), CheckHealthy,
     metrics4.metrics, None, None, None, None, squelched = false)
   val notifications4 = CheckNotifications(generation, timestamp4,
@@ -71,6 +75,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
 
   val timestamp5 = today.toDateTime.plusMinutes(5)
   val metrics5 = ScalarMapObservation(timestamp5, Map("load" -> BigDecimal(5)))
+  val observation5 = ProbeObservation(generation, metrics5)
   val status5 = CheckStatus(generation, timestamp5, CheckKnown, Some("healthy5"), CheckHealthy,
     metrics5.metrics, None, None, None, None, squelched = false)
   val notifications5 = CheckNotifications(generation, timestamp5,
@@ -81,20 +86,35 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
   def withTestData(testCode: (ActorRef) => Any): Unit = {
     withStateService { stateService =>
 
+      stateService ! AppendObservation(probeRef, generation, metrics1)
+      expectMsgClass(classOf[AppendObservationResult])
+
       stateService ! UpdateStatus(checkRef, status1, notifications1.notifications)
-      val updateCheckStatusResult1 = expectMsgClass(classOf[UpdateStatusResult])
+      expectMsgClass(classOf[UpdateStatusResult])
+
+      stateService ! AppendObservation(probeRef, generation, metrics2)
+      expectMsgClass(classOf[AppendObservationResult])
 
       stateService ! UpdateStatus(checkRef, status2, notifications2.notifications)
-      val updateCheckStatusResult2 = expectMsgClass(classOf[UpdateStatusResult])
+      expectMsgClass(classOf[UpdateStatusResult])
+
+      stateService ! AppendObservation(probeRef, generation, metrics3)
+      expectMsgClass(classOf[AppendObservationResult])
 
       stateService ! UpdateStatus(checkRef, status3, notifications3.notifications)
-      val updateCheckStatusResult3 = expectMsgClass(classOf[UpdateStatusResult])
+      expectMsgClass(classOf[UpdateStatusResult])
+
+      stateService ! AppendObservation(probeRef, generation, metrics4)
+      expectMsgClass(classOf[AppendObservationResult])
 
       stateService ! UpdateStatus(checkRef, status4, notifications4.notifications)
-      val updateCheckStatusResult4 = expectMsgClass(classOf[UpdateStatusResult])
+      expectMsgClass(classOf[UpdateStatusResult])
+
+      stateService ! AppendObservation(probeRef, generation, metrics5)
+      expectMsgClass(classOf[AppendObservationResult])
 
       stateService ! UpdateStatus(checkRef, status5, notifications5.notifications)
-      val updateCheckStatusResult5 = expectMsgClass(classOf[UpdateStatusResult])
+      expectMsgClass(classOf[UpdateStatusResult])
 
       testCode(stateService)
     }
@@ -285,13 +305,13 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
         getObservationHistoryResult.page.last shouldEqual None
         getObservationHistoryResult.page.exhausted shouldEqual true
         val metrics = getObservationHistoryResult.page.history.loneElement
-        metrics shouldEqual metrics5
+        metrics shouldEqual observation5
       }
 
       "return a page of metrics history newer than 'from' when 'from' is specified" in withTestData { stateService =>
         stateService ! GetObservationHistory(probeRef, generation, Some(timestamp3), None, 100)
         val getObservationHistoryResult = expectMsgClass(classOf[GetObservationHistoryResult])
-        getObservationHistoryResult.page.history shouldEqual Vector(metrics4, metrics5)
+        getObservationHistoryResult.page.history shouldEqual Vector(observation4, observation5)
         getObservationHistoryResult.page.last shouldEqual None
         getObservationHistoryResult.page.exhausted shouldEqual true
       }
@@ -299,7 +319,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       "return a page of metrics history older than 'to' when 'to' is specified" in withTestData { stateService =>
         stateService ! GetObservationHistory(probeRef, generation, None, Some(timestamp4), 100)
         val getObservationHistoryResult = expectMsgClass(classOf[GetObservationHistoryResult])
-        getObservationHistoryResult.page.history shouldEqual Vector(metrics1, metrics2, metrics3, metrics4)
+        getObservationHistoryResult.page.history shouldEqual Vector(observation1, observation2, observation3, observation4)
         getObservationHistoryResult.page.last shouldEqual None
         getObservationHistoryResult.page.exhausted shouldEqual true
       }
@@ -307,7 +327,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       "return a page of metrics history between 'from' and 'to' when 'from' and 'to' are specified" in withTestData { stateService =>
         stateService ! GetObservationHistory(probeRef, generation, Some(timestamp2), Some(timestamp4), 100)
         val getObservationHistoryResult = expectMsgClass(classOf[GetObservationHistoryResult])
-        getObservationHistoryResult.page.history shouldEqual Vector(metrics3, metrics4)
+        getObservationHistoryResult.page.history shouldEqual Vector(observation3, observation4)
         getObservationHistoryResult.page.last shouldEqual None
         getObservationHistoryResult.page.exhausted shouldEqual true
       }

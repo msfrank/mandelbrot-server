@@ -36,6 +36,10 @@ class StateManager(settings: StateSettings, clusterEnabled: Boolean) extends Act
 
   def receive = {
 
+    /* append observation to the specified probe */
+    case op: AppendObservation =>
+      persister forward op
+
     /* retrieve the current status for the specified check */
     case op: GetStatus =>
       persister forward op
