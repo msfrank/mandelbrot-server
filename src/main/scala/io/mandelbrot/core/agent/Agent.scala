@@ -142,6 +142,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
     case Event(result: RegisterAgentTaskComplete, state: AgentRegistering) =>
       generation = result.metadata.generation
       lsn = result.lsn
+      probeManager ! SetGeneration(generation)
       goto(AgentRunning) using AgentRunning(state.op.agentId, result.registration, result.metadata)
 
     /* any unhandled failure */
@@ -187,6 +188,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
     case Event(result: GetRegistrationResult, state: AgentInitializing) if result.metadata.expires.isDefined =>
       generation = result.metadata.generation
       lsn = result.lsn
+      probeManager ! SetGeneration(generation)
       goto(AgentRetired) using AgentRetired(state.op.agentId, result.registration, result.metadata)
 
     /* the agent exists and is active */
@@ -195,6 +197,7 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
         case Right(registration) =>
           generation = result.metadata.generation
           lsn = result.lsn
+          probeManager ! SetGeneration(generation)
           goto(AgentRunning) using AgentRunning(state.op.agentId, result.registration, result.metadata)
         case Left(ex) =>
           throw new IllegalStateException(s"agent ${state.op.agentId} failed to validate", ex.getCause)
@@ -445,12 +448,10 @@ class Agent(services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] with 
   }
 
   onTransition {
-    case _ -> AgentRetired => nextStateData match {
-      case state: AgentRetired =>
-        unstashAll()
-        context.system.scheduler.scheduleOnce(activeRetirement, self, StopAgent)
-      case _ =>
-    }
+    case _ -> AgentRetired =>
+      val state = nextStateData.asInstanceOf[AgentRetired]
+      unstashAll()
+      context.system.scheduler.scheduleOnce(activeRetirement, self, StopAgent)
   }
 
   /*

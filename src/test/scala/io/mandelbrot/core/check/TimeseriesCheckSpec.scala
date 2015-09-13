@@ -25,7 +25,7 @@ import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import io.mandelbrot.core.agent.{ProcessProbeObservationResult, ProcessProbeObservation, ObservationBus}
 import io.mandelbrot.core.parser.TimeseriesEvaluationParser
-import org.joda.time.DateTime
+import org.joda.time.{DateTimeZone, DateTime}
 import org.scalatest.ShouldMatchers
 import org.scalatest.{WordSpecLike, BeforeAndAfterAll}
 import scala.concurrent.duration._
@@ -34,7 +34,7 @@ import scala.math.BigDecimal
 import io.mandelbrot.core.metrics._
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.state._
-import io.mandelbrot.core.{AkkaConfig, Blackhole}
+import io.mandelbrot.core.{ResourceNotFound, ApiException, AkkaConfig, Blackhole}
 import io.mandelbrot.core.ConfigConversions._
 
 class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
@@ -56,12 +56,15 @@ class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with Im
       val checkRef = CheckRef("foo.local:foo.check")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val checkType = "io.mandelbrot.core.check.TimeseriesCheck"
-      val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "when foo.check:value > 10"))
+      val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "probe:foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new ObservationBus()
 
+      // create check actor
       val check = system.actorOf(Check.props(checkRef, generation, blackhole,  services, metricsBus))
+
+      // initialize check
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
 
       val getStatus = stateService.expectMsgClass(classOf[GetStatus])
@@ -69,33 +72,37 @@ class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with Im
         Map.empty, None, None, None, None, false)
       stateService.reply(GetStatusResult(getStatus, Some(status)))
 
-      // check sets its lifecycle to joining
+      val getObservationHistory = stateService.expectMsgClass(classOf[GetObservationHistory])
+      stateService.reply(StateServiceOperationFailed(getObservationHistory, ApiException(ResourceNotFound)))
+
+      // check sets its lifecycle to known
       val updateStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
       stateService.reply(UpdateStatusResult(updateStatus1))
-      updateStatus1.status.lifecycle shouldEqual CheckJoining
+      updateStatus1.status.lifecycle shouldEqual CheckKnown
 
-      val timestamp = DateTime.now()
-      check ! ProcessProbeObservation(ProbeRef("foo.local:foo.check"), ScalarMapObservation(timestamp, Map("value" -> BigDecimal(5))))
+      val timestamp = DateTime.now(DateTimeZone.UTC)
+      check ! ProcessObservation(ProbeId("foo.check"), ScalarMapObservation(timestamp, Map("value" -> BigDecimal(5))))
       val updateStatus2 = stateService.expectMsgClass(classOf[UpdateStatus])
       updateStatus2.status.health shouldEqual CheckHealthy
       updateStatus2.status.correlation shouldEqual None
       updateStatus2.status.acknowledged shouldEqual None
       updateStatus2.status.squelched shouldEqual false
       stateService.reply(UpdateStatusResult(updateStatus2))
-
-      expectMsgClass(classOf[ProcessProbeObservationResult])
     }
 
     "transition to CheckKnown/CheckFailed when a failed MetricsMessage is received" in {
       val checkRef = CheckRef("foo.local:foo.check")
       val policy = CheckPolicy(1.minute, 1.minute, 1.minute, 1.minute, None)
       val checkType = "io.mandelbrot.core.check.TimeseriesCheck"
-      val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "when foo.check:value > 10"))
+      val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "probe:foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new ObservationBus()
 
+      // create check actor
       val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
+
+      // initialize check
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
 
       val getStatus = stateService.expectMsgClass(classOf[GetStatus])
@@ -103,33 +110,37 @@ class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with Im
         Map.empty, None, None, None, None, false)
       stateService.reply(GetStatusResult(getStatus, Some(status)))
 
-      // check sets its lifecycle to joining
+      val getObservationHistory = stateService.expectMsgClass(classOf[GetObservationHistory])
+      stateService.reply(StateServiceOperationFailed(getObservationHistory, ApiException(ResourceNotFound)))
+
+      // check sets its lifecycle to known
       val updateStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
       stateService.reply(UpdateStatusResult(updateStatus1))
-      updateStatus1.status.lifecycle should be(CheckJoining)
+      updateStatus1.status.lifecycle should be(CheckKnown)
 
       val timestamp = DateTime.now()
-      check ! ProcessProbeObservation(ProbeRef("foo.local:foo.check"), ScalarMapObservation(timestamp, Map("value" -> BigDecimal(15))))
+      check ! ProcessObservation(ProbeId("foo.check"), ScalarMapObservation(timestamp, Map("value" -> BigDecimal(15))))
       val updateStatus2 = stateService.expectMsgClass(classOf[UpdateStatus])
       updateStatus2.status.health shouldEqual CheckFailed
       updateStatus2.status.correlation shouldEqual Some(_: UUID)
       updateStatus2.status.acknowledged shouldEqual None
       updateStatus2.status.squelched shouldEqual false
       stateService.reply(UpdateStatusResult(updateStatus2))
-
-      expectMsgClass(classOf[ProcessProbeObservationResult])
     }
 
     "notify StateService when the joining timeout expires" in {
       val checkRef = CheckRef("foo.local:foo.check")
       val policy = CheckPolicy(2.seconds, 1.minute, 1.minute, 1.minute, None)
       val checkType = "io.mandelbrot.core.check.TimeseriesCheck"
-      val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "when foo.check:value > 10"))
+      val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "probe:foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new ObservationBus()
 
+      // create check actor
       val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
+
+      // initialize check
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
 
       val getStatus = stateService.expectMsgClass(classOf[GetStatus])
@@ -137,10 +148,13 @@ class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with Im
         Map.empty, None, None, None, None, false)
       stateService.reply(GetStatusResult(getStatus, Some(status)))
 
-      // check sets its lifecycle to joining
+      val getObservationHistory = stateService.expectMsgClass(classOf[GetObservationHistory])
+      stateService.reply(StateServiceOperationFailed(getObservationHistory, ApiException(ResourceNotFound)))
+
+      // check sets its lifecycle to known
       val updateStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
       stateService.reply(UpdateStatusResult(updateStatus1))
-      updateStatus1.status.lifecycle shouldEqual CheckJoining
+      updateStatus1.status.lifecycle shouldEqual CheckKnown
 
       // expiry timer should fire within 5 seconds
       val updateStatus2 = stateService.expectMsgClass(5.seconds, classOf[UpdateStatus])
@@ -153,15 +167,18 @@ class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with Im
 
     "notify StateService when the check timeout expires" in {
       val checkRef = CheckRef("foo.local:foo.check")
-      val evaluation = parser.parseTimeseriesEvaluation("when foo.check:value > 10")
+      val evaluation = parser.parseTimeseriesEvaluation("probe:foo.check:value > 10")
       val policy = CheckPolicy(1.minute, 2.seconds, 1.minute, 1.minute, None)
       val checkType = "io.mandelbrot.core.check.TimeseriesCheck"
-      val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "when foo.check:value > 10"))
+      val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "probe:foo.check:value > 10"))
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref)))
       val metricsBus = new ObservationBus()
 
+      // create check actor
       val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
+
+      // initialize check
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
 
       val getStatus = stateService.expectMsgClass(classOf[GetStatus])
@@ -169,13 +186,16 @@ class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with Im
         Map.empty, None, None, None, None, false)
       stateService.reply(GetStatusResult(getStatus, Some(status)))
 
-      // check sets its lifecycle to joining
+      val getObservationHistory = stateService.expectMsgClass(classOf[GetObservationHistory])
+      stateService.reply(StateServiceOperationFailed(getObservationHistory, ApiException(ResourceNotFound)))
+
+      // check sets its lifecycle to known
       val updateStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
       stateService.reply(UpdateStatusResult(updateStatus1))
-      updateStatus1.status.lifecycle shouldEqual CheckJoining
+      updateStatus1.status.lifecycle shouldEqual CheckKnown
 
       val timestamp = DateTime.now()
-      check ! ProcessProbeObservation(ProbeRef("foo.local:foo.check"), ScalarMapObservation(timestamp, Map("value" -> BigDecimal(5))))
+      check ! ProcessObservation(ProbeId("foo.check"), ScalarMapObservation(timestamp, Map("value" -> BigDecimal(5))))
       val updateStatus2 = stateService.expectMsgClass(classOf[UpdateStatus])
       stateService.reply(UpdateStatusResult(updateStatus2))
       updateStatus2.status.lifecycle shouldEqual CheckKnown
@@ -197,13 +217,16 @@ class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with Im
       val checkRef = CheckRef("foo.local:foo.check")
       val policy = CheckPolicy(1.minute, 1.minute, 2.seconds, 1.minute, None)
       val checkType = "io.mandelbrot.core.check.TimeseriesCheck"
-      val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "when foo.check:value > 10"))
+      val factory = CheckBehavior.extensions(checkType).configure(Map("evaluation" -> "probe:foo.check:value > 10"))
       val notificationService = new TestProbe(_system)
       val stateService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(stateService = Some(stateService.ref), notificationService = Some(notificationService.ref)))
       val metricsBus = new ObservationBus()
 
+      // create check actor
       val check = system.actorOf(Check.props(checkRef, generation, blackhole, services, metricsBus))
+
+      // initialize check
       check ! ChangeCheck(checkType, policy, factory, Set.empty, 0)
 
       val getStatus = stateService.expectMsgClass(classOf[GetStatus])
@@ -211,13 +234,16 @@ class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with Im
         Map.empty, None, None, None, None, false)
       stateService.reply(GetStatusResult(getStatus, Some(status)))
 
-      // check sets its lifecycle to joining
+      val getObservationHistory = stateService.expectMsgClass(classOf[GetObservationHistory])
+      stateService.reply(StateServiceOperationFailed(getObservationHistory, ApiException(ResourceNotFound)))
+
+      // check sets its lifecycle to known
       val updateStatus1 = stateService.expectMsgClass(classOf[UpdateStatus])
       stateService.reply(UpdateStatusResult(updateStatus1))
-      updateStatus1.status.lifecycle shouldEqual CheckJoining
+      updateStatus1.status.lifecycle shouldEqual CheckKnown
 
       val timestamp = DateTime.now()
-      check ! ProcessProbeObservation(ProbeRef("foo.local:foo.check"), ScalarMapObservation(timestamp, Map("value" -> BigDecimal(15))))
+      check ! ProcessObservation(ProbeId("foo.check"), ScalarMapObservation(timestamp, Map("value" -> BigDecimal(15))))
       val updateStatus2 = stateService.expectMsgClass(classOf[UpdateStatus])
       stateService.reply(UpdateStatusResult(updateStatus2))
       notificationService.expectMsgClass(classOf[NotifyLifecycleChanges])

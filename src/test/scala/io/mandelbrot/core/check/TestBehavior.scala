@@ -17,9 +17,9 @@ class TestProcessor(val properties: Map[String,String]) extends BehaviorProcesso
                 observations: Map[ProbeId, Vector[ProbeObservation]],
                 children: Set[CheckRef]): ConfigureEffect = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
-    val status = CheckStatus(generation, timestamp, CheckJoining, None, CheckUnknown, Map.empty, Some(timestamp),
-      Some(timestamp), None, None, squelched = false)
-    ConfigureEffect(status, Vector.empty, children)
+    val initial = status.getOrElse(CheckStatus(generation, timestamp, CheckKnown, None, CheckUnknown, Map.empty, Some(timestamp),
+      Some(timestamp), None, None, squelched = false))
+    ConfigureEffect(initial, Vector.empty, children)
   }
 
   def processObservation(check: AccessorOps, probeId: ProbeId, observation: Observation): Option[EventEffect] = None
@@ -52,9 +52,9 @@ class TestProcessorChange(val properties: Map[String,String]) extends BehaviorPr
                 observations: Map[ProbeId, Vector[ProbeObservation]],
                 children: Set[CheckRef]): ConfigureEffect = {
     val timestamp = DateTime.now(DateTimeZone.UTC)
-    val status = CheckStatus(generation, timestamp, CheckJoining, None, CheckUnknown, Map.empty, Some(timestamp),
-      Some(timestamp), None, None, squelched = false)
-    ConfigureEffect(status, Vector.empty, children)
+    val initial = status.getOrElse(CheckStatus(generation, timestamp, CheckKnown, None, CheckUnknown, Map.empty, Some(timestamp),
+      Some(timestamp), None, None, squelched = false))
+    ConfigureEffect(initial, Vector.empty, children)
   }
 
   def processObservation(check: AccessorOps, probeId: ProbeId, observation: Observation): Option[EventEffect] = None

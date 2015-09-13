@@ -29,7 +29,7 @@ import java.util.UUID
 import io.mandelbrot.core._
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.state._
-import io.mandelbrot.core.agent.{ProcessProbeObservation, ObservationBus, RetireCheck}
+import io.mandelbrot.core.agent.{ObservationBus, RetireCheck}
 import io.mandelbrot.core.util.Timer
 
 /**
@@ -208,8 +208,8 @@ class Check(val checkRef: CheckRef,
       stay()
 
     /* process a check evaluation from the client */
-    case Event(command: ProcessProbeObservation, NoData) =>
-      enqueue(QueuedObservation(command.probeRef.probeId, command.observation))
+    case Event(command: ProcessObservation, NoData) =>
+      enqueue(QueuedObservation(command.probeId, command.observation))
       stay()
 
     /* if the check behavior has changed, then transition to a new state */
@@ -382,6 +382,7 @@ object Check {
 
 /* */
 case class ChangeCheck(checkType: String, policy: CheckPolicy, factory: ProcessorFactory, children: Set[CheckRef], lsn: Long)
+case class ProcessObservation(probeId: ProbeId, observation: Observation)
 
 /* */
 sealed trait CheckEvent
