@@ -1,11 +1,11 @@
-package io.mandelbrot.core.check
+package io.mandelbrot.core
 
-import akka.actor.{ActorLogging, Props, Actor, ActorRef}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import io.mandelbrot.core.agent.AgentOperation
+import io.mandelbrot.core.check.CheckOperation
 import io.mandelbrot.core.model.NotificationEvent
-
-import io.mandelbrot.core.registry.RegistryServiceOperation
 import io.mandelbrot.core.notification.NotificationServiceOperation
+import io.mandelbrot.core.registry.RegistryServiceOperation
 import io.mandelbrot.core.state.StateServiceOperation
 
 class TestServiceProxy(registryService: Option[ActorRef],

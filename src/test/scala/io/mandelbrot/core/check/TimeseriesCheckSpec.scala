@@ -34,7 +34,7 @@ import scala.math.BigDecimal
 import io.mandelbrot.core.metrics._
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.state._
-import io.mandelbrot.core.{ResourceNotFound, ApiException, AkkaConfig, Blackhole}
+import io.mandelbrot.core._
 import io.mandelbrot.core.ConfigConversions._
 
 class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {

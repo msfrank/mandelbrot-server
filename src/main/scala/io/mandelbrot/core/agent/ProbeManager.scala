@@ -71,7 +71,7 @@ object ProbeManager {
 case class SetGeneration(generation: Long)
 
 /* */
-sealed trait ProbeOperation extends ServiceOperation
+sealed trait ProbeOperation extends ServiceOperation { val probeRef: ProbeRef }
 sealed trait ProbeCommand extends ServiceCommand with ProbeOperation
 sealed trait ProbeQuery extends ServiceQuery with ProbeOperation
 sealed trait ProbeResult

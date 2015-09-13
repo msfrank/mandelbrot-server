@@ -22,7 +22,7 @@ package io.mandelbrot.core
 import java.net.URI
 
 import akka.actor._
-import io.mandelbrot.core.agent.{ReviveAgent, RegisterAgent, AgentOperation, Agent}
+import io.mandelbrot.core.agent._
 import io.mandelbrot.core.entity._
 import io.mandelbrot.core.model.{AgentId, NotificationEvent}
 import io.mandelbrot.core.notification._
@@ -45,6 +45,7 @@ class ServiceProxy extends Actor with ActorLogging {
   //
   val keyExtractor: EntityFunctions.KeyExtractor = {
     case op: CheckOperation => op.checkRef.agentId.toString
+    case op: ProbeOperation => op.probeRef.agentId.toString
     case op: AgentOperation => op.agentId.toString
   }
   val shardResolver: EntityFunctions.ShardResolver = {

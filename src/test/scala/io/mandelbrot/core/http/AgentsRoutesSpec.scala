@@ -42,7 +42,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
   val probes = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
   val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
   val checkId = CheckId("load")
-  val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("observation" -> "when load:load1 > 1"))
+  val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("evaluation" -> "probe:load:load1 > 1"))
   val checks = Map(checkId -> checkSpec)
   val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
   val agentPolicy = AgentPolicy(5.seconds)
@@ -159,9 +159,10 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, observation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + checkId.toString, observation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
+      Thread.sleep(1000)
       Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val checkStatus = responseAs[CheckStatus]
@@ -170,7 +171,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
     }
 
     "fail to submit an observation if the check doesn't exist" in withServiceProxy {
-      Post("/v2/agents/" + agent1 + "/checks/" + checkId, observation) ~> routes ~> check {
+      Post("/v2/agents/" + agent1 + "/probes/" + checkId, observation) ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
@@ -183,7 +184,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, observation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + checkId.toString, observation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
       Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString + "/condition") ~> routes ~> check {
@@ -200,7 +201,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, observation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + checkId.toString, observation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
       Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + CheckId("notfound") + "/condition") ~> routes ~> check {
@@ -213,7 +214,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, observation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + checkId.toString, observation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
       Get("/v2/agents/" + AgentId("notfound") + "/checks/" + CheckId("notfound") + "/condition") ~> routes ~> check {
@@ -229,7 +230,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, observation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + checkId.toString, observation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
       Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString + "/notifications") ~> routes ~> check {
@@ -244,7 +245,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, observation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + checkId.toString, observation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
       Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + CheckId("notfound") + "/notifications") ~> routes ~> check {
@@ -257,7 +258,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, observation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + checkId.toString, observation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
       Get("/v2/agents/" + AgentId("notfound") + "/checks/" + CheckId("notfound") + "/notifications") ~> routes ~> check {
@@ -273,7 +274,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, observation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + checkId.toString, observation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
       Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString + "/metrics") ~> routes ~> check {
@@ -288,7 +289,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, observation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + checkId.toString, observation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
       Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + CheckId("notfound") + "/metrics") ~> routes ~> check {
@@ -301,7 +302,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString, observation) ~> routes ~> check {
+      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + checkId.toString, observation) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
       }
       Get("/v2/agents/" + AgentId("notfound") + "/checks/" + CheckId("notfound") + "/metrics") ~> routes ~> check {

@@ -11,7 +11,7 @@ import scala.concurrent.duration._
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.metrics._
-import io.mandelbrot.core.{AkkaConfig, Blackhole}
+import io.mandelbrot.core.{TestServiceProxy, AkkaConfig, Blackhole}
 import io.mandelbrot.core.ConfigConversions._
 
 class CheckSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
