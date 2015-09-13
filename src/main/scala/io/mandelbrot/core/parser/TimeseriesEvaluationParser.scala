@@ -15,8 +15,20 @@ class TimeseriesEvaluationParser(globalOptions: EvaluationOptions) extends JavaT
 
   // holds application context each time the parser is run
   private class Context(defaultOptions: EvaluationOptions) {
+
+    var frameNumber = 0
     val optionsStack = new util.ArrayDeque[EvaluationOptions]()
-    def options(explicit: Option[EvaluationOptions] = None): EvaluationOptions = explicit.getOrElse {
+
+    def pushOptions(options: EvaluationOptions): Unit = {
+      optionsStack.push(options)
+      logger.debug(s"pushing $options onto frame $frameNumber")
+    }
+    def popOptions(): Unit = {
+      logger.debug(s"popping frame $frameNumber")
+      optionsStack.pop()
+    }
+
+    def getOptions(explicit: Option[EvaluationOptions] = None): EvaluationOptions = explicit.getOrElse {
       optionsStack.peek() match {
         case null => defaultOptions
         case topOfStack => topOfStack
@@ -26,7 +38,10 @@ class TimeseriesEvaluationParser(globalOptions: EvaluationOptions) extends JavaT
 
   val logger = LoggerFactory.getLogger(classOf[TimeseriesEvaluationParser])
 
-  /* shamelessly copied from Parsers.scala */
+  /**
+   * log runtime parsing information using a single Logger, to make it easier
+   * to control logging output.  shamelessly copied from Parsers.scala.
+   */
   def _log[T](p: => Parser[T])(name: String): Parser[T] = Parser { in =>
     logger.debug("trying " + name + " at "+ in)
     val r = p(in)
@@ -34,6 +49,21 @@ class TimeseriesEvaluationParser(globalOptions: EvaluationOptions) extends JavaT
     r
   }
 
+  /**
+   * track the group frame, for lazy resolution of evaluation options.
+   */
+  def setFrame[T](p: => Parser[T])(implicit context: Context) = Parser { in =>
+    context.frameNumber = context.frameNumber + 1
+    logger.info(s"entering frame ${context.frameNumber}")
+    val r = p(in)
+    logger.info(s"exiting frame ${context.frameNumber}")
+    context.frameNumber = context.frameNumber - 1
+    r
+  }
+
+  /*
+   *
+   */
   def wholeNumberValue: Parser[BigDecimal] = wholeNumber ^^ { case v => BigDecimal(v.toLong) }
   def floatingPointNumberValue: Parser[BigDecimal] = floatingPointNumber ^^ { case v => BigDecimal(v.toDouble) }
 
@@ -85,8 +115,9 @@ class TimeseriesEvaluationParser(globalOptions: EvaluationOptions) extends JavaT
   /*
    *
    */
-  def windowUnit: Parser[WindowUnit] = literal("SAMPLES") ^^ {
+  def windowUnit: Parser[WindowUnit] = (literal("SAMPLES") | literal("SAMPLE")) ^^ {
     case "SAMPLES" => WindowSamples
+    case "SAMPLE" => WindowSamples
   }
 
   def evaluationOptions: Parser[EvaluationOptions] = _log(literal("OVER") ~ wholeNumber ~ windowUnit)("evaluationOptions") ^^ {
@@ -106,17 +137,17 @@ class TimeseriesEvaluationParser(globalOptions: EvaluationOptions) extends JavaT
    */
   def minFunction(implicit context: Context): Parser[EvaluationExpression] = literal("MIN") ~ literal("(") ~ metricSource ~ literal(")") ~ valueComparison ~ options ^^ {
     case "MIN" ~ "(" ~ source ~ ")" ~ comparison ~ specifiedOptions =>
-      EvaluateMetric(source, MinFunction(comparison), context.options(specifiedOptions))
+      EvaluateMetric(source, MinFunction(comparison), specifiedOptions.getOrElse(LazyOptions))
   }
 
   def maxFunction(implicit context: Context): Parser[EvaluationExpression] = literal("MAX") ~ literal("(") ~ metricSource ~ literal(")") ~ valueComparison ~ options ^^ {
     case "MAX" ~ "(" ~ source ~ ")" ~ comparison ~ specifiedOptions =>
-      EvaluateMetric(source, MaxFunction(comparison), context.options(specifiedOptions))
+      EvaluateMetric(source, MaxFunction(comparison), context.getOptions(specifiedOptions))
   }
 
   def meanFunction(implicit context: Context): Parser[EvaluationExpression] = literal("AVG") ~ literal("(") ~ metricSource ~ literal(")") ~ valueComparison ~ options ^^ {
     case "AVG" ~ "(" ~ source ~ ")" ~ comparison ~ specifiedOptions =>
-      EvaluateMetric(source, MeanFunction(comparison), context.options(specifiedOptions))
+      EvaluateMetric(source, MeanFunction(comparison), context.getOptions(specifiedOptions))
   }
 
   def implicitFunction(implicit context: Context): Parser[EvaluationExpression] = metricSource ~ valueComparison ^^ {
@@ -134,13 +165,15 @@ class TimeseriesEvaluationParser(globalOptions: EvaluationOptions) extends JavaT
    * <Group>        ::= '(' <OrOperator> ')' [<EvaluationOptions>] | <Expression>
    */
 
-  def groupOperator(implicit context: Context): Parser[EvaluationExpression] = _log((literal("(") ~> orOperator <~ literal(")")) ~ options | evaluationExpression)("groupOperator") ^^ {
-    case (group: EvaluationExpression) => group
-    case (group: EvaluationExpression) ~ Some(options: EvaluationOptions) => group
-    case (group: EvaluationExpression) ~ None => group
+  def groupOperator(implicit context: Context): Parser[EvaluationExpression] = _log(setFrame((literal("(") ~> orOperator <~ literal(")")) ~ options))("groupOperator") ^^ {
+    case (expression: EvaluationExpression) ~ None => expression
+    case (expression: EvaluationExpression) ~ Some(options: EvaluationOptions) =>
+      TimeseriesEvaluationParser.resolveLazyOptions(expression, options)
   }
 
-  def notOperator(implicit context: Context): Parser[EvaluationExpression] = _log(("NOT" ~ notOperator) | groupOperator)("notOperator") ^^ {
+  def groupWrapper(implicit context: Context): Parser[EvaluationExpression] = groupOperator | evaluationExpression
+
+  def notOperator(implicit context: Context): Parser[EvaluationExpression] = _log(("NOT" ~ notOperator) | groupWrapper)("notOperator") ^^ {
     case "NOT" ~ (not: EvaluationExpression) => LogicalNot(not)
     case group: EvaluationExpression => group
   }
@@ -161,9 +194,13 @@ class TimeseriesEvaluationParser(globalOptions: EvaluationOptions) extends JavaT
       LogicalOr(and1 +: children)
   }
 
-  /* the entry point */
-  def timeseriesEvaluation(implicit context: Context): Parser[EvaluationExpression] = _log(orOperator)("timeseriesEvaluation")
+  /* the parser entry point */
+  def timeseriesEvaluation(implicit context: Context): Parser[EvaluationExpression] = _log(setFrame(orOperator))("timeseriesEvaluation")
 
+  /**
+   * Parse the specified input string, and return the in-memory representation
+   * of the evaluation expression.
+   */
   def parseTimeseriesEvaluation(input: String): TimeseriesEvaluation = {
     def entryPoint: Parser[EvaluationExpression] = {
       timeseriesEvaluation(new Context(globalOptions))
@@ -177,8 +214,39 @@ class TimeseriesEvaluationParser(globalOptions: EvaluationOptions) extends JavaT
 }
 
 object TimeseriesEvaluationParser {
+
   val globalOptions = EvaluationOptions(windowSize = 1, windowUnits = WindowSamples)
   val oneSampleOptions = EvaluationOptions(windowSize = 1, windowUnits = WindowSamples)
   val parser = new TimeseriesEvaluationParser(globalOptions)
+
+  /**
+   * Parse the specified input string, and return the in-memory representation
+   * of the evaluation expression.  uses the global default parser which is configured
+   * with default options.
+   */
   def parseTimeseriesEvaluation(input: String): TimeseriesEvaluation = parser.parseTimeseriesEvaluation(input)
-}
+
+  /**
+   *
+   */
+  def applyOptions(expression: EvaluationExpression, options: EvaluationOptions) = expression match {
+    case metric: EvaluateMetric =>
+      if (metric.options.equals(LazyOptions)) metric.copy(options = options) else metric
+    case group: LogicalGrouping =>
+      resolveLazyOptions(group, options)
+    case _: EvaluationExpression => expression   // just pass child through by default
+  }
+
+  /**
+   *
+   */
+  def resolveLazyOptions(expression: EvaluationExpression, options: EvaluationOptions): EvaluationExpression = expression match {
+    case and: LogicalAnd =>
+      and.copy(children = and.children.map(child => applyOptions(child, options)))
+    case or: LogicalOr =>
+      or.copy(children = or.children.map(child => applyOptions(child, options)))
+    case not: LogicalNot =>
+      not.copy(child = applyOptions(not.child, options))
+    case _ => applyOptions(expression, options)
+  }
+ }

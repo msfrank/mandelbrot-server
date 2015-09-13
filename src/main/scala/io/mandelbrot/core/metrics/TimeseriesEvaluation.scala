@@ -166,7 +166,7 @@ sealed trait EvaluationExpression {
   def sizing: Set[(ObservationSource,Int)]
 }
 
-case class EvaluateMetric(source: MetricSource, function: NumericWindowFunction, options: EvaluationOptions) extends EvaluationExpression {
+case class EvaluateMetric(source: MetricSource, function: NumericWindowFunction, options: WindowOptions) extends EvaluationExpression {
   def evaluate(timeseries: TimeseriesStore) = {
     val metricView = new TimeseriesMetricView(source, timeseries, options.windowSize)
     function.apply(metricView)
@@ -175,7 +175,11 @@ case class EvaluateMetric(source: MetricSource, function: NumericWindowFunction,
   def sizing = Set((source.toObservationSource,options.windowSize))
 }
 
-case class LogicalAnd(children: Vector[EvaluationExpression]) extends EvaluationExpression {
+sealed trait LogicalGrouping extends EvaluationExpression {
+  def children: Vector[EvaluationExpression]
+}
+
+case class LogicalAnd(children: Vector[EvaluationExpression]) extends LogicalGrouping {
   def evaluate(timeseries: TimeseriesStore): Option[Boolean] = {
     children.foreach {
       child => child.evaluate(timeseries) match {
@@ -190,7 +194,7 @@ case class LogicalAnd(children: Vector[EvaluationExpression]) extends Evaluation
   def sizing = children.flatMap(_.sizing).toSet
 }
 
-case class LogicalOr(children: Vector[EvaluationExpression]) extends EvaluationExpression {
+case class LogicalOr(children: Vector[EvaluationExpression]) extends LogicalGrouping {
   def evaluate(timeseries: TimeseriesStore): Option[Boolean] = {
     children.foreach {
       child => child.evaluate(timeseries) match {
@@ -205,11 +209,12 @@ case class LogicalOr(children: Vector[EvaluationExpression]) extends EvaluationE
   def sizing = children.flatMap(_.sizing).toSet
 }
 
-case class LogicalNot(child: EvaluationExpression) extends EvaluationExpression {
+case class LogicalNot(child: EvaluationExpression) extends LogicalGrouping {
   def evaluate(timeseries: TimeseriesStore): Option[Boolean] = child.evaluate(timeseries) match {
     case None => None
     case Some(result) => Some(!result)
   }
+  lazy val children: Vector[EvaluationExpression] = Vector(child)
   def sources = child.sources
   def sizing = child.sizing
 }
@@ -235,4 +240,13 @@ case object AlwaysUnknown extends EvaluationExpression {
 sealed trait WindowUnit
 case object WindowSamples extends WindowUnit
 
-case class EvaluationOptions(windowSize: Int, windowUnits: WindowUnit)
+sealed trait WindowOptions {
+  def windowSize: Int
+  def windowUnits: WindowUnit
+}
+case class EvaluationOptions(windowSize: Int, windowUnits: WindowUnit) extends WindowOptions
+
+case object LazyOptions extends WindowOptions {
+  def windowSize: Int = throw new IllegalAccessException()
+  def windowUnits: WindowUnit = throw new IllegalAccessException()
+}
