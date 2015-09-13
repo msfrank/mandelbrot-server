@@ -119,6 +119,8 @@ trait RegistrationOps extends Actor with ActorLogging {
       val CheckActor(_, _, actor) = checks(checkId)
       actor ! RetireCheck(lsn)
       retiredChecks.put(actor, (checkId,lsn))
+      // remove check from all subscriptions
+      observationBus.unsubscribe(self)
     }
 
     // create check actors for each added check
@@ -155,6 +157,8 @@ trait RegistrationOps extends Actor with ActorLogging {
         case None => false
       }}.map(childId => CheckRef(agentId, childId))
       actor ! ChangeCheck(checkSpec.checkType, checkSpec.policy, factory, directChildren, lsn)
+      // subscribe check actor to the observation bus
+      factory.observes().foreach(probeId => observationBus.subscribe(actor, probeId))
     }
   }
 }

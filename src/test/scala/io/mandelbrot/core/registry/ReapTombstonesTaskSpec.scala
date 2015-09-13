@@ -65,7 +65,7 @@ class ReapTombstonesTaskSpec(_system: ActorSystem) extends TestKit(_system) with
       expectMsgClass(classOf[RetireAgentResult])
 
       val olderThan = DateTime.now(DateTimeZone.UTC).plus(5000)
-      serviceProxy ! ListTombstones(olderThan = DateTime.now(DateTimeZone.UTC), limit = 100)
+      serviceProxy ! ListTombstones(olderThan, limit = 100)
       val listTombstonesResult = expectMsgClass(classOf[ListTombstonesResult])
       val tombstone = listTombstonesResult.tombstones.loneElement
       tombstone.agentId shouldEqual agentId

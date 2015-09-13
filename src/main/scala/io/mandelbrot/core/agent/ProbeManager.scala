@@ -8,7 +8,7 @@ import org.joda.time.DateTime
 import scala.concurrent.duration._
 
 import io.mandelbrot.core.model.{Observation, ProbeObservationPage, ProbeRef}
-import io.mandelbrot.core.state.{StateServiceOperationFailed, GetObservationHistoryResult, GetObservationHistory}
+import io.mandelbrot.core.state._
 import io.mandelbrot.core._
 
 /**
@@ -18,6 +18,7 @@ class ProbeManager(observationBus: ObservationBus, services: ActorRef) extends A
   import context.dispatcher
 
   // config
+  val publishTimeout = 3.seconds
   val queryTimeout = 1.second
 
   // state
@@ -40,13 +41,18 @@ class ProbeManager(observationBus: ObservationBus, services: ActorRef) extends A
 
   def running: Receive = {
 
-    /* */
+    /* record observation and publish to the bus */
     case op: ProcessProbeObservation =>
-      log.debug("received observation {} from {}", op.observation, sender())
-      observationBus.publish(ProcessObservation(op.probeRef.probeId, op.observation))
-      sender() ! ProcessProbeObservationResult(op)
+      services.ask(AppendObservation(op.probeRef, generation, op.observation, commitEpoch = true))(publishTimeout).map {
+        case result: AppendObservationResult =>
+          log.debug("publishing observation {}", op.observation)
+          observationBus.publish(ProcessObservation(op.probeRef.probeId, op.observation))
+          ProcessProbeObservationResult(op)
+        case failure: StateServiceOperationFailed =>
+          ProbeOperationFailed(op, failure.failure)
+      }.pipeTo(sender())
 
-    /* */
+    /* return observation history for the specified probe */
     case query: GetProbeObservations =>
       services.ask(GetObservationHistory(query.probeRef, generation, query.from, query.to, query.limit,
         query.fromInclusive, query.toExclusive, query.descending, query.last))(queryTimeout).map {

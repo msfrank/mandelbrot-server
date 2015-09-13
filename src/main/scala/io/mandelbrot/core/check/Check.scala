@@ -172,7 +172,6 @@ class Check(val checkRef: CheckRef,
   onTransition {
     case Configuring -> Running =>
       val state = stateData.asInstanceOf[Configuring]
-      state.change.factory.observes().foreach(probeId => observationBus.subscribe(self, probeId))
       unstashAll()
   }
 
@@ -340,8 +339,6 @@ class Check(val checkRef: CheckRef,
    * log messages in the debug log), and unsubscribe completely from the observation bus.
    */
   override def postStop(): Unit = {
-    // remove check from all subscriptions
-    observationBus.unsubscribe(self)
     // stop any timers which might still be running
     alertTimer.stop()
     commitTimer.stop()
