@@ -172,7 +172,7 @@ case class EvaluateMetric(source: MetricSource, function: NumericWindowFunction,
     function.apply(metricView)
   }
   def sources = Set(source.toObservationSource)
-  def sizing = Set((source.toObservationSource,options.windowSize))
+  def sizing = Set((source.toObservationSource, options.windowSize))
 }
 
 sealed trait LogicalGrouping extends EvaluationExpression {
