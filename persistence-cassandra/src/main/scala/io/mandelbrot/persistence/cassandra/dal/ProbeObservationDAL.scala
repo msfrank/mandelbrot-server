@@ -161,7 +161,7 @@ class ProbeObservationDAL(settings: CassandraStatePersisterSettings,
     val start = startClause(from, fromExclusive)
     val end = endClause(to, toInclusive)
     val ordering = if (descending) QueryBuilder.desc("timestamp") else QueryBuilder.asc("timestamp")
-    val select = QueryBuilder.select("metrics", "timestamp")
+    val select = QueryBuilder.select("observation")
       .from(tableName)
       .where(QueryBuilder.eq("probe_ref", probeRef.toString))
       .and(QueryBuilder.eq("generation", generation: java.lang.Long))

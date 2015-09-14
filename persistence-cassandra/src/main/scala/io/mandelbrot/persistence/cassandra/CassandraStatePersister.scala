@@ -25,7 +25,8 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
   def receive = {
 
     case op: AppendObservation =>
-      //
+      val props = AppendProbeObservationTask.props(op, sender(), probeObservationIndexDAL, probeObservationDAL)
+      context.actorOf(props)
 
     case op: GetStatus =>
       val props = InitializeCheckStatusTask.props(op, sender(), checkStatusIndexDAL, checkStatusDAL)
