@@ -1,14 +1,13 @@
 package io.mandelbrot.persistence.cassandra.task
 
 import akka.actor._
-import akka.actor.SupervisorStrategy.Stop
 import akka.actor.Status.Failure
 import akka.pattern.pipe
 
+import io.mandelbrot.persistence.cassandra._
+import io.mandelbrot.persistence.cassandra.dal._
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.{ApiException,InternalError}
-import io.mandelbrot.persistence.cassandra._
-import io.mandelbrot.persistence.cassandra.dal.{EpochList, CheckStatusIndexDAL, CheckStatusDAL}
 
 import scala.concurrent.Future
 
@@ -33,14 +32,14 @@ class DeleteCheckStatusTask(op: DeleteStatus,
   def receive = {
 
     /* all epochs have been deleted, now delete the index */
-    case EpochList(Nil) =>
+    case StatusEpochList(Nil) =>
       log.debug("deleting index for {}:{}", op.checkRef, op.generation)
       checkStatusIndexDAL.deleteIndex(op.checkRef, op.generation)
         .map(_ => DeletedIndex)
         .pipeTo(self)
 
     /* the next batch of epochs to delete */
-    case EpochList(epochs) =>
+    case StatusEpochList(epochs) =>
       val futures = epochs.map { epoch =>
         log.debug("deleting epoch {} for {}:{}", epoch, op.checkRef, op.generation)
         checkStatusDAL.deleteCheckStatus(op.checkRef, op.generation, epoch).map { _ => epoch }

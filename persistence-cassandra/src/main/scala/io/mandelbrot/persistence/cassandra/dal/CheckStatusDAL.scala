@@ -57,7 +57,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
       checkStatus.health, checkStatus.correlation, checkStatus.acknowledged, checkStatus.squelched)
     val _condition = checkCondition2string(condition)
     val _notifications = if (notifications.nonEmpty) checkNotifications2string(CheckNotifications(generation, checkStatus.timestamp, notifications)) else null
-    val _metrics = if (checkStatus.metrics.nonEmpty) checkMetrics2string(CheckMetrics(generation, checkStatus.timestamp, checkStatus.metrics)) else null
+    val _metrics = null
     val statement = new BoundStatement(preparedUpdateCheckStatus)
     statement.bind(_checkRef, _generation, _epoch, timestamp, lastUpdate, lastChange, _condition, _notifications, _metrics)
     executeAsync(statement).map { _ => Unit }
@@ -105,10 +105,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
           val lastUpdate = Option(row.getDate(1)).map(new DateTime(_, DateTimeZone.UTC))
           val lastChange = Option(row.getDate(2)).map(new DateTime(_, DateTimeZone.UTC))
           val condition = string2checkCondition(row.getString(3))
-          val metrics = Option(row.getString(4))
-            .map(string2checkMetrics)
-            .map(_.metrics)
-            .getOrElse(Map.empty[String,BigDecimal])
+          val metrics = Map.empty[String,BigDecimal]
           CheckStatus(generation, timestamp, condition.lifecycle, condition.summary, condition.health, metrics,
             lastUpdate, lastChange, condition.correlation, condition.acknowledged, condition.squelched)
         }
@@ -319,102 +316,6 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
     }
   }
 
-  private val preparedGetCheckMetrics = session.prepare(
-    s"""
-       |SELECT metrics
-       |FROM $tableName
-       |WHERE check_ref = ? AND generation = ? AND epoch = ? AND timestamp = ?
-     """.stripMargin)
-
-  def getCheckMetrics(checkRef: CheckRef,
-                      generation: Long,
-                      epoch: Long,
-                      timestamp: DateTime): Future[CheckMetrics] = {
-    val _checkRef = checkRef.toString
-    val _generation: java.lang.Long = generation
-    val _epoch: java.lang.Long = epoch
-    val _timestamp = timestamp.toDate
-    val statement = new BoundStatement(preparedGetCheckMetrics)
-    statement.bind(_checkRef, _generation, _epoch, _timestamp)
-    executeAsync(statement).map {
-      case resultSet =>
-        val row = resultSet.one()
-        if (row == null) throw ApiException(ResourceNotFound) else {
-          Option(row.getString(0))
-            .map(string2checkMetrics)
-            .getOrElse(CheckMetrics(generation, timestamp, Map.empty))
-        }
-    }
-  }
-
-  private val preparedGetCheckMetricsHistory = session.prepare(
-    s"""
-       |SELECT metrics, timestamp
-       |FROM $tableName
-       |WHERE check_ref = ? AND generation = ? AND epoch = ? AND timestamp >= ? AND timestamp < ?
-       |LIMIT ?
-     """.stripMargin)
-
-  def getCheckMetricsHistory(checkRef: CheckRef,
-                             generation: Long,
-                             epoch: Long,
-                             from: Option[DateTime],
-                             to: Option[DateTime],
-                             limit: Int): Future[CheckMetricsHistory] = {
-    val _checkRef = checkRef.toString
-    val _generation: java.lang.Long = generation
-    val _epoch: java.lang.Long = epoch
-    val start = from.map(_.toDate).getOrElse(EpochUtils.SMALLEST_DATE)
-    val end = to.map(_.toDate).getOrElse(EpochUtils.LARGEST_DATE)
-    val _limit: java.lang.Integer = limit
-    val statement = new BoundStatement(preparedGetCheckMetricsHistory)
-    statement.bind(_checkRef, _generation, _epoch, start, end, _limit)
-    statement.setFetchSize(limit)
-    executeAsync(statement).map { resultSet =>
-      val metrics = resultSet.all().map { row =>
-        Option(row.getString(0))
-          .map(string2checkMetrics)
-          .getOrElse(CheckMetrics(generation, date2JodaDateTime(row.getDate(1)), Map.empty))
-      }.toVector
-      CheckMetricsHistory(metrics)
-    }
-  }
-
-  /**
-   *
-   */
-  def getCheckMetricsHistory(checkRef: CheckRef,
-                             generation: Long,
-                             epoch: Long,
-                             from: Option[DateTime],
-                             to: Option[DateTime],
-                             limit: Int,
-                             fromExclusive: Boolean,
-                             toInclusive: Boolean,
-                             descending: Boolean): Future[CheckMetricsHistory] = {
-    val start = startClause(from, fromExclusive)
-    val end = endClause(to, toInclusive)
-    val ordering = if (descending) QueryBuilder.desc("timestamp") else QueryBuilder.asc("timestamp")
-    val select = QueryBuilder.select("metrics", "timestamp")
-      .from(tableName)
-      .where(QueryBuilder.eq("check_ref", checkRef.toString))
-        .and(QueryBuilder.eq("generation", generation: java.lang.Long))
-        .and(QueryBuilder.eq("epoch", epoch))
-        .and(start)
-        .and(end)
-      .orderBy(ordering)
-      .limit(limit)
-    select.setFetchSize(limit)
-    executeAsync(select).map { resultSet =>
-      val metrics = resultSet.all().map { row =>
-        Option(row.getString(0))
-          .map(string2checkMetrics)
-          .getOrElse(CheckMetrics(generation, date2JodaDateTime(row.getDate(1)), Map.empty))
-      }.toVector
-      CheckMetricsHistory(metrics)
-    }
-  }
-
   private val preparedGetFirstCheckStatus = session.prepare(
     s"""
        |SELECT timestamp, last_update, last_change, condition, metrics
@@ -438,10 +339,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
           val lastUpdate = Option(row.getDate(1)).map(new DateTime(_, DateTimeZone.UTC))
           val lastChange = Option(row.getDate(2)).map(new DateTime(_, DateTimeZone.UTC))
           val condition = string2checkCondition(row.getString(3))
-          val metrics = Option(row.getString(4))
-            .map(string2checkMetrics)
-            .map(_.metrics)
-            .getOrElse(Map.empty[String,BigDecimal])
+          val metrics = Map.empty[String,BigDecimal]
           CheckStatus(generation, timestamp, condition.lifecycle, condition.summary, condition.health, metrics,
             lastUpdate, lastChange, condition.correlation, condition.acknowledged, condition.squelched)
         }
@@ -471,10 +369,7 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
           val lastUpdate = Option(row.getDate(1)).map(new DateTime(_, DateTimeZone.UTC))
           val lastChange = Option(row.getDate(2)).map(new DateTime(_, DateTimeZone.UTC))
           val condition = string2checkCondition(row.getString(3))
-          val metrics = Option(row.getString(4))
-            .map(string2checkMetrics)
-            .map(_.metrics)
-            .getOrElse(Map.empty[String,BigDecimal])
+          val metrics = Map.empty[String,BigDecimal]
           CheckStatus(generation, timestamp, condition.lifecycle, condition.summary, condition.health, metrics,
             lastUpdate, lastChange, condition.correlation, condition.acknowledged, condition.squelched)
         }
@@ -508,13 +403,8 @@ class CheckStatusDAL(settings: CassandraStatePersisterSettings,
 
   def checkNotifications2string(notifications: CheckNotifications): String = notifications.toJson.prettyPrint
 
-  def string2checkMetrics(string: String): CheckMetrics = string.parseJson.convertTo[CheckMetrics]
-
-  def checkMetrics2string(metrics: CheckMetrics): String = metrics.toJson.prettyPrint
-
   def date2JodaDateTime(date: Date): DateTime = new DateTime(date, DateTimeZone.UTC)
 }
 
 case class CheckConditionHistory(conditions: Vector[CheckCondition])
 case class CheckNotificationsHistory(notifications: Vector[CheckNotifications])
-case class CheckMetricsHistory(metrics: Vector[CheckMetrics])

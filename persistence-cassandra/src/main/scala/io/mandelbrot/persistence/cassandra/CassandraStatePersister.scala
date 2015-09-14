@@ -6,10 +6,9 @@ import com.typesafe.config.Config
 import com.datastax.driver.core.exceptions._
 import org.joda.time.{DateTimeZone, DateTime}
 
-import io.mandelbrot.core._
-import io.mandelbrot.core.state._
-import io.mandelbrot.persistence.cassandra.dal.{CheckStatusIndexDAL, CheckStatusDAL}
+import io.mandelbrot.persistence.cassandra.dal._
 import io.mandelbrot.persistence.cassandra.task._
+import io.mandelbrot.core.state._
 
 /**
  *
@@ -20,8 +19,13 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
   val session = Cassandra(context.system).getSession
   val checkStatusIndexDAL = new CheckStatusIndexDAL(settings, session, context.dispatcher)
   val checkStatusDAL = new CheckStatusDAL(settings, session, context.dispatcher)
+  val probeObservationIndexDAL = new ProbeObservationIndexDAL(settings, session, context.dispatcher)
+  val probeObservationDAL = new ProbeObservationDAL(settings, session, context.dispatcher)
 
   def receive = {
+
+    case op: AppendObservation =>
+      //
 
     case op: GetStatus =>
       val props = InitializeCheckStatusTask.props(op, sender(), checkStatusIndexDAL, checkStatusDAL)
@@ -55,14 +59,9 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
       val props = GetCheckNotificationsTask.props(op, sender(), checkStatusIndexDAL, checkStatusDAL)
       context.actorOf(props)
 
-    /* retrieve the last metrics for the specified CheckRef */
-    case op: GetMetricsHistory if op.from.isEmpty && op.to.isEmpty =>
-      val props = LastCheckMetricsTask.props(op, sender(), checkStatusIndexDAL, checkStatusDAL)
-      context.actorOf(props)
-
     /* retrieve metrics history for the specified CheckRef */
-    case op: GetMetricsHistory =>
-      val props = GetCheckMetricsTask.props(op, sender(), checkStatusIndexDAL, checkStatusDAL)
+    case op: GetObservationHistory =>
+      val props = GetProbeObservationsTask.props(op, sender(), probeObservationIndexDAL, probeObservationDAL)
       context.actorOf(props)
   }
 

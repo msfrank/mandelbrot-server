@@ -5,11 +5,11 @@ import akka.actor.Status.Failure
 import akka.pattern.pipe
 import org.joda.time.{DateTime, DateTimeZone}
 
+import io.mandelbrot.persistence.cassandra._
+import io.mandelbrot.persistence.cassandra.dal._
 import io.mandelbrot.core.model.{CheckCondition, CheckConditionPage}
 import io.mandelbrot.core.state._
-import io.mandelbrot.core.{ApiException, InternalError, ResourceNotFound}
-import io.mandelbrot.persistence.cassandra._
-import io.mandelbrot.persistence.cassandra.dal.{EpochList, CheckStatusIndexDAL, CheckConditionHistory, CheckStatusDAL}
+import io.mandelbrot.core.{ApiException, ResourceNotFound}
 
 /**
  * Given a CheckRef, find the latest status.  Throw ResourceNotFound
@@ -46,7 +46,7 @@ class GetCheckConditionTask(op: GetConditionHistory,
   def receive = {
 
     /* there are no more epochs left to search */
-    case EpochList(Nil) =>
+    case StatusEpochList(Nil) =>
       if (conditions.isEmpty) {
         caller ! StateServiceOperationFailed(op, ApiException(ResourceNotFound))
       } else {
@@ -55,7 +55,7 @@ class GetCheckConditionTask(op: GetConditionHistory,
       context.stop(self)
 
     /* the list of epochs to search */
-    case epochList: EpochList =>
+    case epochList: StatusEpochList =>
       epochs = epochs ++ epochList.epochs
       epochsFound = epochsFound + epochList.epochs.length
       val epoch = epochs.head

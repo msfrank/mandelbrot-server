@@ -3,11 +3,12 @@ package io.mandelbrot.persistence.cassandra.task
 import akka.actor.Status.Failure
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.pattern.pipe
+
+import io.mandelbrot.persistence.cassandra.dal._
+import io.mandelbrot.persistence.cassandra.EpochUtils
 import io.mandelbrot.core.model.CheckStatus
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.{ApiException, ResourceNotFound}
-import io.mandelbrot.persistence.cassandra.dal.{EpochList, CheckStatusIndexDAL, CheckStatusDAL}
-import io.mandelbrot.persistence.cassandra.EpochUtils
 
 /**
  * Given a CheckRef, find the latest status.  Throw ResourceNotFound
@@ -27,19 +28,19 @@ class InitializeCheckStatusTask(op: GetStatus,
 
   override def preStart(): Unit = {
     checkStatusIndexDAL.getLastEpoch(op.checkRef, op.generation).map {
-      case epoch: Long => EpochList(List(epoch))
+      case epoch: Long => StatusEpochList(List(epoch))
     }.recover {
-      case ApiException(ResourceNotFound) => EpochList(List.empty)
+      case ApiException(ResourceNotFound) => StatusEpochList(List.empty)
     }.pipeTo(self)
   }
 
   def receive = {
 
-    case EpochList(Nil) =>
+    case StatusEpochList(Nil) =>
       caller ! GetStatusResult(op, None)
       context.stop(self)
 
-    case epochList: EpochList =>
+    case epochList: StatusEpochList =>
       val epoch = epochList.epochs.head
       epochs = epochList.epochs.tail
       checkStatusDAL.getLastCheckStatus(op.checkRef, op.generation, epoch).recover {

@@ -46,7 +46,7 @@ class CheckStatusIndexDALSpec(_system: ActorSystem) extends TestKit(_system) wit
       val session = Cassandra(system).getSession
       if (_dal == null)
         _dal = new CheckStatusIndexDAL(settings, session, system.dispatcher)
-      Await.result(_dal.flushCommittedIndex(), 5.seconds)
+      Await.result(_dal.flushIndex(), 5.seconds)
       testCode(session, _dal)
     }
 
