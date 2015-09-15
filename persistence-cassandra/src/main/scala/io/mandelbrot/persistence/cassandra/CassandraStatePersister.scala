@@ -60,7 +60,7 @@ class CassandraStatePersister(settings: CassandraStatePersisterSettings) extends
       val props = GetCheckNotificationsTask.props(op, sender(), checkStatusIndexDAL, checkStatusDAL)
       context.actorOf(props)
 
-    /* retrieve metrics history for the specified CheckRef */
+    /* retrieve observation history for the specified CheckRef */
     case op: GetObservationHistory =>
       val props = GetProbeObservationsTask.props(op, sender(), probeObservationIndexDAL, probeObservationDAL)
       context.actorOf(props)

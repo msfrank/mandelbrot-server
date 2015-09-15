@@ -33,14 +33,18 @@ class GetProbeObservationsTask(op: GetObservationHistory,
   // the number of epochs we have found in the index
   var epochsFound = 0
 
-  // the conditions we have found so far
+  // the observations we have found so far
   var observations: Vector[ProbeObservation] = Vector.empty
 
   override def preStart(): Unit = {
     val from = last.getOrElse(op.from.getOrElse(EpochUtils.SMALLEST_TIMESTAMP))
       .toDateMidnight.toDateTime(DateTimeZone.UTC)
     val to = op.to.getOrElse(EpochUtils.LARGEST_TIMESTAMP)
-    probeObservationIndexDAL.listEpochsInclusiveAscending(op.probeRef, op.generation, from, to, maxEpochs).pipeTo(self)
+    val f = if (op.descending)
+      probeObservationIndexDAL.listEpochsInclusiveDescending(op.probeRef, op.generation, from, to, maxEpochs)
+     else
+      probeObservationIndexDAL.listEpochsInclusiveAscending(op.probeRef, op.generation, from, to, maxEpochs)
+    f.pipeTo(self)
   }
 
   def receive = {
@@ -59,7 +63,7 @@ class GetProbeObservationsTask(op: GetObservationHistory,
       epochs = epochs ++ epochList.epochs
       epochsFound = epochsFound + epochList.epochs.length
       val epoch = epochs.head
-      val from = last.orElse(op.from).map(_.plus(1L))
+      val from = last.orElse(op.from).map(from => if (op.descending) from.minus(1L) else from.plus(1L))
       val limit = op.limit - observations.length
       probeObservationDAL.getProbeObservationHistory(op.probeRef, op.generation, epoch,
         from, op.to, limit, !op.fromInclusive, !op.toExclusive, op.descending).pipeTo(self)
@@ -70,10 +74,12 @@ class GetProbeObservationsTask(op: GetObservationHistory,
       epochs = epochs.tail
       // we haven't reached the request limit yet, and there are more epochs to search
       if (epochs.nonEmpty) {
-        val from = last.orElse(op.from).map(_.plus(1L))
         val limit = op.limit - observations.length
+        val (from: Option[DateTime],to: Option[DateTime]) = if (op.descending) {
+          (op.from, Some(observations.last.observation.timestamp.minus(1L)))
+        } else (Some(observations.last.observation.timestamp.plus(1L)), op.to)
         probeObservationDAL.getProbeObservationHistory(op.probeRef, op.generation, epochs.head,
-          from, op.to, limit, !op.fromInclusive, !op.toExclusive, op.descending).pipeTo(self)
+          from, to, limit, !op.fromInclusive, !op.toExclusive, op.descending).pipeTo(self)
       } else if (epochsFound < maxEpochs) {
         // we are confident we have read from all epochs, so this query is exhausted
         caller ! GetObservationHistoryResult(op, ProbeObservationPage(observations, last = None, exhausted = true))
@@ -100,10 +106,12 @@ class GetProbeObservationsTask(op: GetObservationHistory,
         // we can't distinguish a short count from exhausting the epoch, so get
         // from the epoch again and look for a zero count
         val epoch = epochs.head
-        val from = Some(observations.last.observation.timestamp.plus(1L))
         val limit = op.limit - observations.length
+        val (from: Option[DateTime],to: Option[DateTime]) = if (op.descending) {
+          (op.from, Some(observations.last.observation.timestamp.minus(1L)))
+        } else (Some(observations.last.observation.timestamp.plus(1L)), op.to)
         probeObservationDAL.getProbeObservationHistory(op.probeRef, op.generation, epoch,
-          from, op.to, limit, !op.fromInclusive, !op.toExclusive, op.descending).pipeTo(self)
+          from, to, limit, !op.fromInclusive, !op.toExclusive, op.descending).pipeTo(self)
       } else {
         // we have reached the request limit, so return what we've got
         observations = observations ++ history.observations.take(nleft)

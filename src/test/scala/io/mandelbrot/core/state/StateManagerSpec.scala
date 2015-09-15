@@ -139,8 +139,8 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
         val updateCheckStatusResult = expectMsgClass(classOf[UpdateStatusResult])
 
         stateService ! GetStatus(checkRef, generation)
-        val initializeCheckStatusResult2 = expectMsgClass(classOf[GetStatusResult])
-        inside(initializeCheckStatusResult2.status) {
+        val getCheckStatus = expectMsgClass(classOf[GetStatusResult])
+        inside(getCheckStatus.status) {
           case Some(initialStatus) =>
             initialStatus shouldEqual status1
         }
@@ -299,13 +299,22 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
         getObservationHistoryResult.failure shouldEqual ApiException(ResourceNotFound)
       }
 
-      "return the last observation as the only element in a page if timeseries parameters are not specified" in withTestData { stateService =>
+      "return observations from the beginning in ascending order if timeseries parameters are not specified" in withTestData { stateService =>
         stateService ! GetObservationHistory(probeRef, generation, None, None, 10)
         val getObservationHistoryResult = expectMsgClass(classOf[GetObservationHistoryResult])
+        getObservationHistoryResult.page.history shouldEqual Vector(observation1,
+          observation2, observation3, observation4, observation5)
         getObservationHistoryResult.page.last shouldEqual None
         getObservationHistoryResult.page.exhausted shouldEqual true
-        val observation = getObservationHistoryResult.page.history.loneElement
-        observation shouldEqual observation5
+      }
+
+      "return observations from the end in descending order if timeseries parameters are not specified and descending is true" in withTestData { stateService =>
+        stateService ! GetObservationHistory(probeRef, generation, None, None, 10, descending = true)
+        val getObservationHistoryResult = expectMsgClass(classOf[GetObservationHistoryResult])
+        getObservationHistoryResult.page.history shouldEqual Vector(observation5,
+          observation4, observation3, observation2, observation1)
+        getObservationHistoryResult.page.last shouldEqual None
+        getObservationHistoryResult.page.exhausted shouldEqual true
       }
 
       "return a page of observation history newer than 'from' when 'from' is specified" in withTestData { stateService =>

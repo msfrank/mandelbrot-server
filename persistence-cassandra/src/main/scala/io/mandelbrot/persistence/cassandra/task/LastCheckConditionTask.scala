@@ -15,9 +15,9 @@ import io.mandelbrot.persistence.cassandra.dal.{CheckStatusIndexDAL, CheckStatus
  * if the CheckRef doesn't exist.
  */
 class LastCheckConditionTask(op: GetConditionHistory,
-                              caller: ActorRef,
-                              checkStatusIndexDAL: CheckStatusIndexDAL,
-                              checkStatusDAL: CheckStatusDAL) extends Actor with ActorLogging {
+                             caller: ActorRef,
+                             checkStatusIndexDAL: CheckStatusIndexDAL,
+                             checkStatusDAL: CheckStatusDAL) extends Actor with ActorLogging {
 
   override def preStart(): Unit = {
     val initialize = GetStatus(op.checkRef, op.generation)
