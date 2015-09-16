@@ -12,7 +12,7 @@ case class AgentPolicy(retentionPeriod: FiniteDuration) extends RegistryModel
 case class AgentSpec(agentId: AgentId,
                      agentType: String,
                      policy: AgentPolicy,
-                     probes: Map[String,ProbeSpec],
+                     probes: Map[ProbeId,ProbeSpec],
                      checks: Map[CheckId,CheckSpec],
                      groups: Set[String] = Set.empty,
                      metadata: Map[String,String] = Map.empty) extends RegistryModel
@@ -31,7 +31,7 @@ case class CheckSpec(checkType: String,
                      metadata: Map[String,String] = Map.empty) extends RegistryModel
 
 /* */
-case class ProbePolicy(samplingPeriod: FiniteDuration)
+case class ProbePolicy(samplingRate: SamplingRate) extends RegistryModel
 
 /* probe specification */
 case class ProbeSpec(policy: ProbePolicy,

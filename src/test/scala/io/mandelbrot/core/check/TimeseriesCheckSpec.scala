@@ -50,7 +50,7 @@ class TimeseriesCheckSpec(_system: ActorSystem) extends TestKit(_system) with Im
   val blackhole = system.actorOf(Blackhole.props())
   val parser = TimeseriesEvaluationParser.parser
 
-  "A Check with metrics behavior" should {
+  "A Check with timeseries behavior" should {
 
     "transition to CheckKnown/CheckHealthy when a healthy MetricsMessage is received" in {
       val checkRef = CheckRef("foo.local:foo.check")

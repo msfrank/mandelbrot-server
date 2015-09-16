@@ -28,33 +28,33 @@ class RegistryManagerSpec(_system: ActorSystem) extends TestKit(_system) with Im
     registryService ! PoisonPill
   }
 
-  val probePolicy = ProbePolicy(1.minute)
+  val probePolicy = ProbePolicy(PerMinute)
   val checkPolicy = CheckPolicy(joiningTimeout = 1.minute, checkTimeout = 1.minute,
     alertTimeout = 1.minute, leavingTimeout = 1.minute, notifications = None)
   val agentPolicy = AgentPolicy(5.seconds)
 
   val agent1 = AgentId("test.registry.manager.1")
-  val probes1 = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
+  val probes1 = Map(ProbeId("load") -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
   val checks1 = Map(CheckId("check1") -> CheckSpec("check.type.test", checkPolicy, Map.empty, Map.empty))
   val registration1 = AgentSpec(agent1, "mandelbrot", agentPolicy, probes1, checks1)
 
   val agent2 = AgentId("test.registry.manager.2")
-  val probes2 = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
+  val probes2 = Map(ProbeId("load") -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
   val checks2 = Map(CheckId("check2") -> CheckSpec("check.type.test", checkPolicy, Map.empty, Map.empty))
   val registration2 = AgentSpec(agent2, "mandelbrot", agentPolicy, probes2, checks2)
 
   val agent3 = AgentId("test.registry.manager.3")
-  val probes3 = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
+  val probes3 = Map(ProbeId("load") -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
   val checks3 = Map(CheckId("check3") -> CheckSpec("check.type.test", checkPolicy, Map.empty, Map.empty))
   val registration3 = AgentSpec(agent3, "mandelbrot", agentPolicy, probes3, checks3)
 
   val agent4 = AgentId("test.registry.manager.4")
-  val probes4 = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
+  val probes4 = Map(ProbeId("load") -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
   val checks4 = Map(CheckId("check4") -> CheckSpec("check.type.test", checkPolicy, Map.empty, Map.empty))
   val registration4 = AgentSpec(agent4, "mandelbrot", agentPolicy, probes4, checks4)
 
   val agent5 = AgentId("test.registry.manager.5")
-  val probes5 = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
+  val probes5 = Map(ProbeId("load") -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
   val checks5 = Map(CheckId("check5") -> CheckSpec("check.type.test", checkPolicy, Map.empty, Map.empty))
   val registration5 = AgentSpec(agent5, "mandelbrot", agentPolicy, probes5, checks5)
 

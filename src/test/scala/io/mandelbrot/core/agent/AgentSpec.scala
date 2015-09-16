@@ -34,8 +34,8 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "register when it doesn't exist in the registry" in withServiceProxy { services =>
 
       val agentId = AgentId("test.1")
-      val probePolicy = ProbePolicy(1.minute)
-      val probes = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
+      val probePolicy = ProbePolicy(PerMinute)
+      val probes = Map(ProbeId("load") -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
       val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
       val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("evaluation" -> "probe:load:load1 > 1"))
       val checks = Map(CheckId("load") -> checkSpec)
@@ -52,8 +52,8 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "revive when it exists in the registry" in withServiceProxy { services =>
 
       val agentId = AgentId("test.2")
-      val probePolicy = ProbePolicy(1.minute)
-      val probes = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
+      val probePolicy = ProbePolicy(PerMinute)
+      val probes = Map(ProbeId("load") -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
       val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
       val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("evaluation" -> "probe:load:load1 > 1"))
       val checks = Map(CheckId("load") -> checkSpec)
@@ -78,8 +78,8 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "update checks when the registration changes" in withServiceProxy { services =>
 
       val agentId = AgentId("test.3")
-      val probePolicy = ProbePolicy(1.minute)
-      val probes = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
+      val probePolicy = ProbePolicy(PerMinute)
+      val probes = Map(ProbeId("load") -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
       val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
       val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("evaluation" -> "probe:load:load1 > 1"))
       val checks1 = Map(CheckId("check1") -> checkSpec)
@@ -105,8 +105,8 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
     "mark registration and stop checks when retiring" in withServiceProxy { services =>
 
       val agentId = AgentId("test.4")
-      val probePolicy = ProbePolicy(1.minute)
-      val probes = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
+      val probePolicy = ProbePolicy(PerMinute)
+      val probes = Map(ProbeId("load") -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
       val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
       val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("evaluation" -> "probe:load:load1 > 1"))
       val checks = Map(CheckId("check1") -> checkSpec)

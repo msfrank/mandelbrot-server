@@ -16,6 +16,7 @@ class TimeseriesWindow(size: Int) extends CircularBuffer[Observation](size)
 class TimeseriesStore {
 
   private val observations = new java.util.HashMap[ObservationSource, TimeseriesWindow]
+  private var tick: Option[SamplingRate] = None
 
   def append(source: ObservationSource, observation: Observation): Unit = {
     observations.get(source) match {
@@ -36,7 +37,13 @@ class TimeseriesStore {
 
   def windows(): Map[ObservationSource,TimeseriesWindow] = observations.toMap
 
+  private def calculateTick(): SamplingRate = PerMinute
+
+  /**
+   *
+   */
   def resize(evaluation: TimeseriesEvaluation): Unit = {
+    // add or update windows
     evaluation.sizing.foreach { case (source: ObservationSource, size: Int) =>
       observations.get(source) match {
         case null =>
@@ -47,5 +54,12 @@ class TimeseriesStore {
           window.resize(size)
       }
     }
+    // remove any unused windows
+    observations.foreach {
+      case (source: ObservationSource, window: TimeseriesWindow) =>
+        if (!evaluation.sources.contains(source))
+          observations.remove(source)
+    }
+    // recalculate the sampling rate tick
   }
 }

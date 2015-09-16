@@ -38,9 +38,9 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
     _serviceProxy ! PoisonPill
   }
 
-  val probePolicy = ProbePolicy(1.minute)
+  val probePolicy = ProbePolicy(PerMinute)
   val probeId = ProbeId("load")
-  val probes = Map("load" -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
+  val probes = Map(ProbeId("load") -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
   val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
   val checkId = CheckId("load")
   val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("evaluation" -> "probe:load:load1 > 1"))

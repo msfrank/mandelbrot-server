@@ -10,76 +10,76 @@ import io.mandelbrot.core.model._
 trait ConstantsProtocol extends DefaultJsonProtocol with StandardProtocol {
 
   /* convert CheckHealth class */
-  implicit object CheckHealthFormat extends RootJsonFormat[CheckHealth] {
-    def write(health: CheckHealth) = health match {
-      case CheckHealthy => JsString("healthy")
-      case CheckDegraded => JsString("degraded")
-      case CheckFailed => JsString("failed")
-      case CheckUnknown => JsString("unknown")
-      case unknown => throw new SerializationException("unknown CheckHealth state " + unknown.getClass)
-    }
+  implicit object CheckHealthFormat extends JsonFormat[CheckHealth] {
+    def write(health: CheckHealth) = JsString(health.name)
     def read(value: JsValue) = value match {
-      case JsString("healthy") => CheckHealthy
-      case JsString("degraded") => CheckDegraded
-      case JsString("failed") => CheckFailed
-      case JsString("unknown") => CheckUnknown
-      case unknown => throw new DeserializationException("unknown CheckHealth state " + unknown)
+      case JsString(CheckHealthy.name) => CheckHealthy
+      case JsString(CheckDegraded.name) => CheckDegraded
+      case JsString(CheckFailed.name) => CheckFailed
+      case JsString(CheckUnknown.name) => CheckUnknown
+      case unknown => throw new DeserializationException("expected CheckHealth")
     }
   }
 
   /* convert CheckLifecycle class */
-  implicit object CheckLifecycleFormat extends RootJsonFormat[CheckLifecycle] {
-    def write(lifecycle: CheckLifecycle) = lifecycle match {
-      case CheckInitializing => JsString("initializing")
-      case CheckJoining => JsString("joining")
-      case CheckKnown => JsString("known")
-      case CheckSynthetic => JsString("synthetic")
-      case CheckRetired => JsString("retired")
-      case unknown => throw new SerializationException("unknown CheckLifecycle state " + unknown.getClass)
-    }
+  implicit object CheckLifecycleFormat extends JsonFormat[CheckLifecycle] {
+    def write(lifecycle: CheckLifecycle) = JsString(lifecycle.name)
     def read(value: JsValue) = value match {
-      case JsString("initializing") => CheckInitializing
-      case JsString("joining") => CheckJoining
-      case JsString("known") => CheckKnown
-      case JsString("synthetic") => CheckSynthetic
-      case JsString("retired") => CheckRetired
-      case unknown => throw new DeserializationException("unknown CheckLifecycle state " + unknown)
+      case JsString(CheckInitializing.name) => CheckInitializing
+      case JsString(CheckJoining.name) => CheckJoining
+      case JsString(CheckKnown.name) => CheckKnown
+      case JsString(CheckSynthetic.name) => CheckSynthetic
+      case JsString(CheckRetired.name) => CheckRetired
+      case unknown => throw new DeserializationException("expected CheckLifecycle")
     }
   }
 
   /* convert SourceType class */
-  implicit object SourceTypeFormat extends RootJsonFormat[SourceType] {
-    def write(sourceType: SourceType) = JsString(sourceType.toString)
+  implicit object SourceTypeFormat extends JsonFormat[SourceType] {
+    def write(sourceType: SourceType) = JsString(sourceType.name)
     def read(value: JsValue) = value match {
-      case JsString("gauge") => GaugeSource
-      case JsString("counter") => CounterSource
+      case JsString(GaugeSource.name) => GaugeSource
+      case JsString(CounterSource.name) => CounterSource
       case _ => throw new DeserializationException("expected SourceType")
     }
   }
 
   /* convert MetricUnit class */
-  implicit object MetricUnitFormat extends RootJsonFormat[MetricUnit] {
+  implicit object MetricUnitFormat extends JsonFormat[MetricUnit] {
     def write(unit: MetricUnit) = JsString(unit.name)
     def read(value: JsValue) = value match {
-      case JsString("units") => Units
-      case JsString("operations") => Ops
-      case JsString("percent") => Percent
-      case JsString("years") => Years
-      case JsString("months") => Months
-      case JsString("weeks") => Weeks
-      case JsString("days") => Days
-      case JsString("hours") => Hours
-      case JsString("minutes") => Minutes
-      case JsString("seconds") => Seconds
-      case JsString("milliseconds") => Millis
-      case JsString("microseconds") => Micros
-      case JsString("bytes") => Bytes
-      case JsString("kilobytes") => KiloBytes
-      case JsString("megabytes") => MegaBytes
-      case JsString("gigabytes") => GigaBytes
-      case JsString("terabytes") => TeraBytes
-      case JsString("petabytes") => PetaBytes
+      case JsString(Units.name) => Units
+      case JsString(Ops.name) => Ops
+      case JsString(Percent.name) => Percent
+      case JsString(Years.name) => Years
+      case JsString(Months.name) => Months
+      case JsString(Weeks.name) => Weeks
+      case JsString(Days.name) => Days
+      case JsString(Hours.name) => Hours
+      case JsString(Minutes.name) => Minutes
+      case JsString(Seconds.name) => Seconds
+      case JsString(Millis.name) => Millis
+      case JsString(Micros.name) => Micros
+      case JsString(Bytes.name) => Bytes
+      case JsString(KiloBytes.name) => KiloBytes
+      case JsString(MegaBytes.name) => MegaBytes
+      case JsString(GigaBytes.name) => GigaBytes
+      case JsString(TeraBytes.name) => TeraBytes
+      case JsString(PetaBytes.name) => PetaBytes
       case _ => throw new DeserializationException("expected MetricUnit")
+    }
+  }
+
+  /* convert MetricUnit class */
+  implicit object SamplingRateFormat extends JsonFormat[SamplingRate] {
+    def write(samplingRate: SamplingRate) = JsString(samplingRate.name)
+    def read(value: JsValue) = value match {
+      case JsString(PerSecond.name) => PerSecond
+      case JsString(PerMinute.name) => PerMinute
+      case JsString(PerFiveMinutes.name) => PerFiveMinutes
+      case JsString(PerHour.name) => PerHour
+      case JsString(PerDay.name) => PerDay
+      case _ => throw new DeserializationException("expected SamplingRate")
     }
   }
 }

@@ -1,32 +1,33 @@
 package io.mandelbrot.core.model
 
-sealed trait ConstantsModel
+sealed trait ConstantsModel {
+  val name: String
+  override def toString = name
+}
 
 /* check lifecycle */
 sealed trait CheckLifecycle extends ConstantsModel
-case object CheckInitializing extends CheckLifecycle { override def toString = "initializing" }
-case object CheckJoining extends CheckLifecycle { override def toString = "joining" }
-case object CheckKnown extends CheckLifecycle   { override def toString = "known" }
-case object CheckSynthetic extends CheckLifecycle { override def toString = "synthetic" }
-case object CheckRetired extends CheckLifecycle { override def toString = "retired" }
+case object CheckInitializing extends CheckLifecycle  { val name = "initializing" }
+case object CheckJoining extends CheckLifecycle       { val name = "joining" }
+case object CheckKnown extends CheckLifecycle         { val name = "known" }
+case object CheckSynthetic extends CheckLifecycle     { val name = "synthetic" }
+case object CheckRetired extends CheckLifecycle       { val name = "retired" }
 
 /* check health */
 sealed trait CheckHealth extends ConstantsModel
-case object CheckHealthy extends CheckHealth  { override def toString = "healthy" }
-case object CheckDegraded extends CheckHealth { override def toString = "degraded" }
-case object CheckFailed extends CheckHealth   { override def toString = "failed" }
-case object CheckUnknown extends CheckHealth  { override def toString = "unknown" }
+case object CheckHealthy extends CheckHealth  { val name = "healthy" }
+case object CheckDegraded extends CheckHealth { val name = "degraded" }
+case object CheckFailed extends CheckHealth   { val name = "failed" }
+case object CheckUnknown extends CheckHealth  { val name = "unknown" }
 
 
 /* metric source type */
 sealed trait SourceType extends ConstantsModel
-case object GaugeSource extends SourceType    { override def toString = "gauge" }
-case object CounterSource extends SourceType  { override def toString = "counter" }
+case object GaugeSource extends SourceType    { val name = "gauge" }
+case object CounterSource extends SourceType  { val name = "counter" }
 
 /* */
-sealed trait MetricUnit extends ConstantsModel {
-  def name: String
-}
+sealed trait MetricUnit extends ConstantsModel
 
 /* no unit specified */
 case object Units extends MetricUnit   { val name = "units" }
@@ -51,3 +52,12 @@ case object MegaBytes extends MetricUnit  { val name = "megabytes" }
 case object GigaBytes extends MetricUnit  { val name = "gigabytes" }
 case object TeraBytes extends MetricUnit  { val name = "terabytes" }
 case object PetaBytes extends MetricUnit  { val name = "petabytes" }
+
+/* sampling rates */
+sealed trait SamplingRate extends ConstantsModel
+
+case object PerSecond extends SamplingRate      { val name = "1second" }
+case object PerMinute extends SamplingRate      { val name = "1minute" }
+case object PerFiveMinutes extends SamplingRate { val name = "5minutes" }
+case object PerHour extends SamplingRate        { val name = "1hour" }
+case object PerDay extends SamplingRate         { val name = "1day" }
