@@ -1,7 +1,8 @@
 package io.mandelbrot.core.model
 
-import org.joda.time.DateTime
 import java.util.UUID
+
+import org.joda.time.DateTime
 
 sealed trait StateModel
 

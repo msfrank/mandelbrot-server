@@ -1,6 +1,7 @@
 package io.mandelbrot.core.model
 
 import org.joda.time.DateTime
+
 import scala.concurrent.duration.FiniteDuration
 
 sealed trait RegistryModel

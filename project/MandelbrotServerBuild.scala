@@ -21,16 +21,45 @@ object MandelbrotServerBuild extends Build {
   val luceneVersion = "4.7.1"
   val slickVersion = "2.0.3"
   val datastaxVersion = "2.1.6"
+  val jodaTimeVersion = "2.2"
+  val jodaConvertVersion = "1.3.1"
   val scalatestVersion = "2.2.5"
 
   val commonScalacOptions = Seq("-feature", "-deprecation")
   val commonJavacOptions = Seq("-source", "1.8")
 
-  lazy val mandelbrotCore = (project in file("."))
+  /**
+   *
+   */
+  lazy val coreModel = (project in file("core-model"))
+    .settings(
+
+      name := "mandelbrot-core-model",
+      version := mandelbrotVersion,
+
+      scalaVersion := scalaLangVersion,
+      scalacOptions ++= commonScalacOptions,
+      javacOptions ++= commonJavacOptions,
+      exportJars := true,
+
+      libraryDependencies ++= Seq(
+        "joda-time" % "joda-time" % jodaTimeVersion,
+        "org.joda" % "joda-convert" % jodaConvertVersion,
+        "org.scalatest" %% "scalatest" % scalatestVersion % "test"
+      ),
+
+      // enable parallel tests
+      parallelExecution in Test := true
+  )
+
+  /**
+   *
+   */
+  lazy val coreServer = (project in file("."))
     .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
     .settings(
 
-      name := "mandelbrot-core",
+      name := "mandelbrot-core-server",
       version := mandelbrotVersion,
 
       scalaVersion := scalaLangVersion,
@@ -65,8 +94,11 @@ object MandelbrotServerBuild extends Build {
       // don't run tests when building assembly jar
       test in assembly := {}
 
-    )
+    ).dependsOn(coreModel % "compile->compile;test->test")
 
+  /**
+   *
+   */
   lazy val cassandraServer = (project in file("persistence-cassandra"))
     .enablePlugins(JavaAppPackaging)
     .settings(assemblySettings: _*)
@@ -106,7 +138,7 @@ object MandelbrotServerBuild extends Build {
         case otherwise => (assemblyMergeStrategy in assembly).value(otherwise)
       }
 
-  ).dependsOn(mandelbrotCore % "compile->compile;test->test")
+  ).dependsOn(coreServer % "compile->compile;test->test")
 
 //  lazy val slickServer = (project in file("persistence-slick"))
 //    .enablePlugins(JavaAppPackaging)
@@ -135,7 +167,7 @@ object MandelbrotServerBuild extends Build {
 //      // don't run tests when building assembly jar
 //      test in assembly := {}
 //
-//  ).dependsOn(mandelbrotCore)
+//  ).dependsOn(coreServer)
 
   lazy val integrationTests = (project in file("integration-tests"))
     .settings(SbtMultiJvm.multiJvmSettings: _*)
@@ -178,7 +210,7 @@ object MandelbrotServerBuild extends Build {
               testResults.summaries ++ multiJvmResults.summaries)
         }
 
-  ).dependsOn(mandelbrotCore % "compile->compile;test->test")
+  ).dependsOn(coreServer % "compile->compile;test->test")
    .configs(MultiJvm)
 
 }

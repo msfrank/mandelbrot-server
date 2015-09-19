@@ -19,8 +19,6 @@
 
 package io.mandelbrot.core.metrics
 
-import scala.math.BigDecimal
-
 import io.mandelbrot.core.model._
 
 /**
@@ -36,7 +34,6 @@ class TimeseriesEvaluation(val expression: EvaluationExpression, input: String) 
   def evaluate(timeseries: TimeseriesStore): Option[Boolean] = expression.evaluate(timeseries)
   override def toString = input
 }
-
 
 sealed trait WindowUnit
 case object WindowSamples extends WindowUnit
