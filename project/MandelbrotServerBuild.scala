@@ -15,14 +15,13 @@ object MandelbrotServerBuild extends Build {
 
   val scalaLangVersion = "2.11.7"
   val scalaParsersVersion = "1.0.3"
-  val akkaVersion = "2.3.12"
+  val akkaVersion = "2.3.14"
   val sprayVersion = "1.3.3"
   val sprayJsonVersion = "1.3.1"
-  val luceneVersion = "4.7.1"
   val slickVersion = "2.0.3"
-  val datastaxVersion = "2.1.6"
-  val jodaTimeVersion = "2.2"
-  val jodaConvertVersion = "1.3.1"
+  val datastaxVersion = "2.1.7"
+  val jodaTimeVersion = "2.8.2"
+  val jodaConvertVersion = "1.7"
   val scalatestVersion = "2.2.5"
 
   val commonScalacOptions = Seq("-feature", "-deprecation")
