@@ -24,6 +24,9 @@ object MandelbrotServerBuild extends Build {
   val jodaConvertVersion = "1.7"
   val scalatestVersion = "2.2.5"
 
+  val mandelbrotOrganization = "io.mandelbrot"
+  val mandelbrotHomepage = new URL("https://github.com/msfrank/mandelbrot-server")
+
   val commonScalacOptions = Seq("-feature", "-deprecation")
   val commonJavacOptions = Seq("-source", "1.8")
 
@@ -35,6 +38,8 @@ object MandelbrotServerBuild extends Build {
 
       name := "mandelbrot-core-model",
       version := mandelbrotVersion,
+      organization := mandelbrotOrganization,
+      organizationHomepage := Some(mandelbrotHomepage),
 
       scalaVersion := scalaLangVersion,
       scalacOptions ++= commonScalacOptions,
@@ -48,7 +53,10 @@ object MandelbrotServerBuild extends Build {
       ),
 
       // enable parallel tests
-      parallelExecution in Test := true
+      parallelExecution in Test := true,
+
+      // publish in the Maven style, with a pom.xml
+      publishMavenStyle := true
   )
 
   /**
@@ -60,6 +68,8 @@ object MandelbrotServerBuild extends Build {
 
       name := "mandelbrot-core-server",
       version := mandelbrotVersion,
+      organization := mandelbrotOrganization,
+      organizationHomepage := Some(mandelbrotHomepage),
 
       scalaVersion := scalaLangVersion,
       scalacOptions ++= commonScalacOptions,
@@ -91,7 +101,10 @@ object MandelbrotServerBuild extends Build {
       parallelExecution in Test := false,
 
       // don't run tests when building assembly jar
-      test in assembly := {}
+      test in assembly := {},
+
+      // publish in the Maven style, with a pom.xml
+      publishMavenStyle := true
 
     ).dependsOn(coreModel % "compile->compile;test->test")
 
@@ -106,6 +119,8 @@ object MandelbrotServerBuild extends Build {
 
       name := "mandelbrot-server-cassandra",
       version := mandelbrotVersion,
+      organization := mandelbrotOrganization,
+      organizationHomepage := Some(mandelbrotHomepage),
 
       scalaVersion := scalaLangVersion,
       scalacOptions ++= commonScalacOptions,
@@ -135,7 +150,10 @@ object MandelbrotServerBuild extends Build {
         case PathList("META-INF", "maven", xs @_*) => MergeStrategy.discard
         // use the default for anything else
         case otherwise => (assemblyMergeStrategy in assembly).value(otherwise)
-      }
+      },
+
+      // publish in the Maven style, with a pom.xml
+      publishMavenStyle := true
 
   ).dependsOn(coreServer % "compile->compile;test->test")
 
@@ -174,6 +192,8 @@ object MandelbrotServerBuild extends Build {
 
       name := "integration-tests",
       version := mandelbrotVersion,
+      organization := mandelbrotOrganization,
+      organizationHomepage := Some(mandelbrotHomepage),
 
       scalaVersion := scalaLangVersion,
       scalacOptions ++= commonScalacOptions,
