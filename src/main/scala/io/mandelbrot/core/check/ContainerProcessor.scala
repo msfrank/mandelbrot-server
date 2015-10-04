@@ -20,7 +20,7 @@
 package io.mandelbrot.core.check
 
 import org.joda.time.{DateTimeZone, DateTime}
-import scala.util.{Try, Failure}
+import scala.concurrent.duration._
 
 import io.mandelbrot.core.{BadRequest, ApiException}
 import io.mandelbrot.core.model._
@@ -49,7 +49,7 @@ class ContainerProcessor(settings: ContainerCheckSettings) extends BehaviorProce
           lastUpdate = Some(timestamp), lastChange = Some(timestamp))
       case Some(_status) => _status
     }
-    ConfigureEffect(initial, Vector.empty, Set.empty)
+    ConfigureEffect(initial, Vector.empty, Set.empty, 5.minutes)
   }
 
   def processObservation(check: AccessorOps, probeId: ProbeId, observation: Observation): Option[EventEffect] = None
@@ -58,7 +58,7 @@ class ContainerProcessor(settings: ContainerCheckSettings) extends BehaviorProce
 
   def processExpiryTimeout(check: AccessorOps): Option[EventEffect] = None
 
-  def processAlertTimeout(check: AccessorOps): Option[EventEffect] = None
+  def processTick(check: AccessorOps): Option[EventEffect] = None
 
 
 }

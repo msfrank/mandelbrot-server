@@ -1,7 +1,7 @@
 package io.mandelbrot.core.check
 
 import org.joda.time.{DateTimeZone, DateTime}
-import scala.util.{Failure, Try}
+import scala.concurrent.duration._
 
 import io.mandelbrot.core.model._
 
@@ -19,16 +19,14 @@ class TestProcessor(val properties: Map[String,String]) extends BehaviorProcesso
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val initial = status.getOrElse(CheckStatus(generation, timestamp, CheckKnown, None, CheckUnknown, Map.empty, Some(timestamp),
       Some(timestamp), None, None, squelched = false))
-    ConfigureEffect(initial, Vector.empty, children)
+    ConfigureEffect(initial, Vector.empty, children, 1.minute)
   }
 
   def processObservation(check: AccessorOps, probeId: ProbeId, observation: Observation): Option[EventEffect] = None
 
   def processChild(check: AccessorOps, child: CheckRef, status: CheckStatus): Option[EventEffect] = None
 
-  def processExpiryTimeout(check: AccessorOps): Option[EventEffect] = None
-
-  def processAlertTimeout(check: AccessorOps): Option[EventEffect] = None
+  def processTick(check: AccessorOps): Option[EventEffect] = None
 }
 
 class TestBehavior extends CheckBehaviorExtension {
@@ -54,16 +52,14 @@ class TestProcessorChange(val properties: Map[String,String]) extends BehaviorPr
     val timestamp = DateTime.now(DateTimeZone.UTC)
     val initial = status.getOrElse(CheckStatus(generation, timestamp, CheckKnown, None, CheckUnknown, Map.empty, Some(timestamp),
       Some(timestamp), None, None, squelched = false))
-    ConfigureEffect(initial, Vector.empty, children)
+    ConfigureEffect(initial, Vector.empty, children, 1.minute)
   }
 
   def processObservation(check: AccessorOps, probeId: ProbeId, observation: Observation): Option[EventEffect] = None
 
   def processChild(check: AccessorOps, child: CheckRef, status: CheckStatus): Option[EventEffect] = None
 
-  def processExpiryTimeout(check: AccessorOps): Option[EventEffect] = None
-
-  def processAlertTimeout(check: AccessorOps): Option[EventEffect] = None
+  def processTick(check: AccessorOps): Option[EventEffect] = None
 }
 
 class TestChangeBehavior extends CheckBehaviorExtension {

@@ -21,6 +21,16 @@ object Timestamp {
   }
 
   /**
+   *
+   */
+  val SMALLEST_TIMESTAMP: Timestamp = new TimestampImpl(new DateTime(0, DateTimeZone.UTC))
+
+  /**
+   *
+   */
+  val LARGEST_TIMESTAMP: Timestamp = new TimestampImpl(new DateTime(3000, 1, 1, 0, 0, DateTimeZone.UTC))
+
+  /**
    * returns a new Timestamp marking the current time.
    */
   def apply(): Timestamp = new TimestampImpl(DateTime.now(DateTimeZone.UTC))

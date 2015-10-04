@@ -17,9 +17,6 @@ trait MutationOps extends AccessorOps {
 
   implicit def log: LoggingAdapter
 
-  val expiryTimer: Timer
-  val alertTimer: Timer
-
   def generation: Long
   def children: Set[CheckRef]
   def policy: CheckPolicy
@@ -61,46 +58,6 @@ trait MutationOps extends AccessorOps {
     _correlationId = status.correlation
     _acknowledgementId = status.acknowledged
     _squelch = status.squelched
-  }
-
-  /**
-   * apply the updated status to the check, and update alert and expiry
-   * timers as necessary.
-   */
-  def updateStatus(status: CheckStatus): Unit = {
-    // we don't alert if lifecycle is not known or synthetic
-    if (status.lifecycle != CheckKnown && status.lifecycle != CheckSynthetic) {
-      alertTimer.stop()
-    }
-    // if health transitions from unhealthy to healthy, then stop the alert timer
-    else if (health != CheckHealthy && status.health == CheckHealthy) {
-      alertTimer.stop()
-    }
-    // if health is acknowledged, then stop the alert timer
-    else if (status.acknowledged.nonEmpty) {
-      alertTimer.stop()
-    }
-    // if unhealthy and the alert timer is not running, then start the alert timer
-    else if (health != CheckHealthy && !alertTimer.isRunning) {
-      alertTimer.start(policy.alertTimeout)
-    }
-    log.debug("alert timer => {}", alertTimer)
-    status.lifecycle match {
-      // if lifecycle is initializing or synthetic, then stop the expiry timer
-      case CheckInitializing | CheckSynthetic =>
-        expiryTimer.stop()
-      // if lifecycle is joining, start the expiry timer using joining timeout
-      case CheckJoining =>
-        expiryTimer.restart(policy.joiningTimeout)
-      // if lifecycle is known, start the expiry timer using check timeout
-      case CheckKnown =>
-        expiryTimer.restart(policy.checkTimeout)
-      // if lifecycle is retired, start the expiry timer using leaving timeout
-      case CheckRetired =>
-        expiryTimer.restart(policy.leavingTimeout)
-    }
-    log.debug("expiry timer => {}", expiryTimer)
-    applyStatus(status)
     log.debug("applied:\n\n    {}\n", status)
   }
 

@@ -20,6 +20,7 @@
 package io.mandelbrot.core.check
 
 import org.joda.time.{DateTimeZone, DateTime}
+import scala.concurrent.duration.FiniteDuration
 import scala.util.{Success, Failure, Try}
 import java.util.UUID
 
@@ -58,20 +59,14 @@ trait BehaviorProcessor {
   /**
    *
    */
-  def processAlertTimeout(check: AccessorOps): Option[EventEffect]
-
-  /**
-   *
-   */
-  def processExpiryTimeout(check: AccessorOps): Option[EventEffect]
+  def processTick(check: AccessorOps): Option[EventEffect]
 
   /**
    *
    */
   def processEvent(check: AccessorOps, message: Any): Option[EventEffect] = message match {
     case ChildMutates(child, status) => processChild(check, child, status)
-    case CheckAlertTimeout => processAlertTimeout(check)
-    case CheckExpiryTimeout => processExpiryTimeout(check)
+    case NextTick => processTick(check)
     case _ => throw new IllegalArgumentException()
   }
 
@@ -147,7 +142,8 @@ sealed trait CheckEffect
 case class InitializeEffect(initializers: Map[ObservationSource,CheckInitializer]) extends CheckEffect
 case class ConfigureEffect(status: CheckStatus,
                            notifications: Vector[CheckNotification],
-                           children: Set[CheckRef]) extends CheckEffect
+                           children: Set[CheckRef],
+                           tick: FiniteDuration) extends CheckEffect
 case class CommandEffect(result: CheckResult,
                          status: CheckStatus,
                          notifications: Vector[CheckNotification]) extends CheckEffect

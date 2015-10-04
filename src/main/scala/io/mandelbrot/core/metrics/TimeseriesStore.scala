@@ -1,9 +1,10 @@
 package io.mandelbrot.core.metrics
 
+import scala.collection.JavaConversions._
+import scala.concurrent.duration._
+
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.util.CircularBuffer
-
-import scala.collection.JavaConversions._
 
 /**
  * A window of timeseries data.
@@ -13,11 +14,17 @@ class TimeseriesWindow(size: Int) extends CircularBuffer[Observation](size)
 /**
  * 
  */
-class TimeseriesStore {
+class TimeseriesStore(initial: TimeseriesEvaluation) {
 
   private val observations = new java.util.HashMap[ObservationSource, TimeseriesWindow]
-  private var tick: Option[SamplingRate] = None
+  private var _tick: FiniteDuration = null
 
+  // create the initial set of windows, and calculate the tick
+  resize(initial)
+
+  /**
+   *
+   */
   def append(source: ObservationSource, observation: Observation): Unit = {
     observations.get(source) match {
       case null =>  // do nothing
@@ -37,7 +44,7 @@ class TimeseriesStore {
 
   def windows(): Map[ObservationSource,TimeseriesWindow] = observations.toMap
 
-  private def calculateTick(): SamplingRate = PerMinute
+  def tick(): FiniteDuration = _tick
 
   /**
    *
@@ -61,5 +68,12 @@ class TimeseriesStore {
           observations.remove(source)
     }
     // recalculate the sampling rate tick
+    // FIXME: do the actual calculation based on window configuration
+    _tick = TimeseriesStore.tick1minute
   }
+}
+
+object TimeseriesStore {
+  val tick1minute = 1.minute
+  val tick5minute = 5.minutes
 }

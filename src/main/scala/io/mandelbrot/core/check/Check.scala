@@ -56,8 +56,7 @@ class Check(val checkRef: CheckRef,
   var children: Set[CheckRef] = null
   var lastCommitted: Option[DateTime] = None
   val commitTimer = new Timer(context, self, CheckCommitTimeout)
-  val expiryTimer = new Timer(context, self, CheckExpiryTimeout)
-  val alertTimer = new Timer(context, self, CheckAlertTimeout)
+  val tickTimer = new Timer(context, self, NextTick)
 
   startWith(Incubating, NoData)
 
@@ -101,7 +100,7 @@ class Check(val checkRef: CheckRef,
       val effect = state.proposed.configure(checkRef, generation, initialize.status,
         initialize.observations, state.change.children)
       val op = UpdateStatus(checkRef, effect.status, effect.notifications, commitEpoch = true)
-      goto(Configuring) using Configuring(state.change, state.proposed, op)
+      goto(Configuring) using Configuring(state.change, state.proposed, effect.tick, op)
 
     /* timed out waiting for initialization from state service */
     case Event(CheckCommitTimeout, state: Initializing) =>
@@ -144,7 +143,7 @@ class Check(val checkRef: CheckRef,
       processor = state.proposed
       policy = state.change.policy
       children = state.change.children
-      updateStatus(status)
+      applyStatus(status)
       parent ! ChildMutates(checkRef, status)
       notify(state.inflight.notifications)
       lastCommitted = Some(status.timestamp)
@@ -171,8 +170,9 @@ class Check(val checkRef: CheckRef,
 
   onTransition {
     case Configuring -> Running =>
-      val state = stateData.asInstanceOf[Configuring]
       unstashAll()
+      val state = stateData.asInstanceOf[Configuring]
+      tickTimer.start(state.tick)
   }
 
   /*
@@ -233,14 +233,9 @@ class Check(val checkRef: CheckRef,
       if (children.contains(event.checkRef)) { enqueue(QueuedEvent(event, now())) }
       stay()
 
-    /* process alert timeout and update state */
-    case Event(CheckAlertTimeout, NoData) =>
-      enqueue(QueuedEvent(CheckAlertTimeout, now()))
-      stay()
-
-    /* process expiry timeout and update state */
-    case Event(CheckExpiryTimeout, NoData) =>
-      enqueue(QueuedEvent(CheckExpiryTimeout, now()))
+    /* process tick */
+    case Event(NextTick, NoData) =>
+      enqueue(QueuedEvent(NextTick, now()))
       stay()
 
     /* process check commands */
@@ -340,9 +335,8 @@ class Check(val checkRef: CheckRef,
    */
   override def postStop(): Unit = {
     // stop any timers which might still be running
-    alertTimer.stop()
     commitTimer.stop()
-    expiryTimer.stop()
+    tickTimer.stop()
   }
 
   initialize()
@@ -369,7 +363,7 @@ object Check {
 
   sealed trait Data
   case class Initializing(change: ChangeCheck, proposed: BehaviorProcessor) extends Data
-  case class Configuring(change: ChangeCheck, proposed: BehaviorProcessor, inflight: UpdateStatus) extends Data
+  case class Configuring(change: ChangeCheck, proposed: BehaviorProcessor, tick: FiniteDuration, inflight: UpdateStatus) extends Data
   case class Changing(pending: ChangeCheck) extends Data
   case class Retiring(lsn: Long) extends Data
   case class Retired(lsn: Long) extends Data
@@ -385,8 +379,7 @@ case class ProcessObservation(probeId: ProbeId, observation: Observation)
 sealed trait CheckEvent
 case class ChildMutates(checkRef: CheckRef, status: CheckStatus) extends CheckEvent
 case object CheckCommitTimeout extends CheckEvent
-case object CheckAlertTimeout extends CheckEvent
-case object CheckExpiryTimeout extends CheckEvent
+case object NextTick extends CheckEvent
 
 /* */
 sealed trait CheckOperation extends ServiceOperation { val checkRef: CheckRef }

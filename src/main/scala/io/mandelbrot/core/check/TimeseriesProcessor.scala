@@ -20,6 +20,7 @@
 package io.mandelbrot.core.check
 
 import io.mandelbrot.core.parser.TimeseriesEvaluationParser
+import io.mandelbrot.core.util.Timestamp
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.util.{Success, Try}
 import java.util.UUID
@@ -35,10 +36,8 @@ case class TimeseriesCheckSettings(evaluation: TimeseriesEvaluation)
 class TimeseriesProcessor(settings: TimeseriesCheckSettings) extends BehaviorProcessor {
 
   val evaluation = settings.evaluation
-  val timeseriesStore = new TimeseriesStore()
-
-  // size the store
-  timeseriesStore.resize(settings.evaluation)
+  val timeseriesStore = new TimeseriesStore(evaluation)
+  val tick = timeseriesStore.tick()
 
   /**
    *
@@ -46,7 +45,7 @@ class TimeseriesProcessor(settings: TimeseriesCheckSettings) extends BehaviorPro
   def initialize(checkRef: CheckRef, generation: Long): InitializeEffect = {
     val initializers: Map[ObservationSource,CheckInitializer] = timeseriesStore.windows().map {
       case (source: ObservationSource,window) => source -> CheckInitializer(from = Some(new DateTime(0)),
-        to = Some(new DateTime(java.lang.Long.MAX_VALUE)), limit = window.size, fromInclusive = true,
+        to = Some(Timestamp.LARGEST_TIMESTAMP.toDateTime), limit = window.size, fromInclusive = true,
         toExclusive = false, descending = true)
     }.toMap
     InitializeEffect(initializers)
@@ -70,7 +69,7 @@ class TimeseriesProcessor(settings: TimeseriesCheckSettings) extends BehaviorPro
           lastUpdate = Some(timestamp), lastChange = Some(timestamp))
       case Some(_status) => _status
     }
-    ConfigureEffect(initial, Vector.empty, Set.empty)
+    ConfigureEffect(initial, Vector.empty, Set.empty, tick)
   }
 
   /**
@@ -143,41 +142,9 @@ class TimeseriesProcessor(settings: TimeseriesCheckSettings) extends BehaviorPro
   def processChild(check: AccessorOps, child: CheckRef, status: CheckStatus): Option[EventEffect] = None
 
   /*
-   * if we haven't received a status message within the current expiry window, then update check
-   * state and send notifications.  check health becomes unknown, and correlation is set if it is
-   * different from the current correlation.  we restart the expiry timer, and we start the alert
-   * timer if it is not already running.
+   *
    */
-  def processExpiryTimeout(check: AccessorOps) = {
-    val timestamp = DateTime.now(DateTimeZone.UTC)
-    val correlationId = if (check.correlationId.isDefined) check.correlationId else Some(UUID.randomUUID())
-    // update health
-    val health = CheckUnknown
-    val lastChange = if (check.health == health) check.lastChange else {
-      Some(timestamp)
-    }
-    val status = check.getCheckStatus(timestamp).copy(health = health, lastChange = lastChange, correlation = correlationId)
-    // append health notification
-    val notifications = if (health != check.health) {
-      Vector(NotifyHealthChanges(check.checkRef, timestamp, check.correlationId, check.health, health))
-    } else {
-      Vector(NotifyHealthExpires(check.checkRef, timestamp, check.correlationId))
-    }
-    Some(EventEffect(status, notifications))
-  }
-
-  /*
-   * if the alert timer expires, then send a health-alerts notification and restart the alert timer.
-   */
-  def processAlertTimeout(check: AccessorOps): Option[EventEffect] = {
-    val timestamp = DateTime.now(DateTimeZone.UTC)
-    val status = check.getCheckStatus(timestamp)
-    // send alert notification
-    val notifications = check.correlationId.map { correlation =>
-      NotifyHealthAlerts(check.checkRef, timestamp, check.health, correlation, check.acknowledgementId)
-    }.toVector
-    Some(EventEffect(status, notifications))
-  }
+  def processTick(check: AccessorOps): Option[EventEffect] = None
 }
 
 class TimeseriesCheck extends CheckBehaviorExtension {

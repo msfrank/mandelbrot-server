@@ -108,18 +108,18 @@ trait ProcessingOps extends Actor with MutationOps {
       case None => Vector.empty
 
       case Some(event: EventMutation) =>
-        updateStatus(event.status)
+        applyStatus(event.status)
         parent ! ChildMutates(checkRef, event.status)
         notify(event.notifications)
 
       case Some(command: CommandMutation) =>
-        updateStatus(command.status)
+        applyStatus(command.status)
         parent ! ChildMutates(checkRef, command.status)
         command.caller ! command.result
         notify(command.notifications)
 
       case Some(deletion: Deletion) =>
-        updateStatus(deletion.status)
+        applyStatus(deletion.status)
         parent ! ChildMutates(checkRef, deletion.status)
         notify(deletion.notifications)
     }
