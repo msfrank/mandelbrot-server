@@ -9,7 +9,7 @@ import org.joda.time.{DateTime, DateTimeZone}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.collection.JavaConversions._
 
-import io.mandelbrot.core.http.json.JsonProtocol._
+import io.mandelbrot.core.model.json.JsonProtocol._
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.{ApiException, ResourceNotFound}
 import io.mandelbrot.persistence.cassandra.{EpochUtils, CassandraStatePersisterSettings}

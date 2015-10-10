@@ -24,7 +24,7 @@ import spray.httpx.SprayJsonSupport._
 
 import io.mandelbrot.core._
 import io.mandelbrot.core.entity._
-import io.mandelbrot.core.http.json._
+import io.mandelbrot.core.model.json._
 
 /**
  * ShardsRoutes contains all HTTP routes for interacting with cluster shards.

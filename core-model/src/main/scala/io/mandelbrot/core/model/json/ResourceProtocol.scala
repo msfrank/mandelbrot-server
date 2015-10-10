@@ -1,4 +1,4 @@
-package io.mandelbrot.core.http.json
+package io.mandelbrot.core.model.json
 
 import spray.json._
 

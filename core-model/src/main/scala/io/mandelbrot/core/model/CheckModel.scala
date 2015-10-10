@@ -2,10 +2,10 @@ package io.mandelbrot.core.model
 
 import java.util.regex.Pattern
 
-sealed trait SystemModel
+sealed trait CheckModel
 
 /* key-value pairs describing a check */
-case class CheckMetadata(checkRef: CheckRef, metadata: Map[String,String]) extends SystemModel
+case class CheckMetadata(checkRef: CheckRef, metadata: Map[String,String]) extends CheckModel
 
 sealed trait CheckMatcher {
   def matches(checkId: CheckId): Boolean

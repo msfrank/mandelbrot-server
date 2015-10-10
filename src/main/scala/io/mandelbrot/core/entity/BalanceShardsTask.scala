@@ -20,11 +20,11 @@
 package io.mandelbrot.core.entity
 
 import akka.actor._
-import io.mandelbrot.core.{RetryLater, ApiException}
 import scala.concurrent.duration._
 import scala.collection.mutable
 
-import BalanceShardsTask.{State, Data}
+import io.mandelbrot.core.model._
+import io.mandelbrot.core.{RetryLater, ApiException}
 
 /**
  * The BalanceShardsTask is responsible for keeping the shard map healthy.  this consists
@@ -34,7 +34,8 @@ import BalanceShardsTask.{State, Data}
  *   3) ensure that shards are equally balanced across the cluster when members leave the cluster.
  *   4) ensure that shards are redistributed when members get too hot or cold.
  */
-class BalanceShardsTask(services: ActorRef, monitor: ActorRef, nodes: Map[Address,ActorPath], totalShards: Int) extends LoggingFSM[State,Data] {
+class BalanceShardsTask(services: ActorRef, monitor: ActorRef, nodes: Map[Address,ActorPath], totalShards: Int)
+extends LoggingFSM[BalanceShardsTask.State,BalanceShardsTask.Data] {
   import BalanceShardsTask._
 
   // config

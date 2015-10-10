@@ -17,14 +17,12 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.http.json
+package io.mandelbrot.core.model.json
 
 import spray.json._
-import org.joda.time.{DateTimeZone, DateTime}
 import java.util.UUID
 
 import io.mandelbrot.core.model._
-import io.mandelbrot.core.notification._
 
 /**
  *

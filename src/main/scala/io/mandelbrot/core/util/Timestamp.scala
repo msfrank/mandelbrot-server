@@ -8,7 +8,6 @@ import org.joda.time.{DateMidnight, DateTimeZone, DateTime}
 trait Timestamp extends Any {
   def toDateTime: DateTime
   def toMillis: Long
-  def toDateMidnight: DateMidnight
 }
 
 object Timestamp {
@@ -16,7 +15,6 @@ object Timestamp {
   /* implements the Timestamp universal trait */
   private[this] class TimestampImpl(val value: DateTime) extends AnyVal with Timestamp {
     def toDateTime: DateTime = value
-    def toDateMidnight: DateMidnight = value.toDateMidnight
     def toMillis: Long = value.getMillis
   }
 

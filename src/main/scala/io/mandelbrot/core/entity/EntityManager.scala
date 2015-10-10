@@ -1,8 +1,8 @@
 package io.mandelbrot.core.entity
 
 import akka.actor.{Address, Props}
-import akka.cluster.{UniqueAddress, MemberStatus}
 
+import io.mandelbrot.core.model._
 import io.mandelbrot.core.{ServiceQuery, ServiceCommand, ServiceOperationFailed, ServiceOperation}
 import io.mandelbrot.core.entity.EntityFunctions.{EntityReviver, PropsCreator}
 
@@ -20,9 +20,6 @@ object EntityManager {
 
 case class Shard(shardId: Int, address: Address)
 case class Entity(shardId: Int, entityKey: String)
-case class NodeStatus(address: Address, uid: Int, status: MemberStatus, roles: Set[String])
-case class ClusterStatus(nodes: Vector[NodeStatus], leader: Option[Address], unreachable: Set[Address])
-case class ShardMapStatus(shards: Set[ShardEntry], totalShards: Int)
 
 sealed trait EntityServiceOperation extends ServiceOperation
 sealed trait EntityServiceCommand extends ServiceCommand with EntityServiceOperation

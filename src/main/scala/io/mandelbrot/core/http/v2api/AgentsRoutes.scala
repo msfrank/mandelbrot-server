@@ -19,6 +19,8 @@
 
 package io.mandelbrot.core.http.v2api
 
+import java.util.UUID
+
 import akka.pattern.ask
 import spray.http.HttpHeaders.Location
 import spray.http._
@@ -28,7 +30,7 @@ import spray.json._
 import io.mandelbrot.core._
 import io.mandelbrot.core.agent._
 import io.mandelbrot.core.check._
-import io.mandelbrot.core.http.json._
+import io.mandelbrot.core.model.json._
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.registry._
 
@@ -183,10 +185,10 @@ trait AgentsRoutes extends ApiService {
         } ~
         path("acknowledge") {
           /* acknowledge an unhealthy check */
-          post {
-            entity(as[AcknowledgeCheck]) { case command: AcknowledgeCheck =>
+          get {
+            parameter('correlationId.as(SerializedUUID)) { case correlationId: UUID =>
             complete {
-              serviceProxy.ask(command).map {
+              serviceProxy.ask(AcknowledgeCheck(CheckRef(agentId, checkId), correlationId)).map {
                 case result: AcknowledgeCheckResult =>
                   result.condition
                 case failure: ServiceOperationFailed =>
@@ -197,10 +199,10 @@ trait AgentsRoutes extends ApiService {
         } ~
         path("unacknowledge") {
           /* acknowledge an unhealthy check */
-          post {
-            entity(as[UnacknowledgeCheck]) { case command: UnacknowledgeCheck =>
+          get {
+            parameter('acknowledgementId.as(SerializedUUID)) { case acknowledgementId: UUID =>
             complete {
-              serviceProxy.ask(command).map {
+              serviceProxy.ask(UnacknowledgeCheck(CheckRef(agentId, checkId), acknowledgementId)).map {
                 case result: UnacknowledgeCheckResult =>
                   result.condition
                 case failure: ServiceOperationFailed =>
@@ -212,9 +214,9 @@ trait AgentsRoutes extends ApiService {
         path("squelch") {
           /* enable/disable check notifications */
           post {
-            entity(as[SetCheckSquelch]) { case command: SetCheckSquelch =>
+            parameter('squelch.as[Boolean]) { case squelch: Boolean =>
             complete {
-              serviceProxy.ask(command).map {
+              serviceProxy.ask(SetCheckSquelch(CheckRef(agentId, checkId), squelch)).map {
                 case result: SetCheckSquelchResult =>
                   result.condition
                 case failure: ServiceOperationFailed =>

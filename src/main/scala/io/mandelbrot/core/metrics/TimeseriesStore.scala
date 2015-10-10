@@ -7,6 +7,11 @@ import io.mandelbrot.core.model._
 import io.mandelbrot.core.util.CircularBuffer
 
 /**
+ *
+ */
+case class TickObservation(tick: Tick, observation: Observation)
+
+/**
  * A window of timeseries data.
  */
 class TimeseriesWindow(size: Int) extends CircularBuffer[Observation](size)

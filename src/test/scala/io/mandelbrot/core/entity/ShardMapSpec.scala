@@ -4,6 +4,8 @@ import akka.actor.Address
 import org.scalatest.WordSpec
 import org.scalatest.ShouldMatchers
 
+import io.mandelbrot.core.model._
+
 class ShardMapSpec extends WordSpec with ShouldMatchers {
 
   "A ShardMap" should {

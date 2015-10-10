@@ -15,7 +15,7 @@ import scala.concurrent.duration._
 
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.registry._
-import io.mandelbrot.core.http.json.JsonProtocol._
+import io.mandelbrot.core.model.json.JsonProtocol._
 import io.mandelbrot.core.http.v2api.V2Api
 import io.mandelbrot.core.{ServerConfig, MandelbrotConfig, ServiceProxy, AkkaConfig}
 import io.mandelbrot.core.ConfigConversions._

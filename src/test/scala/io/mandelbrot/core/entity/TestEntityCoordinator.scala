@@ -4,9 +4,10 @@ import java.util
 
 import akka.actor._
 import com.typesafe.config.Config
-import io.mandelbrot.core.{ApiException, Conflict, ResourceNotFound}
-
 import scala.collection.JavaConversions._
+
+import io.mandelbrot.core.model._
+import io.mandelbrot.core.{ApiException, Conflict, ResourceNotFound}
 
 class TestEntityCoordinator(settings: TestEntityCoordinatorSettings) extends Actor with ActorLogging {
 

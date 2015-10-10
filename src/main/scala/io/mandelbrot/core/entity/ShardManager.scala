@@ -25,6 +25,7 @@ import akka.contrib.pattern.DistributedPubSubMediator.SendToAll
 import scala.concurrent.duration._
 import java.util
 
+import io.mandelbrot.core.model._
 import io.mandelbrot.core.entity.EntityFunctions.{PropsCreator,EntityReviver}
 import io.mandelbrot.core._
 

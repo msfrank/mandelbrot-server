@@ -2,6 +2,8 @@ package io.mandelbrot.core.entity
 
 import akka.testkit.{TestProbe, ImplicitSender}
 
+import io.mandelbrot.core.model._
+
 class BalanceShardsTaskSpecMultiJvmNode1 extends BalanceShardsTaskSpec
 class BalanceShardsTaskSpecMultiJvmNode2 extends BalanceShardsTaskSpec
 class BalanceShardsTaskSpecMultiJvmNode3 extends BalanceShardsTaskSpec

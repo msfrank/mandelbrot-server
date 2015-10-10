@@ -1,4 +1,4 @@
-package io.mandelbrot.core.http.json
+package io.mandelbrot.core.model.json
 
 import spray.json.DefaultJsonProtocol
 
@@ -10,4 +10,4 @@ with MetricsProtocol
 with NotificationProtocol
 with RegistryProtocol
 with StateProtocol
-with SystemProtocol
+with CheckProtocol

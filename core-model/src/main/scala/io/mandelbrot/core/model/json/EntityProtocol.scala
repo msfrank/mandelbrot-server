@@ -17,12 +17,13 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.http.json
+package io.mandelbrot.core.model.json
 
 import akka.actor.{Address, AddressFromURIString}
 import akka.cluster.MemberStatus
-import io.mandelbrot.core.entity._
 import spray.json._
+
+import io.mandelbrot.core.model._
 
 /**
  *

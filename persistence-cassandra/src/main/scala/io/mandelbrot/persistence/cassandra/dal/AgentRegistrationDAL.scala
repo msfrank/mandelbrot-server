@@ -10,7 +10,7 @@ import scala.concurrent.{Future, ExecutionContext}
 import scala.collection.JavaConversions._
 
 import io.mandelbrot.core.model.{GenerationLsn, AgentMetadata, AgentId, AgentSpec}
-import io.mandelbrot.core.http.json.JsonProtocol._
+import io.mandelbrot.core.model.json.JsonProtocol._
 import io.mandelbrot.core.registry.{GetRegistration, GetRegistrationResult}
 import io.mandelbrot.persistence.cassandra.CassandraRegistryPersisterSettings
 import io.mandelbrot.core.{ResourceNotFound, ApiException}

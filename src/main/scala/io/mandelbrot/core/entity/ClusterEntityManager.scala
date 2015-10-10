@@ -25,6 +25,7 @@ import akka.contrib.pattern.DistributedPubSubMediator
 
 import io.mandelbrot.core._
 import io.mandelbrot.core.entity.EntityFunctions.{EntityReviver, PropsCreator}
+import io.mandelbrot.core.model._
 
 /**
  * 

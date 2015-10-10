@@ -22,6 +22,9 @@ object MandelbrotServerBuild extends Build {
   val datastaxVersion = "2.1.7"
   val jodaTimeVersion = "2.8.2"
   val jodaConvertVersion = "1.7"
+  val javaxMailVersion = "1.4.7"
+  val slf4jApiVersion = "1.7.12"
+  val logbackVersion = "1.1.3"
   val scalatestVersion = "2.2.5"
 
   val mandelbrotOrganization = "io.mandelbrot"
@@ -47,8 +50,12 @@ object MandelbrotServerBuild extends Build {
       exportJars := true,
 
       libraryDependencies ++= Seq(
+        "com.typesafe.akka" %% "akka-actor" % akkaVersion,
+        "com.typesafe.akka" %% "akka-cluster" % akkaVersion,
         "joda-time" % "joda-time" % jodaTimeVersion,
         "org.joda" % "joda-convert" % jodaConvertVersion,
+        "io.spray" %% "spray-can" % sprayVersion,
+        "io.spray" %% "spray-json" % sprayJsonVersion,
         "org.scalatest" %% "scalatest" % scalatestVersion % "test"
       ),
 
@@ -87,11 +94,11 @@ object MandelbrotServerBuild extends Build {
         "io.spray" %% "spray-can" % sprayVersion,
         "io.spray" %% "spray-routing" % sprayVersion,
         "io.spray" %% "spray-json" % sprayJsonVersion,
-        "javax.mail" % "mail" % "1.4.7",
-        "joda-time" % "joda-time" % "2.2",
-        "org.joda" % "joda-convert" % "1.3.1",
-        "org.slf4j" % "slf4j-api" % "1.7.5",
-        "ch.qos.logback" % "logback-classic" % "1.1.2",
+        "javax.mail" % "mail" % javaxMailVersion,
+        "joda-time" % "joda-time" % jodaTimeVersion,
+        "org.joda" % "joda-convert" % jodaConvertVersion,
+        "org.slf4j" % "slf4j-api" % slf4jApiVersion,
+        "ch.qos.logback" % "logback-classic" % logbackVersion,
         "org.scalatest" %% "scalatest" % scalatestVersion % "test",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
         "io.spray" %% "spray-testkit" % sprayVersion % "test"

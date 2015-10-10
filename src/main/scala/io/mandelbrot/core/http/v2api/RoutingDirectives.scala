@@ -19,17 +19,21 @@
 
 package io.mandelbrot.core.http.v2api
 
+import java.util.UUID
+
 import akka.actor.{Address, AddressFromURIString}
-import io.mandelbrot.core.model.{ProbeId, AgentId, CheckId}
-import io.mandelbrot.core.{ApiException, BadRequest}
 import org.joda.time.format.ISODateTimeFormat
 import org.joda.time.{DateTime, DateTimeZone}
 import shapeless.HNil
 import spray.http.Uri.Path
 import spray.http.{HttpHeader, HttpHeaders}
+import spray.httpx.unmarshalling.{MalformedContent, FromStringDeserializer}
 import spray.routing.PathMatcher.{Matched, Unmatched}
 import spray.routing.PathMatcher1
 import spray.util.SSLSessionInfo
+
+import io.mandelbrot.core.model.{ProbeId, AgentId, CheckId}
+import io.mandelbrot.core.{ApiException, BadRequest}
 
 /**
  * RoutingDirectives contains spray directives for simplifying the parsing
@@ -109,6 +113,15 @@ object RoutingDirectives {
     case _ => None
   }
   val sslSessionInfo: Directive1[Option[SSLSessionInfo]] = optionalHeaderValue(extractSSLSessionInfo)
+}
+
+object SerializedUUID extends FromStringDeserializer[UUID] {
+  def apply(value: String) = {
+    try Right(UUID.fromString(value))
+    catch {
+      case ex: Throwable => Left(MalformedContent("'%s' is not a valid UUID".format(value), ex))
+    }
+  }
 }
 
 /**

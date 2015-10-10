@@ -21,6 +21,8 @@ package io.mandelbrot.core.entity
 
 import akka.actor.Address
 
+import io.mandelbrot.core.model._
+
 /**
  * The ShardMap contains the current mapping of each shard to and address.  Each
  * shard can be in one of four states:
@@ -192,34 +194,4 @@ class ShardMap(totalShards: Int) {
 
 object ShardMap {
   def apply(totalShards: Int) = new ShardMap(totalShards)
-}
-
-/**
- *
- */
-abstract class ShardEntry(_address: Option[Address]) {
-  val shardId: Int
-  def isEmpty = _address.isEmpty
-  def isDefined = _address.isDefined
-}
-
-trait DefinedShardEntry {
-  val shardId: Int
-  val address: Address
-}
-
-case class AssignedShardEntry(shardId: Int, address: Address) extends ShardEntry(Some(address)) with DefinedShardEntry {
-  override def toString = "Shard(%d assigned to %s)".format(shardId, address)
-}
-
-case class PreparingShardEntry(shardId: Int, address: Address) extends ShardEntry(Some(address)) with DefinedShardEntry {
-  override def toString = "Shard(%d preparing for %s)".format(shardId, address)
-}
-
-case class MigratingShardEntry(shardId: Int, address: Address) extends ShardEntry(Some(address)) with DefinedShardEntry {
-  override def toString = "Shard(%d migrating to %s)".format(shardId, address)
-}
-
-case class MissingShardEntry(shardId: Int) extends ShardEntry(None) {
-  override def toString = "Shard(%d missing)".format(shardId)
 }

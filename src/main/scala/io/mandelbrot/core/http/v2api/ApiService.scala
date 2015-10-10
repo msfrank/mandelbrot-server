@@ -26,7 +26,7 @@ import akka.event.LoggingAdapter
 import akka.util.Timeout
 import io.mandelbrot.core._
 import io.mandelbrot.core.http.HttpSettings
-import io.mandelbrot.core.http.json.JsonBody
+import io.mandelbrot.core.model.json.JsonBody
 import spray.http._
 import spray.json._
 import spray.routing.AuthenticationFailedRejection.{CredentialsRejected, CredentialsMissing}

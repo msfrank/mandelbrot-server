@@ -17,15 +17,11 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.http.json
+package io.mandelbrot.core.model.json
 
-import io.mandelbrot.core.agent.{UpdateAgent, RegisterAgent}
-import io.mandelbrot.core.parser.TimeseriesEvaluationParser
 import spray.json._
 
-import io.mandelbrot.core.metrics._
 import io.mandelbrot.core.model._
-import io.mandelbrot.core.check._
 
 /**
  *
@@ -57,14 +53,14 @@ trait RegistryProtocol extends DefaultJsonProtocol with ConstantsProtocol with R
   implicit val AgentMetadataFormat = jsonFormat5(AgentMetadata)
 
   /* convert MetricsEvaluation class */
-  implicit object TimeseriesEvaluationFormat extends RootJsonFormat[TimeseriesEvaluation] {
-    val parser = TimeseriesEvaluationParser.parser
-    def write(evaluation: TimeseriesEvaluation) = JsString(evaluation.toString)
-    def read(value: JsValue) = value match {
-      case JsString(string) => parser.parseTimeseriesEvaluation(string)
-      case _ => throw new DeserializationException("expected MetricsEvaluation")
-    }
-  }
+//  implicit object TimeseriesEvaluationFormat extends RootJsonFormat[TimeseriesEvaluation] {
+//    val parser = TimeseriesEvaluationParser.parser
+//    def write(evaluation: TimeseriesEvaluation) = JsString(evaluation.toString)
+//    def read(value: JsValue) = value match {
+//      case JsString(string) => parser.parseTimeseriesEvaluation(string)
+//      case _ => throw new DeserializationException("expected MetricsEvaluation")
+//    }
+//  }
 
   /* convert MetadataPage class */
   implicit val MetadataPageFormat = jsonFormat3(MetadataPage)
@@ -74,10 +70,4 @@ trait RegistryProtocol extends DefaultJsonProtocol with ConstantsProtocol with R
 
   /* convert GroupsPage class */
   implicit val GroupsPageFormat = jsonFormat3(GroupsPage)
-
-  /* register agent command */
-  implicit val RegisterAgentFormat = jsonFormat2(RegisterAgent)
-
-  /* update agent command */
-  implicit val UpdateAgentFormat = jsonFormat2(UpdateAgent)
 }
