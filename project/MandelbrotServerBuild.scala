@@ -20,6 +20,7 @@ object MandelbrotServerBuild extends Build {
   val sprayJsonVersion = "1.3.1"
   val slickVersion = "2.0.3"
   val datastaxVersion = "2.1.7"
+  val kafkaVersion = "0.8.2.2"
   val jodaTimeVersion = "2.8.2"
   val jodaConvertVersion = "1.7"
   val javaxMailVersion = "1.4.7"
@@ -136,6 +137,7 @@ object MandelbrotServerBuild extends Build {
 
       libraryDependencies ++= Seq(
         "com.datastax.cassandra" % "cassandra-driver-core" % datastaxVersion,
+        "org.apache.kafka" % "kafka-clients" % kafkaVersion,
         "org.cassandraunit" % "cassandra-unit" % "2.0.2.2" % "test",
         "org.scalatest" %% "scalatest" % scalatestVersion % "test",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"

@@ -94,5 +94,6 @@ class ApiException(val failure: ApiFailure, cause: Throwable) extends Mandelbrot
 object ApiException {
   def apply(failure: ApiFailure): ApiException = new ApiException(failure, null)
   def apply(failure: ApiFailure, cause: Throwable): ApiException = new ApiException(failure, cause)
+  def apply(failure: ApiFailure, cause: String): ApiException = new ApiException(failure, new Exception(cause))
   def unapply(ex: ApiException): Option[ApiFailure] = Some(ex.failure)
 }
