@@ -42,6 +42,22 @@ class IngestManager(settings: IngestSettings, clusterEnabled: Boolean) extends A
       // FIXME: ensure that observation timestamp is within bounds
       impl forward op
 
+    /* get observations from the specified partition */
+    case op: GetObservations =>
+      impl forward op
+
+    /* list all partitions */
+    case op: ListPartitions =>
+      impl forward op
+
+    /* get the current iterator token for the specified partition */
+    case op: GetCheckpoint =>
+      impl forward op
+
+    /* set the iterator token for the specified partition */
+    case op: PutCheckpoint =>
+      impl forward op
+
     case unhandled =>
       log.error("dropping unhandled message {}", unhandled)
   }
@@ -67,11 +83,14 @@ case class AppendObservation(probeRef: ProbeRef,
                              observation: Observation) extends IngestServiceCommand
 case class AppendObservationResult(op: AppendObservation) extends IngestServiceResult
 
-case class GetIngestPartitions() extends IngestServiceQuery
-case class GetIngestPartitionsResult(op: GetIngestPartitions, partitions: Vector[String]) extends IngestServiceResult
+case class ListPartitions() extends IngestServiceQuery
+case class ListPartitionsResult(op: ListPartitions, partitions: Vector[String]) extends IngestServiceResult
 
 case class GetObservations(partition: String, count: Int, token: Option[String]) extends IngestServiceQuery
 case class GetObservationsResult(op: GetObservations, observations: Vector[Observation], token: String) extends IngestServiceResult
+
+case class GetCheckpoint(partition: String) extends IngestServiceQuery
+case class GetCheckpointResult(op: GetCheckpoint, token: String) extends IngestServiceResult
 
 case class PutCheckpoint(partition: String, token: String) extends IngestServiceCommand
 case class PutCheckpointResult(op: PutCheckpoint) extends IngestServiceResult

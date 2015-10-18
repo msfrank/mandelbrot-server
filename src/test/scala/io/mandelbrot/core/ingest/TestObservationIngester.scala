@@ -10,7 +10,7 @@ import io.mandelbrot.core.{BadRequest, ResourceNotFound, ApiException, ServerCon
 class TestObservationIngester(settings: TestObservationIngesterSettings) extends Actor with ActorLogging {
 
   // config
-  val numPartitions = ServerConfig(context.system).settings.ingest.numPartitions
+  val numPartitions = settings.numPartitions
 
   // state
   val checkpoints = new java.util.HashMap[String,Int]
@@ -34,10 +34,10 @@ class TestObservationIngester(settings: TestObservationIngesterSettings) extends
       sender() ! AppendObservationResult(op)
 
     case op: GetObservations =>
-      partitions.get(op.partition) match {
-        case null =>
+      Option(partitions.get(op.partition)) match {
+        case None =>
           sender() ! IngestServiceOperationFailed(op, ApiException(ResourceNotFound, s"no such partition ${op.partition}"))
-        case partition =>
+        case Some(partition) =>
           val index = op.token.map(token2index).getOrElse(0)
           try {
             val observations = partition.listIterator(index)
@@ -52,11 +52,22 @@ class TestObservationIngester(settings: TestObservationIngesterSettings) extends
           }
       }
 
-    case op: PutCheckpoint =>
-      partitions.get(op.partition) match {
-        case null =>
+    case op: ListPartitions =>
+      sender() ! ListPartitionsResult(op, partitions.keys.toVector)
+
+    case op: GetCheckpoint =>
+      Option(checkpoints.get(op.partition)) match {
+        case None =>
           sender() ! IngestServiceOperationFailed(op, ApiException(ResourceNotFound, s"no such partition ${op.partition}"))
-        case partition =>
+        case Some(index) =>
+          sender() ! GetCheckpointResult(op, index2token(index))
+      }
+
+    case op: PutCheckpoint =>
+      Option(partitions.get(op.partition)) match {
+        case None =>
+          sender() ! IngestServiceOperationFailed(op, ApiException(ResourceNotFound, s"no such partition ${op.partition}"))
+        case Some(partition) =>
           val index = token2index(op.token)
           if (index < 0 || index >= partition.length)
             sender() ! IngestServiceOperationFailed(op, ApiException(BadRequest, s"invalid token ${op.token}"))
@@ -74,11 +85,14 @@ object TestObservationIngester {
   def props(settings: TestObservationIngesterSettings) = Props(classOf[TestObservationIngester], settings)
 }
 
-case class TestObservationIngesterSettings()
+case class TestObservationIngesterSettings(numPartitions: Int)
 
 class TestObservationIngesterExtension extends IngestExtension {
   type Settings = TestObservationIngesterSettings
-  def configure(config: Config): Settings = TestObservationIngesterSettings()
+  def configure(config: Config): Settings = {
+    val numPartitions = config.getInt("num-partitions")
+    TestObservationIngesterSettings(numPartitions)
+  }
   def props(settings: Settings): Props = TestObservationIngester.props(settings)
 }
 

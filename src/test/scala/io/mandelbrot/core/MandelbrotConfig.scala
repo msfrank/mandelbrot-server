@@ -42,9 +42,8 @@ object MandelbrotConfig extends ComposableConfig {
       |    plugin-settings { }
       |  }
       |  ingest {
-      |    num-partitions = 3
       |    plugin = "io.mandelbrot.core.ingest.TestObservationIngesterExtension"
-      |    plugin-settings { }
+      |    plugin-settings {}
       |  }
       |  registry {
       |    min-joining-timeout = 1 minute

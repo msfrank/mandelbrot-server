@@ -31,11 +31,11 @@ abstract class IngestExtension {
   def props(settings: Settings): Props
 }
 
-object StatePersister {
+object IngestExtension {
   val logger = LoggerFactory.getLogger("io.mandelbrot.core.ingest.IngestExtension")
   val extensions = ServiceLoader.load(classOf[IngestExtension]).map { p =>
     val clazz = p.getClass
-    logger.info("loaded StatePersisterExtension %s".format(clazz.getCanonicalName))
+    logger.info("loaded IngestExtension %s".format(clazz.getCanonicalName))
     (clazz.getCanonicalName, p)
   }.toMap
 }
