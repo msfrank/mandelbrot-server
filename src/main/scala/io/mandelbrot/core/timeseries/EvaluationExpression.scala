@@ -17,7 +17,7 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.metrics
+package io.mandelbrot.core.timeseries
 
 import io.mandelbrot.core.model.{MetricSource, ObservationSource}
 

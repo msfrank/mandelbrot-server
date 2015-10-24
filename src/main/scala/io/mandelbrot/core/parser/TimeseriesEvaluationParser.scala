@@ -2,6 +2,7 @@ package io.mandelbrot.core.parser
 
 import java.util
 
+import io.mandelbrot.core.timeseries._
 import org.slf4j.LoggerFactory
 import scala.util.parsing.combinator.JavaTokenParsers
 

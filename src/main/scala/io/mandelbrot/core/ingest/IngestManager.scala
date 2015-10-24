@@ -33,7 +33,7 @@ import io.mandelbrot.core.model._
 class IngestManager(settings: IngestSettings, clusterEnabled: Boolean) extends Actor with ActorLogging {
 
   // config
-  val impl: ActorRef = context.actorOf(settings.props, "ingester")
+  val impl: ActorRef = context.actorOf(settings.props, "ingest-impl")
 
   def receive = {
 

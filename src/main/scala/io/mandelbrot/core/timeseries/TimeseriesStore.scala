@@ -1,10 +1,10 @@
-package io.mandelbrot.core.metrics
-
-import scala.collection.JavaConversions._
-import scala.concurrent.duration._
+package io.mandelbrot.core.timeseries
 
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.util.CircularBuffer
+
+import scala.collection.JavaConversions._
+import scala.concurrent.duration._
 
 /**
  *

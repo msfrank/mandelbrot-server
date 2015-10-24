@@ -1,13 +1,11 @@
-package io.mandelbrot.core.metrics
-
-import io.mandelbrot.core.parser.TimeseriesEvaluationParser
-import org.joda.time.{DateTimeZone, DateTime}
-import org.scalatest.WordSpec
-import org.scalatest.ShouldMatchers
-
-import scala.math.BigDecimal
+package io.mandelbrot.core.timeseries
 
 import io.mandelbrot.core.model._
+import io.mandelbrot.core.parser.TimeseriesEvaluationParser
+import org.joda.time.{DateTime, DateTimeZone}
+import org.scalatest.{ShouldMatchers, WordSpec}
+
+import scala.math.BigDecimal
 
 class TimeseriesEvaluationSpec extends WordSpec with ShouldMatchers {
 

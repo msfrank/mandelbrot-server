@@ -2,6 +2,7 @@ package io.mandelbrot.core.parser
 
 import io.mandelbrot.core.metrics._
 import io.mandelbrot.core.model._
+import io.mandelbrot.core.timeseries._
 import org.scalatest.{ShouldMatchers, WordSpec}
 
 import scala.math.BigDecimal

@@ -17,7 +17,7 @@
  * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package io.mandelbrot.core.metrics
+package io.mandelbrot.core.timeseries
 
 /**
  * comparison functions for numeric (BigDecimal) values.
