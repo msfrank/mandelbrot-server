@@ -94,7 +94,7 @@ object CassandraStatePersister {
 
 case class CassandraStatePersisterSettings()
 
-class CassandraStatePersisterExtension extends StatePersisterExtension {
+class CassandraStateExtension extends StateExtension {
   type Settings = CassandraStatePersisterSettings
   def configure(config: Config): Settings = CassandraStatePersisterSettings()
   def props(settings: Settings): Props = CassandraStatePersister.props(settings)

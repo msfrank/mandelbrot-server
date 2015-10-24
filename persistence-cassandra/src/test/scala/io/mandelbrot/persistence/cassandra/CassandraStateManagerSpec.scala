@@ -20,7 +20,7 @@ object CassandraStateManagerSpec {
     """
       |mandelbrot {
       |  state {
-      |    plugin = "io.mandelbrot.persistence.cassandra.CassandraStatePersisterExtension"
+      |    plugin = "io.mandelbrot.persistence.cassandra.CassandraStateExtension"
       |    plugin-settings { }
       |  }
       |}

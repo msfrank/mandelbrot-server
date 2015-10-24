@@ -20,7 +20,7 @@ object CassandraRegistryManagerSpec {
     """
       |mandelbrot {
       |  registry {
-      |    plugin = "io.mandelbrot.persistence.cassandra.CassandraRegistryPersisterExtension"
+      |    plugin = "io.mandelbrot.persistence.cassandra.CassandraRegistryExtension"
       |    plugin-settings { }
       |  }
       |}

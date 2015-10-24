@@ -115,7 +115,7 @@ object CassandraRegistryPersister {
 
 case class CassandraRegistryPersisterSettings()
 
-class CassandraRegistryPersisterExtension extends RegistryPersisterExtension {
+class CassandraRegistryExtension extends RegistryExtension {
   type Settings = CassandraRegistryPersisterSettings
   def configure(config: Config): Settings = CassandraRegistryPersisterSettings()
   def props(settings: Settings): Props = CassandraRegistryPersister.props(settings)

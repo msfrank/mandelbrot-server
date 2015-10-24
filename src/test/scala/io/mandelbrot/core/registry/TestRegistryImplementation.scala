@@ -9,7 +9,7 @@ import java.util
 import io.mandelbrot.core.{ResourceNotFound, ApiException}
 import io.mandelbrot.core.model._
 
-class TestRegistryPersister(settings: TestRegistryPersisterSettings) extends Actor with ActorLogging {
+class TestRegistryImplementation(settings: TestRegistryExtensionSettings) extends Actor with ActorLogging {
   import RegistryManager.{MinGenerationLsn,MaxGenerationLsn}
 
   val groups = new util.TreeMap[String,util.TreeMap[String,AgentMetadata]]()
@@ -145,15 +145,15 @@ case class RegistrationEvent(registration: AgentSpec,
                              lsn: Long,
                              committed: Boolean)
 
-object TestRegistryPersister {
-  def props(settings: TestRegistryPersisterSettings) = Props(classOf[TestRegistryPersister], settings)
+object TestRegistryImplementation {
+  def props(settings: TestRegistryExtensionSettings) = Props(classOf[TestRegistryImplementation], settings)
 }
 
-case class TestRegistryPersisterSettings()
+case class TestRegistryExtensionSettings()
 
-class TestRegistryPersisterExtension extends RegistryPersisterExtension {
-  type Settings = TestRegistryPersisterSettings
-  def configure(config: Config): Settings = TestRegistryPersisterSettings()
-  def props(settings: Settings): Props = TestRegistryPersister.props(settings)
+class TestRegistryExtension extends RegistryExtension {
+  type Settings = TestRegistryExtensionSettings
+  def configure(config: Config): Settings = TestRegistryExtensionSettings()
+  def props(settings: Settings): Props = TestRegistryImplementation.props(settings)
 }
 

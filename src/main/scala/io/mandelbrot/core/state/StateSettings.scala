@@ -45,9 +45,9 @@ object StateSettings {
     val defaultSearchLimit = config.getInt("default-search-limit")
     val plugin = config.getString("plugin")
     val pluginSettings = if (config.hasPath("plugin-settings")) config.getConfig("plugin-settings") else ConfigFactory.empty()
-    val props = StatePersister.extensions.get(plugin) match {
+    val props = StateExtension.extensions.get(plugin) match {
       case None =>
-        throw new ServerConfigException("%s is not recognized as a StatePersisterExtension".format(plugin))
+        throw new ServerConfigException("%s is not recognized as a StateExtension".format(plugin))
       case Some(extension) =>
         extension.props(extension.configure(pluginSettings))
     }

@@ -86,9 +86,9 @@ object RegistrySettings {
       TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
     val plugin = config.getString("plugin")
     val pluginSettings = if (config.hasPath("plugin-settings")) config.getConfig("plugin-settings") else ConfigFactory.empty()
-    val props = RegistryPersister.extensions.get(plugin) match {
+    val props = RegistryExtension.extensions.get(plugin) match {
       case None =>
-        throw new ServerConfigException("%s is not recognized as a RegistryPersisterExtension".format(plugin))
+        throw new ServerConfigException("%s is not recognized as a RegistryExtension".format(plugin))
       case Some(extension) =>
         extension.props(extension.configure(pluginSettings))
     }

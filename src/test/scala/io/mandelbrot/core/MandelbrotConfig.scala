@@ -42,7 +42,7 @@ object MandelbrotConfig extends ComposableConfig {
       |    plugin-settings { }
       |  }
       |  ingest {
-      |    plugin = "io.mandelbrot.core.ingest.TestObservationIngesterExtension"
+      |    plugin = "io.mandelbrot.core.ingest.TestIngestExtension"
       |    plugin-settings {}
       |  }
       |  registry {
@@ -56,7 +56,7 @@ object MandelbrotConfig extends ComposableConfig {
       |    reaper-takeover-retries = 5
       |    reaper-retry-interval = 1 second
       |    max-deletes-in-flight = 100
-      |    plugin = "io.mandelbrot.core.registry.TestRegistryPersisterExtension"
+      |    plugin = "io.mandelbrot.core.registry.TestRegistryExtension"
       |    plugin-settings { }
       |  }
       |  state {
@@ -66,7 +66,7 @@ object MandelbrotConfig extends ComposableConfig {
       |    default-search-limit = 100
       |    snapshot-initial-delay = 1 minute
       |    snapshot-interval = 1 hour
-      |    plugin = "io.mandelbrot.core.state.TestStatePersisterExtension"
+      |    plugin = "io.mandelbrot.core.state.TestStateExtension"
       |    plugin-settings { }
       |  }
       |  notification {

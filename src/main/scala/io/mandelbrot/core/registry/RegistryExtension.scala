@@ -6,17 +6,17 @@ import org.slf4j.LoggerFactory
 import scala.collection.JavaConversions._
 import java.util.ServiceLoader
 
-abstract class RegistryPersisterExtension {
+abstract class RegistryExtension {
   type Settings
   def configure(config: Config): Settings
   def props(settings: Settings): Props
 }
 
-object RegistryPersister {
-  val logger = LoggerFactory.getLogger("io.mandelbrot.core.registry.RegistryPersister")
-  val extensions = ServiceLoader.load(classOf[RegistryPersisterExtension]).map { p =>
+object RegistryExtension {
+  val logger = LoggerFactory.getLogger("io.mandelbrot.core.registry.RegistryExtension")
+  val extensions = ServiceLoader.load(classOf[RegistryExtension]).map { p =>
     val clazz = p.getClass
-    logger.info("loaded RegistryPersisterExtension %s".format(clazz.getCanonicalName))
+    logger.info("loaded RegistryExtension %s".format(clazz.getCanonicalName))
     (clazz.getCanonicalName, p)
   }.toMap
 }

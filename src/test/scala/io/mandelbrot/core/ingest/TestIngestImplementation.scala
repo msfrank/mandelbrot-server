@@ -7,7 +7,7 @@ import java.util
 
 import io.mandelbrot.core.{BadRequest, ResourceNotFound, ApiException, ServerConfig}
 
-class TestObservationIngester(settings: TestObservationIngesterSettings) extends Actor with ActorLogging {
+class TestIngestImplementation(settings: TestIngestExtensionSettings) extends Actor with ActorLogging {
 
   // config
   val numPartitions = settings.numPartitions
@@ -81,18 +81,18 @@ class TestObservationIngester(settings: TestObservationIngesterSettings) extends
   def index2token(index: Int): String = index.toString
 }
 
-object TestObservationIngester {
-  def props(settings: TestObservationIngesterSettings) = Props(classOf[TestObservationIngester], settings)
+object TestIngestImplementation {
+  def props(settings: TestIngestExtensionSettings) = Props(classOf[TestIngestImplementation], settings)
 }
 
-case class TestObservationIngesterSettings(numPartitions: Int)
+case class TestIngestExtensionSettings(numPartitions: Int)
 
-class TestObservationIngesterExtension extends IngestExtension {
-  type Settings = TestObservationIngesterSettings
+class TestIngestExtension extends IngestExtension {
+  type Settings = TestIngestExtensionSettings
   def configure(config: Config): Settings = {
     val numPartitions = config.getInt("num-partitions")
-    TestObservationIngesterSettings(numPartitions)
+    TestIngestExtensionSettings(numPartitions)
   }
-  def props(settings: Settings): Props = TestObservationIngester.props(settings)
+  def props(settings: Settings): Props = TestIngestImplementation.props(settings)
 }
 

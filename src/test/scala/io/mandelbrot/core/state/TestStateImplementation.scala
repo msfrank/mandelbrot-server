@@ -9,7 +9,7 @@ import java.util
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.{ResourceNotFound, ApiException}
 
-class TestStatePersister(settings: TestStatePersisterSettings) extends Actor with ActorLogging {
+class TestStateImplementation(settings: TestStateExtensionSettings) extends Actor with ActorLogging {
 
   val checkStatus = new util.HashMap[CheckRefGeneration,util.TreeMap[DateTime,UpdateStatus]]()
   val observations = new util.HashMap[ProbeRefGeneration,util.TreeMap[DateTime,Observation]]()
@@ -184,8 +184,8 @@ class TestStatePersister(settings: TestStatePersisterSettings) extends Actor wit
   }
 }
 
-object TestStatePersister {
-  def props(settings: TestStatePersisterSettings) = Props(classOf[TestStatePersister], settings)
+object TestStateImplementation {
+  def props(settings: TestStateExtensionSettings) = Props(classOf[TestStateImplementation], settings)
 }
 
 case class ProbeRefGeneration(probeRef: ProbeRef, generation: Long) extends Ordered[ProbeRefGeneration] {
@@ -202,11 +202,11 @@ case class CheckRefGeneration(checkRef: CheckRef, generation: Long) extends Orde
   }
 }
 
-case class TestStatePersisterSettings()
+case class TestStateExtensionSettings()
 
-class TestStatePersisterExtension extends StatePersisterExtension {
-  type Settings = TestStatePersisterSettings
-  def configure(config: Config): Settings = TestStatePersisterSettings()
-  def props(settings: Settings): Props = TestStatePersister.props(settings)
+class TestStateExtension extends StateExtension {
+  type Settings = TestStateExtensionSettings
+  def configure(config: Config): Settings = TestStateExtensionSettings()
+  def props(settings: Settings): Props = TestStateImplementation.props(settings)
 }
 
