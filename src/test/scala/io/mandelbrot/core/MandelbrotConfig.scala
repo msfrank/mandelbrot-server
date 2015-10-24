@@ -43,6 +43,12 @@ object MandelbrotConfig extends ComposableConfig {
       |  }
       |  ingest {
       |    plugin = "io.mandelbrot.core.ingest.TestIngestExtension"
+      |    plugin-settings {
+      |      num-partitions = 1
+      |    }
+      |  }
+      |  metrics {
+      |    plugin = "io.mandelbrot.core.metrics.TestMetricsExtension"
       |    plugin-settings {}
       |  }
       |  registry {

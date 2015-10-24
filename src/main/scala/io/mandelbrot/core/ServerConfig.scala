@@ -23,6 +23,7 @@ import akka.actor._
 import com.typesafe.config._
 import com.typesafe.config.ConfigException.WrongType
 import io.mandelbrot.core.ingest.IngestSettings
+import io.mandelbrot.core.metrics.MetricsSettings
 import org.slf4j.LoggerFactory
 import scala.collection.JavaConversions._
 import scala.concurrent.duration.FiniteDuration
@@ -39,6 +40,7 @@ import io.mandelbrot.core.http.HttpSettings
  *
  */
 case class ServerConfigSettings(ingest: IngestSettings,
+                                metrics: MetricsSettings,
                                 registry: RegistrySettings,
                                 state: StateSettings,
                                 notification: NotificationSettings,
@@ -60,6 +62,9 @@ class ServerConfigExtension(system: ActorSystem) extends Extension {
     /* parse ingest settings */
     val ingestSettings = IngestSettings.parse(mandelbrotConfig.getConfig("ingest"))
 
+    /* parse metrics settings */
+    val metricsSettings = MetricsSettings.parse(mandelbrotConfig.getConfig("metrics"))
+
     /* parse registry settings */
     val registrySettings = RegistrySettings.parse(mandelbrotConfig.getConfig("registry"))
 
@@ -78,7 +83,7 @@ class ServerConfigExtension(system: ActorSystem) extends Extension {
     /* */
     val shutdownTimeout = FiniteDuration(mandelbrotConfig.getDuration("shutdown-timeout",
       TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)
-    ServerConfigSettings(ingestSettings, registrySettings, stateSettings,
+    ServerConfigSettings(ingestSettings, metricsSettings, registrySettings, stateSettings,
       notificationSettings, clusterSettings, httpSettings, shutdownTimeout)
 
   } catch {

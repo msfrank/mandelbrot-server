@@ -21,7 +21,6 @@ package io.mandelbrot.core.check
 
 import io.mandelbrot.core.parser.TimeseriesEvaluationParser
 import io.mandelbrot.core.timeseries.{TimeseriesStore, TimeseriesEvaluation}
-import io.mandelbrot.core.util.Timestamp
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.util.{Success, Try}
 import java.util.UUID

@@ -3,8 +3,7 @@ package io.mandelbrot.core.ingest
 import akka.actor.{PoisonPill, ActorRef, ActorSystem}
 import akka.testkit.{ImplicitSender, TestKit}
 import com.typesafe.config.ConfigFactory
-import io.mandelbrot.core.model.{ScalarMapObservation, ProbeRef}
-import io.mandelbrot.core.util.Timestamp
+import io.mandelbrot.core.model.{Timestamp, ScalarMapObservation, ProbeRef}
 import org.joda.time.{DateTimeZone, DateTime}
 import org.scalatest.{BeforeAndAfterAll, ShouldMatchers, WordSpecLike}
 

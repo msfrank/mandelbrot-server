@@ -1,53 +1,54 @@
+/**
+ * Copyright 2015 Michael Frank <msfrank@syntaxjockey.com>
+ *
+ * This file is part of Mandelbrot.
+ *
+ * Mandelbrot is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Mandelbrot is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Mandelbrot.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package io.mandelbrot.core.model
+
+import org.joda.time.DateTime
 
 sealed trait MetricsModel
 
-class ObservationSource(val scheme: String, val id: String) extends Ordered[ObservationSource] with MetricsModel {
-  def compare(that: ObservationSource): Int = {
-    var result = scheme.compareToIgnoreCase(that.scheme)
-    if (result == 0) {
-      result = id.compareTo(that.id)
-    }
-    result
-  }
-  override def equals(other: Any): Boolean = other match {
-    case other: ObservationSource => scheme.equals(other.scheme) && id.equals(other.id)
-    case _ => false
-  }
-  override def toString = scheme + ":" + id
-  override def hashCode() = toString.hashCode
-}
+case class Dimension(name: String, value: String) extends MetricsModel
 
-object ObservationSource {
-  def apply(probeId: ProbeId) = new ObservationSource("probe", probeId.toString)
-  def apply(probeRef: ProbeRef) = new ObservationSource("probe", probeRef.probeId.toString)
-}
+sealed trait Statistic
 
-/**
- *
- */
-sealed trait EvaluationSource {
-  def toObservationSource: ObservationSource
-}
+case object MetricMinimum extends Statistic with MetricsModel
+case object MetricMaximum extends Statistic with MetricsModel
+case object MetricMean extends Statistic with MetricsModel
+case object MetricStandardDeviation extends Statistic with MetricsModel
+case object MetricNonzeroMinimum extends Statistic with MetricsModel
+case object MetricSampleCount extends Statistic with MetricsModel
+case object MetricSum extends Statistic with MetricsModel
+case object Metric25thPercentile extends Statistic with MetricsModel
+case object Metric50thPercentile extends Statistic with MetricsModel
+case object Metric75thPercentile extends Statistic with MetricsModel
+case object Metric90thPercentile extends Statistic with MetricsModel
+case object Metric95thPercentile extends Statistic with MetricsModel
+case object Metric99thPercentile extends Statistic with MetricsModel
 
-/**
- * A MetricSource uniquely identifies a metric within a Agent.
- */
-class MetricSource(val probeId: ProbeId, val metricName: String) extends EvaluationSource with MetricsModel {
-  def toObservationSource = ObservationSource(probeId)
-  override def equals(other: Any): Boolean = other match {
-    case other: MetricSource => probeId.equals(other.probeId) && metricName.equals(other.metricName)
-    case _ => false
-  }
-  override def toString = probeId.toString + ":" + metricName
-  override def hashCode() = toString.hashCode
-}
+case class StatisticValue(statistic: Statistic, value: Double) extends MetricsModel
 
-object MetricSource {
-  def apply(probeId: ProbeId, metricName: String): MetricSource = new MetricSource(probeId, metricName)
-  val MetricSourceMatcher = "probe:([^:]+):(.+)".r
-  def apply(string: String): MetricSource = string match {
-    case MetricSourceMatcher(probeId, metricName) => new MetricSource(ProbeId(probeId), metricName)
-  }
-  def unapply(source: MetricSource): Option[(ProbeId, String)] = Some((source.probeId, source.metricName))
-}
+/* metrics for the given probe and dimension at the specified time */
+case class ProbeMetrics(probeId: ProbeId,
+                        metricName: String,
+                        dimension: Dimension,
+                        timestamp: Timestamp,
+                        statistics: Vector[StatisticValue]) extends MetricsModel
+
+/* a page of probe metric entries */
+case class ProbeMetricsPage(history: Vector[ProbeMetrics], last: Option[String], exhausted: Boolean) extends MetricsModel

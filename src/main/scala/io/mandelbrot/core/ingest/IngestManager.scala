@@ -20,7 +20,6 @@
 package io.mandelbrot.core.ingest
 
 import akka.actor._
-import io.mandelbrot.core.util.Timestamp
 import org.joda.time.DateTime
 import java.util.UUID
 
