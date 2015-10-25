@@ -21,6 +21,8 @@ package io.mandelbrot.core.model
 
 import org.joda.time.{DateTime, DateTimeZone}
 
+import scala.concurrent.duration.FiniteDuration
+
 object TimeModel
 
 /**
@@ -30,6 +32,8 @@ sealed trait Timestamp extends Any with Comparable[Timestamp] {
   def toDateTime: DateTime
   def toMillis: Long
   def compareTo(other: Timestamp): Int = toMillis.compareTo(other.toMillis)
+  def +(duration: FiniteDuration): Timestamp
+  def -(duration: FiniteDuration): Timestamp
 }
 
 object Timestamp {
@@ -38,6 +42,8 @@ object Timestamp {
   private[this] final class TimestampImpl(val value: DateTime) extends AnyVal with Timestamp {
     def toDateTime: DateTime = value
     def toMillis: Long = value.getMillis
+    def +(duration: FiniteDuration): Timestamp = new TimestampImpl(value.plus(duration.toMillis))
+    def -(duration: FiniteDuration): Timestamp = new TimestampImpl(value.minus(duration.toMillis))
   }
 
   val SMALLEST_DATETIME: DateTime = new DateTime(0, DateTimeZone.UTC)

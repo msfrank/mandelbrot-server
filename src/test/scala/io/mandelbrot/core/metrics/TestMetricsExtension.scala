@@ -19,12 +19,13 @@ class TestMetricsImplementation(settings: TestMetricsExtensionSettings) extends 
 
     /* */
     case op: PutProbeMetrics =>
-      val probeIdDimension = ProbeIdMetricNameDimension(op.probeId, op.metricName, op.dimension)
+      val probeIdMetricNameDimension = ProbeIdMetricNameDimension(op.probeId, op.metricName, op.dimension)
       val histogram = op.value.copy()
-      metrics.get(probeIdDimension) match {
+      metrics.get(probeIdMetricNameDimension) match {
         case null =>
           val history = new java.util.TreeMap[Timestamp,Map[UUID,DoubleHistogram]]()
           history.put(op.timestamp, Map(op.id -> histogram))
+          metrics.put(probeIdMetricNameDimension, history)
           sender() ! PutProbeMetricsResult(op)
         case history =>
           history.get(op.timestamp) match {
@@ -39,23 +40,12 @@ class TestMetricsImplementation(settings: TestMetricsExtensionSettings) extends 
     /* */
     case op: GetProbeMetricsHistory =>
       try {
-        val probeIdDimension = ProbeIdMetricNameDimension(op.probeId, op.metricName, op.dimension)
-        val page: ProbeMetricsPage = metrics.get(probeIdDimension) match {
+        val probeIdMetricNameDimension = ProbeIdMetricNameDimension(op.probeId, op.metricName, op.dimension)
+        val page: ProbeMetricsPage = metrics.get(probeIdMetricNameDimension) match {
           // if there is no metric, then raise ResourceNotFound
           case null =>
             throw ApiException(ResourceNotFound)
-          // if no timeseries params are specified, return the last entry
-          case history if op.from.isEmpty && op.to.isEmpty =>
-            val values: Vector[ProbeMetrics] = history.lastEntry() match {
-              case null => Vector.empty
-              case entry =>
-                val histograms = entry.getValue.values.toVector
-                val histogram = HistogramOps.mergeHistograms(histograms.head, histograms.tail)
-                val statistics = HistogramOps.histogram2statisticValues(histogram, op.statistics)
-                Vector(ProbeMetrics(op.probeId, op.metricName, op.dimension, entry.getKey, statistics))
-            }
-            ProbeMetricsPage(values, None, exhausted = true)
-          // otherwise return the subset of entries
+          // otherwise return the matching metrics
           case history =>
             val from: Timestamp = op.last.map(string2timestamp)
               .getOrElse(op.from.map(Timestamp.apply).getOrElse(Timestamp.SMALLEST_TIMESTAMP))
@@ -68,7 +58,7 @@ class TestMetricsImplementation(settings: TestMetricsExtensionSettings) extends 
                 val statistics = HistogramOps.histogram2statisticValues(histogram, op.statistics)
                 ProbeMetrics(op.probeId,op.metricName, op.dimension, entry._1, statistics)
             }.toVector
-            val trimmed = values.take(op.limit)
+            val trimmed = if (op.descending) values.takeRight(op.limit).reverse else values.take(op.limit)
             val last = if (values.length > trimmed.length) {
               Some(timestamp2string(trimmed.last.timestamp))
             } else None
@@ -76,7 +66,8 @@ class TestMetricsImplementation(settings: TestMetricsExtensionSettings) extends 
         }
         sender() ! GetProbeMetricsHistoryResult(op, page)
       } catch {
-        case ex: Throwable => sender() ! MetricsServiceOperationFailed(op, ex)
+        case ex: Throwable =>
+          sender() ! MetricsServiceOperationFailed(op, ex)
       }
   }
 
