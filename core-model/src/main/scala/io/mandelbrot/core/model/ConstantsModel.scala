@@ -31,7 +31,7 @@ sealed trait MetricUnit extends ConstantsModel
 
 /* no unit specified */
 case object Units extends MetricUnit   { val name = "units" }
-case object Ops extends MetricUnit     { val name = "operations" }
+case object Operations extends MetricUnit     { val name = "operations" }
 case object Percent extends MetricUnit { val name = "percent" }
 
 /* time units */

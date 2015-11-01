@@ -21,34 +21,55 @@ package io.mandelbrot.core.model
 
 import org.joda.time.DateTime
 
-sealed trait MetricsModel
+object MetricsModel
 
-case class Dimension(name: String, value: String) extends MetricsModel
+final case class Dimension(name: String, value: String)
 
-sealed trait Statistic
+sealed trait Statistic {
+  val name: String
+}
 
-case object MetricMinimum extends Statistic with MetricsModel
-case object MetricMaximum extends Statistic with MetricsModel
-case object MetricMean extends Statistic with MetricsModel
-case object MetricStandardDeviation extends Statistic with MetricsModel
-case object MetricNonzeroMinimum extends Statistic with MetricsModel
-case object MetricSampleCount extends Statistic with MetricsModel
-case object MetricSum extends Statistic with MetricsModel
-case object Metric25thPercentile extends Statistic with MetricsModel
-case object Metric50thPercentile extends Statistic with MetricsModel
-case object Metric75thPercentile extends Statistic with MetricsModel
-case object Metric90thPercentile extends Statistic with MetricsModel
-case object Metric95thPercentile extends Statistic with MetricsModel
-case object Metric99thPercentile extends Statistic with MetricsModel
+case object MetricMinimum extends Statistic           { val name = "minimum" }
+case object MetricMaximum extends Statistic           { val name = "maximum" }
+case object MetricMean extends Statistic              { val name = "mean" }
+case object MetricStandardDeviation extends Statistic { val name = "stddev" }
+case object MetricNonzeroMinimum extends Statistic    { val name = "nzminimum" }
+case object MetricSampleCount extends Statistic       { val name = "samples" }
+case object MetricSum extends Statistic               { val name = "sum" }
+case object Metric25thPercentile extends Statistic    { val name = "p25" }
+case object Metric50thPercentile extends Statistic    { val name = "p50" }
+case object Metric75thPercentile extends Statistic    { val name = "p75" }
+case object Metric90thPercentile extends Statistic    { val name = "p90" }
+case object Metric95thPercentile extends Statistic    { val name = "p95" }
+case object Metric99thPercentile extends Statistic    { val name = "p99" }
 
-case class StatisticValue(statistic: Statistic, value: Double) extends MetricsModel
+object Statistic {
+  def fromString(string: String): Statistic = string match {
+    case MetricMinimum.name => MetricMinimum
+    case MetricMaximum.name => MetricMaximum
+    case MetricMean.name => MetricMean
+    case MetricStandardDeviation.name => MetricStandardDeviation
+    case MetricNonzeroMinimum.name => MetricNonzeroMinimum
+    case MetricSampleCount.name => MetricSampleCount
+    case MetricSum.name => MetricSum
+    case Metric25thPercentile.name => Metric25thPercentile
+    case Metric50thPercentile.name => Metric50thPercentile
+    case Metric75thPercentile.name => Metric75thPercentile
+    case Metric90thPercentile.name => Metric90thPercentile
+    case Metric95thPercentile.name => Metric95thPercentile
+    case Metric99thPercentile.name => Metric99thPercentile
+    case _ => throw new IllegalArgumentException()
+  }
+}
+
+final case class StatisticValue(statistic: Statistic, value: Double)
 
 /* metrics for the given probe and dimension at the specified time */
-case class ProbeMetrics(probeId: ProbeId,
+final case class ProbeMetrics(probeId: ProbeId,
                         metricName: String,
                         dimension: Dimension,
                         timestamp: Timestamp,
-                        statistics: Vector[StatisticValue]) extends MetricsModel
+                        statistics: Map[Statistic,Double])
 
 /* a page of probe metric entries */
-case class ProbeMetricsPage(history: Vector[ProbeMetrics], last: Option[String], exhausted: Boolean) extends MetricsModel
+final case class ProbeMetricsPage(history: Vector[ProbeMetrics], last: Option[String], exhausted: Boolean)

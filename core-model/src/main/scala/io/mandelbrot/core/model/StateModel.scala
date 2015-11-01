@@ -6,18 +6,6 @@ import org.joda.time.DateTime
 
 sealed trait StateModel
 
-sealed trait Observation extends StateModel {
-  val timestamp: DateTime
-}
-
-case class ScalarMapObservation(timestamp: DateTime, metrics: Map[String,BigDecimal]) extends Observation
-
-/* the set of metrics emitted by a check */
-case class ProbeObservation(generation: Long, observation: Observation) extends StateModel
-
-/* a page of check metrics entries */
-case class ProbeObservationPage(history: Vector[ProbeObservation], last: Option[String], exhausted: Boolean) extends StateModel
-
 /* the complete status of a check */
 case class CheckStatus(generation: Long,
                        timestamp: DateTime,

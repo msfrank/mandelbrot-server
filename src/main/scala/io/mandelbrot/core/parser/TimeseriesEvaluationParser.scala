@@ -65,10 +65,10 @@ class TimeseriesEvaluationParser(globalOptions: EvaluationOptions) extends JavaT
   /*
    *
    */
-  def wholeNumberValue: Parser[BigDecimal] = wholeNumber ^^ { case v => BigDecimal(v.toLong) }
-  def floatingPointNumberValue: Parser[BigDecimal] = floatingPointNumber ^^ { case v => BigDecimal(v.toDouble) }
+  def wholeNumberValue: Parser[Double] = wholeNumber ^^ { case v => v.toDouble }
+  def floatingPointNumberValue: Parser[Double] = floatingPointNumber ^^ { case v => v.toDouble }
 
-  def metricValue: Parser[BigDecimal] = wholeNumberValue | floatingPointNumberValue
+  def metricValue: Parser[Double] = wholeNumberValue | floatingPointNumberValue
 
   def equals: Parser[NumericValueComparison] = _log(literal("==") ~ metricValue)("equals") ^^ {
     case "==" ~ value => NumericValueEquals(value)
@@ -107,10 +107,21 @@ class TimeseriesEvaluationParser(globalOptions: EvaluationOptions) extends JavaT
     case segments: List[String] => new ProbeId(segments.toVector)
   }
 
-  def metricName: Parser[String] = regex("[a-zA-Z][a-zA-Z0-9_]*".r)
+  def metricName: Parser[String] = regex("[a-zA-Z][a-zA-Z0-9-_.]*".r)
 
-  def metricSource: Parser[MetricSource] = literal("probe") ~ literal(":") ~ probeId ~ literal(":") ~ metricName ^^ {
-    case "probe" ~ ":" ~ (probeId: ProbeId) ~ ":" ~ (metricName: String) => MetricSource(probeId, metricName)
+  def dimensionName: Parser[String] = regex("[a-zA-Z][a-zA-Z0-9-_.]*".r)
+
+  def dimensionValue: Parser[String] = regex("[^:]+".r)
+
+  def dimension: Parser[Dimension] = dimensionName ~ literal("=") ~ dimensionValue ^^ {
+    case (dimensionName: String) ~ "=" ~ (dimensionValue: String) => Dimension(dimensionName, dimensionValue)
+  }
+
+  def statistic: Parser[Statistic] = regex("[a-zA-Z][a-zA-Z0-9-_.]*".r) ^^ Statistic.fromString
+
+  def metricSource: Parser[MetricSource] = literal("probe") ~ literal(":") ~ probeId ~ literal(":") ~ metricName ~ literal(":") ~ dimension ~ ":" ~ statistic ^^ {
+    case "probe" ~ ":" ~ (probeId: ProbeId) ~ ":" ~ (metricName: String) ~ ":" ~ (dimension: Dimension) ~ ":" ~ (statistic: Statistic) =>
+      MetricSource(probeId, metricName, dimension, statistic)
   }
 
   /*

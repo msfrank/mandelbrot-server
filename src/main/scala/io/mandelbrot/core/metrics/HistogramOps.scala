@@ -34,37 +34,37 @@ object HistogramOps {
     }
   } else head
 
-  def histogram2statisticValues(histogram: DoubleHistogram, statistics: Set[Statistic]): Vector[StatisticValue] = {
+  def histogram2statisticValues(histogram: DoubleHistogram, statistics: Set[Statistic]): Map[Statistic,Double] = {
     statistics.map {
       case statistic @ MetricMinimum =>
-        StatisticValue(statistic, histogram.getMinValue)
+        (statistic, histogram.getMinValue)
       case statistic @ MetricNonzeroMinimum =>
-        StatisticValue(statistic, histogram.getMinNonZeroValue)
+        (statistic, histogram.getMinNonZeroValue)
       case statistic @ MetricMaximum =>
-        StatisticValue(statistic, histogram.getMaxValue)
+        (statistic, histogram.getMaxValue)
       case statistic @ MetricMean =>
-        StatisticValue(statistic, histogram.getMean)
+        (statistic, histogram.getMean)
       case statistic @ MetricStandardDeviation =>
-        StatisticValue(statistic, histogram.getStdDeviation)
+        (statistic, histogram.getStdDeviation)
       case statistic @ MetricSampleCount =>
-        StatisticValue(statistic, histogram.getTotalCount)
+        (statistic, histogram.getTotalCount.toDouble)
       case statistic @ MetricSum =>
         val sum: Double = histogram.recordedValues()
           .lastOption.map(_.getTotalValueToThisValue)
           .getOrElse(0.0)
-        StatisticValue(statistic, sum)
+        (statistic, sum)
       case statistic @ Metric25thPercentile =>
-        StatisticValue(statistic, histogram.getValueAtPercentile(25.0))
+        (statistic, histogram.getValueAtPercentile(25.0))
       case statistic @ Metric50thPercentile =>
-        StatisticValue(statistic, histogram.getValueAtPercentile(50.0))
+        (statistic, histogram.getValueAtPercentile(50.0))
       case statistic @ Metric75thPercentile =>
-        StatisticValue(statistic, histogram.getValueAtPercentile(75.0))
+        (statistic, histogram.getValueAtPercentile(75.0))
       case statistic @ Metric90thPercentile =>
-        StatisticValue(statistic, histogram.getValueAtPercentile(90.0))
+        (statistic, histogram.getValueAtPercentile(90.0))
       case statistic @ Metric95thPercentile =>
-        StatisticValue(statistic, histogram.getValueAtPercentile(95.0))
+        (statistic, histogram.getValueAtPercentile(95.0))
       case statistic @ Metric99thPercentile =>
-        StatisticValue(statistic, histogram.getValueAtPercentile(99.0))
-    }.toVector
+        (statistic, histogram.getValueAtPercentile(99.0))
+    }.toMap
   }
 }

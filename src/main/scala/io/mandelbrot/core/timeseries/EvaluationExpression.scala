@@ -30,6 +30,10 @@ sealed trait EvaluationExpression {
   def sizing: Set[(ObservationSource,Int)]
 }
 
+/**
+ * An expression which applies the specified window function  to the
+ * specified metric.
+ */
 case class EvaluateMetric(source: MetricSource, function: NumericWindowFunction, options: WindowOptions) extends EvaluationExpression {
   def evaluate(timeseries: TimeseriesStore) = {
     val metricView = new TimeseriesMetricView(source, timeseries, options.windowSize)

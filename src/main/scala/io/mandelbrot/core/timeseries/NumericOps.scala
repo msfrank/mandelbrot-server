@@ -20,60 +20,60 @@
 package io.mandelbrot.core.timeseries
 
 /**
- * comparison functions for numeric (BigDecimal) values.
+ * comparison functions for numeric (Double) values.
  */
 sealed trait NumericValueComparison {
-  def compare(value: BigDecimal): Boolean
+  def compare(value: Double): Boolean
 }
 
-case class NumericValueEquals(rhs: BigDecimal) extends NumericValueComparison {
-  def compare(lhs: BigDecimal): Boolean = lhs == rhs
+case class NumericValueEquals(rhs: Double) extends NumericValueComparison {
+  def compare(lhs: Double): Boolean = lhs == rhs
 }
 
-case class NumericValueNotEquals(rhs: BigDecimal) extends NumericValueComparison {
-  def compare(lhs: BigDecimal): Boolean = lhs != rhs
+case class NumericValueNotEquals(rhs: Double) extends NumericValueComparison {
+  def compare(lhs: Double): Boolean = lhs != rhs
 }
 
-case class NumericValueGreaterThan(rhs: BigDecimal) extends NumericValueComparison {
-  def compare(lhs: BigDecimal): Boolean = lhs > rhs
+case class NumericValueGreaterThan(rhs: Double) extends NumericValueComparison {
+  def compare(lhs: Double): Boolean = lhs > rhs
 }
 
-case class NumericValueGreaterEqualThan(rhs: BigDecimal) extends NumericValueComparison {
-  def compare(lhs: BigDecimal): Boolean = lhs >= rhs
+case class NumericValueGreaterEqualThan(rhs: Double) extends NumericValueComparison {
+  def compare(lhs: Double): Boolean = lhs >= rhs
 }
 
-case class NumericValueLessThan(rhs: BigDecimal) extends NumericValueComparison {
-  def compare(lhs: BigDecimal): Boolean = lhs < rhs
+case class NumericValueLessThan(rhs: Double) extends NumericValueComparison {
+  def compare(lhs: Double): Boolean = lhs < rhs
 }
 
-case class NumericValueLessEqualThan(rhs: BigDecimal) extends NumericValueComparison {
-  def compare(lhs: BigDecimal): Boolean = lhs <= rhs
+case class NumericValueLessEqualThan(rhs: Double) extends NumericValueComparison {
+  def compare(lhs: Double): Boolean = lhs <= rhs
 }
 
 /**
- * window functions for numeric (BigDecimal) values.
+ * window functions for numeric (Double) values.
  */
 sealed trait NumericWindowFunction {
-  def apply(window: TimeseriesView[BigDecimal]): Option[Boolean]
+  def apply(window: TimeseriesView[Double]): Option[Boolean]
 }
 
 case class HeadFunction(comparison: NumericValueComparison) extends NumericWindowFunction {
-  def apply(window: TimeseriesView[BigDecimal]): Option[Boolean] = window.headOption match {
+  def apply(window: TimeseriesView[Double]): Option[Boolean] = window.headOption match {
     case Some(value) => if (comparison.compare(value)) Some(true) else Some(false)
     case None => None
   }
 }
 
 case class EachFunction(comparison: NumericValueComparison) extends NumericWindowFunction {
-  def apply(window: TimeseriesView[BigDecimal]): Option[Boolean] = window.foldLeft(Some(true)) { case (value,result) =>
+  def apply(window: TimeseriesView[Double]): Option[Boolean] = window.foldLeft(Some(true)) { case (value,result) =>
     if (!comparison.compare(value)) return Some(false)
     result
   }
 }
 
 case class MinFunction(comparison: NumericValueComparison) extends NumericWindowFunction {
-  def apply(window: TimeseriesView[BigDecimal]): Option[Boolean] = {
-    val maybeMin = window.foldLeft[Option[BigDecimal]](None) {
+  def apply(window: TimeseriesView[Double]): Option[Boolean] = {
+    val maybeMin = window.foldLeft[Option[Double]](None) {
       case (value,None) => Some(value)
       case (value,curr @ Some(_curr)) => if (_curr <= value) curr else Some(value)
     }
@@ -82,8 +82,8 @@ case class MinFunction(comparison: NumericValueComparison) extends NumericWindow
 }
 
 case class MaxFunction(comparison: NumericValueComparison) extends NumericWindowFunction {
-  def apply(window: TimeseriesView[BigDecimal]): Option[Boolean] = {
-    val maybeMax = window.foldLeft[Option[BigDecimal]](None) {
+  def apply(window: TimeseriesView[Double]): Option[Boolean] = {
+    val maybeMax = window.foldLeft[Option[Double]](None) {
       case (value,None) => Some(value)
       case (value,curr @ Some(_curr)) => if (_curr >= value) curr else Some(value)
     }
@@ -92,8 +92,8 @@ case class MaxFunction(comparison: NumericValueComparison) extends NumericWindow
 }
 
 case class MeanFunction(comparison: NumericValueComparison) extends NumericWindowFunction {
-  def apply(window: TimeseriesView[BigDecimal]): Option[Boolean] = {
-    val (sum, num) = window.foldLeft((BigDecimal(0), 0)) { case (value, (s, n)) => (s + value, n + 1)}
+  def apply(window: TimeseriesView[Double]): Option[Boolean] = {
+    val (sum, num) = window.foldLeft(0.toDouble, 0) { case (value, (s, n)) => (s + value, n + 1)}
     Some(comparison.compare(sum / num))
   }
 }

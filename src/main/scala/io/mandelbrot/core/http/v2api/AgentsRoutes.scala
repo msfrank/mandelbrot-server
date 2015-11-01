@@ -102,38 +102,6 @@ trait AgentsRoutes extends ApiService {
           }
         }
       } ~
-      pathPrefix("probes" / ProbeIdMatcher) { case probeId: ProbeId =>
-        pathEndOrSingleSlash {
-          post {
-            /* update the status of the Check */
-            entity(as[Observation]) { case observation: Observation =>
-              complete {
-                serviceProxy.ask(ProcessProbeObservation(ProbeRef(agentId, probeId), observation)).map {
-                  case result: ProcessProbeObservationResult =>
-                    HttpResponse(StatusCodes.OK)
-                  case failure: ServiceOperationFailed =>
-                    throw failure.failure
-                }
-              }
-            }
-          } ~
-          get {
-            timeseriesParams { timeseries =>
-            pagingParams { paging =>
-            complete {
-              val limit = paging.limit.getOrElse(settings.pageLimit)
-              serviceProxy.ask(GetProbeObservations(ProbeRef(agentId, probeId), timeseries.from,
-                timeseries.to, limit, timeseries.fromInclusive, timeseries.toExclusive,
-                timeseries.descending, paging.last)).map {
-                  case result: GetProbeObservationsResult =>
-                    result.page
-                  case failure: ServiceOperationFailed =>
-                    throw failure.failure
-                }
-            }}}
-          }
-        }
-      } ~
       pathPrefix("checks" / CheckIdMatcher) { case checkId: CheckId =>
         pathEndOrSingleSlash {
           get {

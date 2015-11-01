@@ -37,14 +37,14 @@ class MetricsManagerSpec(_system: ActorSystem) extends TestKit(_system) with Imp
   val id1 = UUID.randomUUID()
   val histogram1 = new DoubleHistogram(3)
   histogram1.recordValue(0.1)
-  val metrics1 = ProbeMetrics(probeId, metricName, dimension, timestamp1, Vector(StatisticValue(MetricSampleCount, 1.0)))
+  val metrics1 = ProbeMetrics(probeId, metricName, dimension, timestamp1, Map(MetricSampleCount -> 1.0))
 
   val timestamp2 = timestamp1 + 5.seconds
   val id2 = UUID.randomUUID()
   val histogram2 = new DoubleHistogram(3)
   histogram2.recordValue(0.1)
   histogram2.recordValue(0.2)
-  val metrics2 = ProbeMetrics(probeId, metricName, dimension, timestamp2, Vector(StatisticValue(MetricSampleCount, 2.0)))
+  val metrics2 = ProbeMetrics(probeId, metricName, dimension, timestamp2, Map(MetricSampleCount -> 2.0))
 
   val timestamp3 = timestamp2 + 5.seconds
   val id3 = UUID.randomUUID()
@@ -52,7 +52,7 @@ class MetricsManagerSpec(_system: ActorSystem) extends TestKit(_system) with Imp
   histogram3.recordValue(0.1)
   histogram3.recordValue(0.2)
   histogram3.recordValue(0.3)
-  val metrics3 = ProbeMetrics(probeId, metricName, dimension, timestamp3, Vector(StatisticValue(MetricSampleCount, 3.0)))
+  val metrics3 = ProbeMetrics(probeId, metricName, dimension, timestamp3, Map(MetricSampleCount -> 3.0))
 
   val timestamp4 = timestamp3 + 5.seconds
   val id4 = UUID.randomUUID()
@@ -61,7 +61,7 @@ class MetricsManagerSpec(_system: ActorSystem) extends TestKit(_system) with Imp
   histogram4.recordValue(0.2)
   histogram4.recordValue(0.3)
   histogram4.recordValue(0.4)
-  val metrics4 = ProbeMetrics(probeId, metricName, dimension, timestamp4, Vector(StatisticValue(MetricSampleCount, 4.0)))
+  val metrics4 = ProbeMetrics(probeId, metricName, dimension, timestamp4, Map(MetricSampleCount -> 4.0))
 
   val timestamp5 = timestamp4 + 5.seconds
   val id5 = UUID.randomUUID()
@@ -71,7 +71,7 @@ class MetricsManagerSpec(_system: ActorSystem) extends TestKit(_system) with Imp
   histogram5.recordValue(0.3)
   histogram5.recordValue(0.4)
   histogram5.recordValue(0.5)
-  val metrics5 = ProbeMetrics(probeId, metricName, dimension, timestamp5, Vector(StatisticValue(MetricSampleCount, 5.0)))
+  val metrics5 = ProbeMetrics(probeId, metricName, dimension, timestamp5, Map(MetricSampleCount -> 5.0))
 
   def withTestData(testCode: (ActorRef) => Any): Unit = {
     withMetricsService { metricsService =>

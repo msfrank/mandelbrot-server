@@ -19,7 +19,7 @@
 
 package io.mandelbrot.core.timeseries
 
-import io.mandelbrot.core.model.{MetricSource, ScalarMapObservation}
+import io.mandelbrot.core.model.{ProbeMetrics, MetricSource, ScalarMapObservation}
 
 /**
  * A typed, read-only projection of a timeseries window.
@@ -35,32 +35,19 @@ sealed trait TimeseriesView[T] {
 /**
  * A read-only projection of a single metric.
  */
-class TimeseriesMetricView(source: MetricSource, timeseries: TimeseriesStore, size: Int) extends TimeseriesView[BigDecimal] {
+class TimeseriesMetricView(source: MetricSource, timeseries: TimeseriesStore, size: Int) extends TimeseriesView[Double] {
 
   val window = timeseries.window(source)
 
-  def apply(index: Int): BigDecimal = window(index) match {
-    case observation: ScalarMapObservation => observation.metrics(source.metricName)
-    case other => throw new IllegalStateException()
-  }
+  def apply(index: Int): Double = window(index).statistics(source.statistic)
 
-  def get(index: Int): Option[BigDecimal] = window.get(index) match {
-    case Some(observation: ScalarMapObservation) => observation.metrics.get(source.metricName)
-    case other => None
-  }
+  def get(index: Int): Option[Double] = window.get(index).map(_.statistics(source.statistic))
 
-  def head: BigDecimal = window.head match {
-    case observation: ScalarMapObservation => observation.metrics(source.metricName)
-    case other => throw new IllegalStateException()
-  }
+  def head: Double = window.head.statistics(source.statistic)
 
-  def headOption: Option[BigDecimal] = window.headOption match {
-    case Some(observation: ScalarMapObservation) => observation.metrics.get(source.metricName)
-    case other => None
-  }
+  def headOption: Option[Double] = window.headOption.map(_.statistics(source.statistic))
 
-  def foldLeft[A](z: A)(op: (BigDecimal, A) => A): A = window.foldLeft(z) {
-    case (observation: ScalarMapObservation, a) => op(observation.metrics(source.metricName), a)
-    case (other, a) => throw new IllegalStateException()
+  def foldLeft[A](z: A)(op: (Double, A) => A): A = window.foldLeft(z) {
+    case (metrics: ProbeMetrics, a) => op(metrics.statistics(source.statistic), a)
   }
 }

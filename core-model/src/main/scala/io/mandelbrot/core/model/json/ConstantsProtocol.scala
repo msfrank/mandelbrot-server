@@ -49,7 +49,7 @@ trait ConstantsProtocol extends DefaultJsonProtocol with StandardProtocol {
     def write(unit: MetricUnit) = JsString(unit.name)
     def read(value: JsValue) = value match {
       case JsString(Units.name) => Units
-      case JsString(Ops.name) => Ops
+      case JsString(Operations.name) => Operations
       case JsString(Percent.name) => Percent
       case JsString(Years.name) => Years
       case JsString(Months.name) => Months

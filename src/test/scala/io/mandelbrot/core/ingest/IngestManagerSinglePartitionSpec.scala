@@ -3,11 +3,12 @@ package io.mandelbrot.core.ingest
 import akka.actor.{PoisonPill, ActorRef, ActorSystem}
 import akka.testkit.{ImplicitSender, TestKit}
 import com.typesafe.config.ConfigFactory
-import io.mandelbrot.core.model.{Timestamp, ScalarMapObservation, ProbeRef}
 import org.joda.time.{DateTimeZone, DateTime}
 import org.scalatest.{BeforeAndAfterAll, ShouldMatchers, WordSpecLike}
 
 import io.mandelbrot.core._
+import io.mandelbrot.core.model.{Timestamp, ScalarMapObservation, ProbeRef}
+import io.mandelbrot.core.model.Conversions._
 import io.mandelbrot.core.ConfigConversions._
 
 class IngestManagerSinglePartitionSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
@@ -37,7 +38,8 @@ class IngestManagerSinglePartitionSpec(_system: ActorSystem) extends TestKit(_sy
     "servicing an AppendObservation request" should {
 
       "append an observation" in withIngestService { ingestService =>
-        val observation = ScalarMapObservation(DateTime.now(DateTimeZone.UTC), Map("load1" -> 1.0))
+        val observation = ScalarMapObservation(probeRef.probeId, DateTime.now(DateTimeZone.UTC),
+          Map("agentId" -> probeRef.agentId.toString), Map("load1" -> 1.metricUnits))
         val timestamp = Timestamp()
         ingestService ! AppendObservation(probeRef, timestamp, observation)
         expectMsgClass(classOf[AppendObservationResult])
