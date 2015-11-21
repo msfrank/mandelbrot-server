@@ -32,14 +32,15 @@ class IngestManagerSinglePartitionSpec(_system: ActorSystem) extends TestKit(_sy
   }
 
   val probeRef = ProbeRef("foo.agent:system.load")
+  val dimensions = Map("agentId" -> probeRef.agentId.toString)
 
   "An IngestManager backed with a single partition" when {
 
     "servicing an AppendObservation request" should {
 
       "append an observation" in withIngestService { ingestService =>
-        val observation = ScalarMapObservation(probeRef.probeId, DateTime.now(DateTimeZone.UTC),
-          Map("agentId" -> probeRef.agentId.toString), Map("load1" -> 1.metricUnits))
+        val observation = ScalarMapObservation(probeRef.probeId, Timestamp().toDateTime,
+          dimensions, Map("load1" -> 1.metricUnits))
         val timestamp = Timestamp()
         ingestService ! AppendObservation(probeRef, timestamp, observation)
         expectMsgClass(classOf[AppendObservationResult])
@@ -49,11 +50,16 @@ class IngestManagerSinglePartitionSpec(_system: ActorSystem) extends TestKit(_sy
     "servicing a GetObservations request" should {
 
       val timestamp = Timestamp()
-      val observation1 = ScalarMapObservation(timestamp.toDateTime.minusMinutes(5), Map("load1" -> 5.0))
-      val observation2 = ScalarMapObservation(timestamp.toDateTime.minusMinutes(4), Map("load1" -> 4.0))
-      val observation3 = ScalarMapObservation(timestamp.toDateTime.minusMinutes(3), Map("load1" -> 3.0))
-      val observation4 = ScalarMapObservation(timestamp.toDateTime.minusMinutes(2), Map("load1" -> 2.0))
-      val observation5 = ScalarMapObservation(timestamp.toDateTime.minusMinutes(1), Map("load1" -> 1.0))
+      val observation1 = ScalarMapObservation(probeRef.probeId, timestamp.toDateTime.minusMinutes(5),
+        dimensions, Map("load1" -> 5.metricUnits))
+      val observation2 = ScalarMapObservation(probeRef.probeId, timestamp.toDateTime.minusMinutes(4),
+        dimensions, Map("load1" -> 4.metricUnits))
+      val observation3 = ScalarMapObservation(probeRef.probeId, timestamp.toDateTime.minusMinutes(3),
+        dimensions, Map("load1" -> 3.metricUnits))
+      val observation4 = ScalarMapObservation(probeRef.probeId, timestamp.toDateTime.minusMinutes(2),
+        dimensions, Map("load1" -> 2.metricUnits))
+      val observation5 = ScalarMapObservation(probeRef.probeId, timestamp.toDateTime.minusMinutes(1),
+        dimensions, Map("load1" -> 1.metricUnits))
 
       "retrieve observations from the beginning when no token is specified" in withIngestService { ingestService =>
         // append observations to a single partition

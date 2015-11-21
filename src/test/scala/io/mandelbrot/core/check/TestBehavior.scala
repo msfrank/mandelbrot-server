@@ -27,6 +27,10 @@ class TestProcessor(val properties: Map[String,String]) extends BehaviorProcesso
   def processChild(check: AccessorOps, child: CheckRef, status: CheckStatus): Option[EventEffect] = None
 
   def processTick(check: AccessorOps): Option[EventEffect] = None
+
+  def processMetric(check: AccessorOps, metric: ProbeMetrics): Option[EventEffect] = None
+
+  def processStatus(check: AccessorOps, child: CheckRef, status: CheckStatus): Option[EventEffect] = None
 }
 
 class TestBehavior extends CheckBehaviorExtension {
@@ -60,6 +64,10 @@ class TestProcessorChange(val properties: Map[String,String]) extends BehaviorPr
   def processChild(check: AccessorOps, child: CheckRef, status: CheckStatus): Option[EventEffect] = None
 
   def processTick(check: AccessorOps): Option[EventEffect] = None
+
+  def processMetric(check: AccessorOps, metric: ProbeMetrics): Option[EventEffect] = None
+
+  def processStatus(check: AccessorOps, child: CheckRef, status: CheckStatus): Option[EventEffect] = None
 }
 
 class TestChangeBehavior extends CheckBehaviorExtension {

@@ -8,6 +8,7 @@ import org.scalatest.LoneElement._
 import org.scalatest.Inside._
 
 import io.mandelbrot.core.model._
+import io.mandelbrot.core.model.Conversions._
 import io.mandelbrot.core._
 import io.mandelbrot.core.ConfigConversions._
 
@@ -31,10 +32,11 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
   val today = new DateTime(DateTimeZone.UTC).toDateMidnight
   val checkRef = CheckRef("test.state.manager:check")
   val probeRef = ProbeRef("test.state.manager:check")
+  val dimensions = Map("agentId" -> probeRef.agentId.toString)
   val generation = 1L
 
   val timestamp1 = today.toDateTime.plusMinutes(1)
-  val metrics1 = ScalarMapObservation(timestamp1, Map("load" -> BigDecimal(1)))
+  val metrics1 = ScalarMapObservation(probeRef.probeId, timestamp1, dimensions, Map("load" -> 1.metricUnits))
   val observation1 = ProbeObservation(generation, metrics1)
   val status1 = CheckStatus(generation, timestamp1, CheckKnown, Some("healthy1"), CheckHealthy,
     Map.empty, None, None, None, None, squelched = false)
@@ -44,7 +46,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
     status1.correlation, status1.acknowledged, status1.squelched)
 
   val timestamp2 = today.toDateTime.plusMinutes(2)
-  val metrics2 = ScalarMapObservation(timestamp2, Map("load" -> BigDecimal(2)))
+  val metrics2 = ScalarMapObservation(probeRef.probeId, timestamp2, dimensions, Map("load" -> 2.metricUnits))
   val observation2 = ProbeObservation(generation, metrics2)
   val status2 = CheckStatus(generation, timestamp2, CheckKnown, Some("healthy2"), CheckHealthy,
     Map.empty, None, None, None, None, squelched = false)
@@ -54,7 +56,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
     status2.correlation, status2.acknowledged, status2.squelched)
 
   val timestamp3 = today.toDateTime.plusMinutes(3)
-  val metrics3 = ScalarMapObservation(timestamp3, Map("load" -> BigDecimal(3)))
+  val metrics3 = ScalarMapObservation(probeRef.probeId, timestamp3, dimensions, Map("load" -> 3.metricUnits))
   val observation3 = ProbeObservation(generation, metrics3)
   val status3 = CheckStatus(generation, timestamp3, CheckKnown, Some("healthy3"), CheckHealthy,
     Map.empty, None, None, None, None, squelched = false)
@@ -64,7 +66,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
     status3.correlation, status3.acknowledged, status3.squelched)
 
   val timestamp4 = today.toDateTime.plusMinutes(4)
-  val metrics4 = ScalarMapObservation(timestamp4, Map("load" -> BigDecimal(4)))
+  val metrics4 = ScalarMapObservation(probeRef.probeId, timestamp4, dimensions, Map("load" -> 4.metricUnits))
   val observation4 = ProbeObservation(generation, metrics4)
   val status4 = CheckStatus(generation, timestamp4, CheckKnown, Some("healthy4"), CheckHealthy,
     Map.empty, None, None, None, None, squelched = false)
@@ -74,7 +76,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
     status4.correlation, status4.acknowledged, status4.squelched)
 
   val timestamp5 = today.toDateTime.plusMinutes(5)
-  val metrics5 = ScalarMapObservation(timestamp5, Map("load" -> BigDecimal(5)))
+  val metrics5 = ScalarMapObservation(probeRef.probeId, timestamp5, dimensions, Map("load" -> 5.metricUnits))
   val observation5 = ProbeObservation(generation, metrics5)
   val status5 = CheckStatus(generation, timestamp5, CheckKnown, Some("healthy5"), CheckHealthy,
     Map.empty, None, None, None, None, squelched = false)

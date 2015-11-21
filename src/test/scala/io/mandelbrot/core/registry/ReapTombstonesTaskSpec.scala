@@ -2,7 +2,6 @@ package io.mandelbrot.core.registry
 
 import akka.actor.{PoisonPill, ActorRef, ActorSystem}
 import akka.testkit.{ImplicitSender, TestKit}
-import io.mandelbrot.core.model.AgentSpec
 import org.joda.time.{DateTimeZone, DateTime}
 import scala.concurrent.duration._
 import org.scalatest.{ShouldMatchers, BeforeAndAfterAll, WordSpecLike}
@@ -10,9 +9,9 @@ import org.scalatest.LoneElement._
 
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.agent._
-import io.mandelbrot.core.check._
 import io.mandelbrot.core._
 import io.mandelbrot.core.ConfigConversions._
+import io.mandelbrot.core.model.Conversions._
 
 class ReapTombstonesTaskSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with ShouldMatchers with BeforeAndAfterAll {
 
@@ -57,8 +56,9 @@ class ReapTombstonesTaskSpec(_system: ActorSystem) extends TestKit(_system) with
       val registerAgentResult = expectMsgClass(10.seconds, classOf[RegisterAgentResult])
 
       val probeRef = ProbeRef(agentId, ProbeId("load"))
-      val timestamp = DateTime.now(DateTimeZone.UTC)
-      serviceProxy ! ProcessProbeObservation(probeRef, ScalarMapObservation(timestamp, Map.empty))
+      val timestamp = Timestamp()
+      val observation = ScalarMapObservation(probeRef.probeId, timestamp, Map.empty, Map.empty)
+      serviceProxy ! ProcessProbeObservation(probeRef, observation)
       expectMsgClass(10.seconds, classOf[ProcessProbeObservationResult])
 
       serviceProxy ! RetireAgent(agentId)

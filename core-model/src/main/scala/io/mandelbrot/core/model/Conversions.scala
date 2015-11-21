@@ -1,7 +1,13 @@
 package io.mandelbrot.core.model
 
+import org.joda.time.DateTime
+
 object Conversions {
   import language.implicitConversions
+
+  /*
+   * datapoint conversions
+   */
 
   /* */
   implicit class Long2MetricUnits(val long: Long) extends AnyVal {
@@ -30,4 +36,11 @@ object Conversions {
   }
   implicit def long2MetricBytes(long: Long): Long2MetricBytes = new Long2MetricBytes(long)
   implicit def int2MetricBytes(int: Int): Long2MetricBytes = new Long2MetricBytes(int.toLong)
+
+  /*
+   * time conversions
+   */
+
+  implicit def timestamp2DateTime(timestamp: Timestamp): DateTime = timestamp.toDateTime
+  implicit def timestamp2LongMillis(timestamp: Timestamp): Long = timestamp.toMillis
 }

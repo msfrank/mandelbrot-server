@@ -6,6 +6,7 @@ object JsonProtocol extends DefaultJsonProtocol
 with ConstantsProtocol
 with StandardProtocol
 with EntityProtocol
+with IngestProtocol
 with MetricsProtocol
 with NotificationProtocol
 with RegistryProtocol
