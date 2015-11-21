@@ -54,15 +54,9 @@ trait ProcessingOps extends Actor with MutationOps {
       // mutation will contain Some(result) from message processing, or None
       val maybeMutation: Option[Mutation] = queued.head match {
 
-        // process the ProbeObservation
-        case QueuedObservation(probeId, observation) =>
-          processor.processObservation(this, probeId, observation).map { effect =>
-            EventMutation(effect.status, effect.notifications)
-          }
-
         // process the CheckCommand
         case QueuedCommand(command, caller) =>
-          processor.processCommand(this, command) match {
+          processCommand(command) match {
             case Success(effect) =>
               Some(CommandMutation(caller, effect.result, effect.status, effect.notifications))
             case Failure(ex) =>
@@ -70,15 +64,9 @@ trait ProcessingOps extends Actor with MutationOps {
               None
           }
 
-        // process the CheckEvent
-        case QueuedEvent(event, timestamp) =>
-          processor.processEvent(this, event).map { effect =>
-            EventMutation(effect.status, effect.notifications)
-          }
-
         // the check is retiring
         case QueuedRetire(retire, timestamp) =>
-          processor.retire(this, retire.lsn).map { effect =>
+          processRetirement(retire.lsn).map { effect =>
             Deletion(effect.status, effect.notifications, retire.lsn)
           }
       }

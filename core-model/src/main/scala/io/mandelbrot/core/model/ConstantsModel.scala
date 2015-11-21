@@ -1,5 +1,7 @@
 package io.mandelbrot.core.model
 
+import scala.concurrent.duration.FiniteDuration
+
 sealed trait ConstantsModel {
   val name: String
   override def toString = name
@@ -30,9 +32,9 @@ case object CounterSource extends SourceType  { val name = "counter" }
 sealed trait MetricUnit extends ConstantsModel
 
 /* no unit specified */
-case object Units extends MetricUnit   { val name = "units" }
-case object Operations extends MetricUnit     { val name = "operations" }
-case object Percent extends MetricUnit { val name = "percent" }
+case object Units extends MetricUnit        { val name = "units" }
+case object Operations extends MetricUnit   { val name = "operations" }
+case object Percent extends MetricUnit      { val name = "percent" }
 
 /* time units */
 case object Years extends MetricUnit    { val name = "years" }
@@ -54,10 +56,21 @@ case object TeraBytes extends MetricUnit  { val name = "terabytes" }
 case object PetaBytes extends MetricUnit  { val name = "petabytes" }
 
 /* sampling rates */
-sealed trait SamplingRate extends ConstantsModel
+sealed trait SamplingRate extends ConstantsModel { val millis: Long }
 
-case object PerSecond extends SamplingRate      { val name = "1second" }
-case object PerMinute extends SamplingRate      { val name = "1minute" }
-case object PerFiveMinutes extends SamplingRate { val name = "5minutes" }
-case object PerHour extends SamplingRate        { val name = "1hour" }
-case object PerDay extends SamplingRate         { val name = "1day" }
+case object PerSecond extends SamplingRate      { val name = "1second"; val millis = 1000L }
+case object PerMinute extends SamplingRate      { val name = "1minute"; val millis = 60 * 1000L }
+case object PerFiveMinutes extends SamplingRate { val name = "5minutes"; val millis = 5 * 60 * 1000L }
+case object PerHour extends SamplingRate        { val name = "1hour"; val millis = 60 * 60 * 1000L }
+case object PerDay extends SamplingRate         { val name = "1day"; val millis = 24 * 60 * 60 * 1000L }
+
+object SamplingRate {
+  def fromString(string: String): SamplingRate = string match {
+    case PerSecond.name => PerSecond
+    case PerMinute.name => PerMinute
+    case PerFiveMinutes.name => PerFiveMinutes
+    case PerHour.name => PerHour
+    case PerDay.name => PerDay
+    case _ => throw new IllegalArgumentException()
+  }
+}

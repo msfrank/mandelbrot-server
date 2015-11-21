@@ -66,10 +66,10 @@ final case class StatisticValue(statistic: Statistic, value: Double)
 
 /* metrics for the given probe and dimension at the specified time */
 final case class ProbeMetrics(probeId: ProbeId,
-                        metricName: String,
-                        dimension: Dimension,
-                        timestamp: Timestamp,
-                        statistics: Map[Statistic,Double])
+                              metricName: String,
+                              dimension: Dimension,
+                              timestamp: Timestamp,
+                              statistics: Map[Statistic,Double])
 
 /* a page of probe metric entries */
 final case class ProbeMetricsPage(history: Vector[ProbeMetrics], last: Option[String], exhausted: Boolean)

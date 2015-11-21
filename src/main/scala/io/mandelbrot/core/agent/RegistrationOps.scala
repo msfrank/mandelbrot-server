@@ -32,7 +32,6 @@ import io.mandelbrot.core.{BadRequest, ApiException}
  *
  */
 trait RegistrationOps extends Actor with ActorLogging {
-  import RegistrationOps._
   import io.mandelbrot.core.agent.Agent.CheckActor
 
   // state
@@ -92,8 +91,8 @@ trait RegistrationOps extends Actor with ActorLogging {
           val factory = CheckBehavior.extensions(checkType).configure(properties)
           checksAdded.put(checkId, (checkSpec,factory))
         case None =>
-          val factory = placeholderCheck.configure(Map.empty)
-          checksAdded.put(checkId, (placeholderCheckSpec,factory))
+//          val factory = placeholderCheck.configure(Map.empty)
+//          checksAdded.put(checkId, (placeholderCheckSpec,factory))
       }
     }
 
@@ -107,8 +106,8 @@ trait RegistrationOps extends Actor with ActorLogging {
           val factory = CheckBehavior.extensions(checkType).configure(properties)
           checksUpdated.put(checkId, (checkSpec,factory))
         case None =>
-          val factory = placeholderCheck.configure(Map.empty)
-          checksUpdated.put(checkId, (placeholderCheckSpec,factory))
+//          val factory = placeholderCheck.configure(Map.empty)
+//          checksUpdated.put(checkId, (placeholderCheckSpec,factory))
       }
     }
 
@@ -163,9 +162,3 @@ trait RegistrationOps extends Actor with ActorLogging {
   }
 }
 
-object RegistrationOps {
-  val placeholderCheck = new ContainerCheck()
-  val placeholderCheckSpec = CheckSpec("io.mandelbrot.core.check.ContainerCheck",
-    CheckPolicy(0.seconds, 5.minutes, 5.minutes, 5.minutes, None), Map.empty, Map.empty
-  )
-}

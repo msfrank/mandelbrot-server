@@ -1,11 +1,14 @@
 package io.mandelbrot.core.check
 
 import akka.event.LoggingAdapter
+import io.mandelbrot.core.{ResourceNotFound, Conflict, ApiException, BadRequest}
 import org.joda.time.{DateTimeZone, DateTime}
 import java.util.UUID
 
 import io.mandelbrot.core.model._
 import io.mandelbrot.core.util.Timer
+
+import scala.util.{Success, Try, Failure}
 
 /**
  * MutationOps trait encapsulates the mutable state of a check.  the actual modification
@@ -65,4 +68,73 @@ trait MutationOps extends AccessorOps {
   // FIXME: use Timestamp instead
   def now() = DateTime.now(DateTimeZone.UTC)
 
+  /**
+   *
+   */
+  def processAcknowledge(command: AcknowledgeCheck): Try[CommandEffect] = {
+    correlationId match {
+      case None =>
+        Failure(ApiException(ResourceNotFound))
+      case Some(correlation) if acknowledgementId.isDefined =>
+        Failure(ApiException(Conflict))
+      case Some(correlation) if correlation != command.correlationId =>
+        Failure(ApiException(BadRequest))
+      case Some(correlation) =>
+        val acknowledgement = UUID.randomUUID()
+        val timestamp = DateTime.now(DateTimeZone.UTC)
+        val status = getCheckStatus(timestamp).copy(acknowledged = Some(acknowledgement))
+        val condition = CheckCondition(generation, timestamp, status.lifecycle, status.summary,
+          status.health, status.correlation, status.acknowledged, status.squelched)
+        val notifications = Vector(NotifyAcknowledged(checkRef, timestamp, correlation, acknowledgement))
+        Success(CommandEffect(AcknowledgeCheckResult(command, condition), status, notifications))
+    }
+  }
+
+  def processUnacknowledge(command: UnacknowledgeCheck): Try[CommandEffect] = {
+    acknowledgementId match {
+      case None =>
+        Failure(ApiException(ResourceNotFound))
+      case Some(acknowledgement) if acknowledgement != command.acknowledgementId =>
+        Failure(ApiException(BadRequest))
+      case Some(acknowledgement) =>
+        val timestamp = DateTime.now(DateTimeZone.UTC)
+        val correlation = correlationId.get
+        val status = getCheckStatus(timestamp).copy(acknowledged = None)
+        val condition = CheckCondition(generation, timestamp, status.lifecycle, status.summary,
+          status.health, status.correlation, status.acknowledged, status.squelched)
+        val notifications = Vector(NotifyUnacknowledged(checkRef, timestamp, correlation, acknowledgement))
+        Success(CommandEffect(UnacknowledgeCheckResult(command, condition), status, notifications))
+    }
+  }
+
+  def processSetSquelch(command: SetCheckSquelch): Try[CommandEffect] = {
+    if (squelch == command.squelch) Failure(ApiException(BadRequest)) else {
+      val timestamp = DateTime.now(DateTimeZone.UTC)
+      val squelch = command.squelch
+      val status = getCheckStatus(timestamp).copy(squelched = squelch)
+      val condition = CheckCondition(generation, timestamp, status.lifecycle, status.summary,
+        status.health, status.correlation, status.acknowledged, status.squelched)
+      val notifications = if (command.squelch) Vector(NotifySquelched(checkRef, timestamp)) else Vector(NotifyUnsquelched(checkRef, timestamp))
+      Success(CommandEffect(SetCheckSquelchResult(command, condition), status, notifications))
+    }
+  }
+
+  def processCommand(command: CheckCommand): Try[CommandEffect] = command match {
+    case cmd: AcknowledgeCheck => processAcknowledge(cmd)
+    case cmd: UnacknowledgeCheck => processUnacknowledge(cmd)
+    case cmd: SetCheckSquelch => processSetSquelch(cmd)
+    case _ => throw new IllegalArgumentException()
+  }
+
+  /**
+   * check lifecycle is leaving and the leaving timeout has expired.  check lifecycle is set to
+   * retired, state is updated, and lifecycle-changes notification is sent.  finally, all timers
+   * are stopped, then the actor itself is stopped.
+   */
+  def processRetirement(lsn: Long): Option[EventEffect] = {
+    val timestamp = DateTime.now(DateTimeZone.UTC)
+    val status = getCheckStatus(timestamp).copy(lifecycle = CheckRetired, lastChange = Some(timestamp), lastUpdate = Some(timestamp))
+    val notifications = Vector(NotifyLifecycleChanges(checkRef, timestamp, lifecycle, CheckRetired))
+    Some(EventEffect(status, notifications))
+  }
 }

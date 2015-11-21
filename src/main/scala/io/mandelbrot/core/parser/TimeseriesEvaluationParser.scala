@@ -119,9 +119,11 @@ class TimeseriesEvaluationParser(globalOptions: EvaluationOptions) extends JavaT
 
   def statistic: Parser[Statistic] = regex("[a-zA-Z][a-zA-Z0-9-_.]*".r) ^^ Statistic.fromString
 
-  def metricSource: Parser[MetricSource] = literal("probe") ~ literal(":") ~ probeId ~ literal(":") ~ metricName ~ literal(":") ~ dimension ~ ":" ~ statistic ^^ {
-    case "probe" ~ ":" ~ (probeId: ProbeId) ~ ":" ~ (metricName: String) ~ ":" ~ (dimension: Dimension) ~ ":" ~ (statistic: Statistic) =>
-      MetricSource(probeId, metricName, dimension, statistic)
+  def samplingRate: Parser[SamplingRate] = regex("[a-zA-Z][a-zA-Z0-9-_.]*".r) ^^ SamplingRate.fromString
+
+  def metricSource: Parser[MetricSource] = literal("probe") ~ literal(":") ~ probeId ~ literal(":") ~ metricName ~ literal(":") ~ dimension ~ ":" ~ statistic ~ ":" ~ samplingRate ^^ {
+    case "probe" ~ ":" ~ (probeId: ProbeId) ~ ":" ~ (metricName: String) ~ ":" ~ (dimension: Dimension) ~ ":" ~ (statistic: Statistic) ~ "" ~ (samplingRate: SamplingRate) =>
+      MetricSource(probeId, metricName, dimension, statistic, samplingRate)
   }
 
   /*

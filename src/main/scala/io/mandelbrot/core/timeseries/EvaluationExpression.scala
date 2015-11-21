@@ -19,15 +19,15 @@
 
 package io.mandelbrot.core.timeseries
 
-import io.mandelbrot.core.model.{MetricSource, ObservationSource}
+import io.mandelbrot.core.model.{EvaluationSource, SamplingRate, MetricSource, ObservationSource}
 
 /**
  * An expression which evaluates observations from a TimeseriesStore.
  */
 sealed trait EvaluationExpression {
   def evaluate(timeseries: TimeseriesStore): Option[Boolean]
-  def sources: Set[ObservationSource]
-  def sizing: Set[(ObservationSource,Int)]
+  def sources: Set[EvaluationSource]
+  def sizing: Set[(EvaluationSource,Int)]
 }
 
 /**
@@ -39,8 +39,8 @@ case class EvaluateMetric(source: MetricSource, function: NumericWindowFunction,
     val metricView = new TimeseriesMetricView(source, timeseries, options.windowSize)
     function.apply(metricView)
   }
-  def sources = Set(source.toObservationSource)
-  def sizing = Set((source.toObservationSource, options.windowSize))
+  def sources = Set(source)
+  def sizing = Set((source, options.windowSize))
 }
 
 /**
@@ -92,18 +92,18 @@ case class LogicalNot(child: EvaluationExpression) extends LogicalGrouping {
 
 case object AlwaysTrue extends EvaluationExpression {
   def evaluate(timeseries: TimeseriesStore): Option[Boolean] = Some(true)
-  def sources = Set.empty[ObservationSource]
-  def sizing = Set.empty[(ObservationSource,Int)]
+  def sources = Set.empty[EvaluationSource]
+  def sizing = Set.empty[(EvaluationSource,Int)]
 }
 
 case object AlwaysFalse extends EvaluationExpression {
   def evaluate(timeseries: TimeseriesStore): Option[Boolean] = Some(false)
-  def sources = Set.empty[ObservationSource]
-  def sizing = Set.empty[(ObservationSource,Int)]
+  def sources = Set.empty[EvaluationSource]
+  def sizing = Set.empty[(EvaluationSource,Int)]
 }
 
 case object AlwaysUnknown extends EvaluationExpression {
   def evaluate(timeseries: TimeseriesStore): Option[Boolean] = None
-  def sources = Set.empty[ObservationSource]
-  def sizing = Set.empty[(ObservationSource,Int)]
+  def sources = Set.empty[EvaluationSource]
+  def sizing = Set.empty[(EvaluationSource,Int)]
 }

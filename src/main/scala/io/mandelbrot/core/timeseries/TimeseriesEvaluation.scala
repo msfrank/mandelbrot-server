@@ -25,9 +25,9 @@ import io.mandelbrot.core.model._
  *
  */
 class TimeseriesEvaluation(val expression: EvaluationExpression, input: String) {
-  val sources: Set[ObservationSource] = expression.sources
-  val sizing: Map[ObservationSource,Int] = expression.sizing.foldLeft(Map.empty[ObservationSource,Int]) {
-    case (sizes, (source,size)) =>
+  val sources: Set[EvaluationSource] = expression.sources
+  val sizing: Map[EvaluationSource,Int] = expression.sizing.foldLeft(Map.empty[EvaluationSource,Int]) {
+    case (sizes, (source, size)) =>
       val max = sizes.getOrElse(source, 0).max(size)
       sizes + (source -> max)
   }

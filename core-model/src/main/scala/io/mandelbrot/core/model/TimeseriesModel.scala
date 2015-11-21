@@ -37,45 +37,54 @@ final class ObservationSource(val scheme: String, val id: String) extends Ordere
   override def hashCode() = toString.hashCode
 }
 
-object ObservationSource {
-  def apply(probeId: ProbeId) = new ObservationSource("probe", probeId.toString)
-  def apply(probeRef: ProbeRef) = new ObservationSource("probe", probeRef.probeId.toString)
-}
-
 /**
  *
  */
 sealed trait EvaluationSource {
   def toObservationSource: ObservationSource
+  def samplingRate: SamplingRate
 }
 
 /**
  * A MetricSource uniquely identifies a metric within a Agent.
  */
-final class MetricSource(val probeId: ProbeId, val metricName: String, val dimension: Dimension, val statistic: Statistic) extends EvaluationSource {
-  def toObservationSource = ObservationSource(probeId)
+final class MetricSource(val probeId: ProbeId,
+                         val metricName: String,
+                         val dimension: Dimension,
+                         val statistic: Statistic,
+                         val samplingRate: SamplingRate) extends EvaluationSource {
+
+  def toObservationSource = new ObservationSource("probe", toString)
+
   override def equals(other: Any): Boolean = other match {
     case other: MetricSource =>
       probeId.equals(other.probeId) &&
         metricName.equals(other.metricName) &&
         dimension.equals(other.dimension) &&
-        statistic.equals(other.statistic)
+        statistic.equals(other.statistic) &&
+        samplingRate.equals(other.samplingRate)
     case _ => false
   }
-  override def toString = probeId.toString + ":" + metricName + ":" + dimension.name + "=" + dimension.value + ":" + statistic.toString
+
+  override def toString = probeId.toString + ":" + metricName + ":" + dimension.name + "=" + dimension.value + ":" + statistic.name + ":" + samplingRate.name
   override def hashCode() = toString.hashCode
 }
 
 object MetricSource {
-  def apply(probeId: ProbeId, metricName: String, dimension: Dimension, statistic: Statistic): MetricSource = {
-    new MetricSource(probeId, metricName, dimension, statistic)
+
+  def apply(probeId: ProbeId, metricName: String, dimension: Dimension, statistic: Statistic, samplingRate: SamplingRate): MetricSource = {
+    new MetricSource(probeId, metricName, dimension, statistic, samplingRate)
   }
-  val MetricSourceMatcher = "probe:([^:]+):([^:]+):([a-zA-Z][a-zA-Z0-9-_.]*)=([^:]+):(.+)".r
+
+  val MetricSourceMatcher = "probe:([^:]+):([^:]+):([a-zA-Z][a-zA-Z0-9-_.]*)=([^:]+):(.+)([a-zA-Z][a-zA-Z0-9-_.]*):([a-zA-Z][a-zA-Z0-9-_.]*)".r
+
   def apply(string: String): MetricSource = string match {
-    case MetricSourceMatcher(probeId, metricName, dimensionName, dimensionValue, statistic) =>
-      new MetricSource(ProbeId(probeId), metricName, Dimension(dimensionName, dimensionValue), Statistic.fromString(statistic))
+    case MetricSourceMatcher(probeId, metricName, dimensionName, dimensionValue, statistic, samplingRate) =>
+      new MetricSource(ProbeId(probeId), metricName, Dimension(dimensionName, dimensionValue),
+        Statistic.fromString(statistic), SamplingRate.fromString(samplingRate))
   }
-  def unapply(source: MetricSource): Option[(ProbeId, String, Dimension, Statistic)] = {
-    Some((source.probeId, source.metricName, source.dimension, source.statistic))
+
+  def unapply(source: MetricSource): Option[(ProbeId, String, Dimension, Statistic, SamplingRate)] = {
+    Some((source.probeId, source.metricName, source.dimension, source.statistic, source.samplingRate))
   }
 }
