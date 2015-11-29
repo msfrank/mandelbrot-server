@@ -118,55 +118,55 @@ object MandelbrotServerBuild extends Build {
 
     ).dependsOn(coreModel % "compile->compile;test->test")
 
-  /**
-   *
-   */
-  lazy val cassandraServer = (project in file("persistence-cassandra"))
-    .enablePlugins(JavaAppPackaging)
-    .settings(assemblySettings: _*)
-    .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
-    .settings(
-
-      name := "mandelbrot-server-cassandra",
-      version := mandelbrotVersion,
-      organization := mandelbrotOrganization,
-      organizationHomepage := Some(mandelbrotHomepage),
-
-      scalaVersion := scalaLangVersion,
-      scalacOptions ++= commonScalacOptions,
-      javacOptions ++= commonJavacOptions,
-      exportJars := true,
-
-      libraryDependencies ++= Seq(
-        "com.datastax.cassandra" % "cassandra-driver-core" % datastaxVersion,
-        "org.apache.kafka" % "kafka-clients" % kafkaVersion,
-        "org.cassandraunit" % "cassandra-unit" % "2.0.2.2" % "test",
-        "org.scalatest" %% "scalatest" % scalatestVersion % "test",
-        "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
-      ),
-
-      // specify the main class to use
-      mainClass in assembly := Some("io.mandelbrot.persistence.cassandra.CassandraApplication"),
-
-      // disable parallel tests
-      parallelExecution in Test := false,
-
-      // don't run tests when building assembly jar
-      test in assembly := {},
-
-      assemblyMergeStrategy in assembly := {
-        // concatenate service loader files
-        case PathList("META-INF", "services", xs @_*) => MergeStrategy.concat
-        // discard any files in META-INF/maven/
-        case PathList("META-INF", "maven", xs @_*) => MergeStrategy.discard
-        // use the default for anything else
-        case otherwise => (assemblyMergeStrategy in assembly).value(otherwise)
-      },
-
-      // publish in the Maven style, with a pom.xml
-      publishMavenStyle := true
-
-  ).dependsOn(coreServer % "compile->compile;test->test")
+//  /**
+//   *
+//   */
+//  lazy val cassandraServer = (project in file("persistence-cassandra"))
+//    .enablePlugins(JavaAppPackaging)
+//    .settings(assemblySettings: _*)
+//    .settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
+//    .settings(
+//
+//      name := "mandelbrot-server-cassandra",
+//      version := mandelbrotVersion,
+//      organization := mandelbrotOrganization,
+//      organizationHomepage := Some(mandelbrotHomepage),
+//
+//      scalaVersion := scalaLangVersion,
+//      scalacOptions ++= commonScalacOptions,
+//      javacOptions ++= commonJavacOptions,
+//      exportJars := true,
+//
+//      libraryDependencies ++= Seq(
+//        "com.datastax.cassandra" % "cassandra-driver-core" % datastaxVersion,
+//        "org.apache.kafka" % "kafka-clients" % kafkaVersion,
+//        "org.cassandraunit" % "cassandra-unit" % "2.0.2.2" % "test",
+//        "org.scalatest" %% "scalatest" % scalatestVersion % "test",
+//        "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
+//      ),
+//
+//      // specify the main class to use
+//      mainClass in assembly := Some("io.mandelbrot.persistence.cassandra.CassandraApplication"),
+//
+//      // disable parallel tests
+//      parallelExecution in Test := false,
+//
+//      // don't run tests when building assembly jar
+//      test in assembly := {},
+//
+//      assemblyMergeStrategy in assembly := {
+//        // concatenate service loader files
+//        case PathList("META-INF", "services", xs @_*) => MergeStrategy.concat
+//        // discard any files in META-INF/maven/
+//        case PathList("META-INF", "maven", xs @_*) => MergeStrategy.discard
+//        // use the default for anything else
+//        case otherwise => (assemblyMergeStrategy in assembly).value(otherwise)
+//      },
+//
+//      // publish in the Maven style, with a pom.xml
+//      publishMavenStyle := true
+//
+//  ).dependsOn(coreServer % "compile->compile;test->test")
 
 //  lazy val slickServer = (project in file("persistence-slick"))
 //    .enablePlugins(JavaAppPackaging)

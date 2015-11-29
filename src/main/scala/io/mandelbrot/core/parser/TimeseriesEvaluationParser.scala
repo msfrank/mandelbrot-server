@@ -1,5 +1,6 @@
 package io.mandelbrot.core.parser
 
+import java.net.{URLDecoder, IDN}
 import java.util
 
 import io.mandelbrot.core.timeseries._
@@ -97,42 +98,60 @@ class TimeseriesEvaluationParser(globalOptions: EvaluationOptions) extends JavaT
   def valueComparison: Parser[NumericValueComparison] = equals | notEquals | lessThanEqual | lessThan | greaterThanEqual | greaterThan
 
   /*
-   *
+   * the IDNA format is used as the basis for resource identifiers.  for details of IDNA see:
+   *   https://www.ietf.org/rfc/rfc3490.txt
+   *   https://www.ietf.org/rfc/rfc1034.txt
    */
-  def checkId: Parser[CheckId] = rep1sep(regex("""[^.:]+""".r), literal(".")) ^^ {
-    case segments: List[String] => new CheckId(segments.toVector)
-  }
+  def idnaEncodedString: Parser[String] = regex("[a-zA-Z0-9-.]+".r) ^^ { IDN.toUnicode }
 
-  def probeId: Parser[ProbeId] = rep1sep(regex("""[^.:]+""".r), literal(".")) ^^ {
-    case segments: List[String] => new ProbeId(segments.toVector)
-  }
+  /*
+   * the URL encoding format is used to encode freeform value fields.
+   */
+  def urlEncodedString: Parser[String] = regex("[a-zA-Z0-9-_.*%]+".r) ^^ { URLDecoder.decode(_, "UTF-8") }
 
-  def metricName: Parser[String] = regex("[a-zA-Z][a-zA-Z0-9-_.]*".r)
+  def checkId: Parser[CheckId] = idnaEncodedString ^^ { CheckId(_) }
 
-  def dimensionName: Parser[String] = regex("[a-zA-Z][a-zA-Z0-9-_.]*".r)
+  def probeId: Parser[ProbeId] = idnaEncodedString ^^ { ProbeId(_) }
 
-  def dimensionValue: Parser[String] = regex("[^:]+".r)
+  def metricName: Parser[String] = idnaEncodedString
+
+  def dimensionName: Parser[String] = idnaEncodedString
+
+  def dimensionValue: Parser[String] = urlEncodedString
 
   def dimension: Parser[Dimension] = dimensionName ~ literal("=") ~ dimensionValue ^^ {
     case (dimensionName: String) ~ "=" ~ (dimensionValue: String) => Dimension(dimensionName, dimensionValue)
   }
 
-  def statistic: Parser[Statistic] = regex("[a-zA-Z][a-zA-Z0-9-_.]*".r) ^^ Statistic.fromString
+  def statistic: Parser[Statistic] = urlEncodedString ^^ { Statistic.fromString }
 
-  def samplingRate: Parser[SamplingRate] = regex("[a-zA-Z][a-zA-Z0-9-_.]*".r) ^^ SamplingRate.fromString
+  def samplingRate: Parser[SamplingRate] = urlEncodedString ^^ { SamplingRate.fromString }
 
-  def metricSource: Parser[MetricSource] = literal("probe") ~ literal(":") ~ probeId ~ literal(":") ~ metricName ~ literal(":") ~ dimension ~ ":" ~ statistic ~ ":" ~ samplingRate ^^ {
-    case "probe" ~ ":" ~ (probeId: ProbeId) ~ ":" ~ (metricName: String) ~ ":" ~ (dimension: Dimension) ~ ":" ~ (statistic: Statistic) ~ "" ~ (samplingRate: SamplingRate) =>
-      MetricSource(probeId, metricName, dimension, statistic, samplingRate)
+  def metricSource: Parser[MetricSource] = probeId ~ literal(":") ~ metricName ~ literal(":") ~ dimension ~ literal(":") ~ statistic ~ literal(":") ~ samplingRate ^^ {
+    case _probeId ~ ":" ~ _metricName ~ ":" ~ _dimension ~ ":" ~ _statistic ~ ":" ~ _samplingRate =>
+      new MetricSource(_probeId, _metricName, _statistic, _samplingRate, _dimension)
   }
 
   /*
    *
    */
-  def windowUnit: Parser[WindowUnit] = (literal("SAMPLES") | literal("SAMPLE")) ^^ {
-    case "SAMPLES" => WindowSamples
-    case "SAMPLE" => WindowSamples
+  def windowUnitSamples: Parser[WindowUnit] = (literal("SAMPLES") | literal("SAMPLE")) ^^ {
+    case "SAMPLES" | "SAMPLE" => WindowSamples
   }
+
+  def windowUnitMinutes: Parser[WindowUnit] = (literal("MINUTES") | literal("MINUTE")) ^^ {
+    case "MINUTES" | "MINUTE" => WindowMinutes
+  }
+
+  def windowUnitHours: Parser[WindowUnit] = (literal("HOURS") | literal("HOUR")) ^^ {
+    case "HOURS" | "HOUR" => WindowHours
+  }
+
+  def windowUnitDays: Parser[WindowUnit] = (literal("DAYS") | literal("DAY")) ^^ {
+    case "DAYS" | "DAY" => WindowDays
+  }
+
+  def windowUnit: Parser[WindowUnit] = windowUnitSamples
 
   def evaluationOptions: Parser[EvaluationOptions] = _log(literal("OVER") ~ wholeNumber ~ windowUnit)("evaluationOptions") ^^ {
     case "OVER" ~ (magnitude: String) ~ (windowUnits: WindowUnit) =>
@@ -229,8 +248,8 @@ class TimeseriesEvaluationParser(globalOptions: EvaluationOptions) extends JavaT
 
 object TimeseriesEvaluationParser {
 
-  val globalOptions = EvaluationOptions(windowSize = 1, windowUnits = WindowSamples)
-  val oneSampleOptions = EvaluationOptions(windowSize = 1, windowUnits = WindowSamples)
+  val globalOptions = EvaluationOptions(windowSize = 1, windowUnit = WindowSamples)
+  val oneSampleOptions = EvaluationOptions(windowSize = 1, windowUnit = WindowSamples)
   val parser = new TimeseriesEvaluationParser(globalOptions)
 
   /**
@@ -248,7 +267,6 @@ object TimeseriesEvaluationParser {
       if (metric.options.equals(LazyOptions)) metric.copy(options = options) else metric
     case group: LogicalGrouping =>
       resolveLazyOptions(group, options)
-    case _: EvaluationExpression => expression   // just pass child through by default
   }
 
   /**

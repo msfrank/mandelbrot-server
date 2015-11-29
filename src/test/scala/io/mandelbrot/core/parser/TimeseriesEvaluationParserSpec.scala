@@ -10,35 +10,35 @@ import scala.math.BigDecimal
 class TimeseriesEvaluationParserSpec extends WordSpec with ShouldMatchers {
 
   val oneSampleOptions = TimeseriesEvaluationParser.oneSampleOptions
-  val twoSampleOptions = EvaluationOptions(windowSize = 2, windowUnits = WindowSamples)
-  val fiveSampleOptions = EvaluationOptions(windowSize = 5, windowUnits = WindowSamples)
+  val twoSampleOptions = EvaluationOptions(windowSize = 2, windowUnit = WindowSamples)
+  val fiveSampleOptions = EvaluationOptions(windowSize = 5, windowUnit = WindowSamples)
 
   "A TimeseriesEvaluationParser" when {
 
     "parsing an evaluation mapping a condition over the last data point" should {
 
-      val source = MetricSource("probe:id:value")
+      val source = MetricSource("probe:system.load:load1:p99:1minute:host=foo.com")
 
-      "parse 'probe:id:value == 0'" in {
-        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("probe:id:value == 0")
+      "parse 'probe:system.load:load1:p99:1minute:host=foo.com == 0'" in {
+        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("probe:system.load:load1:p99:1minute:host=foo.com == 0")
         println(evaluation.expression)
         evaluation.expression shouldEqual EvaluateMetric(source, HeadFunction(NumericValueEquals(0)), oneSampleOptions)
       }
 
-      "parse 'probe:id:value != 0'" in {
-        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("probe:id:value != 0")
+      "parse 'probe:system.load:load1:p99:1minute:host=foo.com != 0'" in {
+        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("probe:system.load:load1:p99:1minute:host=foo.com != 0")
         println(evaluation.expression)
         evaluation.expression shouldEqual EvaluateMetric(source, HeadFunction(NumericValueNotEquals(0)), oneSampleOptions)
       }
 
-      "parse 'probe:id:value < 0'" in {
-        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("probe:id:value < 0")
+      "parse 'probe:system.load:load1:p99:1minute:host=foo.com < 0'" in {
+        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("probe:system.load:load1:p99:1minute:host=foo.com < 0")
         println(evaluation.expression)
         evaluation.expression shouldEqual EvaluateMetric(source, HeadFunction(NumericValueLessThan(0)), oneSampleOptions)
       }
 
-      "parse 'probe:id:value > 0'" in {
-        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("probe:id:value > 0")
+      "parse 'probe:system.load:load1:p99:1minute:host=foo.com > 0'" in {
+        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("probe:system.load:load1:p99:1minute:host=foo.com > 0")
         println(evaluation.expression)
         evaluation.expression shouldEqual EvaluateMetric(source, HeadFunction(NumericValueGreaterThan(0)), oneSampleOptions)
       }
@@ -47,22 +47,22 @@ class TimeseriesEvaluationParserSpec extends WordSpec with ShouldMatchers {
 
     "parsing an evaluation mapping a condition over a timeseries" should {
 
-      val source = MetricSource("probe:check:value")
+      val source = MetricSource("probe:system.load:load1:p99:1minute:host=foo.com")
 
-      "parse 'MIN(probe:check:value) > 0 OVER 5 SAMPLES'" in {
-        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("MIN(probe:check:value) > 0 OVER 5 SAMPLES")
+      "parse 'MIN(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OVER 5 SAMPLES'" in {
+        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("MIN(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OVER 5 SAMPLES")
         println(evaluation.expression)
         evaluation.expression shouldEqual EvaluateMetric(source, MinFunction(NumericValueGreaterThan(0)), fiveSampleOptions)
       }
 
-      "parse 'MAX(probe:check:value) > 0 OVER 5 SAMPLES'" in {
-        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("MAX(probe:check:value) > 0 OVER 5 SAMPLES")
+      "parse 'MAX(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OVER 5 SAMPLES'" in {
+        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("MAX(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OVER 5 SAMPLES")
         println(evaluation.expression)
         evaluation.expression shouldEqual EvaluateMetric(source, MaxFunction(NumericValueGreaterThan(0)), fiveSampleOptions)
       }
 
-      "parse 'AVG(probe:check:value) > 0 OVER 5 SAMPLES'" in {
-        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("AVG(probe:check:value) > 0 OVER 5 SAMPLES")
+      "parse 'AVG(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OVER 5 SAMPLES'" in {
+        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("AVG(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OVER 5 SAMPLES")
         println(evaluation.expression)
         evaluation.expression shouldEqual EvaluateMetric(source, MeanFunction(NumericValueGreaterThan(0)), fiveSampleOptions)
       }
@@ -70,11 +70,11 @@ class TimeseriesEvaluationParserSpec extends WordSpec with ShouldMatchers {
 
     "parsing an evaluation with grouping operators" should {
 
-      val metric1 = MetricSource("probe:check:value1")
-      val metric2 = MetricSource("probe:check:value2")
+      val metric1 = MetricSource("probe:system.load:load1:p99:1minute:host=foo.com")
+      val metric2 = MetricSource("probe:system.load:load5:p99:1minute:host=foo.com")
 
-      "parse 'MIN(probe:check:value1) > 0 OVER 2 SAMPLES OR MIN(probe:check:value2) > 1 OVER 5 SAMPLES" in {
-        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("MIN(probe:check:value1) > 0 OVER 2 SAMPLES OR MIN(probe:check:value2) > 1 OVER 5 SAMPLES")
+      "parse 'MIN(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OVER 2 SAMPLES OR MIN(probe:system.load:load5:p99:1minute:host=foo.com) > 1 OVER 5 SAMPLES" in {
+        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("MIN(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OVER 2 SAMPLES OR MIN(probe:system.load:load5:p99:1minute:host=foo.com) > 1 OVER 5 SAMPLES")
         println(evaluation.expression)
         evaluation.expression shouldEqual LogicalOr(Vector(
           EvaluateMetric(metric1, MinFunction(NumericValueGreaterThan(0)), twoSampleOptions),
@@ -82,8 +82,8 @@ class TimeseriesEvaluationParserSpec extends WordSpec with ShouldMatchers {
         ))
       }
 
-      "parse 'MIN(probe:check:value1) > 0 OVER 2 SAMPLES AND MIN(probe:check:value2) > 1 OVER 5 SAMPLES" in {
-        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("MIN(probe:check:value1) > 0 OVER 2 SAMPLES AND MIN(probe:check:value2) > 1 OVER 5 SAMPLES")
+      "parse 'MIN(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OVER 2 SAMPLES AND MIN(probe:system.load:load5:p99:1minute:host=foo.com) > 1 OVER 5 SAMPLES" in {
+        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("MIN(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OVER 2 SAMPLES AND MIN(probe:system.load:load5:p99:1minute:host=foo.com) > 1 OVER 5 SAMPLES")
         println(evaluation.expression)
         evaluation.expression shouldEqual LogicalAnd(Vector(
           EvaluateMetric(metric1, MinFunction(NumericValueGreaterThan(0)), twoSampleOptions),
@@ -91,14 +91,14 @@ class TimeseriesEvaluationParserSpec extends WordSpec with ShouldMatchers {
         ))
       }
 
-      "parse 'NOT MIN(probe:check:value1) > 0 OVER 5 SAMPLES" in {
-        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("NOT MIN(probe:check:value1) > 0 OVER 5 SAMPLES")
+      "parse 'NOT MIN(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OVER 5 SAMPLES" in {
+        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("NOT MIN(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OVER 5 SAMPLES")
         println(evaluation.expression)
         evaluation.expression shouldEqual LogicalNot(EvaluateMetric(metric1, MinFunction(NumericValueGreaterThan(0)), fiveSampleOptions))
       }
 
-      "parse 'MIN(probe:check:value1) > 0 OVER 2 SAMPLES AND NOT MIN(probe:check:value1) > 1 OVER 5 SAMPLES" in {
-        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("MIN(probe:check:value1) > 0 OVER 2 SAMPLES AND NOT MIN(probe:check:value1) > 1 OVER 5 SAMPLES")
+      "parse 'MIN(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OVER 2 SAMPLES AND NOT MIN(probe:check:value1) > 1 OVER 5 SAMPLES" in {
+        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("MIN(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OVER 2 SAMPLES AND NOT MIN(probe:check:value1) > 1 OVER 5 SAMPLES")
         println(evaluation.expression)
         evaluation.expression shouldEqual LogicalAnd(Vector(
           EvaluateMetric(metric1, MinFunction(NumericValueGreaterThan(0)), twoSampleOptions),
@@ -106,8 +106,8 @@ class TimeseriesEvaluationParserSpec extends WordSpec with ShouldMatchers {
         ))
       }
 
-      "parse '(MIN(probe:check:value1) > 0 OR MIN(probe:check:value2) > 1) OVER 5 SAMPLES" in {
-        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("(MIN(probe:check:value1) > 0 OR MIN(probe:check:value2) > 1) OVER 5 SAMPLES")
+      "parse '(MIN(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OR MIN(probe:system.load:load5:p99:1minute:host=foo.com) > 1) OVER 5 SAMPLES" in {
+        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("(MIN(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OR MIN(probe:system.load:load5:p99:1minute:host=foo.com) > 1) OVER 5 SAMPLES")
         println(evaluation.expression)
         evaluation.expression shouldEqual LogicalOr(Vector(
           EvaluateMetric(metric1, MinFunction(NumericValueGreaterThan(0)), fiveSampleOptions),
@@ -118,11 +118,11 @@ class TimeseriesEvaluationParserSpec extends WordSpec with ShouldMatchers {
 
     "parsing a metric source with a single segment" should {
 
-      "parse 'probe:id:value'" in {
+      "parse 'probe:system.load:load1:p99:1minute:host=foo.com'" in {
         val parser = TimeseriesEvaluationParser.parser
-        val source = parser.parseAll(parser.metricSource, "probe:id:value").get
+        val source = parser.parseAll(parser.metricSource, "probe:system.load:load1:p99:1minute:host=foo.com").get
         println(source)
-        source shouldEqual MetricSource("probe:id:value")
+        source shouldEqual MetricSource("probe:system.load:load1:p99:1minute:host=foo.com")
       }
 
     }

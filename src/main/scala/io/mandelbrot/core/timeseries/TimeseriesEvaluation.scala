@@ -25,26 +25,37 @@ import io.mandelbrot.core.model._
  *
  */
 class TimeseriesEvaluation(val expression: EvaluationExpression, input: String) {
+
   val sources: Set[EvaluationSource] = expression.sources
   val sizing: Map[EvaluationSource,Int] = expression.sizing.foldLeft(Map.empty[EvaluationSource,Int]) {
     case (sizes, (source, size)) =>
       val max = sizes.getOrElse(source, 0).max(size)
       sizes + (source -> max)
   }
+  val samplingRate = expression.samplingRate
+
+  /**
+   *
+   */
   def evaluate(timeseries: TimeseriesStore): Option[Boolean] = expression.evaluate(timeseries)
+
   override def toString = input
 }
 
 sealed trait WindowUnit
 case object WindowSamples extends WindowUnit
+sealed trait WindowUnitOfTime extends WindowUnit { val millis: Long }
+case object WindowMinutes extends WindowUnitOfTime { val millis = 60 * 1000L }
+case object WindowHours extends WindowUnitOfTime { val millis = 60 * 60 * 1000L }
+case object WindowDays extends WindowUnitOfTime { val millis = 24 * 60 * 60 * 1000L }
 
 sealed trait WindowOptions {
   def windowSize: Int
-  def windowUnits: WindowUnit
+  def windowUnit: WindowUnit
 }
-case class EvaluationOptions(windowSize: Int, windowUnits: WindowUnit) extends WindowOptions
+case class EvaluationOptions(windowSize: Int, windowUnit: WindowUnit) extends WindowOptions
 
 case object LazyOptions extends WindowOptions {
   def windowSize: Int = throw new IllegalAccessException()
-  def windowUnits: WindowUnit = throw new IllegalAccessException()
+  def windowUnit: WindowUnit = throw new IllegalAccessException()
 }

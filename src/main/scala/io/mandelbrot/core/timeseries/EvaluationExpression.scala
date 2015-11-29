@@ -28,6 +28,7 @@ sealed trait EvaluationExpression {
   def evaluate(timeseries: TimeseriesStore): Option[Boolean]
   def sources: Set[EvaluationSource]
   def sizing: Set[(EvaluationSource,Int)]
+  def samplingRate: SamplingRate
 }
 
 /**
@@ -40,7 +41,13 @@ case class EvaluateMetric(source: MetricSource, function: NumericWindowFunction,
     function.apply(metricView)
   }
   def sources = Set(source)
-  def sizing = Set((source, options.windowSize))
+  def sizing = options.windowUnit match {
+    case units: WindowUnitOfTime =>
+      Set((source, ((options.windowSize * units.millis) / source.samplingRate.millis).toInt))
+    case WindowSamples =>
+      Set((source, options.windowSize))
+  }
+  def samplingRate = source.samplingRate
 }
 
 /**
@@ -48,6 +55,14 @@ case class EvaluateMetric(source: MetricSource, function: NumericWindowFunction,
  */
 sealed trait LogicalGrouping extends EvaluationExpression {
   def children: Vector[EvaluationExpression]
+  def samplingRate: SamplingRate = {
+    val rate = children.foldLeft[Option[SamplingRate]](None) {
+      case (None, source: EvaluationExpression) => Some(source.samplingRate)
+      case (acc @ Some(smallest), source: EvaluationExpression) =>
+        if (smallest.millis <= source.samplingRate.millis) acc else Some(source.samplingRate)
+    }
+    rate.getOrElse(throw new IllegalStateException())
+  }
 }
 
 case class LogicalAnd(children: Vector[EvaluationExpression]) extends LogicalGrouping {
@@ -88,22 +103,4 @@ case class LogicalNot(child: EvaluationExpression) extends LogicalGrouping {
   lazy val children: Vector[EvaluationExpression] = Vector(child)
   def sources = child.sources
   def sizing = child.sizing
-}
-
-case object AlwaysTrue extends EvaluationExpression {
-  def evaluate(timeseries: TimeseriesStore): Option[Boolean] = Some(true)
-  def sources = Set.empty[EvaluationSource]
-  def sizing = Set.empty[(EvaluationSource,Int)]
-}
-
-case object AlwaysFalse extends EvaluationExpression {
-  def evaluate(timeseries: TimeseriesStore): Option[Boolean] = Some(false)
-  def sources = Set.empty[EvaluationSource]
-  def sizing = Set.empty[(EvaluationSource,Int)]
-}
-
-case object AlwaysUnknown extends EvaluationExpression {
-  def evaluate(timeseries: TimeseriesStore): Option[Boolean] = None
-  def sources = Set.empty[EvaluationSource]
-  def sizing = Set.empty[(EvaluationSource,Int)]
 }

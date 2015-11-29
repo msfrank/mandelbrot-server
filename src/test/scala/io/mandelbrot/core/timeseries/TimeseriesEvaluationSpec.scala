@@ -15,10 +15,10 @@ class TimeseriesEvaluationSpec extends WordSpec with ShouldMatchers {
     val metricName = "foovalue"
     val dimension = Dimension("agent", "foo.agent")
     val statistic = MetricMinimum
-    val source = MetricSource(probeId, metricName, dimension, statistic, PerMinute)
+    val source = MetricSource(probeId, metricName, statistic, PerMinute, dimension)
 
     val oneSampleOptions = TimeseriesEvaluationParser.oneSampleOptions
-    val fiveSampleOptions = EvaluationOptions(windowSize = 5, windowUnits = WindowSamples)
+    val fiveSampleOptions = EvaluationOptions(windowSize = 5, windowUnit = WindowSamples)
 
     def makeProbeMetrics(statistics: Map[Statistic, Double]): ProbeMetrics = {
       ProbeMetrics(probeId, metricName, dimension, Timestamp(), statistics)

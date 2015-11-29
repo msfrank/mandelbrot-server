@@ -50,6 +50,11 @@ class TimeseriesStore(initialEvaluation: TimeseriesEvaluation, initialInstant: O
     }
   }
 
+  /**
+   *
+   */
+  def advance(timestamp: Timestamp): Unit = _windows.values().foreach(_.advance(timestamp))
+
   def window(source: ObservationSource): TimeseriesWindow = _windows.get(source)
 
   def window(source: EvaluationSource): TimeseriesWindow = window(source.toObservationSource)
