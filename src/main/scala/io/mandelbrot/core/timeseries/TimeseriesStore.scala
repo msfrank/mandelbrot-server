@@ -55,14 +55,10 @@ class TimeseriesStore(initialEvaluation: TimeseriesEvaluation, initialInstant: O
    */
   def advance(timestamp: Timestamp): Unit = _windows.values().foreach(_.advance(timestamp))
 
-  def window(source: ObservationSource): TimeseriesWindow = Option(_windows.get(source))
+  def window(source: EvaluationSource): TimeseriesWindow = Option(_windows.get(source))
     .getOrElse(throw new NoSuchElementException(source.toString))
 
-  def window(source: EvaluationSource): TimeseriesWindow = window(source.toObservationSource)
-
-  def windowOption(source: ObservationSource): Option[TimeseriesWindow] = Option(_windows.get(source))
-
-  def windowOption(source: EvaluationSource): Option[TimeseriesWindow] = windowOption(source.toObservationSource)
+  def windowOption(source: EvaluationSource): Option[TimeseriesWindow] = Option(_windows.get(source))
 
   def sources(): Set[EvaluationSource] = _windows.keySet().toSet
 
