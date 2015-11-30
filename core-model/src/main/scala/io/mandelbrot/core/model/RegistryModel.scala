@@ -1,6 +1,7 @@
 package io.mandelbrot.core.model
 
 import org.joda.time.DateTime
+import spray.json.JsObject
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -28,7 +29,7 @@ case class CheckPolicy(joiningTimeout: FiniteDuration,
 /* check specification */
 case class CheckSpec(checkType: String,
                      policy: CheckPolicy,
-                     properties: Map[String,String],
+                     properties: Option[JsObject],
                      metadata: Map[String,String] = Map.empty) extends RegistryModel
 
 /* */

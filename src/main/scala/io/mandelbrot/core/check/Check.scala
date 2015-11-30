@@ -22,7 +22,7 @@ package io.mandelbrot.core.check
 import akka.actor._
 import akka.pattern.ask
 import akka.pattern.pipe
-import org.joda.time.{DateTimeZone, DateTime}
+import org.joda.time.DateTime
 import scala.concurrent.duration._
 import java.util.UUID
 
@@ -50,13 +50,12 @@ class Check(val checkRef: CheckRef,
 
   // state
   var checkType: String = null
-  var processor: BehaviorProcessor = null
-  var factory: ProcessorFactory = null
+  var processor: ActorRef = ActorRef.noSender
+  var lsn: Long = 0
   var policy: CheckPolicy = null
   var children: Set[CheckRef] = null
   var lastCommitted: Option[DateTime] = None
   val commitTimer = new Timer(context, self, CheckCommitTimeout)
-  val tickTimer = new Timer(context, self, NextTick)
 
   startWith(Incubating, NoData)
 
@@ -69,10 +68,9 @@ class Check(val checkRef: CheckRef,
 
     /* initialize the check using parameters from the proposed processor */
     case Event(change: ChangeCheck, NoData) =>
-      val proposed = change.factory.implement()
-      val initializers = proposed.initialize(checkRef, generation).initializers
-      context.actorOf(InitializeCheckTask.props(checkRef, generation, initializers, self, services))
-      goto(Initializing) using Initializing(change, proposed)
+      val op = GetStatus(checkRef, generation)
+      services ! op
+      goto(Initializing) using Initializing(change, op)
 
     /* stash any other messages for processing later */
     case Event(_, NoData) =>
@@ -95,20 +93,30 @@ class Check(val checkRef: CheckRef,
   when(Initializing) {
 
     /* configure processor using initial state */
-    case Event(initialize: InitializeCheckTaskComplete, state: Initializing) =>
+    case Event(result: GetStatusResult, state: Initializing) =>
       commitTimer.stop()
-      val effect = state.proposed.configure(checkRef, generation, initialize.status,
-        initialize.observations, state.change.children)
-      val op = UpdateStatus(checkRef, effect.status, effect.notifications, commitEpoch = true)
-      goto(Configuring) using Configuring(state.change, state.proposed, effect.tick, op)
+      policy = state.change.policy
+      children = state.change.children
+      // if check has a previous status
+      result.status.foreach { status =>
+        applyStatus(status)
+        lastCommitted = Some(status.timestamp)
+      }
+      // create the check processor
+      processor = context.actorOf(state.change.props)
+      context.watch(processor)
+      // start the processor
+      lsn = lsn + 1
+      processor ! ChangeProcessor(lsn, services, children)
+      goto(Running) using NoData
 
     /* timed out waiting for initialization from state service */
     case Event(CheckCommitTimeout, state: Initializing) =>
-      throw new Exception("timeout while receiving initial state")
+      throw new Exception("timeout while initializing")
 
     /* initialization failed, let supervision handle it */
-    case Event(InitializeCheckTaskFailed(ex), state: Initializing) =>
-      throw ex
+    case Event(failure: StateServiceOperationFailed, state: Initializing) =>
+      throw failure.failure
 
     /* stash any other messages for processing later */
     case Event(_, state: Initializing) =>
@@ -117,62 +125,8 @@ class Check(val checkRef: CheckRef,
   }
 
   onTransition {
-    case _ -> Configuring =>
-      val state = nextStateData.asInstanceOf[Configuring]
-      services ! state.inflight
-      commitTimer.restart(commitTimeout)
-  }
-
-  /*
-   *
-   */
-  when(Configuring) {
-
-    /* ignore result if it doesn't match the in-flight request */
-    case Event(result: UpdateStatusResult, state: Configuring) if result.op != state.inflight =>
-      stay()
-
-    /* ignore failure if it doesn't match the in-flight request */
-    case Event(result: StateServiceOperationFailed, state: Configuring) if result.op != state.inflight =>
-      stay()
-
-    /* apply status processor using initial state */
-    case Event(result: UpdateStatusResult, state: Configuring) =>
-      commitTimer.stop()
-      val status = state.inflight.status
-      processor = state.proposed
-      policy = state.change.policy
-      children = state.change.children
-      applyStatus(status)
-      parent ! ChildMutates(checkRef, status)
-      notify(state.inflight.notifications)
-      lastCommitted = Some(status.timestamp)
-      goto(Running) using NoData
-
-    /* timed out waiting for initialization from state service */
-    case Event(CheckCommitTimeout, state: Configuring) =>
-      log.debug("timeout while updating configured state")
-      services ! state.inflight
-      commitTimer.restart(commitTimeout)
-      stay()
-
-    /* received an unhandled exception, so bail out */
-    case Event(StateServiceOperationFailed(op, failure), state: Configuring) =>
-      log.debug("failure updating configured state: {}", failure)
-      commitTimer.stop()
-      throw failure
-
-    /* stash any other messages for processing later */
-    case Event(_, state: Configuring) =>
-      stash()
-      stay()
-  }
-
-  onTransition {
-    case Configuring -> Running =>
+    case Initializing -> Running =>
       unstashAll()
-      val state = stateData.asInstanceOf[Configuring]
-      tickTimer.start(state.tick)
   }
 
   /*
@@ -206,42 +160,26 @@ class Check(val checkRef: CheckRef,
       }.pipeTo(sender())
       stay()
 
-    /* process a check evaluation from the client */
-    case Event(command: ProcessObservation, NoData) =>
-      enqueue(QueuedObservation(command.probeId, command.observation))
+    /* process check commands */
+    case Event(command: CheckCommand, NoData) =>
+      enqueue(QueuedCommand(command, sender()))
       stay()
 
     /* if the check behavior has changed, then transition to a new state */
     case Event(change: ChangeCheck, NoData) =>
-      // if queue is empty, put the message back in the mailbox to reprocess in Incubating state
+      // if queue is empty, put the message back in the mailbox to
+      // reprocess in Incubating state, otherwise hold onto the change
+      // and drain the queue first
       if (idle) {
-        self ! change
-        goto(Incubating) using NoData
-      }
-      // otherwise hold onto the change and drain the queue first
-      else {
-        goto(Changing) using Changing(change)
-      }
+        val op = GetStatus(checkRef, generation)
+        services ! op
+        goto(Initializing) using Initializing(change, op)
+      } else goto(Changing) using Changing(change)
 
     /* if the check behavior has retired, then update our state */
     case Event(retire: RetireCheck, NoData) =>
       enqueue(QueuedRetire(retire, now()))
       goto(Retiring)
-
-    /* process child status and update state */
-    case Event(event: ChildMutates, NoData) =>
-      if (children.contains(event.checkRef)) { enqueue(QueuedEvent(event, now())) }
-      stay()
-
-    /* process tick */
-    case Event(NextTick, NoData) =>
-      enqueue(QueuedEvent(NextTick, now()))
-      stay()
-
-    /* process check commands */
-    case Event(command: CheckCommand, NoData) =>
-      enqueue(QueuedCommand(command, sender()))
-      stay()
 
     /* check state has been committed, now we can apply the mutation */
     case Event(result: UpdateStatusResult, NoData) =>
@@ -336,7 +274,6 @@ class Check(val checkRef: CheckRef,
   override def postStop(): Unit = {
     // stop any timers which might still be running
     commitTimer.stop()
-    tickTimer.stop()
   }
 
   initialize()
@@ -355,15 +292,15 @@ object Check {
   sealed trait State
   case object Incubating extends State
   case object Initializing extends State
-  case object Configuring extends State
+  //case object Configuring extends State
   case object Changing extends State
   case object Running extends State
   case object Retiring extends State
   case object Retired extends State
 
   sealed trait Data
-  case class Initializing(change: ChangeCheck, proposed: BehaviorProcessor) extends Data
-  case class Configuring(change: ChangeCheck, proposed: BehaviorProcessor, tick: FiniteDuration, inflight: UpdateStatus) extends Data
+  case class Initializing(change: ChangeCheck, inflight: GetStatus) extends Data
+  //case class Configuring(change: ChangeCheck, proposed: BehaviorProcessor, tick: FiniteDuration, inflight: UpdateStatus) extends Data
   case class Changing(pending: ChangeCheck) extends Data
   case class Retiring(lsn: Long) extends Data
   case class Retired(lsn: Long) extends Data
@@ -372,7 +309,7 @@ object Check {
 }
 
 /* */
-case class ChangeCheck(checkType: String, policy: CheckPolicy, factory: ProcessorFactory, children: Set[CheckRef], lsn: Long)
+case class ChangeCheck(checkType: String, policy: CheckPolicy, props: Props, children: Set[CheckRef], lsn: Long)
 case class ProcessObservation(probeId: ProbeId, observation: Observation)
 
 /* */

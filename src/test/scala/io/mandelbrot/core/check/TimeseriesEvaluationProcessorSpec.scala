@@ -25,11 +25,12 @@ class TimeseriesEvaluationProcessorSpec(_system: ActorSystem) extends TestKit(_s
       val generation = 1L
       val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation(
         """
-          |MIN(probe:system.load:agent=foo:p90:1minute) > 0 OVER 5 SAMPLES
+          |MIN(probe:system.load:p90:1minute:agent=foo) > 0 OVER 5 SAMPLES
         """.stripMargin)
       val metricsService = new TestProbe(_system)
       val services = system.actorOf(TestServiceProxy.props(metricsService = Some(metricsService.ref)))
-      val processor = system.actorOf(TimeseriesEvaluationProcessor.props(generation, evaluation, services))
+      val settings = TimeseriesEvaluationSettings(evaluation)
+      val processor = system.actorOf(TimeseriesEvaluationProcessor.props(settings))
 
       //
     }

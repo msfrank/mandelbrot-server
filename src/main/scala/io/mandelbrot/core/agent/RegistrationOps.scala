@@ -19,7 +19,7 @@
 
 package io.mandelbrot.core.agent
 
-import akka.actor.{Actor, ActorLogging, ActorRef}
+import akka.actor.{Props, Actor, ActorLogging, ActorRef}
 
 import scala.concurrent.duration._
 import scala.collection.mutable
@@ -32,7 +32,6 @@ import io.mandelbrot.core.{BadRequest, ApiException}
  *
  */
 trait RegistrationOps extends Actor with ActorLogging {
-  import io.mandelbrot.core.agent.Agent.CheckActor
 
   // state
   val services: ActorRef
@@ -67,7 +66,7 @@ trait RegistrationOps extends Actor with ActorLogging {
   def validateAgentRegistration(registration: AgentSpec): Either[ApiException,AgentSpec] = {
     registration.checks.values.foreach {
       case checkSpec =>
-        if (!CheckBehavior.extensions.contains(checkSpec.checkType))
+        if (!ProcessorExtension.extensions.contains(checkSpec.checkType))
           return Left(ApiException(BadRequest, new NoSuchElementException(s"invalid checkType ${checkSpec.checkType}")))
     }
     Right(registration)
@@ -81,33 +80,29 @@ trait RegistrationOps extends Actor with ActorLogging {
     val registrationSet = makeRegistrationSet(registration)
     val checkSet = checks.keySet
 
-    // create a processor factory for each check which isn't in checkSet
-    val checksAdded = new mutable.HashMap[CheckId,(CheckSpec,CheckBehaviorExtension#DependentProcessorFactory)]
+    // create props for each check which isn't in checkSet
+    val checksAdded = new mutable.HashMap[CheckId,(CheckSpec,Props)]
     (registrationSet -- checkSet).toVector.sorted.foreach { case checkId: CheckId =>
       registration.checks.get(checkId) match {
         case Some(checkSpec) =>
-          val checkType = checkSpec.checkType
-          val properties = checkSpec.properties
-          val factory = CheckBehavior.extensions(checkType).configure(properties)
-          checksAdded.put(checkId, (checkSpec,factory))
-        case None =>
-//          val factory = placeholderCheck.configure(Map.empty)
-//          checksAdded.put(checkId, (placeholderCheckSpec,factory))
+          val extension = ProcessorExtension.extensions(checkSpec.checkType)
+          val settings = extension.configure(checkSpec.properties)
+          val props = extension.props(settings)
+          checksAdded.put(checkId, (checkSpec,props))
+        case None =>  // ignore placeholders
       }
     }
 
-    // create a processor factory for each check which has been updated
-    val checksUpdated = new mutable.HashMap[CheckId,(CheckSpec,CheckBehaviorExtension#DependentProcessorFactory)]
+    // create props for each check which has been updated
+    val checksUpdated = new mutable.HashMap[CheckId,(CheckSpec,Props)]
     checkSet.intersect(registrationSet).foreach { case checkId: CheckId =>
       registration.checks.get(checkId) match {
         case Some(checkSpec) =>
-          val checkType = checkSpec.checkType
-          val properties = checkSpec.properties
-          val factory = CheckBehavior.extensions(checkType).configure(properties)
-          checksUpdated.put(checkId, (checkSpec,factory))
-        case None =>
-//          val factory = placeholderCheck.configure(Map.empty)
-//          checksUpdated.put(checkId, (placeholderCheckSpec,factory))
+          val extension = ProcessorExtension.extensions(checkSpec.checkType)
+          val settings = extension.configure(checkSpec.properties)
+          val props = extension.props(settings)
+          checksUpdated.put(checkId, (checkSpec,props))
+        case None =>  // ignore placeholders
       }
     }
 
@@ -118,13 +113,11 @@ trait RegistrationOps extends Actor with ActorLogging {
       val CheckActor(_, _, actor) = checks(checkId)
       actor ! RetireCheck(lsn)
       retiredChecks.put(actor, (checkId,lsn))
-      // remove check from all subscriptions
-      observationBus.unsubscribe(self)
     }
 
     // create check actors for each added check
     checksAdded.keys.toVector.sorted.foreach { checkId =>
-      val (checkSpec, factory) = checksAdded(checkId)
+      val (checkSpec, props) = checksAdded(checkId)
       val checkRef = CheckRef(agentId, checkId)
       val actor = checkId.parentOption match {
         case Some(parent) =>
@@ -134,31 +127,30 @@ trait RegistrationOps extends Actor with ActorLogging {
       }
       log.debug("check {} joins {}", checkId, agentId)
       context.watch(actor)
-      checks = checks + (checkId -> CheckActor(checkSpec, factory, actor))
+      checks = checks + (checkId -> CheckActor(checkSpec, props, actor))
     }
 
     // update existing checks and mark zombie checks
     checksUpdated.keys.toVector.foreach { checkId =>
-      val (checkSpec, factory) = checksUpdated(checkId)
+      val (checkSpec, props) = checksUpdated(checkId)
       if (retiredChecks.contains(checks(checkId).actor)) {
         zombieChecks.add(checkId)
       } else {
         val CheckActor(_, _, actor) = checks(checkId)
-        checks = checks + (checkId -> CheckActor(checkSpec, factory, actor))
+        checks = checks + (checkId -> CheckActor(checkSpec, props, actor))
       }
     }
 
     // signal added and updated checks to gather initializer data and update check state
     (checksAdded.keySet ++ checksUpdated.keySet).foreach { case checkId =>
-      val CheckActor(checkSpec, factory, actor) = checks(checkId)
+      val CheckActor(checkSpec, props, actor) = checks(checkId)
       val directChildren = registrationSet.filter { _.parentOption match {
         case Some(parent) => parent == checkId
         case None => false
       }}.map(childId => CheckRef(agentId, childId))
-      actor ! ChangeCheck(checkSpec.checkType, checkSpec.policy, factory, directChildren, lsn)
-      // subscribe check actor to the observation bus
-      factory.observes().foreach(probeId => observationBus.subscribe(actor, probeId))
+      actor ! ChangeCheck(checkSpec.checkType, checkSpec.policy, props, directChildren, lsn)
     }
   }
 }
 
+case class CheckActor(spec: CheckSpec, props: Props, actor: ActorRef)

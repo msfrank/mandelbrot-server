@@ -44,6 +44,7 @@ object Timestamp {
     def toMillis: Long = value.getMillis
     def +(duration: FiniteDuration): Timestamp = new TimestampImpl(value.plus(duration.toMillis))
     def -(duration: FiniteDuration): Timestamp = new TimestampImpl(value.minus(duration.toMillis))
+    override def toString: String = value.toString
   }
 
   val SMALLEST_DATETIME: DateTime = new DateTime(0, DateTimeZone.UTC)

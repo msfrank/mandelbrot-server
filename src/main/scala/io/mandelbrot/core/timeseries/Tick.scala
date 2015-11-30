@@ -42,8 +42,9 @@ sealed abstract class Tick(timeInMillis: Long, val samplingRate: SamplingRate) e
   def contains(dateTime: DateTime): Boolean = contains(dateTime.toDateTime(DateTimeZone.UTC).getMillis)
   def contains(timestamp: Timestamp): Boolean = contains(timestamp.toMillis)
   def compare(timestamp: Timestamp): Int = if (contains(timestamp)) 0 else {
-    if (timestamp.toMillis - instant < 0) -1 else 1
+    if (instant - timestamp.toMillis < 0) -1 else 1
   }
+  override def toString: String = Timestamp(instant).toString
 
   def toTimestamp: Timestamp = Timestamp(instant)
   def toDuration = FiniteDuration(samplingRate.millis, TimeUnit.MILLISECONDS)

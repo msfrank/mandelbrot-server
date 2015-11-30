@@ -45,7 +45,7 @@ class TimeseriesStore(initialEvaluation: TimeseriesEvaluation, initialInstant: O
    */
   def put(source: MetricSource, metrics: ProbeMetrics): Unit = {
     _windows.get(source) match {
-      case null =>  // do nothing
+      case null =>  throw new NoSuchElementException(source.toString)
       case window: TimeseriesWindow => window.put(metrics.timestamp, metrics)
     }
   }
@@ -55,7 +55,8 @@ class TimeseriesStore(initialEvaluation: TimeseriesEvaluation, initialInstant: O
    */
   def advance(timestamp: Timestamp): Unit = _windows.values().foreach(_.advance(timestamp))
 
-  def window(source: ObservationSource): TimeseriesWindow = _windows.get(source)
+  def window(source: ObservationSource): TimeseriesWindow = Option(_windows.get(source))
+    .getOrElse(throw new NoSuchElementException(source.toString))
 
   def window(source: EvaluationSource): TimeseriesWindow = window(source.toObservationSource)
 

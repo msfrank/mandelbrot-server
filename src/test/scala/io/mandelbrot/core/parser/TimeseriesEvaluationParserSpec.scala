@@ -97,8 +97,8 @@ class TimeseriesEvaluationParserSpec extends WordSpec with ShouldMatchers {
         evaluation.expression shouldEqual LogicalNot(EvaluateMetric(metric1, MinFunction(NumericValueGreaterThan(0)), fiveSampleOptions))
       }
 
-      "parse 'MIN(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OVER 2 SAMPLES AND NOT MIN(probe:check:value1) > 1 OVER 5 SAMPLES" in {
-        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("MIN(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OVER 2 SAMPLES AND NOT MIN(probe:check:value1) > 1 OVER 5 SAMPLES")
+      "parse 'MIN(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OVER 2 SAMPLES AND NOT MIN(probe:system.load:load1:p99:1minute:host=foo.com) > 1 OVER 5 SAMPLES" in {
+        val evaluation = TimeseriesEvaluationParser.parseTimeseriesEvaluation("MIN(probe:system.load:load1:p99:1minute:host=foo.com) > 0 OVER 2 SAMPLES AND NOT MIN(probe:system.load:load1:p99:1minute:host=foo.com) > 1 OVER 5 SAMPLES")
         println(evaluation.expression)
         evaluation.expression shouldEqual LogicalAnd(Vector(
           EvaluateMetric(metric1, MinFunction(NumericValueGreaterThan(0)), twoSampleOptions),
@@ -120,9 +120,9 @@ class TimeseriesEvaluationParserSpec extends WordSpec with ShouldMatchers {
 
       "parse 'probe:system.load:load1:p99:1minute:host=foo.com'" in {
         val parser = TimeseriesEvaluationParser.parser
-        val source = parser.parseAll(parser.metricSource, "probe:system.load:load1:p99:1minute:host=foo.com").get
+        val source = parser.parseAll(parser.metricSource, "probe:metric:name:p99:1minute:host=foo.com").get
         println(source)
-        source shouldEqual MetricSource("probe:system.load:load1:p99:1minute:host=foo.com")
+        source shouldEqual MetricSource(ProbeId("metric"), "name", Metric99thPercentile, PerMinute, Dimension("host", "foo.com"))
       }
 
     }
@@ -131,9 +131,9 @@ class TimeseriesEvaluationParserSpec extends WordSpec with ShouldMatchers {
 
       "parse 'probe:nested.probe.id:value'" in {
         val parser = TimeseriesEvaluationParser.parser
-        val source = parser.parseAll(parser.metricSource, "probe:nested.probe.id:value").get
+        val source = parser.parseAll(parser.metricSource, "probe:system.cpu.cpu0:sys:maximum:1minute:host=bar.com").get
         println(source)
-        source shouldEqual MetricSource("probe:nested.probe.id:value")
+        source shouldEqual MetricSource(ProbeId("system.cpu.cpu0"), "sys", MetricMaximum, PerMinute, Dimension("host", "bar.com"))
       }
     }
   }

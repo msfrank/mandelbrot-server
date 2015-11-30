@@ -9,6 +9,7 @@ import io.mandelbrot.core.check.{GetCheckStatus, GetCheckStatusResult}
 import io.mandelbrot.core.{AkkaConfig, MandelbrotConfig, ServiceProxy}
 import org.joda.time.{DateTime, DateTimeZone}
 import org.scalatest.{BeforeAndAfterAll, ShouldMatchers, WordSpecLike}
+import spray.json.{JsString, JsObject}
 
 import scala.concurrent.duration._
 
@@ -37,7 +38,8 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val probePolicy = ProbePolicy(PerMinute)
       val probes = Map(ProbeId("load") -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
       val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
-      val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("evaluation" -> "probe:load:load1 > 1"))
+      val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy,
+        Some(JsObject("evaluation" -> JsString("probe:load:load1 > 1"))))
       val checks = Map(CheckId("load") -> checkSpec)
       val agentPolicy = AgentPolicy(5.seconds)
       val registration = AgentSpec(agentId, "mandelbrot", agentPolicy, probes, checks)
@@ -55,7 +57,8 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val probePolicy = ProbePolicy(PerMinute)
       val probes = Map(ProbeId("load") -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
       val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
-      val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("evaluation" -> "probe:load:load1 > 1"))
+      val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy,
+        Some(JsObject("evaluation" -> JsString("probe:load:load1 > 1"))))
       val checks = Map(CheckId("load") -> checkSpec)
       val agentPolicy = AgentPolicy(5.seconds)
       val registration = AgentSpec(agentId, "mandelbrot", agentPolicy, probes, checks)
@@ -81,7 +84,8 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val probePolicy = ProbePolicy(PerMinute)
       val probes = Map(ProbeId("load") -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
       val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
-      val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("evaluation" -> "probe:load:load1 > 1"))
+      val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy,
+        Some(JsObject("evaluation" -> JsString("probe:load:load1 > 1"))))
       val checks1 = Map(CheckId("check1") -> checkSpec)
       val agentPolicy = AgentPolicy(5.seconds)
       val registration1 = AgentSpec(agentId, "mandelbrot", agentPolicy, probes, checks1)
@@ -108,7 +112,8 @@ class AgentSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
       val probePolicy = ProbePolicy(PerMinute)
       val probes = Map(ProbeId("load") -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
       val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
-      val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("evaluation" -> "probe:load:load1 > 1"))
+      val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy,
+        Some(JsObject("evaluation" -> JsString("probe:load:load1 > 1"))))
       val checks = Map(CheckId("check1") -> checkSpec)
       val agentPolicy = AgentPolicy(5.seconds)
       val registration1 = AgentSpec(agentId, "mandelbrot", agentPolicy, probes, checks)

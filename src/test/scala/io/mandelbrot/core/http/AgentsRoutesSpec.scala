@@ -9,6 +9,7 @@ import org.scalatest.{BeforeAndAfter, WordSpec, ShouldMatchers}
 import spray.http.StatusCodes
 import spray.http.HttpHeaders._
 import spray.httpx.SprayJsonSupport._
+import spray.json.{JsString, JsObject}
 import spray.testkit.ScalatestRouteTest
 import scala.concurrent.duration._
 
@@ -43,7 +44,8 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
   val probes = Map(ProbeId("load") -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
   val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
   val checkId = CheckId("load")
-  val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("evaluation" -> "probe:load:load1 > 1"))
+  val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy,
+    Some(JsObject("evaluation" -> JsString("probe:load:load1 > 1"))))
   val checks = Map(checkId -> checkSpec)
   val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
   val agentPolicy = AgentPolicy(5.seconds)

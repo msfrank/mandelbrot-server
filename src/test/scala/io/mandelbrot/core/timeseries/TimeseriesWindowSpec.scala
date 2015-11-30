@@ -15,15 +15,15 @@ class TimeseriesWindowSpec extends WordSpec with ShouldMatchers {
     val statistic = MetricMinimum
 
     val timestamp = Timestamp()
-    val status1 = ProbeMetrics(probeId, metricName, dimension, timestamp, Map(MetricMinimum -> 1))
-    val status2 = ProbeMetrics(probeId, metricName, dimension, timestamp + 1.minute, Map(MetricMinimum -> 2))
-    val status3 = ProbeMetrics(probeId, metricName, dimension, timestamp + 2.minute, Map(MetricMinimum -> 3))
-    val status4 = ProbeMetrics(probeId, metricName, dimension, timestamp + 3.minute, Map(MetricMinimum -> 4))
-    val status5 = ProbeMetrics(probeId, metricName, dimension, timestamp + 4.minute, Map(MetricMinimum -> 5))
-    val status6 = ProbeMetrics(probeId, metricName, dimension, timestamp + 5.minute, Map(MetricMinimum -> 6))
-    val status7 = ProbeMetrics(probeId, metricName, dimension, timestamp + 6.minute, Map(MetricMinimum -> 7))
-    val status8 = ProbeMetrics(probeId, metricName, dimension, timestamp + 7.minute, Map(MetricMinimum -> 8))
-    val status9 = ProbeMetrics(probeId, metricName, dimension, timestamp + 8.minute, Map(MetricMinimum -> 9))
+    val status1 = ProbeMetrics(probeId, metricName, dimension, timestamp + 1.minute, Map(MetricMinimum -> 1))
+    val status2 = ProbeMetrics(probeId, metricName, dimension, timestamp + 2.minute, Map(MetricMinimum -> 2))
+    val status3 = ProbeMetrics(probeId, metricName, dimension, timestamp + 3.minute, Map(MetricMinimum -> 3))
+    val status4 = ProbeMetrics(probeId, metricName, dimension, timestamp + 4.minute, Map(MetricMinimum -> 4))
+    val status5 = ProbeMetrics(probeId, metricName, dimension, timestamp + 5.minute, Map(MetricMinimum -> 5))
+    val status6 = ProbeMetrics(probeId, metricName, dimension, timestamp + 6.minute, Map(MetricMinimum -> 6))
+    val status7 = ProbeMetrics(probeId, metricName, dimension, timestamp + 7.minute, Map(MetricMinimum -> 7))
+    val status8 = ProbeMetrics(probeId, metricName, dimension, timestamp + 8.minute, Map(MetricMinimum -> 8))
+    val status9 = ProbeMetrics(probeId, metricName, dimension, timestamp + 9.minute, Map(MetricMinimum -> 9))
 
     "maintain invariants for an empty window" in {
       val window = new TimeseriesWindow(initialSize = 5, initialInstant = timestamp.toMillis, PerMinute)
@@ -33,6 +33,8 @@ class TimeseriesWindowSpec extends WordSpec with ShouldMatchers {
       a [NoSuchElementException] should be thrownBy { window(0) }
       an [IndexOutOfBoundsException] should be thrownBy { window.get(5) }
       an [IndexOutOfBoundsException] should be thrownBy { window(5) }
+      an [IndexOutOfBoundsException] should be thrownBy { window.get(-1) }
+      an [IndexOutOfBoundsException] should be thrownBy { window(-1) }
     }
 
     "append multiple elements into the window" in {
@@ -62,10 +64,10 @@ class TimeseriesWindowSpec extends WordSpec with ShouldMatchers {
       window.put(status3.timestamp, status3)
       window.put(status2.timestamp, status2)
       window.put(status1.timestamp, status1)
-      window.head shouldEqual status1
-      window.headOption shouldEqual Some(status1)
-      window.get(0) shouldEqual Some(status1)
-      window(0) shouldEqual status1
+      window.head shouldEqual status3
+      window.headOption shouldEqual Some(status3)
+      window.get(0) shouldEqual Some(status3)
+      window(0) shouldEqual status3
     }
 
     "retrieve elements by index" in {
@@ -73,15 +75,15 @@ class TimeseriesWindowSpec extends WordSpec with ShouldMatchers {
       window.put(status3.timestamp, status3)
       window.put(status2.timestamp, status2)
       window.put(status1.timestamp, status1)
-      window.get(0) shouldEqual Some(status1)
+      window.get(0) shouldEqual Some(status3)
       window.get(1) shouldEqual Some(status2)
-      window.get(2) shouldEqual Some(status3)
+      window.get(2) shouldEqual Some(status1)
       window.get(3) shouldEqual None
       window.get(4) shouldEqual None
       an [IndexOutOfBoundsException] should be thrownBy { window.get(5) }
-      window(0) shouldEqual status1
+      window(0) shouldEqual status3
       window(1) shouldEqual status2
-      window(2) shouldEqual status3
+      window(2) shouldEqual status1
       a [NoSuchElementException] should be thrownBy { window(3) }
       a [NoSuchElementException] should be thrownBy { window(4) }
       an [IndexOutOfBoundsException] should be thrownBy { window(5) }

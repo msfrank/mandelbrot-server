@@ -19,7 +19,7 @@
 
 package io.mandelbrot.core.timeseries
 
-import io.mandelbrot.core.model.{ProbeMetrics, MetricSource, ScalarMapObservation}
+import io.mandelbrot.core.model.{ProbeMetrics, MetricSource}
 
 /**
  * A typed, read-only projection of a timeseries window.

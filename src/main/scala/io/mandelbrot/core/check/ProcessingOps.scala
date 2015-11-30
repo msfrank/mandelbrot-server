@@ -21,7 +21,6 @@ trait ProcessingOps extends Actor with MutationOps {
 
   var checkType: String
   var policy: CheckPolicy
-  var processor: BehaviorProcessor
   var children: Set[CheckRef]
   var lastCommitted: Option[DateTime]
 
@@ -159,7 +158,5 @@ case class Deletion(status: CheckStatus,
                     lsn: Long) extends Mutation
 
 sealed trait QueuedMessage
-case class QueuedObservation(probeId: ProbeId, observation: Observation) extends QueuedMessage
-case class QueuedEvent(event: CheckEvent, timestamp: DateTime) extends QueuedMessage
 case class QueuedCommand(command: CheckCommand, caller: ActorRef) extends QueuedMessage
 case class QueuedRetire(retire: RetireCheck, timestamp: DateTime) extends QueuedMessage

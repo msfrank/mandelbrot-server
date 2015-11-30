@@ -509,8 +509,6 @@ class Agent(val services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] w
 object Agent {
   def props(services: ActorRef) = Props(classOf[Agent], services)
 
-  case class CheckActor(spec: CheckSpec, factory: CheckBehaviorExtension#DependentProcessorFactory, actor: ActorRef)
-
   sealed trait State
   case object AgentIncubating extends State
   case object AgentRegistering extends State

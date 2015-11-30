@@ -3,6 +3,7 @@ package io.mandelbrot.core.registry
 import akka.actor.{PoisonPill, ActorRef, ActorSystem}
 import akka.testkit.{ImplicitSender, TestKit}
 import org.joda.time.{DateTimeZone, DateTime}
+import spray.json.{JsObject, JsString}
 import scala.concurrent.duration._
 import org.scalatest.{ShouldMatchers, BeforeAndAfterAll, WordSpecLike}
 import org.scalatest.LoneElement._
@@ -47,7 +48,8 @@ class ReapTombstonesTaskSpec(_system: ActorSystem) extends TestKit(_system) with
       val probePolicy = ProbePolicy(PerMinute)
       val probes = Map(ProbeId("load") -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
       val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 0.seconds, None)
-      val check = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy, Map("evaluation" -> "probe:load:load1 > 1"), Map.empty)
+      val check = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy,
+        Some(JsObject("evaluation" -> JsString("probe:load:load1 > 1"))), Map.empty)
       val checks = Map(CheckId("load") -> check)
       val agentPolicy = AgentPolicy(0.seconds)
       val registration = AgentSpec(agentId, "mandelbrot", agentPolicy, probes, checks)

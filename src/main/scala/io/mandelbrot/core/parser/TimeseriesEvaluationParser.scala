@@ -115,6 +115,10 @@ class TimeseriesEvaluationParser(globalOptions: EvaluationOptions) extends JavaT
 
   def metricName: Parser[String] = idnaEncodedString
 
+  def statistic: Parser[Statistic] = urlEncodedString ^^ { Statistic.fromString }
+
+  def samplingRate: Parser[SamplingRate] = urlEncodedString ^^ { SamplingRate.fromString }
+
   def dimensionName: Parser[String] = idnaEncodedString
 
   def dimensionValue: Parser[String] = urlEncodedString
@@ -123,12 +127,8 @@ class TimeseriesEvaluationParser(globalOptions: EvaluationOptions) extends JavaT
     case (dimensionName: String) ~ "=" ~ (dimensionValue: String) => Dimension(dimensionName, dimensionValue)
   }
 
-  def statistic: Parser[Statistic] = urlEncodedString ^^ { Statistic.fromString }
-
-  def samplingRate: Parser[SamplingRate] = urlEncodedString ^^ { SamplingRate.fromString }
-
-  def metricSource: Parser[MetricSource] = probeId ~ literal(":") ~ metricName ~ literal(":") ~ dimension ~ literal(":") ~ statistic ~ literal(":") ~ samplingRate ^^ {
-    case _probeId ~ ":" ~ _metricName ~ ":" ~ _dimension ~ ":" ~ _statistic ~ ":" ~ _samplingRate =>
+  def metricSource: Parser[MetricSource] = literal("probe:") ~ probeId ~ literal(":") ~ metricName ~ literal(":") ~ statistic ~ literal(":") ~ samplingRate ~ literal(":") ~ dimension ^^ {
+    case "probe:" ~ _probeId ~ ":" ~ _metricName ~ ":" ~ _statistic ~ ":" ~ _samplingRate ~ ":" ~ _dimension =>
       new MetricSource(_probeId, _metricName, _statistic, _samplingRate, _dimension)
   }
 

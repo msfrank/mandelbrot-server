@@ -24,7 +24,7 @@ import io.mandelbrot.core.model._
 /**
  *
  */
-private class TimeseriesSample[T](var sample: Option[T], val tick: Tick)
+private class TimeseriesSample[T](var value: Option[T], val tick: Tick)
 
 /**
  * A ring buffer which stores an array of samples ordered by tick.
@@ -39,8 +39,8 @@ class SampleBuffer[T](initialSize: Int, initialInstant: Long, samplingRate: Samp
   // initialize backing array
   private def initialize(): Unit = {
     val tick = Tick(initialInstant, samplingRate)
-    array.indices.reverse.foreach { index =>
-      array(index) = new TimeseriesSample[T](None, tick - index)
+    array.indices.foreach { index =>
+      array(index) = new TimeseriesSample[T](None, tick - (initialSize - index))
     }
   }
 
@@ -67,23 +67,38 @@ class SampleBuffer[T](initialSize: Int, initialInstant: Long, samplingRate: Samp
   def tip: Tick = array(lookup(0)).tick
 
   /**
+   * returns a sequence of sample values.
+   */
+  def values: Seq[Option[T]] = array.indices.map(i => array(lookup(i)).value).toSeq
+
+  /**
+   * returns a sequence of sample ticks.
+   */
+  def ticks: Seq[Tick] = array.indices.map(i => array(lookup(i)).tick).toSeq
+
+  /**
+   * returns a sequence of samples.
+   */
+  def samples: Seq[(Tick,Option[T])] = array.indices.map(i => array(lookup(i))).map(s => s.tick -> s.value).toSeq
+
+  /**
    * insert a sample in the correct slot of the buffer.  if the timestamp is newer
    * than the most current sample, then advance the buffer as needed and insert the
    * sample at the head.
    */
   def put(timestamp: Timestamp, sample: T): Unit = {
     // if the timestamp is older than the oldest sample, then we silently drop it
-    if (array(lookup(size - 1)).tick > timestamp)
+    if (horizon > timestamp)
       return
     val latest = array(lookup(0))
     val tick = Tick(timestamp, samplingRate)
     val span = tick.span(latest.tick)
     if (latest.tick >= timestamp) {
       // if timestamp is older than or equal to the newest sample, then we upsert
-      array(lookup(span.toInt)).sample = Some(sample)
+      array(lookup(span.toInt)).value = Some(sample)
     } else {
       advance(timestamp)
-      array(lookup(0)).sample = Some(sample)
+      array(lookup(0)).value = Some(sample)
     }
   }
 
@@ -117,14 +132,14 @@ class SampleBuffer[T](initialSize: Int, initialInstant: Long, samplingRate: Samp
    * @throws NoSuchElementException if there is no element at the specified index
    * @throws IndexOutOfBoundsException if index is larger than the buffer
    */
-  def apply(index: Int): T = array(lookup(index)).sample.get
+  def apply(index: Int): T = array(lookup(index)).value.get
 
   /**
    * return an Option for the value at the specified index.
    *
    * @throws IndexOutOfBoundsException if index is larger than the buffer
    */
-  def get(index: Int): Option[T] = array(lookup(index)).sample
+  def get(index: Int): Option[T] = array(lookup(index)).value
 
   /**
    * get the last inserted element (index == 0)
