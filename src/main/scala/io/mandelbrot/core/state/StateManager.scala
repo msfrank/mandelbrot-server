@@ -36,10 +36,6 @@ class StateManager(settings: StateSettings, clusterEnabled: Boolean) extends Act
 
   def receive = {
 
-    /* append observation to the specified probe */
-    case op: AppendObservation =>
-      persister forward op
-
     /* retrieve the current status for the specified check */
     case op: GetStatus =>
       persister forward op
@@ -50,10 +46,6 @@ class StateManager(settings: StateSettings, clusterEnabled: Boolean) extends Act
 
     /* delete state for the specified check */
     case op: DeleteStatus =>
-      persister forward op
-
-    /* retrieve probe observation history */
-    case op: GetObservationHistory =>
       persister forward op
 
     /* retrieve check condition history */
@@ -84,12 +76,6 @@ sealed trait StateServiceQuery extends ServiceQuery with StateServiceOperation
 sealed trait StateServiceResult
 case class StateServiceOperationFailed(op: StateServiceOperation, failure: Throwable) extends ServiceOperationFailed
 
-case class AppendObservation(probeRef: ProbeRef,
-                             generation: Long,
-                             observation: Observation,
-                             commitEpoch: Boolean = false) extends StateServiceCommand
-case class AppendObservationResult(op: AppendObservation) extends StateServiceResult
-
 case class UpdateStatus(checkRef: CheckRef,
                         status: CheckStatus,
                         notifications: Vector[CheckNotification],
@@ -101,17 +87,6 @@ case class DeleteStatusResult(op: DeleteStatus) extends StateServiceResult
 
 case class GetStatus(checkRef: CheckRef, generation: Long) extends StateServiceQuery
 case class GetStatusResult(op: GetStatus, status: Option[CheckStatus]) extends StateServiceResult
-
-case class GetObservationHistory(probeRef: ProbeRef,
-                                 generation: Long,
-                                 from: Option[DateTime],
-                                 to: Option[DateTime],
-                                 limit: Int,
-                                 fromInclusive: Boolean = false,
-                                 toExclusive: Boolean = false,
-                                 descending: Boolean = false,
-                                 last: Option[String] = None) extends StateServiceQuery
-case class GetObservationHistoryResult(op: GetObservationHistory, page: ProbeObservationPage) extends StateServiceResult
 
 case class GetConditionHistory(checkRef: CheckRef,
                                generation: Long,

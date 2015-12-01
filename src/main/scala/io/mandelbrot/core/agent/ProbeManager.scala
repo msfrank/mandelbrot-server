@@ -41,27 +41,6 @@ class ProbeManager(observationBus: ObservationBus, services: ActorRef) extends A
 
   def running: Receive = {
 
-    /* record observation and publish to the bus */
-    case op: ProcessProbeObservation =>
-      services.ask(AppendObservation(op.probeRef, generation, op.observation, commitEpoch = true))(publishTimeout).map {
-        case result: AppendObservationResult =>
-          log.debug("publishing observation {}", op.observation)
-          observationBus.publish(ProcessObservation(op.probeRef.probeId, op.observation))
-          ProcessProbeObservationResult(op)
-        case failure: StateServiceOperationFailed =>
-          ProbeOperationFailed(op, failure.failure)
-      }.pipeTo(sender())
-
-    /* return observation history for the specified probe */
-    case query: GetProbeObservations =>
-      services.ask(GetObservationHistory(query.probeRef, generation, query.from, query.to, query.limit,
-        query.fromInclusive, query.toExclusive, query.descending, query.last))(queryTimeout).map {
-        case result: GetObservationHistoryResult =>
-          GetProbeObservationsResult(query, result.page)
-        case failure: StateServiceOperationFailed =>
-          ProbeOperationFailed(query, failure.failure)
-      }.pipeTo(sender())
-
     /* update configuration */
     case config: SetGeneration =>
       generation = config.generation

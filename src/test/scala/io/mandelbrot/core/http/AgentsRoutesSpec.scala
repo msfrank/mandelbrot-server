@@ -45,7 +45,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
   val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
   val checkId = CheckId("load")
   val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy,
-    Some(JsObject("evaluation" -> JsString("probe:load:load1 > 1"))))
+    Some(JsObject("evaluation" -> JsString("probe:system.load:load1:p99:1minute:host=foo.com > 1"))))
   val checks = Map(checkId -> checkSpec)
   val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
   val agentPolicy = AgentPolicy(5.seconds)

@@ -11,7 +11,7 @@ import io.mandelbrot.core.timeseries._
 
 case class TimeseriesEvaluationSettings(evaluation: TimeseriesEvaluation)
 
-class TimeseriesEvaluationExtension extends ProcessorExtension {
+class TimeseriesCheck extends ProcessorExtension {
   type Settings = TimeseriesEvaluationSettings
   implicit object TimeseriesEvalutionFormat extends JsonFormat[TimeseriesEvaluation] {
     override def write(obj: TimeseriesEvaluation): JsValue = JsString(obj.toString)

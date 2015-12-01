@@ -12,22 +12,8 @@ import io.mandelbrot.core.{ResourceNotFound, ApiException}
 class TestStateImplementation(settings: TestStateExtensionSettings) extends Actor with ActorLogging {
 
   val checkStatus = new util.HashMap[CheckRefGeneration,util.TreeMap[DateTime,UpdateStatus]]()
-  val observations = new util.HashMap[ProbeRefGeneration,util.TreeMap[DateTime,Observation]]()
 
   def receive = {
-
-    case op: AppendObservation =>
-      val probeRefGeneration = ProbeRefGeneration(op.probeRef, op.generation)
-      observations.get(probeRefGeneration) match {
-        case null =>
-          val history = new util.TreeMap[DateTime,Observation]()
-          history.put(op.observation.timestamp, op.observation)
-          observations.put(probeRefGeneration, history)
-          sender() ! AppendObservationResult(op)
-        case history =>
-          history.put(op.observation.timestamp, op.observation)
-          sender() ! AppendObservationResult(op)
-      }
 
     case op: GetStatus =>
       val checkRefGeneration = CheckRefGeneration(op.checkRef, op.generation)
@@ -59,23 +45,6 @@ class TestStateImplementation(settings: TestStateExtensionSettings) extends Acto
       val checkRefGeneration = CheckRefGeneration(op.checkRef, op.generation)
       checkStatus.remove(checkRefGeneration)
       sender() ! DeleteStatusResult(op)
-
-    /* return observation history */
-    case op: GetObservationHistory =>
-      try {
-        val history = getHistory(op.probeRef, op.generation, op.from, op.to, op.last)
-          .map(o => ProbeObservation(op.generation, o))
-        val page = if (history.length > op.limit) {
-          val subset = history.take(op.limit)
-          val last = subset.lastOption.map(_.observation.timestamp.getMillis.toString)
-          ProbeObservationPage(subset, last, exhausted = false)
-        } else {
-          ProbeObservationPage(history, last = None, exhausted = true)
-        }
-        sender() ! GetObservationHistoryResult(op, page)
-      } catch {
-        case ex: Throwable => sender() ! StateServiceOperationFailed(op, ex)
-      }
 
     /* return condition history */
     case op: GetConditionHistory =>
@@ -111,34 +80,6 @@ class TestStateImplementation(settings: TestStateExtensionSettings) extends Acto
   }
 
   /**
-   * return the observation history entries matching the specified parameters.
-   */
-  def getHistory(probeRef: ProbeRef,
-                 generation: Long,
-                 from: Option[DateTime],
-                 to: Option[DateTime],
-                 last: Option[String]): Vector[Observation] = {
-    val probeRefGeneration = ProbeRefGeneration(probeRef, generation)
-    observations.get(probeRefGeneration) match {
-      // if there is no check, then raise ResourceNotFound
-      case null =>
-        throw ApiException(ResourceNotFound)
-      // if no timeseries params are specified, return the last entry
-      case history if from.isEmpty && to.isEmpty =>
-        history.lastEntry() match {
-          case null => Vector.empty
-          case entry => Vector(entry.getValue)
-        }
-      // otherwise return the subset of entries
-      case history =>
-        val _last: Option[DateTime] = last.map(s => new DateTime(s.toLong).withZone(DateTimeZone.UTC))
-        val _from: DateTime = _last.getOrElse(from.getOrElse(new DateTime(0, DateTimeZone.UTC)))
-        val _to: DateTime = to.getOrElse(new DateTime(Long.MaxValue, DateTimeZone.UTC))
-        history.subMap(_from, false, _to, true).map(entry => entry._2).toVector
-    }
-  }
-
-  /**
    * return the status history entries matching the specified parameters.
    */
   def getHistory(checkRef: CheckRef,
@@ -160,8 +101,8 @@ class TestStateImplementation(settings: TestStateExtensionSettings) extends Acto
       // otherwise return the subset of entries
       case history =>
         val _last: Option[DateTime] = last.map(s => new DateTime(s.toLong).withZone(DateTimeZone.UTC))
-        val _from: DateTime = _last.getOrElse(from.getOrElse(new DateTime(0, DateTimeZone.UTC)))
-        val _to: DateTime = to.getOrElse(new DateTime(Long.MaxValue, DateTimeZone.UTC))
+        val _from: DateTime = _last.getOrElse(from.getOrElse(Timestamp.SMALLEST_DATETIME))
+        val _to: DateTime = to.getOrElse(Timestamp.LARGEST_DATETIME)
         history.subMap(_from, false, _to, true).map(entry => entry._2).toVector
     }
   }
@@ -186,13 +127,6 @@ class TestStateImplementation(settings: TestStateExtensionSettings) extends Acto
 
 object TestStateImplementation {
   def props(settings: TestStateExtensionSettings) = Props(classOf[TestStateImplementation], settings)
-}
-
-case class ProbeRefGeneration(probeRef: ProbeRef, generation: Long) extends Ordered[ProbeRefGeneration] {
-  import scala.math.Ordered.orderingToOrdered
-  def compare(other: ProbeRefGeneration): Int = {
-    (probeRef.toString, generation).compare((other.probeRef.toString, other.generation))
-  }
 }
 
 case class CheckRefGeneration(checkRef: CheckRef, generation: Long) extends Ordered[CheckRefGeneration] {

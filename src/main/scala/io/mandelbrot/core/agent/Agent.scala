@@ -123,7 +123,8 @@ class Agent(val services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] w
               result.metadata.generation + 1, result.lsn + 1, services))
             stay()
           case Left(ex) =>
-            stop() replying AgentOperationFailed(state.op, ApiException(BadRequest, ex))
+            state.sender ! AgentOperationFailed(state.op, ApiException(BadRequest, ex))
+            stop()
         }
       } else throw new IllegalStateException(s"agent ${state.op.agentId} exists with" +
         s"generation ${result.metadata.generation} and lsn ${result.lsn}")
@@ -135,7 +136,8 @@ class Agent(val services: ActorRef) extends LoggingFSM[Agent.State,Agent.Data] w
           context.actorOf(RegisterAgentTask.props(state.op, state.sender, generation + 1, lsn + 1, services))
           stay()
         case Left(ex) =>
-          stop() replying AgentOperationFailed(state.op, ApiException(BadRequest, ex))
+          state.sender ! AgentOperationFailed(state.op, ApiException(BadRequest, ex))
+          stop()
       }
 
     /* we successfully registered the agent */

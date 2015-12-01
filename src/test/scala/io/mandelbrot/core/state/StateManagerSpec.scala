@@ -88,32 +88,17 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
   def withTestData(testCode: (ActorRef) => Any): Unit = {
     withStateService { stateService =>
 
-      stateService ! AppendObservation(probeRef, generation, metrics1)
-      expectMsgClass(classOf[AppendObservationResult])
-
       stateService ! UpdateStatus(checkRef, status1, notifications1.notifications)
       expectMsgClass(classOf[UpdateStatusResult])
-
-      stateService ! AppendObservation(probeRef, generation, metrics2)
-      expectMsgClass(classOf[AppendObservationResult])
 
       stateService ! UpdateStatus(checkRef, status2, notifications2.notifications)
       expectMsgClass(classOf[UpdateStatusResult])
 
-      stateService ! AppendObservation(probeRef, generation, metrics3)
-      expectMsgClass(classOf[AppendObservationResult])
-
       stateService ! UpdateStatus(checkRef, status3, notifications3.notifications)
       expectMsgClass(classOf[UpdateStatusResult])
 
-      stateService ! AppendObservation(probeRef, generation, metrics4)
-      expectMsgClass(classOf[AppendObservationResult])
-
       stateService ! UpdateStatus(checkRef, status4, notifications4.notifications)
       expectMsgClass(classOf[UpdateStatusResult])
-
-      stateService ! AppendObservation(probeRef, generation, metrics5)
-      expectMsgClass(classOf[AppendObservationResult])
 
       stateService ! UpdateStatus(checkRef, status5, notifications5.notifications)
       expectMsgClass(classOf[UpdateStatusResult])
@@ -293,56 +278,6 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       }
     }
 
-    "servicing a GetObservationHistory request" should {
-
-      "return ResourceNotFound if check doesn't exist" in withStateService { stateService =>
-        stateService ! GetObservationHistory(probeRef, generation, None, None, 10)
-        val getObservationHistoryResult = expectMsgClass(classOf[StateServiceOperationFailed])
-        getObservationHistoryResult.failure shouldEqual ApiException(ResourceNotFound)
-      }
-
-      "return observations from the beginning in ascending order if timeseries parameters are not specified" in withTestData { stateService =>
-        stateService ! GetObservationHistory(probeRef, generation, None, None, 10)
-        val getObservationHistoryResult = expectMsgClass(classOf[GetObservationHistoryResult])
-        getObservationHistoryResult.page.history shouldEqual Vector(observation1,
-          observation2, observation3, observation4, observation5)
-        getObservationHistoryResult.page.last shouldEqual None
-        getObservationHistoryResult.page.exhausted shouldEqual true
-      }
-
-      "return observations from the end in descending order if timeseries parameters are not specified and descending is true" in withTestData { stateService =>
-        stateService ! GetObservationHistory(probeRef, generation, None, None, 10, descending = true)
-        val getObservationHistoryResult = expectMsgClass(classOf[GetObservationHistoryResult])
-        getObservationHistoryResult.page.history shouldEqual Vector(observation5,
-          observation4, observation3, observation2, observation1)
-        getObservationHistoryResult.page.last shouldEqual None
-        getObservationHistoryResult.page.exhausted shouldEqual true
-      }
-
-      "return a page of observation history newer than 'from' when 'from' is specified" in withTestData { stateService =>
-        stateService ! GetObservationHistory(probeRef, generation, Some(timestamp3), None, 100)
-        val getObservationHistoryResult = expectMsgClass(classOf[GetObservationHistoryResult])
-        getObservationHistoryResult.page.history shouldEqual Vector(observation4, observation5)
-        getObservationHistoryResult.page.last shouldEqual None
-        getObservationHistoryResult.page.exhausted shouldEqual true
-      }
-
-      "return a page of observation history older than 'to' when 'to' is specified" in withTestData { stateService =>
-        stateService ! GetObservationHistory(probeRef, generation, None, Some(timestamp4), 100)
-        val getObservationHistoryResult = expectMsgClass(classOf[GetObservationHistoryResult])
-        getObservationHistoryResult.page.history shouldEqual Vector(observation1, observation2, observation3, observation4)
-        getObservationHistoryResult.page.last shouldEqual None
-        getObservationHistoryResult.page.exhausted shouldEqual true
-      }
-
-      "return a page of observation history between 'from' and 'to' when 'from' and 'to' are specified" in withTestData { stateService =>
-        stateService ! GetObservationHistory(probeRef, generation, Some(timestamp2), Some(timestamp4), 100)
-        val getObservationHistoryResult = expectMsgClass(classOf[GetObservationHistoryResult])
-        getObservationHistoryResult.page.history shouldEqual Vector(observation3, observation4)
-        getObservationHistoryResult.page.last shouldEqual None
-        getObservationHistoryResult.page.exhausted shouldEqual true
-      }
-    }
   }
 }
 

@@ -138,3 +138,11 @@ trait MutationOps extends AccessorOps {
     Some(EventEffect(status, notifications))
   }
 }
+
+sealed trait CheckEffect
+case class CommandEffect(result: CheckResult,
+                         status: CheckStatus,
+                         notifications: Vector[CheckNotification]) extends CheckEffect
+
+case class EventEffect(status: CheckStatus,
+                       notifications: Vector[CheckNotification]) extends CheckEffect
