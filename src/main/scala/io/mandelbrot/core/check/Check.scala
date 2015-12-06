@@ -134,6 +134,11 @@ class Check(val checkRef: CheckRef,
    */
   when(Running) {
 
+    /* queue the processor status to be persisted */
+    case Event(status: ProcessorStatus, NoData) =>
+      enqueue(QueuedStatus(status, now()))
+      stay()
+
     /* retrieve the current check status */
     case Event(query: GetCheckStatus, NoData) =>
       stay() replying GetCheckStatusResult(query, getCheckStatus)
@@ -292,7 +297,6 @@ object Check {
   sealed trait State
   case object Incubating extends State
   case object Initializing extends State
-  //case object Configuring extends State
   case object Changing extends State
   case object Running extends State
   case object Retiring extends State
@@ -300,7 +304,6 @@ object Check {
 
   sealed trait Data
   case class Initializing(change: ChangeCheck, inflight: GetStatus) extends Data
-  //case class Configuring(change: ChangeCheck, proposed: BehaviorProcessor, tick: FiniteDuration, inflight: UpdateStatus) extends Data
   case class Changing(pending: ChangeCheck) extends Data
   case class Retiring(lsn: Long) extends Data
   case class Retired(lsn: Long) extends Data

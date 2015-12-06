@@ -71,6 +71,32 @@ trait MutationOps extends AccessorOps {
   /**
    *
    */
+  def processStatus(timestamp: DateTime, status: ProcessorStatus): Option[EventEffect] = {
+    // update check status based on the processor health
+    val nextHealth = status.health
+    val nextSummary = status.summary
+    val nextLastUpdate = Some(timestamp)
+    val nextLastChange = if (status.health != health) Some(timestamp) else None
+    val nextCorrelationId = if (health == CheckHealthy && status.health != CheckHealthy && correlationId.isEmpty) Some(UUID.randomUUID()) else None
+    val nextAcknowledgementId = if (nextCorrelationId.isEmpty) None else acknowledgementId
+    val nextStatus = CheckStatus(generation, timestamp, lifecycle, nextSummary, nextHealth,
+      nextLastUpdate, nextLastChange, nextCorrelationId, nextAcknowledgementId, squelch)
+    //
+    var notifications: Vector[CheckNotification] = Vector.empty
+    if (status.health != health) {
+      if (nextHealth == CheckHealthy && correlationId.isDefined && acknowledgementId.isDefined)
+        notifications = notifications :+ NotifyRecovers(checkRef, timestamp, correlationId.get, acknowledgementId.get)
+      else
+        notifications = notifications :+ NotifyHealthChanges(checkRef, timestamp, nextCorrelationId, health, nextHealth)
+    } else {
+      notifications = notifications :+ NotifyHealthUpdates(checkRef, timestamp, nextCorrelationId, nextHealth)
+    }
+    Some(EventEffect(nextStatus, notifications))
+  }
+
+  /**
+   *
+   */
   def processAcknowledge(command: AcknowledgeCheck): Try[CommandEffect] = {
     correlationId match {
       case None =>

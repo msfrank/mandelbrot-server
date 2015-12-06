@@ -46,8 +46,8 @@ trait AccessorOps {
   def acknowledgementId: Option[UUID]
   def squelch: Boolean
 
-  def getCheckStatus(timestamp: DateTime) = CheckStatus(generation, timestamp, lifecycle, summary, health,
-    Map.empty, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
+  def getCheckStatus(timestamp: DateTime) = CheckStatus(generation, timestamp, lifecycle, summary,
+    health, lastUpdate, lastChange, correlationId, acknowledgementId, squelch)
 
   def getCheckStatus: CheckStatus = getCheckStatus(DateTime.now(DateTimeZone.UTC))
 }

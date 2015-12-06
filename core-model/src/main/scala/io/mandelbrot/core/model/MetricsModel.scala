@@ -58,7 +58,7 @@ object Statistic {
     case Metric90thPercentile.name => Metric90thPercentile
     case Metric95thPercentile.name => Metric95thPercentile
     case Metric99thPercentile.name => Metric99thPercentile
-    case _ => throw new IllegalArgumentException()
+    case other => throw new IllegalArgumentException(other)
   }
 }
 

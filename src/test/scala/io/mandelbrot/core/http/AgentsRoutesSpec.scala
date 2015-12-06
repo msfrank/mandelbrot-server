@@ -157,28 +157,6 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
       }
 
     }
-
-    "submit an observation" in withServiceProxy {
-      Post("/v2/agents", registration1) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
-      }
-      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + probeId.toString, observation) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-      }
-      Thread.sleep(1000)
-      Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        val checkStatus = responseAs[CheckStatus]
-        checkStatus.health shouldEqual CheckHealthy
-      }
-    }
-
-    "fail to submit an observation if the check doesn't exist" in withServiceProxy {
-      Post("/v2/agents/" + agent1.toString + "/probes/" + probeId.toString, observation) ~> routes ~> check {
-        status shouldEqual StatusCodes.NotFound
-      }
-    }
   }
 
   "route /v2/agents/(agentId)/checks/(checkId)/condition" should {

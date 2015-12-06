@@ -29,7 +29,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
     stateService ! PoisonPill
   }
 
-  val today = new DateTime(DateTimeZone.UTC).toDateMidnight
+  val today = new DateTime(DateTimeZone.UTC).withHourOfDay(0).withMinuteOfHour(0).withSecondOfMinute(0).withMillisOfSecond(0)
   val checkRef = CheckRef("test.state.manager:check")
   val probeRef = ProbeRef("test.state.manager:check")
   val dimensions = Map("agentId" -> probeRef.agentId.toString)
@@ -38,8 +38,8 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
   val timestamp1 = today.toDateTime.plusMinutes(1)
   val metrics1 = ScalarMapObservation(probeRef.probeId, timestamp1, dimensions, Map("load" -> 1.metricUnits))
   val observation1 = ProbeObservation(generation, metrics1)
-  val status1 = CheckStatus(generation, timestamp1, CheckKnown, Some("healthy1"), CheckHealthy,
-    Map.empty, None, None, None, None, squelched = false)
+  val status1 = CheckStatus(generation, timestamp1, CheckKnown, Some("healthy1"),
+    CheckHealthy, None, None, None, None, squelched = false)
   val notifications1 = CheckNotifications(generation, timestamp1,
     Vector(NotifyLifecycleChanges(checkRef, timestamp1, CheckJoining, CheckKnown)))
   val condition1 = CheckCondition(generation, status1.timestamp, status1.lifecycle, status1.summary, status1.health,
@@ -49,7 +49,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
   val metrics2 = ScalarMapObservation(probeRef.probeId, timestamp2, dimensions, Map("load" -> 2.metricUnits))
   val observation2 = ProbeObservation(generation, metrics2)
   val status2 = CheckStatus(generation, timestamp2, CheckKnown, Some("healthy2"), CheckHealthy,
-    Map.empty, None, None, None, None, squelched = false)
+    None, None, None, None, squelched = false)
   val notifications2 = CheckNotifications(generation, timestamp2,
     Vector(NotifyLifecycleChanges(checkRef, timestamp2, CheckJoining, CheckKnown)))
   val condition2 = CheckCondition(generation, status2.timestamp, status2.lifecycle, status2.summary, status2.health,
@@ -59,7 +59,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
   val metrics3 = ScalarMapObservation(probeRef.probeId, timestamp3, dimensions, Map("load" -> 3.metricUnits))
   val observation3 = ProbeObservation(generation, metrics3)
   val status3 = CheckStatus(generation, timestamp3, CheckKnown, Some("healthy3"), CheckHealthy,
-    Map.empty, None, None, None, None, squelched = false)
+    None, None, None, None, squelched = false)
   val notifications3 = CheckNotifications(generation, timestamp3,
     Vector(NotifyLifecycleChanges(checkRef, timestamp3, CheckJoining, CheckKnown)))
   val condition3 = CheckCondition(generation, status3.timestamp, status3.lifecycle, status3.summary, status3.health,
@@ -69,7 +69,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
   val metrics4 = ScalarMapObservation(probeRef.probeId, timestamp4, dimensions, Map("load" -> 4.metricUnits))
   val observation4 = ProbeObservation(generation, metrics4)
   val status4 = CheckStatus(generation, timestamp4, CheckKnown, Some("healthy4"), CheckHealthy,
-    Map.empty, None, None, None, None, squelched = false)
+    None, None, None, None, squelched = false)
   val notifications4 = CheckNotifications(generation, timestamp4,
     Vector(NotifyLifecycleChanges(checkRef, timestamp4, CheckJoining, CheckKnown)))
   val condition4 = CheckCondition(generation, status4.timestamp, status4.lifecycle, status4.summary, status4.health,
@@ -79,7 +79,7 @@ class StateManagerSpec(_system: ActorSystem) extends TestKit(_system) with Impli
   val metrics5 = ScalarMapObservation(probeRef.probeId, timestamp5, dimensions, Map("load" -> 5.metricUnits))
   val observation5 = ProbeObservation(generation, metrics5)
   val status5 = CheckStatus(generation, timestamp5, CheckKnown, Some("healthy5"), CheckHealthy,
-    Map.empty, None, None, None, None, squelched = false)
+    None, None, None, None, squelched = false)
   val notifications5 = CheckNotifications(generation, timestamp5,
     Vector(NotifyLifecycleChanges(checkRef, timestamp5, CheckJoining, CheckKnown)))
   val condition5 = CheckCondition(generation, status5.timestamp, status5.lifecycle, status5.summary, status5.health,

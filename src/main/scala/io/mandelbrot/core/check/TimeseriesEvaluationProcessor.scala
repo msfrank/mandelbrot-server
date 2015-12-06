@@ -5,11 +5,11 @@ import io.mandelbrot.core.parser.TimeseriesEvaluationParser
 import spray.json.DefaultJsonProtocol._
 import spray.json._
 
-import io.mandelbrot.core.model.{Timestamp, MetricSource}
+import io.mandelbrot.core.model._
 import io.mandelbrot.core.metrics._
 import io.mandelbrot.core.timeseries._
 
-case class TimeseriesEvaluationSettings(evaluation: TimeseriesEvaluation)
+case class TimeseriesEvaluationSettings(evaluation: TimeseriesEvaluation, warnOnFailure: Option[Boolean] = None)
 
 class TimeseriesCheck extends ProcessorExtension {
   type Settings = TimeseriesEvaluationSettings
@@ -20,16 +20,16 @@ class TimeseriesCheck extends ProcessorExtension {
       case other => throw new DeserializationException("")
     }
   }
-  implicit val TimeseriesEvaluationSettingsFormat = jsonFormat1(TimeseriesEvaluationSettings)
+  implicit val TimeseriesEvaluationSettingsFormat = jsonFormat2(TimeseriesEvaluationSettings)
   def configure(json: Option[JsObject]) = json.map(_.convertTo[TimeseriesEvaluationSettings])
     .getOrElse(throw new Exception(""))
-  def props(settings: TimeseriesEvaluationSettings) = TimeseriesEvaluationProcessor.props(settings)
+  def props(settings: TimeseriesEvaluationSettings) = TimeseriesEvaluationProcessor.props(settings, 1)
 }
 
 /**
  *
  */
-class TimeseriesEvaluationProcessor(settings: TimeseriesEvaluationSettings) extends Actor with ActorLogging {
+class TimeseriesEvaluationProcessor(settings: TimeseriesEvaluationSettings, timeDilation: Long) extends Actor with ActorLogging {
   import context.dispatcher
   import TimeseriesEvaluationProcessor.AdvanceTick
 
@@ -38,6 +38,7 @@ class TimeseriesEvaluationProcessor(settings: TimeseriesEvaluationSettings) exte
 
   // state
   var lsn: Long = 0
+  var parent: ActorRef = ActorRef.noSender
   var services: ActorRef = ActorRef.noSender
   var timestamp = Timestamp()
   var currentTick: Tick = Tick(timestamp, evaluation.samplingRate) - 1
@@ -52,10 +53,11 @@ class TimeseriesEvaluationProcessor(settings: TimeseriesEvaluationSettings) exte
 
     case change: ChangeProcessor =>
       lsn = change.lsn
+      parent = sender()
       services = change.services
       context.become(running)
 
-      val duration = currentTick.toDuration
+      val duration = currentTick.toDuration / timeDilation
       advanceTick = Some(context.system.scheduler.schedule(duration, duration, self, AdvanceTick))
 
       inflight = timeseriesStore.windows().map {
@@ -92,7 +94,14 @@ class TimeseriesEvaluationProcessor(settings: TimeseriesEvaluationSettings) exte
 
     /* */
     case AdvanceTick =>
-      context.parent ! LsnTickAlarmState(lsn, currentTick, evaluation.evaluate(timeseriesStore))
+      // determine check health
+      val health = evaluation.evaluate(timeseriesStore) match {
+        case Some(true) =>
+          if (settings.warnOnFailure.getOrElse(false)) CheckDegraded else CheckFailed
+        case Some(false) => CheckHealthy
+        case None => CheckUnknown
+      }
+      parent ! ProcessorStatus(lsn, currentTick, health, None)
       timestamp = Timestamp()
       currentTick = currentTick + 1
       timeseriesStore.advance(currentTick.toTimestamp)
@@ -116,6 +125,8 @@ class TimeseriesEvaluationProcessor(settings: TimeseriesEvaluationSettings) exte
 }
 
 object TimeseriesEvaluationProcessor {
-  def props(settings: TimeseriesEvaluationSettings) = Props(classOf[TimeseriesEvaluationProcessor], settings)
+  def props(settings: TimeseriesEvaluationSettings, timeDilation: Long) = {
+    Props(classOf[TimeseriesEvaluationProcessor], settings, timeDilation)
+  }
   case object AdvanceTick
 }
