@@ -19,18 +19,18 @@
 
 package io.mandelbrot.core
 
-import java.net.URI
-
 import akka.actor._
+import scala.util.hashing.MurmurHash3
+
+import io.mandelbrot.core.model.{AgentId, NotificationEvent}
 import io.mandelbrot.core.agent._
 import io.mandelbrot.core.entity._
-import io.mandelbrot.core.model.{AgentId, NotificationEvent}
+import io.mandelbrot.core.ingest._
+import io.mandelbrot.core.metrics._
 import io.mandelbrot.core.notification._
 import io.mandelbrot.core.registry._
 import io.mandelbrot.core.state._
 import io.mandelbrot.core.check._
-
-import scala.util.hashing.MurmurHash3
 
 /**
  * ServiceProxy is a router for all service operation messages, responsible for sending
@@ -67,6 +67,10 @@ class ServiceProxy extends Actor with ActorLogging {
     settings.cluster.enabled), "state-service")
   val entityService = context.actorOf(EntityManager.props(settings.cluster,
     propsCreator, entityReviver), "entity-service")
+  val ingestService = context.actorOf(IngestManager.props(settings.ingest,
+    settings.cluster.enabled), "ingest-service")
+  val metricsService = context.actorOf(MetricsManager.props(settings.metrics,
+    settings.cluster.enabled), "metrics-service")
 
   def receive = {
 
@@ -75,6 +79,12 @@ class ServiceProxy extends Actor with ActorLogging {
 
     case op: RegistryServiceOperation =>
       registryService forward op
+
+    case op: IngestServiceOperation =>
+      ingestService forward op
+
+    case op: MetricsServiceOperation =>
+      metricsService forward op
 
     case op: StateServiceOperation =>
       stateService forward op

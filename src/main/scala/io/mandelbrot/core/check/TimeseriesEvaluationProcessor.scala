@@ -40,11 +40,12 @@ class TimeseriesEvaluationProcessor(settings: TimeseriesEvaluationSettings, time
   var lsn: Long = 0
   var parent: ActorRef = ActorRef.noSender
   var services: ActorRef = ActorRef.noSender
-  var timestamp = Timestamp()
-  var currentTick: Tick = Tick(timestamp, evaluation.samplingRate) - 1
+  var currentTick: Tick = Tick(Timestamp(), evaluation.samplingRate) - 1
   val timeseriesStore = new TimeseriesStore(evaluation, initialInstant = Some(currentTick.toTimestamp))
   var advanceTick: Option[Cancellable] = None
   var inflight: Set[MetricsServiceOperation] = Set.empty
+
+  log.debug("initial tick is {}", currentTick)
 
   /**
    *
@@ -55,20 +56,23 @@ class TimeseriesEvaluationProcessor(settings: TimeseriesEvaluationSettings, time
       lsn = change.lsn
       parent = sender()
       services = change.services
-      context.become(running)
+      log.debug("processor has lsn {}", lsn)
 
       val duration = currentTick.toDuration / timeDilation
       advanceTick = Some(context.system.scheduler.schedule(duration, duration, self, AdvanceTick))
+      log.debug("processor ticks every {} with time dilation", duration)
 
       inflight = timeseriesStore.windows().map {
         case (source @ MetricSource(probeId, metricName, statistic, samplingRate, dimension), window) =>
           val from = Some(window.horizon.toTimestamp.toDateTime)
-          val to = Some(window.tip.toTimestamp.toDateTime)
+          val to = Some((window.tip + 1).toTimestamp.toDateTime)
           val op = GetProbeMetricsHistory(probeId, metricName, dimension, Set(statistic),
-            samplingRate, from, to, limit = window.size, fromInclusive = true)
+            samplingRate, from, to, limit = window.size, fromInclusive = true, toExclusive = true)
           services ! op
           op
       }.toSet
+
+      context.become(running)
   }
 
   /**
@@ -82,6 +86,7 @@ class TimeseriesEvaluationProcessor(settings: TimeseriesEvaluationSettings, time
 
     /* */
     case result: GetProbeMetricsHistoryResult =>
+      log.info("retrieved metrics {}", result)
       inflight = inflight - result.op
       val source = MetricSource(result.op.probeId, result.op.metricName,
         result.op.statistics.head, result.op.samplingRate, result.op.dimension)
@@ -94,6 +99,7 @@ class TimeseriesEvaluationProcessor(settings: TimeseriesEvaluationSettings, time
 
     /* */
     case AdvanceTick =>
+      log.debug("tick advances")
       // determine check health
       val health = evaluation.evaluate(timeseriesStore) match {
         case Some(true) =>
@@ -102,15 +108,15 @@ class TimeseriesEvaluationProcessor(settings: TimeseriesEvaluationSettings, time
         case None => CheckUnknown
       }
       parent ! ProcessorStatus(lsn, currentTick, health, None)
-      timestamp = Timestamp()
       currentTick = currentTick + 1
+      log.debug("current tick is {}", currentTick)
       timeseriesStore.advance(currentTick.toTimestamp)
       inflight = timeseriesStore.windows().map {
         case (source @ MetricSource(probeId, metricName, statistic, samplingRate, dimension), window) =>
           val from = Some(window.horizon.toTimestamp.toDateTime)
-          val to = Some(window.tip.toTimestamp.toDateTime)
+          val to = Some((window.tip + 1).toTimestamp.toDateTime)
           val op = GetProbeMetricsHistory(probeId, metricName, dimension, Set(statistic),
-            samplingRate, from, to, limit = window.size, fromInclusive = true)
+            samplingRate, from, to, limit = window.size, fromInclusive = true, toExclusive = true)
           services ! op
           op
       }.toSet
