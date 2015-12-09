@@ -39,8 +39,7 @@ import io.mandelbrot.core.util.Timer
 class Check(val checkRef: CheckRef,
             val generation: Long,
             val parent: ActorRef,
-            val services: ActorRef,
-            val observationBus: ObservationBus) extends LoggingFSM[Check.State,Check.Data] with Stash with ProcessingOps {
+            val services: ActorRef) extends LoggingFSM[Check.State,Check.Data] with Stash with ProcessingOps {
   import Check._
   import context.dispatcher
 
@@ -68,12 +67,13 @@ class Check(val checkRef: CheckRef,
 
     /* initialize the check using parameters from the proposed processor */
     case Event(change: ChangeCheck, NoData) =>
+      log.debug("changing check {}", checkRef)
       val op = GetStatus(checkRef, generation)
       services ! op
       goto(Initializing) using Initializing(change, op)
 
     /* stash any other messages for processing later */
-    case Event(_, NoData) =>
+    case Event(other, NoData) =>
       stash()
       stay()
   }
@@ -95,13 +95,17 @@ class Check(val checkRef: CheckRef,
     /* configure processor using initial state */
     case Event(result: GetStatusResult, state: Initializing) =>
       commitTimer.stop()
+      log.debug("received initial status: {}", result.status)
       policy = state.change.policy
       children = state.change.children
-      // if check has a previous status
-      result.status.foreach { status =>
-        applyStatus(status)
-        lastCommitted = Some(status.timestamp)
+      // if check has no previous status, then generate the first status
+      val status = result.status.getOrElse {
+        val timestamp = Timestamp().toDateTime
+        CheckStatus(generation, timestamp, CheckInitializing, None, CheckUnknown,
+          Some(timestamp), Some(timestamp), None, None, squelched = false)
       }
+      applyStatus(status)
+      lastCommitted = Some(status.timestamp)
       // create the check processor
       processor = context.actorOf(state.change.props)
       context.watch(processor)
@@ -119,7 +123,7 @@ class Check(val checkRef: CheckRef,
       throw failure.failure
 
     /* stash any other messages for processing later */
-    case Event(_, state: Initializing) =>
+    case Event(other, state: Initializing) =>
       stash()
       stay()
   }
@@ -288,9 +292,8 @@ object Check {
   def props(checkRef: CheckRef,
             generation: Long,
             parent: ActorRef,
-            services: ActorRef,
-            metricsBus: ObservationBus) = {
-    Props(classOf[Check], checkRef, generation, parent, services, metricsBus)
+            services: ActorRef) = {
+    Props(classOf[Check], checkRef, generation, parent, services)
   }
 
 

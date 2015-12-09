@@ -121,9 +121,9 @@ trait RegistrationOps extends Actor with ActorLogging {
       val checkRef = CheckRef(agentId, checkId)
       val actor = checkId.parentOption match {
         case Some(parent) =>
-          context.actorOf(Check.props(checkRef, generation, checks(parent).actor, services, observationBus))
+          context.actorOf(Check.props(checkRef, generation, checks(parent).actor, services))
         case _ =>
-          context.actorOf(Check.props(checkRef, generation, self, services, observationBus))
+          context.actorOf(Check.props(checkRef, generation, self, services))
       }
       log.debug("check {} joins {}", checkId, agentId)
       context.watch(actor)

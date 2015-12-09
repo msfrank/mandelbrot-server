@@ -107,7 +107,7 @@ class TimeseriesEvaluationProcessor(settings: TimeseriesEvaluationSettings, time
         case Some(false) => CheckHealthy
         case None => CheckUnknown
       }
-      parent ! ProcessorStatus(lsn, currentTick, health, None)
+      parent ! ProcessorStatus(lsn, Timestamp(), health, None)
       currentTick = currentTick + 1
       log.debug("current tick is {}", currentTick)
       timeseriesStore.advance(currentTick.toTimestamp)

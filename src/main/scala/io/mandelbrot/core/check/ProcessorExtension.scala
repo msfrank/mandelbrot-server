@@ -6,8 +6,7 @@ import org.slf4j.LoggerFactory
 import spray.json.JsObject
 import scala.collection.JavaConversions._
 
-import io.mandelbrot.core.model.{CheckHealth, CheckRef}
-import io.mandelbrot.core.timeseries.Tick
+import io.mandelbrot.core.model.{Timestamp, CheckHealth, CheckRef}
 
 /**
  *
@@ -31,4 +30,4 @@ object ProcessorExtension {
 }
 
 case class ChangeProcessor(lsn: Long, services: ActorRef, children: Set[CheckRef])
-case class ProcessorStatus(lsn: Long, tick: Tick, health: CheckHealth, summary: Option[String])
+case class ProcessorStatus(lsn: Long, timestamp: Timestamp, health: CheckHealth, summary: Option[String])
