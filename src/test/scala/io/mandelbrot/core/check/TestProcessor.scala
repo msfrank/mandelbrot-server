@@ -51,3 +51,9 @@ class TestCheck extends ProcessorExtension {
     .getOrElse(throw new IllegalArgumentException())
   def props(settings: TestProcessorSettings) = TestProcessor.props(settings)
 }
+
+class TestAlwaysHealthy extends ProcessorExtension {
+  type Settings = Any
+  def configure(json: Option[JsObject]) = Unit
+  def props(settings: Any) = TestProcessor.props(TestProcessorSettings(Vector((CheckHealthy,Some("healthy"))), 1.second))
+}

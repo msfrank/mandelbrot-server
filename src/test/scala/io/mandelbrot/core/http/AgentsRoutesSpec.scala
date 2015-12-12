@@ -44,8 +44,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
   val probes = Map(ProbeId("load") -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
   val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 5.seconds, None)
   val checkId = CheckId("load")
-  val checkSpec = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy,
-    Some(JsObject("evaluation" -> JsString("probe:system.load:load1:p99:1minute:host=foo.com > 1"))))
+  val checkSpec = CheckSpec("io.mandelbrot.core.check.TestAlwaysHealthy", checkPolicy, None)
   val checks = Map(checkId -> checkSpec)
   val metrics = Map.empty[CheckId,Map[String,MetricSpec]]
   val agentPolicy = AgentPolicy(5.seconds)
@@ -142,11 +141,12 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
+      Thread.sleep(5000)
       Get("/v2/agents/" + agent1.toString + "/checks/" + checkId.toString) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val checkStatus = responseAs[CheckStatus]
-        checkStatus.lifecycle shouldEqual CheckJoining
-        checkStatus.health shouldEqual CheckUnknown
+        checkStatus.lifecycle shouldEqual CheckKnown
+        checkStatus.health shouldEqual CheckHealthy
       }
 
     }
@@ -166,10 +166,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + probeId.toString, observation) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-      }
-      Thread.sleep(1000)
+      Thread.sleep(5000)
       Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString + "/condition") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val page = responseAs[CheckConditionPage]
@@ -184,9 +181,6 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + probeId.toString, observation) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-      }
       Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + CheckId("notfound") + "/condition") ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
       }
@@ -196,9 +190,6 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
       Post("/v2/agents", registration1) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
-      }
-      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + probeId.toString, observation) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
       }
       Get("/v2/agents/" + AgentId("notfound") + "/checks/" + CheckId("notfound") + "/condition") ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
@@ -213,10 +204,7 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + probeId.toString, observation) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-      }
-      Thread.sleep(1000)
+      Thread.sleep(5000)
       Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + checkId.toString + "/notifications") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val page = responseAs[CheckNotificationsPage]
@@ -229,9 +217,6 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + probeId.toString, observation) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-      }
       Get("/v2/agents/" + registration1.agentId.toString + "/checks/" + CheckId("notfound") + "/notifications") ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
       }
@@ -242,57 +227,10 @@ class AgentsRoutesSpec extends WordSpec with ScalatestRouteTest with V2Api with 
         status shouldEqual StatusCodes.OK
         header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
       }
-      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + probeId.toString, observation) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-      }
       Get("/v2/agents/" + AgentId("notfound") + "/checks/" + CheckId("notfound") + "/notifications") ~> routes ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
   }
 
-  "route /v2/agents/(agentId)/probes/(probeId)" should {
-
-    "get the latest observation when no timeseries params are specified" in withServiceProxy {
-      Post("/v2/agents", registration1) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
-      }
-      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + probeId.toString, observation) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-      }
-      Thread.sleep(1000)
-      Get("/v2/agents/" + registration1.agentId.toString + "/probes/" + probeId.toString) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        val page = responseAs[ProbeObservationPage]
-        page.history.length shouldEqual 1
-      }
-    }
-
-    "fail to get the latest observation if the check doesn't exist" in withServiceProxy {
-      Post("/v2/agents", registration1) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
-      }
-      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + probeId.toString, observation) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-      }
-      Get("/v2/agents/" + registration1.agentId.toString + "/probes/" + ProbeId("notfound")) ~> routes ~> check {
-        status shouldEqual StatusCodes.NotFound
-      }
-    }
-
-    "fail to get the latest observation if the agent doesn't exist" in withServiceProxy {
-      Post("/v2/agents", registration1) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        header("Location") shouldEqual Some(Location("/v2/agents/" + registration1.agentId.toString))
-      }
-      Post("/v2/agents/" + registration1.agentId.toString + "/probes/" + probeId.toString, observation) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-      }
-      Get("/v2/agents/" + AgentId("notfound") + "/probes/" + ProbeId("notfound")) ~> routes ~> check {
-        status shouldEqual StatusCodes.NotFound
-      }
-    }
-  }
 }

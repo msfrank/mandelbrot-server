@@ -1,1 +1,2 @@
 io.mandelbrot.core.check.TestCheck
+io.mandelbrot.core.check.TestAlwaysHealthy

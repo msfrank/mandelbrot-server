@@ -48,8 +48,7 @@ class ReapTombstonesTaskSpec(_system: ActorSystem) extends TestKit(_system) with
       val probePolicy = ProbePolicy(PerMinute)
       val probes = Map(ProbeId("load") -> ProbeSpec(probePolicy, Map("load1" -> MetricSpec(GaugeSource, Units))))
       val checkPolicy = CheckPolicy(5.seconds, 5.seconds, 5.seconds, 0.seconds, None)
-      val check = CheckSpec("io.mandelbrot.core.check.TimeseriesCheck", checkPolicy,
-        Some(JsObject("evaluation" -> JsString("probe:system.load:load1:p99:1minute:host=foo.com > 1"))), Map.empty)
+      val check = CheckSpec("io.mandelbrot.core.check.TestAlwaysHealthy", checkPolicy, None)
       val checks = Map(CheckId("load") -> check)
       val agentPolicy = AgentPolicy(0.seconds)
       val registration = AgentSpec(agentId, "mandelbrot", agentPolicy, probes, checks)
@@ -57,11 +56,7 @@ class ReapTombstonesTaskSpec(_system: ActorSystem) extends TestKit(_system) with
       serviceProxy ! RegisterAgent(agentId, registration)
       val registerAgentResult = expectMsgClass(10.seconds, classOf[RegisterAgentResult])
 
-      val probeRef = ProbeRef(agentId, ProbeId("load"))
-      val timestamp = Timestamp()
-      val observation = ScalarMapObservation(probeRef.probeId, timestamp, Map.empty, Map.empty)
-      serviceProxy ! ProcessProbeObservation(probeRef, observation)
-      expectMsgClass(10.seconds, classOf[ProcessProbeObservationResult])
+      expectNoMsg(5.seconds)
 
       serviceProxy ! RetireAgent(agentId)
       expectMsgClass(classOf[RetireAgentResult])
