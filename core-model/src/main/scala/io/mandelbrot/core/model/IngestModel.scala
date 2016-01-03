@@ -11,7 +11,7 @@ sealed trait Observation {
 }
 
 /* */
-final case class DataPoint(value: Long, unit: MetricUnit, samplingRate: Option[SamplingRate] = None)
+final case class DataPoint(value: Double, unit: MetricUnit, samplingRate: Option[SamplingRate] = None)
 
 /* */
 final case class ScalarMapObservation(probeId: ProbeId,

@@ -23,7 +23,10 @@ object MandelbrotServerBuild extends Build {
   val kafkaVersion = "0.8.2.2"
   val jodaTimeVersion = "2.8.2"
   val jodaConvertVersion = "1.7"
+  val guavaVersion = "19.0"
   val hdrHistogramVersion = "2.1.7"
+  val rocksdbVersion = "3.13.1"
+  val kryoVersion = "3.0.3"
   val javaxMailVersion = "1.4.7"
   val slf4jApiVersion = "1.7.12"
   val logbackVersion = "1.1.3"
@@ -99,7 +102,10 @@ object MandelbrotServerBuild extends Build {
         "javax.mail" % "mail" % javaxMailVersion,
         "joda-time" % "joda-time" % jodaTimeVersion,
         "org.joda" % "joda-convert" % jodaConvertVersion,
+        //"com.google.guava" % "guava" % guavaVersion,
         "org.hdrhistogram" % "HdrHistogram" % hdrHistogramVersion,
+        "org.rocksdb" % "rocksdbjni" % rocksdbVersion,
+        //"com.esotericsoftware" % "kryo" % kryoVersion,
         "org.slf4j" % "slf4j-api" % slf4jApiVersion,
         "ch.qos.logback" % "logback-classic" % logbackVersion,
         "org.scalatest" %% "scalatest" % scalatestVersion % "test",

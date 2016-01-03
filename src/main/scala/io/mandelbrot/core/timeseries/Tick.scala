@@ -41,6 +41,10 @@ sealed abstract class Tick(timeInMillis: Long, val samplingRate: SamplingRate) e
   def contains(that: Long): Boolean = instant >= that && that < instant + interval
   def contains(dateTime: DateTime): Boolean = contains(dateTime.toDateTime(DateTimeZone.UTC).getMillis)
   def contains(timestamp: Timestamp): Boolean = contains(timestamp.toMillis)
+  override def equals(o: Any): Boolean = o match {
+    case other: Tick if instant == other.instant && interval == other.interval => true
+    case other => false
+  }
   def compare(timestamp: Timestamp): Int = if (contains(timestamp)) 0 else {
     if (instant - timestamp.toMillis < 0) -1 else 1
   }
@@ -75,6 +79,10 @@ object Tick {
   def apply(timestamp: Timestamp, samplingRate: SamplingRate): Tick = apply(timestamp.toMillis, samplingRate)
 }
 
+object CurrentTick {
+  def apply(samplingRate: SamplingRate) = Tick(System.currentTimeMillis(), samplingRate)
+}
+
 class SecondTick(timeInMillis: Long) extends Tick(timeInMillis, PerSecond) {
   def -(duration: FiniteDuration): Tick = new SecondTick(instant - duration.toMillis)
   def -(ticks: Long): Tick = new SecondTick(instant - (interval * ticks))
@@ -89,18 +97,21 @@ class MinuteTick(timeInMillis: Long) extends Tick(timeInMillis, PerMinute) {
   def +(duration: FiniteDuration): Tick = new MinuteTick(instant + duration.toMillis)
   def +(ticks: Long): Tick = new MinuteTick(instant + (interval * ticks))
 }
+
 class FiveMinuteTick(timeInMillis: Long) extends Tick(timeInMillis, PerFiveMinutes) {
   def -(duration: FiniteDuration): Tick = new FiveMinuteTick(instant - duration.toMillis)
   def -(ticks: Long): Tick = new FiveMinuteTick(instant - (interval * ticks))
   def +(duration: FiniteDuration): Tick = new FiveMinuteTick(instant + duration.toMillis)
   def +(ticks: Long): Tick = new FiveMinuteTick(instant + (interval * ticks))
 }
+
 class HourTick(timeInMillis: Long) extends Tick(timeInMillis, PerHour) {
   def -(duration: FiniteDuration): Tick = new HourTick(instant - duration.toMillis)
   def -(ticks: Long): Tick = new HourTick(instant - (interval * ticks))
   def +(duration: FiniteDuration): Tick = new HourTick(instant + duration.toMillis)
   def +(ticks: Long): Tick = new HourTick(instant + (interval * ticks))
 }
+
 class DayTick(timeInMillis: Long) extends Tick(timeInMillis, PerDay) {
   def -(duration: FiniteDuration): Tick = new DayTick(instant - duration.toMillis)
   def -(ticks: Long): Tick = new DayTick(instant - (interval * ticks))
